@@ -1,40 +1,24 @@
-import { app, shell, BrowserWindow } from 'electron'
-import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { app, BrowserWindow } from 'electron'
+import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { TabManager } from './tabManager'
+import { registerIpcHandlers } from './ipcHandlers'
 
 /**
- * PHASE 1: cua so chinh trong (1280x800), chua tich hop tabManager /
- * ipcHandlers that su - se lam o PHASE 7 (WebContentsView cho tung tab,
- * chan popup, mo _blank thanh tab moi).
+ * Cua so chinh (1280x800). Noi dung thuc su (chrome UI + tab) do
+ * TabManager quan ly qua WebContentsView, khong load truc tiep vao
+ * mainWindow.webContents nua (TabManager tu goi window.show() khi chrome
+ * view tai xong lan dau - xem comment trong tabManager.ts).
  */
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     show: false,
-    autoHideMenuBar: true,
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false,
-      contextIsolation: true,
-      nodeIntegration: false
-    }
+    autoHideMenuBar: true
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
+  const tabManager = new TabManager(mainWindow)
+  registerIpcHandlers(tabManager)
 }
 
 app.whenReady().then(() => {
@@ -43,9 +27,6 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-
-  // TODO (PHASE 7): dang ky IPC handlers that (registerIpcHandlers()) va
-  // khoi tao tabManager cho tab dau tien thay vi load thang mainWindow.
 
   createWindow()
 

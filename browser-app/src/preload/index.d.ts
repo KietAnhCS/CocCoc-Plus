@@ -1,13 +1,13 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface BrowserApi {
-  newTab: (url: string) => void
-  closeTab: (id: string) => void
-  switchTab: (id: string) => void
-  navigate: (id: string, url: string) => void
-  goBack: (id: string) => void
-  goForward: (id: string) => void
-  reload: (id: string) => void
+  newTab: (url: string) => Promise<string>
+  closeTab: (id: string) => Promise<void>
+  switchTab: (id: string) => Promise<void>
+  navigate: (id: string, url: string) => Promise<void>
+  goBack: (id: string) => Promise<void>
+  goForward: (id: string) => Promise<void>
+  reload: (id: string) => Promise<void>
   onTabUpdate: (callback: (payload: unknown) => void) => void
 }
 

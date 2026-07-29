@@ -1,5 +1,6 @@
 package com.vnsearch.query;
 
+import com.vnsearch.index.InvertedIndex;
 import com.vnsearch.index.Posting;
 
 import java.util.ArrayList;
@@ -105,6 +106,33 @@ public class PostingListMerger {
             result = intersect(result, docIdsOf(sorted.get(i)));
         }
         return result;
+    }
+
+    /**
+     * Kiem tra {@code docId} co chua cum tu (phrase) khop CHINH XAC thu tu
+     * lien tiep khong — dung danh sach positions cua tung term (tra ve boi
+     * {@link InvertedIndex#getPositions}) de xac nhan term thu i+1 nam o
+     * vi tri = vi tri term thu i + 1.
+     */
+    public static boolean matchesPhrase(InvertedIndex index, List<String> phraseTerms, int docId) {
+        if (phraseTerms.isEmpty()) {
+            return true;
+        }
+        List<Integer> firstPositions = index.getPositions(phraseTerms.get(0), docId);
+        for (int start : firstPositions) {
+            boolean allMatch = true;
+            for (int i = 1; i < phraseTerms.size(); i++) {
+                List<Integer> positions = index.getPositions(phraseTerms.get(i), docId);
+                if (!positions.contains(start + i)) {
+                    allMatch = false;
+                    break;
+                }
+            }
+            if (allMatch) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Demo minh hoa nho de chup man hinh lam bao cao. */

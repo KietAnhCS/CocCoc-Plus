@@ -1,0 +1,58 @@
+### VnSearch REST API — vi du (dung voi extension "REST Client" cua VS Code,
+### hoac copy tung lenh curl tuong ung o duoi moi block).
+### Backend phai dang chay: cd search-engine && ./mvnw.cmd spring-boot:run
+
+@baseUrl = http://localhost:8080
+
+### 1. Tim kiem co ban
+GET {{baseUrl}}/api/search?q=công nghệ&page=1&size=10
+# curl -G "http://localhost:8080/api/search" --data-urlencode "q=công nghệ" --data-urlencode "page=1" --data-urlencode "size=10"
+
+### 2. Tim kiem khong dau (van phai ra ket qua co dau nho co che dual-index)
+GET {{baseUrl}}/api/search?q=cong nghe&page=1&size=5
+# curl -G "http://localhost:8080/api/search" --data-urlencode "q=cong nghe" --data-urlencode "page=1" --data-urlencode "size=5"
+
+### 3. Tim kiem cum tu chinh xac (phrase search)
+GET {{baseUrl}}/api/search?q="trình duyệt web"&page=1&size=5
+# curl -G "http://localhost:8080/api/search" --data-urlencode 'q="trình duyệt web"'
+
+### 4. Tim kiem co loai tru tu (-tu)
+GET {{baseUrl}}/api/search?q=tin tức -thể thao&page=1&size=5
+# curl -G "http://localhost:8080/api/search" --data-urlencode "q=tin tức -thể thao"
+
+### 5. Goi y tu khoa (autocomplete)
+GET {{baseUrl}}/api/suggest?prefix=công&limit=5
+# curl -G "http://localhost:8080/api/suggest" --data-urlencode "prefix=công" --data-urlencode "limit=5"
+
+### 6. Bat dau mot phien crawl moi (chi seed vnexpress.net, gioi han nho de test nhanh)
+POST {{baseUrl}}/api/admin/crawl
+Content-Type: application/json
+
+{
+  "seedUrls": ["https://vnexpress.net/"],
+  "maxDepth": 2,
+  "maxPages": 20
+}
+
+# curl -X POST "http://localhost:8080/api/admin/crawl" -H "Content-Type: application/json" \
+#   -d '{"seedUrls":["https://vnexpress.net/"],"maxDepth":2,"maxPages":20}'
+
+### 7. Xem trang thai job crawl (thay {jobId} bang gia tri tra ve o buoc 6)
+GET {{baseUrl}}/api/admin/crawl/{jobId}/status
+# curl "http://localhost:8080/api/admin/crawl/{jobId}/status"
+
+### 8. Reindex lai toan bo (chay lai PageRank tren du lieu da crawl gan nhat)
+POST {{baseUrl}}/api/admin/reindex
+# curl -X POST "http://localhost:8080/api/admin/reindex"
+
+### 9. Xem thong ke he thong
+GET {{baseUrl}}/api/admin/stats
+# curl "http://localhost:8080/api/admin/stats"
+
+### 10. Loi: thieu tham so bat buoc (mong doi 400)
+GET {{baseUrl}}/api/search
+# curl -i "http://localhost:8080/api/search"
+
+### 11. Loi: job crawl khong ton tai (mong doi 404)
+GET {{baseUrl}}/api/admin/crawl/khong-ton-tai/status
+# curl -i "http://localhost:8080/api/admin/crawl/khong-ton-tai/status"

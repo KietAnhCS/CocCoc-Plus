@@ -173,6 +173,10 @@ public class CrawlerService {
         return frontier.size();
     }
 
+    public int getBloomFilterBits() {
+        return visited.getNumBits();
+    }
+
     /** Luu danh sach WebDocument da crawl ra file JSON (Jackson), tao thu muc neu chua co. */
     public static void saveToJson(List<WebDocument> documents, String path) throws IOException {
         Path filePath = Path.of(path);

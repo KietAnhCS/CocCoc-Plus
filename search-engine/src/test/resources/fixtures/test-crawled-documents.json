@@ -1,0 +1,29 @@
+[
+  {
+    "docId": 0,
+    "url": "https://test.local/a",
+    "title": "Máy tính xách tay giá rẻ",
+    "metaDescription": "Đánh giá các mẫu máy tính xách tay",
+    "bodyText": "Máy tính xách tay cấu hình mạnh phù hợp cho sinh viên và dân văn phòng",
+    "outlinks": ["https://test.local/b"],
+    "crawledAt": "2026-01-01T00:00:00Z"
+  },
+  {
+    "docId": 1,
+    "url": "https://test.local/b",
+    "title": "Công thức nấu ăn ngon",
+    "metaDescription": "Hướng dẫn nấu ăn",
+    "bodyText": "Hướng dẫn nấu ăn ngon mỗi ngày cho gia đình đơn giản dễ làm",
+    "outlinks": ["https://test.local/a", "https://test.local/c"],
+    "crawledAt": "2026-01-01T00:00:00Z"
+  },
+  {
+    "docId": 2,
+    "url": "https://test.local/c",
+    "title": "Tin tức công nghệ mới nhất",
+    "metaDescription": "Cập nhật công nghệ",
+    "bodyText": "Công nghệ trí tuệ nhân tạo đang phát triển rất nhanh chóng trong năm nay",
+    "outlinks": [],
+    "crawledAt": "2026-01-01T00:00:00Z"
+  }
+]

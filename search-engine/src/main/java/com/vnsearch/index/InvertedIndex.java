@@ -81,8 +81,36 @@ public class InvertedIndex {
         return getPostings(term).size();
     }
 
+    /**
+     * O(log n) - binary search tren posting list (da sap xep theo docId)
+     * de lay danh sach vi tri xuat hien cua {@code term} trong {@code docId}
+     * cu the. Dung cho phrase search (kiem tra cac term co nam LIEN TIEP
+     * khong). Tra ve danh sach rong neu term khong xuat hien trong tai lieu do.
+     */
+    public List<Integer> getPositions(String term, int docId) {
+        List<Posting> postings = getPostings(term);
+        int low = 0, high = postings.size() - 1;
+        while (low <= high) {
+            int mid = (low + high) >>> 1;
+            int midDocId = postings.get(mid).docId();
+            if (midDocId == docId) {
+                return postings.get(mid).positions();
+            } else if (midDocId < docId) {
+                low = mid + 1;
+            } else {
+                high = mid - 1;
+            }
+        }
+        return List.of();
+    }
+
     public WebDocument getDocument(int docId) {
         return documents.get(docId);
+    }
+
+    /** So luong term (khoa) khac nhau dang co trong index — dung cho thong ke /api/admin/stats. */
+    public int getTermCount() {
+        return index.size();
     }
 
     public int getDocLength(int docId) {

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { useHistoryStore } from './historyStore'
+import { useSearchViewStore } from './searchViewStore'
 
 export const HOME_URL = 'vnsearch://home'
 
@@ -75,6 +76,7 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
   },
 
   newTab: async (url) => {
+    useSearchViewStore.getState().setQuery(null)
     const id = await window.browser.newTab(url ?? HOME_URL)
     set({ activeTabId: id })
   },

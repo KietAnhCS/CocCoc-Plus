@@ -1,4 +1,5 @@
 import { useTabStore, HOME_URL } from '../store/tabStore'
+import { useSearchViewStore } from '../store/searchViewStore'
 
 /** Icon back/forward/reload/home. Back/forward doc trang thai tu historyStore.ts (Stack tu cai). */
 function NavigationButtons(): JSX.Element {
@@ -6,6 +7,7 @@ function NavigationButtons(): JSX.Element {
   const goForward = useTabStore((s) => s.goForward)
   const reload = useTabStore((s) => s.reload)
   const navigate = useTabStore((s) => s.navigate)
+  const setQuery = useSearchViewStore((s) => s.setQuery)
   // Doc truc tiep tu historyStore (qua canGoBack/canGoForward) de re-render dung khi stack thay doi.
   const canGoBack = useTabStore((s) => s.canGoBack())
   const canGoForward = useTabStore((s) => s.canGoForward())
@@ -30,7 +32,14 @@ function NavigationButtons(): JSX.Element {
       <button onClick={() => reload()} className={buttonClass(true)} aria-label="Tải lại">
         ⟳
       </button>
-      <button onClick={() => navigate(HOME_URL)} className={buttonClass(true)} aria-label="Trang chủ">
+      <button
+        onClick={() => {
+          setQuery(null)
+          navigate(HOME_URL)
+        }}
+        className={buttonClass(true)}
+        aria-label="Trang chủ"
+      >
         ⌂
       </button>
     </div>

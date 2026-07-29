@@ -1,6 +1,6 @@
 # Backend (Maven / Java)
-search-engine/search-engine/target/
-search-engine/search-engine/.mvn/wrapper/maven-wrapper.jar
+search-engine/target/
+search-engine/.mvn/wrapper/maven-wrapper.jar
 *.class
 
 # Frontend (Electron / Node)
@@ -9,7 +9,7 @@ browser-app/out/
 browser-app/dist/
 
 # Data / runtime
-data/*.json
+search-engine/data/*.json
 
 # IDE / OS
 .idea/

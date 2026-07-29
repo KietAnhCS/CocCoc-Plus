@@ -1,0 +1,158 @@
+# Tu dien tu ghep tieng Viet (moi dong 1 cum tu, cac tieng cach nhau boi
+# 1 dau cach). Dung cho thuat toan Longest Matching trong VietnameseTokenizer.
+# Danh sach nay la tap khoi dau tap trung vao mien cong nghe/tim kiem +
+# cac cum tu pho bien; co the mo rong them o PHASE 10.
+công nghệ
+máy tính
+trình duyệt
+trình duyệt web
+tìm kiếm
+công cụ tìm kiếm
+mạng xã hội
+điện thoại
+điện thoại thông minh
+phần mềm
+phần cứng
+dữ liệu
+cơ sở dữ liệu
+thông tin
+an toàn thông tin
+ứng dụng
+hệ thống
+máy chủ
+trí tuệ nhân tạo
+học máy
+học sâu
+khoa học
+khoa học máy tính
+kỹ thuật
+giáo dục
+kinh tế
+chính trị
+xã hội
+văn hóa
+thể thao
+giải trí
+âm nhạc
+phim ảnh
+sức khỏe
+y tế
+du lịch
+ẩm thực
+thời trang
+làm đẹp
+gia đình
+tình yêu
+hôn nhân
+con người
+cuộc sống
+công việc
+kinh doanh
+đầu tư
+chứng khoán
+bất động sản
+ngân hàng
+tài chính
+thị trường
+sản phẩm
+dịch vụ
+khách hàng
+doanh nghiệp
+công ty
+nhà nước
+chính phủ
+pháp luật
+an ninh
+quốc phòng
+ngoại giao
+hợp tác
+phát triển
+môi trường
+khí hậu
+thiên nhiên
+động vật
+thực vật
+vũ trụ
+trái đất
+năng lượng
+điện lực
+giao thông
+vận tải
+xây dựng
+kiến trúc
+thiết kế
+nghệ thuật
+hội họa
+điêu khắc
+lịch sử
+địa lý
+ngôn ngữ
+văn học
+báo chí
+truyền thông
+quảng cáo
+tiếp thị
+thương mại
+thương mại điện tử
+mạng internet
+bảo mật
+virus máy tính
+robot tự động
+xe hơi
+xe máy
+máy bay
+tàu thủy
+đường sắt
+sân bay
+bến cảng
+nhà ga
+trường học
+đại học
+sinh viên
+giáo viên
+học sinh
+phụ huynh
+trẻ em
+người già
+phụ nữ
+đàn ông
+thanh niên
+người lao động
+công nhân
+nông dân
+bác sĩ
+kỹ sư
+luật sư
+nhà báo
+ca sĩ
+diễn viên
+cầu thủ
+vận động viên
+việt nam
+hà nội
+hồ chí minh
+đà nẵng
+thành phố
+nông thôn
+miền bắc
+miền nam
+miền trung
+biến đổi khí hậu
+ô nhiễm môi trường
+năng lượng tái tạo
+xe điện
+tự động hóa
+chuyển đổi số
+thanh toán điện tử
+ví điện tử
+mạng lưới
+cơ quan chức năng
+đơn vị
+tổ chức
+hiệp hội
+liên minh
+thế giới
+quốc tế
+trong nước
+ngoài nước
+toàn cầu

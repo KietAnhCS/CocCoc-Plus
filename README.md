@@ -36,6 +36,14 @@ Server chay o `http://localhost:8080`.
 > `spring-boot-starter-parent` ban 3.3.4 (van con tren Maven Central) de
 > giu dung yeu cau "Spring Boot 3.x" cua dac ta.
 
+**Demo ngay khong can crawl lai**: repo di kem san
+`search-engine/data/seed-documents.json` (~40 trang that da crawl san tu
+vnexpress.net). Neu chua tung crawl (chua co `data/crawled-documents.json`
+hay `data/index.json`), backend se TU DONG dung file seed nay khi khoi
+dong — chi can chay `spring-boot:run` la co du lieu de tim kiem ngay.
+Muon crawl du lieu moi, thuc thi `docs/api-examples.http` (muc 6-7) hoac
+xem huong dan trong tai lieu do.
+
 ## Chay frontend (Electron + React)
 
 ```bash
@@ -47,14 +55,24 @@ npm run dev
 Cua so Electron se mo, dev server cua renderer chay o `http://localhost:5173`
 (chi dung noi bo cho Vite HMR, khong can mo bang browser ngoai).
 
-## Trang thai hien tai (PHASE 1)
+## Trang thai hien tai: HOAN THIEN CA 10 PHASE
 
-Moi day chi la khung du an (skeleton): cay thu muc dung dac ta, cac class/
-file trong package `datastructure`, `crawler`, `index`, `ranking`, `query`,
-`controller`, `model` (backend) va `main`/`preload`/`renderer` (frontend)
-la stub co Javadoc/comment TODO mo ta trach nhiem — CHUA cai thuat toan
-that. Xem PHẦN 7 (ke hoach theo phase) trong yeu cau ban dau de biet lo
-trinh day du tu PHASE 2 den PHASE 10.
+- **PHASE 1-6 (backend)**: skeleton, 5 cau truc du lieu loi (Trie, BloomFilter,
+  LRUCache, MinHeap, SparseMatrix), crawler da luong that (da crawl thuc
+  te vnexpress.net), inverted index + query parser + posting list merger,
+  TF-IDF + PageRank + ResultRanker, REST API day du (`/api/search`,
+  `/api/suggest`, `/api/admin/*`). 105 unit/integration test, tat ca xanh.
+- **PHASE 7-9 (frontend)**: quan ly tab bang WebContentsView + IPC, UI
+  trinh duyet that (TabBar/AddressBar/NavigationButtons noi voi backend),
+  historyStore (Stack tu cai) + bookmarkStore (Tree + Trie tu cai), tich
+  hop tim kiem/goi y that voi backend (debounce, autocomplete, phan trang,
+  che do debug).
+- **PHASE 10**: tai lieu kien truc + bao cao DSA day du kem so lieu do
+  thuc te, du lieu seed de demo khong can crawl lai.
+
+Xem `docs/DSA-REPORT.md` de biet chi tiet tung cau truc du lieu, do phuc
+tap, va so sanh hieu nang thuc te (Bloom Filter vs HashSet, two-pointer
+vs `retainAll`...).
 
 ## Nguyen tac quan trong (bat buoc theo dac ta)
 

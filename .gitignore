@@ -8,8 +8,9 @@ browser-app/node_modules/
 browser-app/out/
 browser-app/dist/
 
-# Data / runtime
+# Data / runtime (nhung van commit mot mau seed nho de demo khong can crawl lai)
 search-engine/data/*.json
+!search-engine/data/seed-documents.json
 
 # IDE / OS
 .idea/

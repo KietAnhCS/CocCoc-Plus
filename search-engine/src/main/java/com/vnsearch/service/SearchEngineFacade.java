@@ -52,6 +52,9 @@ public class SearchEngineFacade {
     @Value("${app.crawler.data-path}")
     private String crawledDataPath;
 
+    @Value("${app.seed.data-path:data/seed-documents.json}")
+    private String seedDataPath;
+
     @Value("${app.search.cache-size:200}")
     private int cacheSize;
 
@@ -99,6 +102,13 @@ public class SearchEngineFacade {
             } else if (Files.exists(Path.of(crawledDataPath))) {
                 lastCrawledDocuments = CrawlerService.loadFromJson(crawledDataPath);
                 index = buildIndexFrom(lastCrawledDocuments);
+            } else if (Files.exists(Path.of(seedDataPath))) {
+                // Chua tung crawl lan nao (vd. vua clone repo ve) -> dung mau seed
+                // nho (~40 tai lieu that, da rut gon) di kem trong repo de demo
+                // ngay ma khong can crawl mang that.
+                lastCrawledDocuments = CrawlerService.loadFromJson(seedDataPath);
+                index = buildIndexFrom(lastCrawledDocuments);
+                System.out.println("Khong tim thay du lieu da crawl, dung seed mau (" + seedDataPath + ")");
             }
         } catch (IOException e) {
             System.err.println("Khong the nap du lieu co san, bat dau voi index rong: " + e.getMessage());

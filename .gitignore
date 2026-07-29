@@ -1,0 +1,19 @@
+# Backend (Maven / Java)
+search-engine/search-engine/target/
+search-engine/search-engine/.mvn/wrapper/maven-wrapper.jar
+*.class
+
+# Frontend (Electron / Node)
+browser-app/node_modules/
+browser-app/out/
+browser-app/dist/
+
+# Data / runtime
+data/*.json
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

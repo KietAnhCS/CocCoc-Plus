@@ -7,6 +7,11 @@ import { TabManager } from './tabManager'
  * cac loi goi ipcRenderer.invoke o preload.
  */
 export function registerIpcHandlers(tabManager: TabManager): void {
+  // Pull-based: renderer goi ngay sau khi mount de lay danh sach tab HIEN
+  // TAI, vi tab dau tien duoc TabManager tao trong constructor - truoc khi
+  // renderer kip dang ky nghe browser:tabUpdate - nen su kien push dau
+  // tien do bi mat (ipcRenderer.send khong hang doi, chi gui-va-quen).
+  ipcMain.handle('browser:listTabs', () => tabManager.listTabs())
   ipcMain.handle('browser:newTab', (_event, url?: string) => tabManager.createTab(url))
   ipcMain.handle('browser:closeTab', (_event, id: string) => tabManager.closeTab(id))
   ipcMain.handle('browser:switchTab', (_event, id: string) => tabManager.switchTab(id))

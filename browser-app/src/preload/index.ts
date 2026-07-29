@@ -8,6 +8,7 @@ import { electronAPI } from '@electron-toolkit/preload'
  * co truy cap truc tiep vao Node.js/Electron API, chi qua cac ham nay.
  */
 const browserApi = {
+  listTabs: (): Promise<unknown[]> => ipcRenderer.invoke('browser:listTabs'),
   newTab: (url: string): Promise<string> => ipcRenderer.invoke('browser:newTab', url),
   closeTab: (id: string): Promise<void> => ipcRenderer.invoke('browser:closeTab', id),
   switchTab: (id: string): Promise<void> => ipcRenderer.invoke('browser:switchTab', id),

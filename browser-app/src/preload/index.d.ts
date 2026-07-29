@@ -1,6 +1,7 @@
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface BrowserApi {
+  listTabs: () => Promise<unknown[]>
   newTab: (url: string) => Promise<string>
   closeTab: (id: string) => Promise<void>
   switchTab: (id: string) => Promise<void>

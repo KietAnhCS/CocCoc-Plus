@@ -42,6 +42,7 @@ search-engine/
 
 | Tài liệu | Nội dung |
 |---|---|
+| [**docs/SEARCH-ENGINE-101.md**](docs/SEARCH-ENGINE-101.md) | **Bắt đầu từ đây** — giải thích toàn bộ kiến thức thuật toán đằng sau một máy tìm kiếm, kèm ví dụ tính tay |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Sơ đồ kiến trúc, luồng xử lý một truy vấn |
 | [docs/ALGORITHMS.md](docs/ALGORITHMS.md) | Danh sách thuật toán theo thứ tự pipeline |
 | [docs/DSA-REPORT.md](docs/DSA-REPORT.md) | Cấu trúc dữ liệu, độ phức tạp, so sánh có đo đạc |

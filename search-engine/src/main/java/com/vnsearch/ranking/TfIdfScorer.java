@@ -31,7 +31,12 @@ import java.util.Map;
  * (do dung binary search {@link #findTermFrequencyInDoc} tren posting
  * list da sap xep theo docId).
  */
-public class TfIdfScorer {
+public class TfIdfScorer implements RelevanceScorer {
+
+    @Override
+    public String name() {
+        return "TF-IDF cosine";
+    }
 
     public static double tf(int termFrequency) {
         return termFrequency > 0 ? 1 + Math.log10(termFrequency) : 0.0;
@@ -51,6 +56,7 @@ public class TfIdfScorer {
      *                           (thuong la 1, nhung cho phep truy van lap
      *                           tu de nhan manh, vi du "internet internet cham")
      */
+    @Override
     public double score(Map<String, Integer> queryTermFrequency, int docId, InvertedIndex index) {
         int totalDocs = index.getTotalDocs();
         double dot = 0.0;

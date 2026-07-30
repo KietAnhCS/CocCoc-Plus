@@ -34,6 +34,9 @@ public class InvertedIndex {
     private final Map<Integer, Integer> docLength = new LinkedHashMap<>();
     private final VietnameseTokenizer tokenizer;
 
+    /** Tong so token cua ca corpus, giu san de tinh do dai trung binh trong O(1). */
+    private long totalTokens = 0;
+
     public InvertedIndex(VietnameseTokenizer tokenizer) {
         this.tokenizer = tokenizer;
     }
@@ -54,7 +57,8 @@ public class InvertedIndex {
 
         List<VietnameseTokenizer.Token> tokens = tokenizer.tokenize(combinedText);
         documents.put(doc.getDocId(), doc);
-        docLength.put(doc.getDocId(), tokens.size());
+        Integer previousLength = docLength.put(doc.getDocId(), tokens.size());
+        totalTokens += tokens.size() - (previousLength == null ? 0 : previousLength);
 
         Map<String, List<Integer>> positionsByTerm = new LinkedHashMap<>();
         for (VietnameseTokenizer.Token token : tokens) {
@@ -117,6 +121,19 @@ public class InvertedIndex {
         return docLength.getOrDefault(docId, 0);
     }
 
+    /**
+     * Do dai tai lieu trung binh (tinh bang so token) tren toan corpus —
+     * BM25 can gia tri nay de chuan hoa do dai.
+     *
+     * <p>Duy tri bang mot bien tong cong don thay vi cong lai toan bo map
+     * moi lan goi: BM25 goi ham nay cho MOI tai lieu ung vien cua MOI truy
+     * van, nen mot phep cong O(N) o day se bien viec xep hang thanh O(N*c).
+     */
+    public double getAverageDocLength() {
+        int docCount = docLength.size();
+        return docCount == 0 ? 0.0 : (double) totalTokens / docCount;
+    }
+
     public int getTotalDocs() {
         return documents.size();
     }
@@ -139,6 +156,8 @@ public class InvertedIndex {
         result.index.putAll(data.index());
         result.documents.putAll(data.documents());
         result.docLength.putAll(data.docLength());
+        // Nap lai tu file khong di qua addDocument nen phai tinh lai tong token.
+        result.totalTokens = data.docLength().values().stream().mapToLong(Integer::longValue).sum();
         return result;
     }
 

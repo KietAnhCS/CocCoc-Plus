@@ -67,55 +67,110 @@ public class ResultRanker {
     public List<RankedResult> rank(List<Integer> candidateDocIds,
                                     Map<String, Integer> queryTermFrequency,
                                     InvertedIndex index,
-                                    TfIdfScorer scorer,
+                                    RelevanceScorer scorer,
                                     Map<Integer, Double> pageRankScores,
                                     int topN) {
-        Set<String> queryKeywordSyllables = extractSyllables(queryTermFrequency.keySet());
+        QuerySyllables queryKeywordSyllables = extractSyllables(queryTermFrequency.keySet());
 
-        List<RankedResult> all = new ArrayList<>(candidateDocIds.size());
+        // BUOC 1 - chi CHAM DIEM moi ung vien, chua sinh snippet.
+        //
+        // Sinh snippet la thao tac dat nhat trong ca ham: no phai tach TOAN BO
+        // bodyText (trung binh hon 1.000 token moi tai lieu) roi truot cua so
+        // qua tung tu. Truoc day buoc nay chay cho MOI ung vien roi moi cat
+        // top-N, nghia la voi 500 ung vien thi 490 snippet bi vut di ngay sau
+        // khi tao ra - chi phi O(so ung vien * do dai tai lieu) hoan toan lang phi.
+        // Do do tach lam hai buoc: chi diem la du de xep hang.
+        List<ScoredCandidate> scored = new ArrayList<>(candidateDocIds.size());
         for (int docId : candidateDocIds) {
             WebDocument doc = index.getDocument(docId);
             if (doc == null) {
                 continue;
             }
-            double tfidf = scorer.score(queryTermFrequency, docId, index);
+            double relevance = scorer.score(queryTermFrequency, docId, index);
             double pageRank = pageRankScores.getOrDefault(docId, 0.0);
             double titleBonus = titleMatchBonus(queryKeywordSyllables, doc.getTitle());
-            double finalScore = alpha * tfidf + beta * pageRank + gamma * titleBonus;
-            String snippet = buildSnippet(doc.getBodyText(), queryKeywordSyllables);
-            all.add(new RankedResult(doc, finalScore, tfidf, pageRank, snippet));
+            double finalScore = alpha * relevance + beta * pageRank + gamma * titleBonus;
+            scored.add(new ScoredCandidate(doc, finalScore, relevance, pageRank));
         }
 
-        return MinHeap.topK(all, topN, Comparator.comparingDouble(RankedResult::finalScore));
+        // BUOC 2 - lay top-N bang MinHeap, O(n log topN).
+        List<ScoredCandidate> top =
+                MinHeap.topK(scored, topN, Comparator.comparingDouble(ScoredCandidate::finalScore));
+
+        // BUOC 3 - chi sinh snippet cho dung nhung tai lieu thuc su duoc tra ve.
+        List<RankedResult> results = new ArrayList<>(top.size());
+        for (ScoredCandidate candidate : top) {
+            results.add(new RankedResult(
+                    candidate.document(), candidate.finalScore(), candidate.relevanceScore(),
+                    candidate.pageRankScore(),
+                    buildSnippet(candidate.document().getBodyText(), queryKeywordSyllables)));
+        }
+        return results;
     }
 
-    /** Tach cac term truy van (co the ghep boi "_") thanh tap hop tieng rieng le, khong dau, lowercase. */
-    private Set<String> extractSyllables(Set<String> terms) {
-        Set<String> syllables = new HashSet<>();
+    /** Ung vien da cham diem nhung CHUA sinh snippet (xem giai thich trong {@link #rank}). */
+    private record ScoredCandidate(WebDocument document, double finalScore,
+                                    double relevanceScore, double pageRankScore) {
+    }
+
+    /**
+     * Tap tieng cua truy van, giu CA hai dang de so khop cho dung.
+     *
+     * <p>Truoc day moi tieng deu bi bo dau truoc khi so khop, khien snippet
+     * boi sang nham: truy van "ngan hang" lam sang ca chu "ngan" trong
+     * "cat giam ca ngan nhan su", vi ca "ngan" lan "ngan" deu bo dau thanh
+     * "ngan". Bo dau la CAN THIET o khau tra cuu chi muc (de go "may tinh"
+     * tim duoc "may tinh"), nhung o khau boi sang thi thua va gay sai, vi
+     * luc nay da biet chinh xac nguoi dung go gi.
+     *
+     * <p>Quy tac moi: neu tieng trong truy van CO dau thi chi khop chinh xac
+     * theo dang co dau; neu nguoi dung von go KHONG dau thi moi cho phep
+     * khop long theo dang bo dau. Nho vay ca hai kieu go deu duoc phuc vu ma
+     * khong danh doi do chinh xac.
+     */
+    private record QuerySyllables(Set<String> exact, Set<String> loose) {
+
+        boolean matches(String word) {
+            String lower = word.toLowerCase();
+            if (exact.contains(lower)) {
+                return true;
+            }
+            return !loose.isEmpty()
+                    && loose.contains(VietnameseTokenizer.stripDiacritics(lower).toLowerCase());
+        }
+    }
+
+    private QuerySyllables extractSyllables(Set<String> terms) {
+        Set<String> exact = new HashSet<>();
+        Set<String> loose = new HashSet<>();
         for (String term : terms) {
             for (String syllable : term.split("_")) {
-                syllables.add(VietnameseTokenizer.stripDiacritics(syllable).toLowerCase());
+                String lower = syllable.toLowerCase();
+                exact.add(lower);
+                // Chi mo khop long khi CHINH tieng trong truy van khong co dau.
+                if (VietnameseTokenizer.stripDiacritics(lower).equalsIgnoreCase(lower)) {
+                    loose.add(lower);
+                }
             }
         }
-        return syllables;
+        return new QuerySyllables(exact, loose);
     }
 
-    private double titleMatchBonus(Set<String> queryKeywordSyllables, String title) {
-        if (title == null || title.isBlank() || queryKeywordSyllables.isEmpty()) {
+    private double titleMatchBonus(QuerySyllables queryKeywordSyllables, String title) {
+        if (title == null || title.isBlank() || queryKeywordSyllables.exact().isEmpty()) {
             return 0.0;
         }
         String[] titleWords = title.toLowerCase().split("\\s+");
         int matched = 0;
         for (String word : titleWords) {
-            String normalized = VietnameseTokenizer.stripDiacritics(stripPunctuation(word));
-            if (queryKeywordSyllables.contains(normalized)) {
+            if (queryKeywordSyllables.matches(stripPunctuation(word))) {
                 matched++;
             }
         }
-        return queryKeywordSyllables.isEmpty() ? 0.0 : Math.min(1.0, (double) matched / queryKeywordSyllables.size());
+        return Math.min(1.0, (double) matched / queryKeywordSyllables.exact().size());
     }
 
-    private String buildSnippet(String bodyText, Set<String> queryKeywordSyllables) {
+    private String buildSnippet(String bodyText, QuerySyllables queryKeywordSyllables) {
         if (bodyText == null || bodyText.isBlank()) {
             return "";
         }
@@ -126,8 +181,9 @@ public class ResultRanker {
 
         boolean[] isMatch = new boolean[words.length];
         for (int i = 0; i < words.length; i++) {
-            String normalized = VietnameseTokenizer.stripDiacritics(stripPunctuation(words[i])).toLowerCase();
-            isMatch[i] = queryKeywordSyllables.contains(normalized);
+            // Truyen tu con NGUYEN DAU vao matches(): chinh no quyet dinh khop
+            // chinh xac hay khop long, bo dau o day se lam hong quy tac do.
+            isMatch[i] = queryKeywordSyllables.matches(stripPunctuation(words[i]));
         }
 
         int windowSize = Math.min(SNIPPET_WINDOW_SIZE, words.length);

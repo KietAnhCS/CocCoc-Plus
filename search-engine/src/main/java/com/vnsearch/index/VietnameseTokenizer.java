@@ -44,7 +44,7 @@ import java.util.Set;
  * hang so nho (4). Do phuc tap khong gian: O(n) cho danh sach token +
  * O(|tu dien|) co dinh cho stopword/bigram set.
  */
-public class VietnameseTokenizer {
+public class VietnameseTokenizer implements Tokenizer {
 
     private static final int MAX_COMPOUND_LENGTH = 4;
 
@@ -111,6 +111,13 @@ public class VietnameseTokenizer {
      * Tach mot doan van ban thanh danh sach {@link Token}, da loai
      * stopword va ghep tu ghep theo Longest Matching.
      */
+    @Override
+    public String name() {
+        return "VietnameseTokenizer(LongestMatching, maxCompound=" + MAX_COMPOUND_LENGTH
+                + ", dict=" + bigramDictionary.size() + ", stopwords=" + stopwords.size() + ")";
+    }
+
+    @Override
     public List<Token> tokenize(String text) {
         List<Token> tokens = new ArrayList<>();
         if (text == null || text.isBlank()) {

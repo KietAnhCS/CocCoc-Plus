@@ -1,30 +1,49 @@
 package com.vnsearch.ranking;
 
-import com.vnsearch.index.InvertedIndex;
+import com.vnsearch.index.SearchIndex;
 
 import java.util.Map;
 
 /**
- * Giao diện chung cho các mô hình tính điểm liên quan giữa truy vấn và
- * tài liệu, để {@link ResultRanker} hoán đổi được giữa
- * {@link TfIdfScorer} và {@link BM25Scorer} mà không phải sửa gì.
+ * <b>Strategy pattern</b> — giao dien chung cho cac mo hinh tinh diem lien quan
+ * giua truy van va tai lieu.
  *
- * <p>Đây là điều kiện cần để làm thí nghiệm ablation trong báo cáo: chạy
- * CÙNG một bộ truy vấn, CÙNG một chỉ mục, chỉ thay đúng mô hình tính điểm,
- * rồi so sánh các độ đo chất lượng. Nếu không tách được ra sau một giao
- * diện thì mọi so sánh đều lẫn thêm biến số khác và mất giá trị khoa học.
+ * <p><b>Dong co khoa hoc, khong phai "dung pattern cho co".</b> Day la dieu
+ * kien CAN de lam thi nghiem ablation trong bao cao: chay CUNG mot bo truy van,
+ * CUNG mot chi muc, chi thay dung mot mo hinh tinh diem, roi so sanh cac do do
+ * chat luong. Neu khong tach duoc ra sau mot giao dien thi moi so sanh deu lan
+ * them bien so khac va mat gia tri khoa hoc.
+ *
+ * <p>Ket qua ma no mo khoa (200 truy van known-item):
+ * <pre>
+ *   TF-IDF thuan : MRR 0,8537   Success@1 78,0%
+ *   BM25 thuan   : MRR 0,8989   Success@1 85,0%
+ * </pre>
+ *
+ * <p><b>Ket hop nhieu tin hieu bang Decorator.</b> Cac lop
+ * {@link com.vnsearch.ranking.decorator.PageRankBoostScorer} va
+ * {@link com.vnsearch.ranking.decorator.TitleBoostScorer} <i>boc</i> mot scorer
+ * khac va nhan them tin hieu vao diem co so. Nho vay bat/tat tung tin hieu chi
+ * la them/bot mot lop boc, khong phai sua cong thuc chon cung o
+ * {@link ResultRanker}.
  */
 public interface RelevanceScorer {
 
     /**
-     * Tính điểm liên quan của {@code docId} đối với truy vấn.
+     * Tinh diem lien quan cua {@code docId} doi voi truy van.
      *
-     * @param queryTermFrequency số lần mỗi term xuất hiện trong truy vấn
-     * @param docId              tài liệu cần chấm điểm
-     * @param index              chỉ mục đảo chứa posting list và thống kê corpus
+     * @param queryTermFrequency so lan moi term xuat hien trong truy van
+     * @param docId              tai lieu can cham diem
+     * @param index              chi muc chua posting list va thong ke corpus
      */
-    double score(Map<String, Integer> queryTermFrequency, int docId, InvertedIndex index);
+    double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index);
 
-    /** Tên ngắn gọn của mô hình, dùng làm nhãn trong bảng kết quả đánh giá. */
+    /**
+     * Ten ngan gon cua mo hinh, dung lam nhan trong bang ket qua danh gia.
+     *
+     * <p>Cac lop Decorator tu GHEP ten cua lop ben trong, nen mot cau hinh
+     * long nhau cho ra nhan mo ta day du, vi du:
+     * {@code "BM25(k1=1.2,b=0.75) + PR x0.30 + title x0.10"}.
+     */
     String name();
 }

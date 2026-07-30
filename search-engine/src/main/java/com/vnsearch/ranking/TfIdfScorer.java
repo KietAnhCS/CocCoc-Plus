@@ -1,35 +1,34 @@
 package com.vnsearch.ranking;
 
-import com.vnsearch.index.InvertedIndex;
-import com.vnsearch.index.Posting;
+import com.vnsearch.index.SearchIndex;
 
-import java.util.List;
 import java.util.Map;
 
 /**
- * Tinh diem lien quan giua mot truy van va mot tai lieu bang mo hinh
- * vector TF-IDF + cosine similarity.
+ * Tinh diem lien quan giua mot truy van va mot tai lieu bang mo hinh vector
+ * TF-IDF + cosine similarity.
  *
- * <p>tf  = 1 + log10(termFrequency)   (log-normalized — giam bot anh huong
- * cua tai lieu lap tu qua nhieu lan, vi tf tang tuyen tinh se lam mot tai
- * lieu spam-tu thang qua de dang).
- * <br>idf = log10(totalDocs / documentFrequency) (tu hiem gap trong it
- * tai lieu se co idf cao hon, mang nhieu thong tin phan biet hon).
+ * <p>{@code tf  = 1 + log10(termFrequency)} — nen phi tuyen de mot tai lieu
+ * nhoi tu khoa khong thang qua de: lap gap 10 lan chi duoc them 1 diem.
+ * <br>{@code idf = log10(totalDocs / documentFrequency)} — chinh la
+ * <i>luong thong tin</i> (self-information) cua bien co "tai lieu chua term
+ * nay": tu hiem mang nhieu thong tin phan biet hon.
  *
- * <p><b>Chuan hoa do dai tai lieu:</b> cosine similarity chuan can chia
- * cho ||vector tai lieu|| — norm nay ve ly thuyet phai tinh tren TAT CA
- * term xuat hien trong tai lieu (khong chi cac term co trong truy van),
- * nhung luu vet do can O(|tu vung|) cho MOI tai lieu. Thay vao do, ta
- * dung xap xi kinh dien cua Lucene classic Similarity:
- * {@code docNorm ≈ sqrt(docLength)} (do dai tai lieu tinh bang so token)
- * — tai lieu cang dai thi cang "loang" tf-idf trung binh tren moi chieu,
- * xap xi nay tranh duoc chi phi luu tru/tinh toan day du ma van phat huy
- * dung tinh chat "trang dai khong bi loi the qua muc vi lap tu nhieu hon".
+ * <p><b>Chuan hoa do dai tai lieu.</b> Cosine chuan can chia cho
+ * {@code ||vector tai lieu||}, ma norm nay ve ly thuyet phai tinh tren TAT CA
+ * term cua tai lieu — ton O(|tu vung|) cho MOI tai lieu, va phai tinh lai moi
+ * lan them tai lieu (vi idf doi khi N doi). Thay vao do dung xap xi kinh dien
+ * cua Lucene classic Similarity: {@code docNorm ~= sqrt(docLength)}.
  *
- * <p>Do phuc tap thoi gian: {@link #score} la O(q log d) voi q = so term
- * khac nhau trong truy van, d = do dai posting list dai nhat trong q term
- * (do dung binary search {@link #findTermFrequencyInDoc} tren posting
- * list da sap xep theo docId).
+ * <p><b>Sai so cua xap xi, noi cho cong bang.</b> Theo dinh luat Heaps, so term
+ * phan biet cua tai lieu tang theo {@code |d|^beta} voi {@code beta ~ 0,5}, nen
+ * norm that ty le {@code |d|^0,25} trong khi xap xi dung {@code |d|^0,5} — tuc
+ * no PHAT tai lieu dai manh hon thuc te. Day dung la diem ma BM25 hon, vi BM25
+ * co tham so {@code b} de dieu chinh muc phat thay vi chon cung.
+ *
+ * <p>Do phuc tap thoi gian: {@link #score} la {@code O(q log d)} voi q = so term
+ * phan biet trong truy van, d = do dai posting list dai nhat (do dung binary
+ * search cua {@link SearchIndex#getTermFrequency}).
  */
 public class TfIdfScorer implements RelevanceScorer {
 
@@ -38,10 +37,12 @@ public class TfIdfScorer implements RelevanceScorer {
         return "TF-IDF cosine";
     }
 
+    /** Log-normalized term frequency. Tra 0 cho f=0 de tranh {@code log10(0) = -inf}. */
     public static double tf(int termFrequency) {
         return termFrequency > 0 ? 1 + Math.log10(termFrequency) : 0.0;
     }
 
+    /** Inverse document frequency — luong thong tin cua term. */
     public static double idf(int totalDocs, int documentFrequency) {
         if (documentFrequency <= 0 || totalDocs <= 0) {
             return 0.0;
@@ -52,28 +53,33 @@ public class TfIdfScorer implements RelevanceScorer {
     /**
      * Tinh diem TF-IDF cosine cua {@code docId} doi voi truy van.
      *
+     * <p>Chi duyet qua term cua TRUY VAN chu khong phai 136.768 chieu cua khong
+     * gian vector: voi term khong thuoc truy van, {@code w(t,q) = 0} nen so hang
+     * {@code w(t,q)*w(t,d) = 0}. Bo qua chung la CHINH XAC, khong phai xap xi —
+     * day la toan bo ly do vector thua lam viec duoc.
+     *
      * @param queryTermFrequency so lan moi term xuat hien trong truy van
-     *                           (thuong la 1, nhung cho phep truy van lap
-     *                           tu de nhan manh, vi du "internet internet cham")
+     *                           (thuong la 1, nhung cho phep lap tu de nhan manh)
      */
     @Override
-    public double score(Map<String, Integer> queryTermFrequency, int docId, InvertedIndex index) {
+    public double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index) {
         int totalDocs = index.getTotalDocs();
         double dot = 0.0;
         double queryNormSq = 0.0;
 
         for (Map.Entry<String, Integer> entry : queryTermFrequency.entrySet()) {
             String term = entry.getKey();
-            List<Posting> postings = index.getPostings(term);
-            double idfValue = idf(totalDocs, postings.size());
+            double idfValue = idf(totalDocs, index.getDocumentFrequency(term));
             if (idfValue <= 0.0) {
-                continue; // term khong ton tai trong index, hoac xuat hien trong TAT CA tai lieu -> khong phan biet duoc
+                // Term khong ton tai, HOAC xuat hien trong TAT CA tai lieu
+                // (khi do idf = log10(1) = 0, khong phan biet duoc gi).
+                continue;
             }
 
             double queryWeight = tf(entry.getValue()) * idfValue;
             queryNormSq += queryWeight * queryWeight;
 
-            int docTermFrequency = findTermFrequencyInDoc(postings, docId);
+            int docTermFrequency = index.getTermFrequency(term, docId); // binary search O(log n)
             if (docTermFrequency > 0) {
                 double docWeight = tf(docTermFrequency) * idfValue;
                 dot += queryWeight * docWeight;
@@ -84,35 +90,13 @@ public class TfIdfScorer implements RelevanceScorer {
             return 0.0;
         }
         double queryNorm = Math.sqrt(queryNormSq);
-        double docNorm = Math.sqrt(Math.max(index.getDocLength(docId), 1));
+        double docNorm = Math.sqrt(Math.max(index.getDocLength(docId), 1)); // max(.,1) chong chia 0
         return dot / (queryNorm * docNorm);
-    }
-
-    /**
-     * Binary search tren posting list (da sap xep tang dan theo docId) de
-     * tim termFrequency cua mot tai lieu cu the — O(log n) thay vi quet
-     * tuyen tinh O(n). Day la loi ich thu 2 (ngoai two-pointer merge) cua
-     * bat bien "posting list luon sap xep theo docId".
-     */
-    private int findTermFrequencyInDoc(List<Posting> postings, int docId) {
-        int low = 0, high = postings.size() - 1;
-        while (low <= high) {
-            int mid = (low + high) >>> 1;
-            int midDocId = postings.get(mid).docId();
-            if (midDocId == docId) {
-                return postings.get(mid).termFrequency();
-            } else if (midDocId < docId) {
-                low = mid + 1;
-            } else {
-                high = mid - 1;
-            }
-        }
-        return 0;
     }
 
     /** Demo minh hoa nho de chup man hinh lam bao cao. */
     public static void main(String[] args) {
-        InvertedIndex index = new InvertedIndex();
+        com.vnsearch.index.InvertedIndex index = new com.vnsearch.index.InvertedIndex();
 
         com.vnsearch.model.WebDocument doc0 = new com.vnsearch.model.WebDocument();
         doc0.setDocId(0);

@@ -35,7 +35,7 @@ public class IndexPersistence {
         createMapper().writeValue(new File(path), index.exportData());
     }
 
-    public static InvertedIndex load(String path, VietnameseTokenizer tokenizer) throws IOException {
+    public static InvertedIndex load(String path, Tokenizer tokenizer) throws IOException {
         InvertedIndex.IndexData data = createMapper().readValue(new File(path), InvertedIndex.IndexData.class);
         return InvertedIndex.importData(data, tokenizer);
     }

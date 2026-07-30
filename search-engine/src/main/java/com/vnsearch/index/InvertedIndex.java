@@ -3,42 +3,60 @@ package com.vnsearch.index;
 import com.vnsearch.model.WebDocument;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Inverted index tu cai dat: {@code HashMap<String term, List<Posting>>}.
+ * Inverted index tu cai dat: {@code Map<String term, List<Posting>>}.
  *
- * <p>Posting list cua moi term LUON duoc giu sap xep TANG DAN theo docId —
- * day la dieu kien tien quyet bat buoc de {@link com.vnsearch.query.PostingListMerger}
- * co the giao/hop cac posting list bang thuat toan two-pointer O(m+n) thay
- * vi phai sort lai O(n log n) moi lan truy van. Bat bien nay duoc dam bao
- * vi {@link #addDocument} luon duoc goi theo thu tu docId TANG DAN (crawler
- * gan docId tang dan roi moi index), va moi lan addDocument chi APPEND vao
- * cuoi moi posting list lien quan.
+ * <p>Cai dat {@link SearchIndex} de tang truy van/xep hang khong phu thuoc
+ * lop cu the nay (xem Javadoc cua giao dien ve ly do).
  *
- * <p>Ho tro tim khong dau: voi moi token, ca ban co dau (term) LAN ban
- * khong dau (noDiacriticTerm) deu duoc dung lam khoa rieng trong index,
- * cung tro toi cac Posting giong nhau — nho vay truy van "may tinh" (khong
- * dau) van tim ra tai lieu chua "máy tính" (co dau).
+ * <p><b>BAT BIEN TRUNG TAM.</b> Posting list cua moi term LUON duoc giu sap
+ * xep TANG DAN NGHIEM NGAT theo docId. Bat bien nay duoc dam bao <b>mien
+ * phi</b> — khong ton mot phep sort nao — nho hai dieu kien:
+ * <ol>
+ *   <li>{@link #addDocument} luon duoc goi theo thu tu docId TANG DAN;</li>
+ *   <li>moi lan chi APPEND vao cuoi posting list.</li>
+ * </ol>
+ * Truoc day dieu kien (1) phu thuoc vao viec NGUOI GOI nho sort truoc — mot
+ * bat bien quan trong ma lop khong tu bao ve. Nay lop tu ep bang
+ * {@code lastDocId}: goi sai se nem {@link IllegalArgumentException} NGAY tai
+ * cho sai, thay vi tra ket qua sai mot cach im lang o tang tren (binary search
+ * tren danh sach chua sap xep cho ket quy tuy y, khong nem ngoai le).
  *
- * <p>Do phuc tap thoi gian: {@link #addDocument} O(L) voi L = do dai van
- * ban (so token). {@link #getPostings}/{@link #getDocumentFrequency} O(1)
- * tra cuu HashMap. Do phuc tap khong gian: O(tong so (term, doc) xuat hien).
+ * <p>Ho tro tim khong dau: voi moi token, ca ban co dau (term) LAN ban khong
+ * dau (noDiacriticTerm) deu duoc dung lam khoa rieng, cung tro toi cac Posting
+ * giong nhau — nho vay truy van "may tinh" (khong dau) van tim ra tai lieu
+ * chua "máy tính" (co dau).
+ *
+ * <p><b>Flyweight:</b> moi khoa term di qua {@link TermDictionary#intern} nen
+ * chi co MOT instance {@code String} cho moi term phan biet, du term do xuat
+ * hien hang nghin lan trong corpus.
+ *
+ * <p>Do phuc tap thoi gian: {@link #addDocument} O(L) voi L = so token.
+ * {@link #getPostings}/{@link #getDocumentFrequency}/{@link #getAverageDocLength}
+ * deu O(1). {@link #getTermFrequency}/{@link #getPositions} O(log n).
+ * Do phuc tap khong gian: O(tong so cap (term, doc)).
  */
-public class InvertedIndex {
+public class InvertedIndex implements SearchIndex {
 
     private final Map<String, List<Posting>> index = new LinkedHashMap<>();
     private final Map<Integer, WebDocument> documents = new LinkedHashMap<>();
     private final Map<Integer, Integer> docLength = new LinkedHashMap<>();
-    private final VietnameseTokenizer tokenizer;
+    private final Tokenizer tokenizer;
+    private final TermDictionary termDictionary = new TermDictionary();
 
     /** Tong so token cua ca corpus, giu san de tinh do dai trung binh trong O(1). */
     private long totalTokens = 0;
 
-    public InvertedIndex(VietnameseTokenizer tokenizer) {
-        this.tokenizer = tokenizer;
+    /** docId cua lan {@link #addDocument} gan nhat — dung de EP bat bien sap xep. */
+    private int lastDocId = Integer.MIN_VALUE;
+
+    public InvertedIndex(Tokenizer tokenizer) {
+        this.tokenizer = tokenizer == null ? new VietnameseTokenizer() : tokenizer;
     }
 
     public InvertedIndex() {
@@ -46,103 +64,180 @@ public class InvertedIndex {
     }
 
     /**
-     * Them mot tai lieu vao index. PHAI goi theo thu tu docId tang dan de
-     * giu bat bien "posting list sap xep theo docId" (xem Javadoc lop).
+     * Them mot tai lieu vao index.
+     *
+     * <p><b>PHAI goi theo thu tu docId tang dan nghiem ngat</b> de giu bat bien
+     * "posting list sap xep theo docId" (xem Javadoc lop). Vi pham se nem
+     * ngoai le ngay lap tuc — bien mot loi im lang thanh mot loi on ao.
+     *
+     * @throws IllegalArgumentException neu docId khong lon hon docId truoc do
      */
     public void addDocument(WebDocument doc) {
+        int docId = doc.getDocId();
+        if (docId <= lastDocId) {
+            throw new IllegalArgumentException(
+                    "addDocument phai duoc goi theo docId TANG DAN de giu bat bien"
+                            + " 'posting list sap xep theo docId'. docId truoc = " + lastDocId
+                            + ", docId hien tai = " + docId
+                            + ". Hay sap xep danh sach tai lieu truoc khi index.");
+        }
+        lastDocId = docId;
+
         String combinedText = String.join(" ",
                 doc.getTitle() != null ? doc.getTitle() : "",
                 doc.getMetaDescription() != null ? doc.getMetaDescription() : "",
                 doc.getBodyText() != null ? doc.getBodyText() : "");
 
         List<VietnameseTokenizer.Token> tokens = tokenizer.tokenize(combinedText);
-        documents.put(doc.getDocId(), doc);
-        Integer previousLength = docLength.put(doc.getDocId(), tokens.size());
-        totalTokens += tokens.size() - (previousLength == null ? 0 : previousLength);
+        documents.put(docId, doc);
+        docLength.put(docId, tokens.size());
+        totalTokens += tokens.size();
 
+        // Gom vi tri theo term TRUOC, roi moi tao Posting: neu tao Posting ngay
+        // khi gap token thi mot term xuat hien 5 lan se sinh 5 Posting cho CUNG
+        // mot docId, pha vo gia dinh "moi (term, doc) mot posting" ma binary
+        // search dua vao.
         Map<String, List<Integer>> positionsByTerm = new LinkedHashMap<>();
         for (VietnameseTokenizer.Token token : tokens) {
-            positionsByTerm.computeIfAbsent(token.term(), k -> new ArrayList<>()).add(token.position());
+            String term = termDictionary.intern(token.term()); // ← Flyweight
+            positionsByTerm.computeIfAbsent(term, k -> new ArrayList<>()).add(token.position());
             if (!token.noDiacriticTerm().equals(token.term())) {
-                positionsByTerm.computeIfAbsent(token.noDiacriticTerm(), k -> new ArrayList<>()).add(token.position());
+                String noDiacritic = termDictionary.intern(token.noDiacriticTerm());
+                positionsByTerm.computeIfAbsent(noDiacritic, k -> new ArrayList<>()).add(token.position());
             }
         }
 
         for (Map.Entry<String, List<Integer>> entry : positionsByTerm.entrySet()) {
             List<Integer> positions = entry.getValue();
-            Posting posting = new Posting(doc.getDocId(), positions.size(), positions);
-            index.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(posting);
+            Posting posting = new Posting(docId, positions.size(), positions);
+            index.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(posting); // ← APPEND
         }
     }
 
     /** O(1) - tra ve posting list cua mot term (rong neu term khong ton tai). */
+    @Override
     public List<Posting> getPostings(String term) {
         return index.getOrDefault(term, List.of());
     }
 
     /** O(1) - so tai lieu co chua term nay (document frequency, dung cho IDF). */
+    @Override
     public int getDocumentFrequency(String term) {
         return getPostings(term).size();
     }
 
     /**
-     * O(log n) - binary search tren posting list (da sap xep theo docId)
-     * de lay danh sach vi tri xuat hien cua {@code term} trong {@code docId}
-     * cu the. Dung cho phrase search (kiem tra cac term co nam LIEN TIEP
-     * khong). Tra ve danh sach rong neu term khong xuat hien trong tai lieu do.
+     * O(log n) - binary search tren posting list (da sap xep theo docId) de
+     * tim tan suat cua {@code term} trong dung {@code docId}.
+     *
+     * <p>Truoc day ham nay duoc SAO CHEP gan nhu y het o ba noi
+     * ({@code TfIdfScorer}, {@code BM25Scorer}, va o day) — mot dang trung lap
+     * ma neu doi cach luu tru (skip list, chi muc nen) se phai sua ba cho.
+     * Nay gom ve dung mot cai dat.
      */
+    @Override
+    public int getTermFrequency(String term, int docId) {
+        int position = binarySearchPosting(getPostings(term), docId);
+        return position < 0 ? 0 : getPostings(term).get(position).termFrequency();
+    }
+
+    /**
+     * O(log n) - danh sach vi tri xuat hien cua {@code term} trong {@code docId}.
+     * Dung cho phrase search (kiem tra cac term co nam LIEN TIEP khong).
+     */
+    @Override
     public List<Integer> getPositions(String term, int docId) {
         List<Posting> postings = getPostings(term);
-        int low = 0, high = postings.size() - 1;
+        int position = binarySearchPosting(postings, docId);
+        return position < 0 ? List.of() : postings.get(position).positions();
+    }
+
+    @Override
+    public PostingCursor cursor(String term) {
+        return PostingCursor.of(getPostings(term));
+    }
+
+    /**
+     * Binary search tren posting list da sap xep theo docId.
+     *
+     * <p>Chu y {@code (low + high) >>> 1} thay vi {@code / 2}: voi danh sach
+     * rat lon, {@code low + high} co the TRAN int thanh so am, va {@code /2}
+     * giu nguyen dau am -> chi so am. Dich bit khong dau xu ly dung ca khi
+     * tran. Day la loi kinh dien tung ton tai 9 nam trong
+     * {@code java.util.Arrays.binarySearch} cua chinh JDK.
+     *
+     * @return chi so cua posting, hoac -1 neu khong tim thay
+     */
+    private static int binarySearchPosting(List<Posting> postings, int docId) {
+        int low = 0;
+        int high = postings.size() - 1;
         while (low <= high) {
             int mid = (low + high) >>> 1;
             int midDocId = postings.get(mid).docId();
             if (midDocId == docId) {
-                return postings.get(mid).positions();
+                return mid;
             } else if (midDocId < docId) {
                 low = mid + 1;
             } else {
                 high = mid - 1;
             }
         }
-        return List.of();
+        return -1;
     }
 
+    @Override
     public WebDocument getDocument(int docId) {
         return documents.get(docId);
     }
 
-    /** So luong term (khoa) khac nhau dang co trong index — dung cho thong ke /api/admin/stats. */
+    /** So luong term (khoa) khac nhau dang co trong index. */
+    @Override
     public int getTermCount() {
         return index.size();
     }
 
+    @Override
     public int getDocLength(int docId) {
         return docLength.getOrDefault(docId, 0);
     }
 
     /**
-     * Do dai tai lieu trung binh (tinh bang so token) tren toan corpus —
-     * BM25 can gia tri nay de chuan hoa do dai.
+     * O(1) - do dai tai lieu trung binh (tinh bang so token) tren toan corpus.
      *
-     * <p>Duy tri bang mot bien tong cong don thay vi cong lai toan bo map
-     * moi lan goi: BM25 goi ham nay cho MOI tai lieu ung vien cua MOI truy
-     * van, nen mot phep cong O(N) o day se bien viec xep hang thanh O(N*c).
+     * <p>Duy tri bang mot bien tong cong don thay vi cong lai toan bo map moi
+     * lan goi: BM25 goi ham nay cho MOI tai lieu ung vien cua MOI truy van,
+     * nen mot phep cong O(N) o day se bien viec xep hang thanh O(N*c).
      */
+    @Override
     public double getAverageDocLength() {
         int docCount = docLength.size();
         return docCount == 0 ? 0.0 : (double) totalTokens / docCount;
     }
 
+    @Override
     public int getTotalDocs() {
         return documents.size();
     }
 
+    /**
+     * Toan bo tai lieu, <b>khong sua doi duoc</b>.
+     *
+     * <p>Truoc day ham nay tra ve THANG map noi bo, nen nguoi goi co the
+     * {@code index.getAllDocuments().clear()} va pha huy trang thai chi muc.
+     * Boc {@code unmodifiableMap} lam moi thao tac ghi nem
+     * {@link UnsupportedOperationException} ngay tai cho sai.
+     */
+    @Override
     public Map<Integer, WebDocument> getAllDocuments() {
-        return documents;
+        return Collections.unmodifiableMap(documents);
     }
 
-    /** Dung boi IndexPersistence de luu/nap toan bo trang thai index ra file JSON. */
+    /** So term phan biet trong kho Flyweight — dung cho thong ke bo nho. */
+    public int getInternedTermCount() {
+        return termDictionary.size();
+    }
+
+    /** Dung boi IndexPersistence de luu/nap toan bo trang thai index ra file. */
     record IndexData(Map<String, List<Posting>> index, Map<Integer, WebDocument> documents,
                       Map<Integer, Integer> docLength) {
     }
@@ -151,14 +246,33 @@ public class InvertedIndex {
         return new IndexData(index, documents, docLength);
     }
 
-    static InvertedIndex importData(IndexData data, VietnameseTokenizer tokenizer) {
+    static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
         InvertedIndex result = new InvertedIndex(tokenizer);
         result.index.putAll(data.index());
         result.documents.putAll(data.documents());
         result.docLength.putAll(data.docLength());
-        // Nap lai tu file khong di qua addDocument nen phai tinh lai tong token.
-        result.totalTokens = data.docLength().values().stream().mapToLong(Integer::longValue).sum();
+        // Nap lai tu file KHONG di qua addDocument, nen moi trang thai dan xuat
+        // phai duoc tinh lai o day. Quen mot cai la loi im lang: totalTokens = 0
+        // -> avgdl = 0 -> BM25 tra ve 0 cho MOI tai lieu.
+        result.recomputeDerivedState();
         return result;
+    }
+
+    /**
+     * Tinh lai moi trang thai DAN XUAT tu trang thai co ban.
+     *
+     * <p>Gom vao mot cho de moi duong vao cau truc ({@code addDocument},
+     * {@code importData}) deu goi dung mot ham — them mot trang thai dan xuat
+     * moi chi phai sua mot noi.
+     */
+    private void recomputeDerivedState() {
+        totalTokens = 0;
+        for (int length : docLength.values()) {
+            totalTokens += length;
+        }
+        lastDocId = documents.isEmpty()
+                ? Integer.MIN_VALUE
+                : documents.keySet().stream().mapToInt(Integer::intValue).max().orElse(Integer.MIN_VALUE);
     }
 
     /** Demo minh hoa nho de chup man hinh lam bao cao. */
@@ -180,6 +294,17 @@ public class InvertedIndex {
         System.out.println("Postings('trình_duyệt_web') = " + index.getPostings("trình_duyệt_web"));
         System.out.println("Postings('may_tinh') (khong dau) = " + index.getPostings("may_tinh"));
         System.out.println("DF('trình_duyệt_web') = " + index.getDocumentFrequency("trình_duyệt_web"));
+        System.out.println("TF('trình_duyệt_web', doc0) = " + index.getTermFrequency("trình_duyệt_web", 0));
         System.out.println("Tong so tai lieu = " + index.getTotalDocs());
+        System.out.println("Term phan biet (Flyweight) = " + index.getInternedTermCount());
+
+        // Bat bien duoc EP: goi sai thu tu se nem ngoai le ngay.
+        WebDocument outOfOrder = new WebDocument();
+        outOfOrder.setDocId(0);
+        try {
+            index.addDocument(outOfOrder);
+        } catch (IllegalArgumentException e) {
+            System.out.println("Ep bat bien: " + e.getMessage());
+        }
     }
 }

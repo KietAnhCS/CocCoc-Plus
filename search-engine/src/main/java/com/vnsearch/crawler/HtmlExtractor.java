@@ -59,7 +59,10 @@ public class HtmlExtractor {
     }
 
     private List<String> extractOutlinks(String baseUrl, Document document) {
-        String baseNoFragment = stripFragment(baseUrl);
+        // Chuan hoa CA base lan outlink truoc khi so sanh: neu chi bo fragment,
+        // "https://a.com" va "https://a.com/" bi coi la 2 trang khac nhau va
+        // deu duoc crawl - xem UrlCanonicalizer de biet chi tiet.
+        String canonicalBase = UrlCanonicalizer.canonicalize(baseUrl);
         Set<String> seen = new LinkedHashSet<>();
         Elements links = document.select("a[href]");
         for (Element link : links) {
@@ -68,19 +71,14 @@ public class HtmlExtractor {
                 continue;
             }
             if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
-                String normalized = stripFragment(absUrl);
+                String canonical = UrlCanonicalizer.canonicalize(absUrl);
                 // Bo qua anchor link tro ve chinh trang nay (vd href="#section") -
                 // khong phai outlink that su, khong nen queue lai chinh trang dang crawl.
-                if (!normalized.equals(baseNoFragment)) {
-                    seen.add(normalized);
+                if (!canonical.equals(canonicalBase)) {
+                    seen.add(canonical);
                 }
             }
         }
         return new ArrayList<>(seen);
-    }
-
-    private String stripFragment(String url) {
-        int hashIndex = url.indexOf('#');
-        return hashIndex >= 0 ? url.substring(0, hashIndex) : url;
     }
 }

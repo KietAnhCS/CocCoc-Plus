@@ -36,6 +36,17 @@
 			<optional>true</optional>
 		</dependency>
 
+		<!-- Driver PostgreSQL. Co y KHONG dung spring-boot-starter-jdbc/JPA:
+		     kho tai lieu duoc truy cap bang JDBC thuan qua DocumentRepository,
+		     nen ung dung Spring van khoi dong binh thuong khi khong co CSDL
+		     (quan trong cho test va cho demo nhanh), dong thoi cau lenh SQL
+		     hien ro trong ma nguon de dua vao bao cao. -->
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+			<version>42.7.4</version>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
@@ -45,6 +56,17 @@
 
 	<build>
 		<plugins>
+			<!-- Chay cac runner doc lap (crawl da domain, bo danh gia IR) tu CLI:
+			     mvnw exec:java -Dexec.mainClass=... -Dexec.args="..." -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+				<version>3.5.0</version>
+				<configuration>
+					<classpathScope>compile</classpathScope>
+				</configuration>
+			</plugin>
+
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>

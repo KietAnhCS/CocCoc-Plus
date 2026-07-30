@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Trie (cay tien to) tu cai dat, dung cho tinh nang goi y tu khoa
@@ -34,6 +35,20 @@ import java.util.Map;
  * Do phuc tap khong gian: O(tong so ky tu cua tat ca tu da insert) trong
  * truong hop xau nhat (khong co canh chung), toi uu hon khi nhieu tu chung
  * tien to.
+ *
+ * <p><b>Thread-safe bang {@link ReentrantReadWriteLock}.</b> Day KHONG phai
+ * cau thi thua: {@code SearchEngineFacade.search()} goi {@link #insert} moi
+ * lan nguoi dung tim kiem (de hoc tu chinh truy van that), trong khi
+ * {@code /api/suggest} goi {@link #getSuggestions} — ca hai chay tren cac
+ * thread HTTP KHAC NHAU, dong thoi. {@code HashMap} vua doc vua ghi co the
+ * lam hong cau truc bucket (tung la loi noi tieng gay vong lap vo han o
+ * HashMap Java 7).
+ *
+ * <p>Khac voi {@link LRUCache} — noi {@code get()} thuc chat la thao tac GHI
+ * vi no cap nhat thu tu recency nen buoc phai dung write lock — o day
+ * {@link #getSuggestions} la doc THUAN TUY (khong sua node nao), nen no dung
+ * read lock that su va nhieu thread doc duoc phep chay song song. Chi
+ * {@link #insert} va {@link #clear} moi can write lock.
  */
 public class Trie {
 
@@ -59,6 +74,7 @@ public class Trie {
     }
 
     private TrieNode root = new TrieNode();
+    private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
      * O(1) - xoá sạch trie, dùng khi dựng lại gợi ý sau mỗi lần reindex.
@@ -67,7 +83,12 @@ public class Trie {
      * và được bộ gom rác thu hồi — không cần duyệt để giải phóng từng node.
      */
     public void clear() {
-        root = new TrieNode();
+        lock.writeLock().lock();
+        try {
+            root = new TrieNode();
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     private static String normalize(String s) {
@@ -100,14 +121,20 @@ public class Trie {
             return;
         }
         String normalized = normalize(key);
-        TrieNode node = root;
-        for (int i = 0; i < normalized.length(); i++) {
-            char c = normalized.charAt(i);
-            node = node.children.computeIfAbsent(c, k -> new TrieNode());
+        String normalizedDisplay = display == null ? null : normalize(display);
+        lock.writeLock().lock();
+        try {
+            TrieNode node = root;
+            for (int i = 0; i < normalized.length(); i++) {
+                char c = normalized.charAt(i);
+                node = node.children.computeIfAbsent(c, k -> new TrieNode());
+            }
+            node.isEndOfWord = true;
+            node.frequency += frequency;
+            node.display = normalizedDisplay;
+        } finally {
+            lock.writeLock().unlock();
         }
-        node.isEndOfWord = true;
-        node.frequency += frequency;
-        node.display = display == null ? null : normalize(display);
     }
 
     /** O(L) - kiem tra tu co ton tai chinh xac trong trie khong. */
@@ -115,16 +142,27 @@ public class Trie {
         if (word == null || word.isEmpty()) {
             return false;
         }
-        TrieNode node = findNode(normalize(word));
-        return node != null && node.isEndOfWord;
+        String normalized = normalize(word);
+        lock.readLock().lock();
+        try {
+            TrieNode node = findNode(normalized);
+            return node != null && node.isEndOfWord;
+        } finally {
+            lock.readLock().unlock();
+        }
     }
 
     /** O(L) - kiem tra co tu nao bat dau bang prefix nay khong. */
     public boolean startsWith(String prefix) {
-        if (prefix == null || prefix.isEmpty()) {
-            return !root.children.isEmpty();
+        lock.readLock().lock();
+        try {
+            if (prefix == null || prefix.isEmpty()) {
+                return !root.children.isEmpty();
+            }
+            return findNode(normalize(prefix)) != null;
+        } finally {
+            lock.readLock().unlock();
         }
-        return findNode(normalize(prefix)) != null;
     }
 
     private TrieNode findNode(String s) {
@@ -149,13 +187,21 @@ public class Trie {
             return result;
         }
         String normalizedPrefix = prefix == null ? "" : normalize(prefix);
-        TrieNode prefixNode = findNode(normalizedPrefix);
-        if (prefixNode == null) {
-            return result;
-        }
 
+        // Doc THUAN TUY: khong sua node nao, nen read lock that su — nhieu
+        // thread /api/suggest chay song song duoc. Toan bo phan doc cay nam
+        // trong khoa; phan tinh top-K sau do chi lam viec tren ban sao cuc bo.
         List<WordFrequency> candidates = new ArrayList<>();
-        collectWords(prefixNode, new StringBuilder(normalizedPrefix), candidates);
+        lock.readLock().lock();
+        try {
+            TrieNode prefixNode = findNode(normalizedPrefix);
+            if (prefixNode == null) {
+                return result;
+            }
+            collectWords(prefixNode, new StringBuilder(normalizedPrefix), candidates);
+        } finally {
+            lock.readLock().unlock();
+        }
 
         // Gop cac muc trung chuoi hien thi: cung mot goi y duoc chen hai lan
         // (khoa co dau va khoa khong dau) nen mot tien to ngan co the cham

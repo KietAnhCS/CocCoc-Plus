@@ -88,6 +88,11 @@ public class PageRankService {
             }
         }
 
+        // "Dong bang" sang CSR truoc khi lap: power iteration chay hang chuc
+        // vong tren CUNG mot ma tran, nen tra chi phi chuyen doi MOT lan de doi
+        // lay cuc bo cache tot hon va it bo nho hon cho tat ca cac vong sau.
+        incoming.freeze();
+
         double[] pr = new double[n];
         for (int i = 0; i < n; i++) {
             pr[i] = 1.0 / n;
@@ -116,7 +121,8 @@ public class PageRankService {
             iteration++;
         } while (diff >= EPSILON && iteration < MAX_ITERATIONS);
 
-        System.out.printf("PageRank hoi tu sau %d vong lap (diff cuoi = %.2e)%n", iteration, diff);
+        System.out.printf("PageRank hoi tu sau %d vong lap (diff cuoi = %.2e, nnz = %d, do thua = %.4f%%)%n",
+                iteration, diff, incoming.nnz(), incoming.density() * 100);
 
         Map<Integer, Double> result = new HashMap<>();
         for (int idx = 0; idx < n; idx++) {

@@ -15,25 +15,52 @@ flowchart LR
         Ctl[Controller: Search / Suggest / Admin]
         Facade[SearchEngineFacade]
         Crawl[CrawlerService]
-        Idx[InvertedIndex]
-        Rank[TfIdfScorer / PageRankService / ResultRanker]
+        Resolve[CandidateResolver]
+        Idx[InvertedIndex - TRONG BO NHO]
+        Rank[TfIdfScorer / BM25Scorer / PageRankService / ResultRanker]
         DS[(Trie / BloomFilter / LRUCache / MinHeap / UrlFrontier / SparseMatrix)]
+    end
+
+    subgraph Eval["Bo danh gia chat luong"]
+        Harness[EvaluationHarness]
+        Metrics[EvaluationMetrics: P@k, MAP, nDCG, MRR]
+        Known[KnownItemQueryGenerator]
+        Pool[PoolBuilder - TREC pooling]
     end
 
     Web[(World Wide Web)]
     Data[(data/*.json)]
+    PG[(PostgreSQL - kho tai lieu tho)]
 
     UI -->|REST /api/search, /api/suggest| Ctl
     Ctl --> Facade
-    Facade --> Idx
+    Facade --> Resolve
+    Resolve --> Idx
     Facade --> Rank
     Facade --> DS
     Crawl --> Web
     Facade --> Crawl
     Crawl --> Idx
     Idx --> Data
+    Crawl --> PG
+    PG -->|nap luc khoi dong, dung lai chi muc| Idx
     Rank --> DS
+    Harness --> Resolve
+    Harness --> Rank
+    Known --> Idx
+    Harness --> Metrics
+    Pool --> Harness
 ```
+
+> **Lưu ý kiến trúc quan trọng:** `EvaluationHarness` dùng lại **đúng**
+> `CandidateResolver` và `ResultRanker` mà tầng REST đang dùng, chỉ thay
+> một biến số mỗi thí nghiệm. Nếu bộ đánh giá có đường đi riêng thì mọi kết
+> luận rút ra sẽ nói về đường đi đó chứ không nói gì về sản phẩm thật.
+>
+> **PostgreSQL chỉ là kho lưu trữ.** Chỉ mục đảo vẫn nằm trong bộ nhớ và do
+> đồ án tự cài; DB chỉ giữ tài liệu thô và đồ thị liên kết. Chỉ mục GIN của
+> PostgreSQL được dùng làm **đối chứng** trong `docs/GIN-BASELINE.md`, không
+> tham gia phục vụ người dùng.
 
 ## So do tuan tu: mot request tim kiem day du
 

@@ -145,7 +145,12 @@ public class EvaluationRunner {
         double weightedPageRank = 0.3 * meanPageRank;
 
         StringBuilder sb = new StringBuilder();
-        sb.append("## 6. Phân tích thang đo của các thành phần điểm\n\n");
+        sb.append("## 7. Phân tích thang đo của các thành phần điểm\n\n");
+        sb.append("> **Vì sao phải có mục này.** Mục 3 cho thấy bộ trọng số 0.6/0.3/0.1 đạt\n");
+        sb.append("> MRR cao nhất. Nhưng một bảng số liệu chỉ nói *cấu hình nào tốt hơn*, nó\n");
+        sb.append("> không nói *vì sao*. Trước khi rút ra bất kỳ kết luận nào về ý nghĩa của\n");
+        sb.append("> từng trọng số, phải kiểm tra một giả định ngầm mà công thức kết hợp\n");
+        sb.append("> tuyến tính dựa vào — và giả định đó hoá ra là SAI.\n\n");
         sb.append("Điểm cuối cùng là `alpha*tfidf + beta*pageRank + gamma*titleBonus`. Công\n");
         sb.append("thức này chỉ có ý nghĩa nếu ba đại lượng cùng thang đo. Đo trên ")
                 .append(samples).append(" cặp\n(truy vấn, kết quả top-").append(TOP_N).append("):\n\n");
@@ -175,9 +180,19 @@ public class EvaluationRunner {
         sb.append("**Đề xuất khắc phục:** chuẩn hoá PageRank về cùng thang đo trước khi kết\n");
         sb.append("hợp — ví dụ chia cho giá trị PageRank lớn nhất trong corpus, hoặc dùng\n");
         sb.append("min-max normalisation trên tập ứng viên của từng truy vấn. Khi đó trọng số\n");
-        sb.append("mới thực sự mang ý nghĩa tỷ lệ đóng góp và mới quét tham số có ý nghĩa được.\n");
+        sb.append("mới thực sự mang ý nghĩa tỷ lệ đóng góp và mới quét tham số có ý nghĩa được.\n\n");
+        sb.append(SCALE_LESSON);
         return sb.toString();
     }
+
+    /** Bài học tổng quát rút ra từ phân tích thang đo — phần giảng giải, không phụ thuộc số liệu. */
+    private static final String SCALE_LESSON = """
+            **Bài học tổng quát:** khi kết hợp tuyến tính nhiều tín hiệu, **luôn kiểm tra
+            độ lớn thực tế** của từng thành phần trước khi diễn giải trọng số. Một trọng
+            số lớn không có nghĩa là ảnh hưởng lớn. Đây là loại lỗi mà bảng kết quả
+            không bao giờ tự tố giác: mọi con số MRR ở mục 3 đều đúng, chỉ có cách
+            *giải thích* chúng là sai nếu bỏ qua phép kiểm tra này.
+            """;
 
     private static InvertedIndex buildIndex(List<WebDocument> docs) {
         List<WebDocument> sorted = new ArrayList<>(docs);
@@ -284,19 +299,19 @@ public class EvaluationRunner {
         StringBuilder sb = new StringBuilder();
         sb.append("# Đánh giá chất lượng tìm kiếm (EVALUATION)\n\n");
         sb.append("> Tài liệu này được **sinh tự động** bởi `com.vnsearch.eval.EvaluationRunner`.\n");
-        sb.append("> Mọi con số đều tái lập được: chạy lại lệnh dưới đây sẽ ra đúng kết quả này.\n\n");
+        sb.append("> Mọi con số đều tái lập được: chạy lại lệnh dưới đây sẽ ra đúng kết quả này.\n");
+        sb.append("> **Đừng sửa tay file này** — hãy sửa phần sinh báo cáo trong\n");
+        sb.append("> `eval/EvaluationRunner.java` rồi chạy lại.\n\n");
         sb.append("```bash\ncd search-engine\n");
         sb.append("./mvnw.cmd exec:java -Dexec.mainClass=com.vnsearch.eval.EvaluationRunner \\\n");
         sb.append("     -Dexec.args=\"data/crawled-multi.json ").append(queries.size()).append("\"\n```\n\n");
+        sb.append(READING_GUIDE);
 
         sb.append("## 1. Phương pháp\n\n");
-        sb.append("Dùng **known-item search** — phương pháp đánh giá kinh điển khi không có\n");
-        sb.append("sẵn bộ nhãn liên quan do người gán. Thay vì hỏi \"tài liệu nào liên quan\n");
-        sb.append("tới truy vấn này\" (cần người trả lời), ta lật ngược: chọn trước một tài\n");
-        sb.append("liệu, sinh truy vấn từ chính các từ khoá đặc trưng nhất của nó, và tài\n");
-        sb.append("liệu đó chính là đáp án đúng duy nhất. Mô phỏng đúng tình huống người\n");
-        sb.append("dùng nhớ mang máng một bài báo rồi gõ vài từ khoá tìm lại.\n\n");
-        sb.append("Từ khoá của mỗi truy vấn được chọn theo điểm TF-IDF cao nhất, nhưng **chỉ\n");
+        sb.append(METHOD_WHY);
+        sb.append("### 1.2. Chọn từ khoá thế nào cho truy vấn có ý nghĩa\n\n");
+        sb.append("Đây là chỗ dễ làm sai nhất của cả phương pháp. Từ khoá của mỗi truy vấn\n");
+        sb.append("được chọn theo điểm TF-IDF cao nhất, nhưng **chỉ\n");
         sb.append("lấy các term có document frequency trong khoảng [")
                 .append(KnownItemQueryGenerator.MIN_DF).append(", ")
                 .append(String.format(Locale.US, "%.0f%% số tài liệu", KnownItemQueryGenerator.MAX_DF_RATIO * 100))
@@ -305,11 +320,7 @@ public class EvaluationRunner {
         sb.append("list trả về đúng một kết quả, hệ thống nào cũng đạt MRR = 1,0 và bài đánh\n");
         sb.append("giá mất hết ý nghĩa phân biệt); lọc trên để loại term quá phổ biến, gần\n");
         sb.append("như không mang thông tin.\n\n");
-
-        sb.append("### Các độ đo\n\n");
-        sb.append("| Độ đo | Ý nghĩa |\n|---|---|\n");
-        sb.append("| **MRR** | Trung bình nghịch đảo thứ hạng của tài liệu đích. Đích ở hạng 1 được 1,0; hạng 2 được 0,5; hạng 10 được 0,1. Đây là độ đo chính. |\n");
-        sb.append("| **Success@k** | Tỷ lệ truy vấn mà tài liệu đích lọt vào top k. |\n\n");
+        sb.append(METHOD_DETAILS);
 
         sb.append("## 2. Corpus và cấu hình thí nghiệm\n\n");
         sb.append("| Thông số | Giá trị |\n|---|---|\n");
@@ -332,7 +343,9 @@ public class EvaluationRunner {
         sb.append("\n## 3. Kết quả\n\n");
         sb.append(renderTable(results)).append("\n");
 
-        sb.append("## 4. Nhận xét\n\n");
+        sb.append(HOW_TO_READ_TABLE);
+
+        sb.append("## 5. Nhận xét\n\n");
         sb.append(String.format(Locale.US,
                 "**BM25 với TF-IDF.** BM25 thuần đạt MRR %.4f so với %.4f của TF-IDF cosine thuần "
                         + "(chênh %+.1f%%). ", bm25Only.mrr(), tfidfOnly.mrr(),
@@ -370,19 +383,155 @@ public class EvaluationRunner {
             sb.append("Cấu hình đang dùng đã là tốt nhất trong các phương án thử nghiệm.\n\n");
         }
 
-        sb.append("## 5. Hạn chế của phương pháp\n\n");
-        sb.append("Phải nêu rõ để kết quả được diễn giải đúng:\n\n");
-        sb.append("1. **Known-item search chỉ có đúng một tài liệu đúng cho mỗi truy vấn.**\n");
-        sb.append("   Nó đo tốt khả năng \"tìm lại đúng bài đã biết\", nhưng không đo được\n");
-        sb.append("   chất lượng của truy vấn khám phá kiểu \"tin tức công nghệ\" — loại truy\n");
-        sb.append("   vấn mà nhiều tài liệu cùng liên quan ở các mức khác nhau. Vì vậy nó\n");
-        sb.append("   **thiên vị chống lại PageRank**, vốn là tín hiệu về uy tín chung chứ\n");
-        sb.append("   không về mức khớp với một truy vấn cụ thể.\n");
-        sb.append("2. **Truy vấn được sinh máy móc từ chính tài liệu**, nên phân bố từ khoá\n");
-        sb.append("   không hoàn toàn giống truy vấn người thật gõ.\n");
-        sb.append("3. Để bổ khuyết cả hai điểm trên, cần thêm bộ truy vấn có **nhãn liên quan\n");
-        sb.append("   nhiều bậc do người gán** (xem `PoolBuilder`), khi đó mới dùng được\n");
-        sb.append("   nDCG/MAP và mới đánh giá công bằng cho PageRank.\n");
+        sb.append(LIMITATIONS);
         return sb.toString();
     }
+
+    // ---------------------------------------------------------------------
+    // Các khối giảng giải KHÔNG phụ thuộc số liệu.
+    //
+    // Giữ ở đây (thay vì sửa tay file Markdown) để docs/EVALUATION.md vẫn
+    // được sinh tự động hoàn toàn — nếu sửa tay file .md thì lần chạy lại
+    // kế tiếp sẽ xoá mất, và câu "mọi con số đều tái lập được" thành sai.
+    // ---------------------------------------------------------------------
+
+    private static final String READING_GUIDE = """
+            ## Cách đọc tài liệu này
+
+            | Mục | Trả lời câu hỏi |
+            |---|---|
+            | 1. Phương pháp | Lấy đâu ra "đáp án đúng" khi không có người gán nhãn? |
+            | 2. Corpus | Thí nghiệm chạy trên dữ liệu gì, cấu hình nào? |
+            | 3. Kết quả | 11 cấu hình xếp hạng, cái nào tốt nhất? |
+            | 4. Cách đọc bảng | Vì sao 11 cấu hình đó, chứ không phải 11 cấu hình khác? |
+            | 5. Nhận xét | Kết luận rút ra được |
+            | 6. Hạn chế | Kết quả này KHÔNG chứng minh điều gì |
+            | 7. Thang đo | Một giả định ngầm của công thức kết hợp — và nó sai |
+
+            Nếu chỉ đọc được hai mục, hãy đọc **mục 4** và **mục 7**: mục 4 giải thích
+            thiết kế thí nghiệm, mục 7 chứa phát hiện quan trọng nhất.
+
+            """;
+
+    private static final String METHOD_WHY = """
+            ### 1.1. Vì sao dùng known-item search
+
+            Muốn đo chất lượng tìm kiếm thì phải biết **tài liệu nào liên quan tới truy
+            vấn nào** — tập nhãn này gọi là *qrels*. Vấn đề: qrels thường phải do người
+            gán tay, vừa tốn công vừa chủ quan. Gán nhãn 5.011 tài liệu cho 30 truy vấn
+            là 150.000 lượt đánh giá.
+
+            **Known-item search** là phương pháp kinh điển né được điều đó bằng cách lật
+            ngược bài toán. Thay vì hỏi "tài liệu nào liên quan tới truy vấn này" (cần
+            người trả lời), ta **chọn trước một tài liệu**, sinh truy vấn từ chính các từ
+            khoá đặc trưng nhất của nó, và tài liệu đó chính là đáp án đúng **duy nhất**.
+
+            Phương pháp này mô phỏng đúng một tình huống rất thật: người dùng nhớ mang
+            máng một bài báo đã đọc rồi gõ vài từ khoá để tìm lại.
+
+            Vì mỗi truy vấn có đúng một đáp án, độ đo phù hợp là **MRR** và
+            **Success@k** — không phải MAP hay nDCG (những độ đo đó cần nhiều tài liệu
+            liên quan ở nhiều mức độ).
+
+            """;
+
+    private static final String METHOD_DETAILS = """
+            Thêm hai chi tiết trong cách sinh truy vấn:
+
+            - **Nhân đôi điểm cho term xuất hiện trong tiêu đề** — vì đó chính là thứ
+              người dùng nhớ và gõ lại.
+            - **Loại truy vấn trùng** — nếu hai tài liệu sinh ra cùng một chuỗi truy
+              vấn thì ground truth nhập nhằng, không biết đáp án nào mới đúng.
+
+            ### 1.3. Hai độ đo được dùng
+
+            | Độ đo | Ý nghĩa | Công thức |
+            |---|---|---|
+            | **MRR** | Trung bình nghịch đảo thứ hạng của tài liệu đích. Đây là độ đo chính. | `MRR = (1/\\|Q\\|) · Σ 1/rank` |
+            | **Success@k** | Tỷ lệ truy vấn mà tài liệu đích lọt vào top k. | `Success@k = (số truy vấn có rank ≤ k) / \\|Q\\|` |
+
+            **Ví dụ tính tay cho MRR.** Giả sử chạy 4 truy vấn, tài liệu đích nằm ở
+            hạng 1, 2, 5 và không tìm thấy:
+
+            | Truy vấn | Hạng của đích | Reciprocal Rank |
+            |---|---|---|
+            | q1 | 1 | 1/1 = 1,000 |
+            | q2 | 2 | 1/2 = 0,500 |
+            | q3 | 5 | 1/5 = 0,200 |
+            | q4 | không tìm thấy | 0,000 |
+
+            `MRR = (1,000 + 0,500 + 0,200 + 0,000) / 4 = 0,425`
+
+            **Cách đọc một giá trị MRR.** Vì hạng 1 cho 1,0 và hạng 2 cho 0,5, MRR chịu
+            ảnh hưởng rất mạnh từ việc đích có nằm ở **hạng 1** hay không. MRR ≈ 0,92
+            nghĩa là đại đa số truy vấn tìm ra đích ngay ở vị trí đầu — điều này khớp
+            với Success@1 trong bảng kết quả, và hai con số đó nên luôn được đọc cùng
+            nhau.
+
+            """;
+
+    private static final String HOW_TO_READ_TABLE = """
+            ## 4. Cách đọc bảng kết quả
+
+            11 cấu hình trên **không** được chọn tuỳ ý. Chúng được thiết kế theo kiểu
+            **ablation**: mỗi cấu hình chỉ khác cấu hình nền **đúng một** yếu tố, để
+            chênh lệch quan sát được **quy được về đúng yếu tố đó**.
+
+            | Nhóm | Cấu hình | Câu hỏi được trả lời |
+            |---|---|---|
+            | 1 | TF-IDF thuần, BM25 thuần (α=1, β=γ=0) | Mô hình tính điểm nào tốt hơn, khi tắt hết tín hiệu khác? |
+            | 2 | TF-IDF + title (0.9/0/0.1) · TF-IDF + PageRank (0.7/0.3/0) · cả hai (0.6/0.3/0.1) | Từng tín hiệu bổ sung đóng góp bao nhiêu? |
+            | 3 | Quét beta = 0.05 … 0.80 | Trọng số PageRank nào tối ưu? |
+            | 4 | BM25 + PR + title (0.6/0.3/0.1) | Ưu thế của BM25 có cộng hưởng với các tín hiệu khác? |
+
+            **Cách tách biệt đóng góp của một tín hiệu.** So hai hàng chỉ khác nhau ở
+            tín hiệu đó:
+
+            ```
+            đóng góp của title bonus = MRR(TF-IDF + title)     − MRR(TF-IDF thuần)
+            đóng góp của PageRank    = MRR(TF-IDF + PageRank)  − MRR(TF-IDF thuần)
+            ```
+
+            Hãy tự tính hai hiệu số này từ bảng ở mục 3. Bạn sẽ thấy đóng góp của
+            title bonus **lớn hơn nhiều lần** đóng góp của PageRank — đó là dấu hiệu
+            đầu tiên dẫn tới phát hiện ở mục 7.
+
+            > **Cảnh báo quan trọng khi đọc nhóm 3.** Phép quét beta bị ràng buộc
+            > `alpha = 0.9 − beta` (gamma giữ nguyên 0.1). Nghĩa là khi beta tăng thì
+            > alpha **giảm theo**, nên mỗi hàng thay đổi **hai** biến số cùng lúc, không
+            > phải một. Đây không phải ablation thuần khiết, và mục 7 giải thích vì sao
+            > điều đó làm mọi kết luận về beta trở nên vô nghĩa.
+
+            > **Về cột `ms/truy vấn`.** Con số này chỉ để tham khảo, **không** phải phép
+            > đo hiệu năng nghiêm túc: nó không có vòng làm nóng JVM riêng cho từng cấu
+            > hình, nên cấu hình chạy trước gánh phần lớn chi phí JIT. Muốn so tốc độ
+            > nghiêm túc thì xem `docs/GIN-BASELINE.md`, nơi có làm nóng đúng cách.
+
+            """;
+
+    private static final String LIMITATIONS = """
+            ## 6. Hạn chế của phương pháp
+
+            Phải nêu rõ để kết quả được diễn giải đúng. Một báo cáo không nêu hạn chế
+            thì không đáng tin, vì mọi phương pháp đo đều có hạn chế.
+
+            1. **Known-item search chỉ có đúng một tài liệu đúng cho mỗi truy vấn.**
+               Nó đo tốt khả năng "tìm lại đúng bài đã biết", nhưng không đo được
+               chất lượng của truy vấn khám phá kiểu "tin tức công nghệ" — loại truy
+               vấn mà nhiều tài liệu cùng liên quan ở các mức khác nhau. Vì vậy nó
+               **thiên vị chống lại PageRank**, vốn là tín hiệu về uy tín chung chứ
+               không về mức khớp với một truy vấn cụ thể. Nói cách khác: PageRank có
+               thể đang làm tốt việc của nó mà phương pháp đo này không nhìn thấy.
+            2. **Truy vấn được sinh máy móc từ chính tài liệu**, nên phân bố từ khoá
+               không hoàn toàn giống truy vấn người thật gõ. Người thật gõ ngắn hơn,
+               sai chính tả, dùng từ thông dụng thay vì từ đặc trưng nhất.
+            3. **Chỉ đo được xếp hạng, không đo được tách từ.** Nếu tokenizer ghép sai
+               một từ ghép thì cả truy vấn lẫn tài liệu đều sai theo cùng một cách,
+               nên phép đo vẫn cho kết quả tốt. Độ chính xác tách từ cần một tập văn
+               bản đã tách thủ công làm chuẩn — hiện **chưa có**.
+            4. Để bổ khuyết ba điểm trên, cần thêm bộ truy vấn có **nhãn liên quan
+               nhiều bậc do người gán** (xem `PoolBuilder` và `QrelsEvaluationRunner`),
+               khi đó mới dùng được nDCG/MAP và mới đánh giá công bằng cho PageRank.
+
+            """;
 }

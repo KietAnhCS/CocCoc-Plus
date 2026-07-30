@@ -11,11 +11,12 @@ phân tích độ phức tạp và **đo đạc thực nghiệm** trên corpus t
 
 | Hạng mục | Số liệu |
 |---|---|
-| Corpus | **5.011 trang** thật từ 6 báo điện tử Việt Nam |
+| Corpus | **5.011 trang** thật từ 6 báo điện tử Việt Nam, 52 host phân biệt |
 | Chỉ mục | 136.768 term phân biệt, 1.043 token/tài liệu |
-| Kiểm thử | **148 test**, tất cả xanh |
-| Mã nguồn | ~4.500 dòng Java (backend) + ~1.500 dòng TypeScript (frontend) |
-| Chất lượng tìm kiếm | MRR **0,9196**, Success@1 **87,5%** |
+| Đồ thị liên kết | 239.691 cạnh (42.002 cạnh chéo domain), độ thưa 0,95% |
+| Kiểm thử | **163 test**, tất cả xanh |
+| Mã nguồn | ~5.950 dòng Java (backend) + ~2.050 dòng test + ~1.500 dòng TypeScript (frontend) |
+| Chất lượng tìm kiếm | MRR **0,9229**, Success@1 **88,0%** |
 
 ## Cấu trúc thư mục
 
@@ -40,15 +41,24 @@ search-engine/
 
 ## Tài liệu
 
-| Tài liệu | Nội dung |
-|---|---|
-| [**docs/SEARCH-ENGINE-101.md**](docs/SEARCH-ENGINE-101.md) | **Bắt đầu từ đây** — giải thích toàn bộ kiến thức thuật toán đằng sau một máy tìm kiếm, kèm ví dụ tính tay |
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Sơ đồ kiến trúc, luồng xử lý một truy vấn |
-| [docs/ALGORITHMS.md](docs/ALGORITHMS.md) | Danh sách thuật toán theo thứ tự pipeline |
-| [docs/DSA-REPORT.md](docs/DSA-REPORT.md) | Cấu trúc dữ liệu, độ phức tạp, so sánh có đo đạc |
-| [docs/EVALUATION.md](docs/EVALUATION.md) | **Đánh giá chất lượng tìm kiếm** (sinh tự động) |
-| [docs/GIN-BASELINE.md](docs/GIN-BASELINE.md) | **Đối chứng với PostgreSQL GIN** (sinh tự động) |
-| [docs/api-examples.http](docs/api-examples.http) | Ví dụ gọi REST API |
+Sáu tài liệu dưới đây viết theo kiểu **giáo trình**: mỗi khái niệm đi từ *vấn
+đề* → *ý tưởng* → *công thức* → *ví dụ tính tay* → *mã thật trong repo* → *độ
+phức tạp*. Đọc theo thứ tự trong bảng.
+
+| # | Tài liệu | Nội dung | Nên đọc khi |
+|---|---|---|---|
+| 1 | [**docs/SEARCH-ENGINE-101.md**](docs/SEARCH-ENGINE-101.md) | **Bắt đầu từ đây** — giáo trình đầy đủ về lý thuyết máy tìm kiếm, 13 chương, kèm ví dụ tính tay và bài tập "tự code thử" | Muốn **hiểu và tự code lại** |
+| 2 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Ba tầng hệ thống, sơ đồ thành phần, 4 luồng xử lý, 9 quyết định thiết kế kèm phương án thay thế | Muốn biết các mảnh **ghép lại** thế nào |
+| 3 | [docs/ALGORITHMS.md](docs/ALGORITHMS.md) | Từng thuật toán theo thứ tự pipeline, mỗi mục có mã giả + trích mã Java thật | Đang **đọc code** và cần tra cứu |
+| 4 | [docs/DSA-REPORT.md](docs/DSA-REPORT.md) | Bảng Big-O đầy đủ, lý do chọn từng cấu trúc kèm **số đo**, 3 lỗi hiệu năng phát hiện nhờ đo đạc | Viết **báo cáo đồ án** |
+| 5 | [docs/EVALUATION.md](docs/EVALUATION.md) | **Đánh giá chất lượng tìm kiếm** — known-item search, 11 cấu hình ablation, phân tích thang đo *(sinh tự động)* | Cần **chứng minh** chất lượng |
+| 6 | [docs/GIN-BASELINE.md](docs/GIN-BASELINE.md) | **Đối chứng với PostgreSQL GIN** — baseline bên ngoài, có làm nóng JVM đúng cách *(sinh tự động)* | Cần một **mốc so sánh** |
+| — | [docs/api-examples.http](docs/api-examples.http) | Ví dụ gọi REST API | Muốn thử API ngay |
+
+> ⚠️ **`EVALUATION.md` và `GIN-BASELINE.md` được sinh tự động — đừng sửa tay.**
+> Toàn bộ nội dung (kể cả phần giảng giải) nằm trong
+> `eval/EvaluationRunner.java` và `storage/GinBaselineRunner.java`; sửa ở đó
+> rồi chạy lại, nếu không lần chạy kế tiếp sẽ ghi đè mất.
 
 ## Yêu cầu môi trường
 
@@ -133,18 +143,18 @@ MAVEN_OPTS=-Xmx4g ./mvnw.cmd compile exec:java \
 |---|---|---|
 | TF-IDF thuần | 0,8537 | 78,0% |
 | BM25 thuần | 0,8989 | 85,0% |
-| **TF-IDF + PageRank + title (đang dùng)** | **0,9196** | **87,5%** |
+| **TF-IDF + PageRank + title (đang dùng)** | **0,9229** | **88,0%** |
 
 **Đối chứng với PostgreSQL GIN** (cùng corpus, cùng truy vấn):
 
 | Tiêu chí | Chỉ mục tự cài | PostgreSQL GIN |
 |---|---|---|
-| MRR | **0,9196** | 0,8330 |
-| Thời gian truy vấn | 6,43 ms | **1,18 ms** |
+| MRR | **0,9229** | 0,8330 |
+| Thời gian truy vấn | 3,41 ms | **1,17 ms** |
 
-Chỉ mục tự cài **thắng về chất lượng tiếng Việt** (+10,4% MRR, nhờ tách từ
+Chỉ mục tự cài **thắng về chất lượng tiếng Việt** (+10,8% MRR, nhờ tách từ
 ghép bằng Longest Matching và chỉ mục kép có dấu/không dấu) nhưng **thua về
-tốc độ** (chậm hơn 5,4 lần). Kết quả được báo cáo trung thực kèm phân tích
+tốc độ** (chậm hơn 2,9 lần). Kết quả được báo cáo trung thực kèm phân tích
 nguyên nhân trong `docs/GIN-BASELINE.md`.
 
 **Lợi ích của ma trận thưa tăng theo quy mô** — đúng như lý thuyết dự đoán:

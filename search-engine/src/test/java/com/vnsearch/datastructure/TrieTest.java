@@ -86,4 +86,59 @@ class TrieTest {
         trie.insert("hello");
         assertTrue(trie.getSuggestions("xyz", 5).isEmpty());
     }
+
+    @Test
+    void clearRemovesAllWords() {
+        // Bảo vệ chống lỗi đã gặp: rebuildSuggestTrie() chỉ insert thêm mà
+        // không xoá, khiến tiêu đề của corpus CŨ vẫn được gợi ý sau reindex.
+        Trie trie = new Trie();
+        trie.insert("may tinh");
+        trie.insert("may bay");
+        assertTrue(trie.search("may tinh"));
+
+        trie.clear();
+
+        assertFalse(trie.search("may tinh"), "Sau clear() không từ nào còn tồn tại");
+        assertFalse(trie.startsWith("may"), "Sau clear() không tiền tố nào còn tồn tại");
+        assertTrue(trie.getSuggestions("may", 10).isEmpty());
+
+        trie.insert("hoan toan moi");
+        assertTrue(trie.search("hoan toan moi"), "Vẫn insert lại được sau khi clear");
+    }
+
+    @Test
+    void lookupKeyCanDifferFromDisplayString() {
+        // Người Việt hay gõ không dấu, nhưng gợi ý hiện ra phải có dấu.
+        Trie trie = new Trie();
+        trie.insert("công nghệ", "công nghệ", 10);
+        trie.insert("cong nghe", "công nghệ", 10);
+
+        assertEquals(List.of("công nghệ"), trie.getSuggestions("công", 5),
+                "Gõ có dấu phải ra gợi ý có dấu");
+        assertEquals(List.of("công nghệ"), trie.getSuggestions("cong", 5),
+                "Gõ KHÔNG dấu cũng phải ra gợi ý CÓ dấu");
+    }
+
+    @Test
+    void duplicateDisplayStringsAreMergedInSuggestions() {
+        // Cùng một gợi ý được chèn 2 lần (khoá có dấu + khoá không dấu) nên
+        // một tiền tố ngắn có thể chạm cả hai node; không được hiện trùng.
+        Trie trie = new Trie();
+        trie.insert("kinh tế", "kinh tế", 5);
+        trie.insert("kinh te", "kinh tế", 5);
+
+        List<String> suggestions = trie.getSuggestions("kin", 10);
+        assertEquals(1, suggestions.size(), "Gợi ý bị lặp: " + suggestions);
+        assertEquals("kinh tế", suggestions.get(0));
+    }
+
+    @Test
+    void frequencyArgumentDrivesRanking() {
+        Trie trie = new Trie();
+        trie.insert("thể thao", "thể thao", 2);
+        trie.insert("thể dục", "thể dục", 50);
+
+        assertEquals("thể dục", trie.getSuggestions("thể", 1).get(0),
+                "Cụm xuất hiện nhiều hơn phải được gợi ý trước");
+    }
 }

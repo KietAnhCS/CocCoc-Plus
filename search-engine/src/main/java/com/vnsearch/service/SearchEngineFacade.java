@@ -5,15 +5,16 @@ import com.vnsearch.datastructure.LRUCache;
 import com.vnsearch.datastructure.Trie;
 import com.vnsearch.index.IndexPersistence;
 import com.vnsearch.index.InvertedIndex;
-import com.vnsearch.index.Posting;
+import com.vnsearch.index.VietnameseTokenizer;
 import com.vnsearch.model.SearchResponse;
 import com.vnsearch.model.SearchResult;
 import com.vnsearch.model.WebDocument;
-import com.vnsearch.query.PostingListMerger;
+import com.vnsearch.query.CandidateResolver;
 import com.vnsearch.query.QueryParser;
 import com.vnsearch.ranking.PageRankService;
 import com.vnsearch.ranking.ResultRanker;
 import com.vnsearch.ranking.TfIdfScorer;
+import com.vnsearch.storage.DocumentRepository;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -34,7 +35,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 /**
  * Lop dieu phoi trung tam ("facade"), noi cac phase lai voi nhau thanh
@@ -58,6 +58,19 @@ public class SearchEngineFacade {
     @Value("${app.search.cache-size:200}")
     private int cacheSize;
 
+    /** Bat/tat viec nap corpus tu PostgreSQL (mac dinh tat de chay duoc khi khong co CSDL). */
+    @Value("${app.storage.postgres.enabled:false}")
+    private boolean postgresEnabled;
+
+    @Value("${app.storage.postgres.url:" + DocumentRepository.DEFAULT_URL + "}")
+    private String postgresUrl;
+
+    @Value("${app.storage.postgres.user:" + DocumentRepository.DEFAULT_USER + "}")
+    private String postgresUser;
+
+    @Value("${app.storage.postgres.password:" + DocumentRepository.DEFAULT_PASSWORD + "}")
+    private String postgresPassword;
+
     @Value("${app.ranking.alpha:0.6}")
     private double alpha;
 
@@ -67,7 +80,8 @@ public class SearchEngineFacade {
     @Value("${app.ranking.gamma:0.1}")
     private double gamma;
 
-    private final QueryParser queryParser = new QueryParser();
+    private final VietnameseTokenizer tokenizer = new VietnameseTokenizer();
+    private final QueryParser queryParser = new QueryParser(tokenizer);
     private final TfIdfScorer tfIdfScorer = new TfIdfScorer();
     private final PageRankService pageRankService = new PageRankService();
     private final Trie suggestTrie = new Trie();
@@ -97,7 +111,9 @@ public class SearchEngineFacade {
         resultRanker = new ResultRanker(alpha, beta, gamma);
         searchCache = new LRUCache<>(cacheSize);
         try {
-            if (Files.exists(Path.of(indexDataPath))) {
+            if (postgresEnabled && loadFromPostgres()) {
+                System.out.println("Da nap corpus tu PostgreSQL");
+            } else if (Files.exists(Path.of(indexDataPath))) {
                 index = IndexPersistence.load(indexDataPath);
             } else if (Files.exists(Path.of(crawledDataPath))) {
                 lastCrawledDocuments = CrawlerService.loadFromJson(crawledDataPath);
@@ -118,6 +134,28 @@ public class SearchEngineFacade {
         rebuildSuggestTrie();
     }
 
+    /**
+     * Nap corpus tu PostgreSQL roi DUNG LAI chi muc dao trong bo nho.
+     *
+     * <p>CSDL chi dong vai tro kho luu tru: viec tim kiem van do chi muc dao
+     * tu cai dam nhiem. Tra ve false neu khong ket noi duoc hoac CSDL rong,
+     * de he thong tu dong lui ve dung file JSON.
+     */
+    private boolean loadFromPostgres() {
+        try (DocumentRepository repo = new DocumentRepository(postgresUrl, postgresUser, postgresPassword)) {
+            List<WebDocument> docs = repo.findAll();
+            if (docs.isEmpty()) {
+                return false;
+            }
+            lastCrawledDocuments = docs;
+            index = buildIndexFrom(docs);
+            return true;
+        } catch (Exception e) {
+            System.err.println("Khong nap duoc tu PostgreSQL (" + e.getMessage() + "), dung file JSON thay the");
+            return false;
+        }
+    }
+
     private InvertedIndex buildIndexFrom(List<WebDocument> docs) {
         InvertedIndex newIndex = new InvertedIndex();
         List<WebDocument> sorted = new ArrayList<>(docs);
@@ -134,20 +172,87 @@ public class SearchEngineFacade {
                 : Map.of();
     }
 
+    /** So lan toi thieu mot cum tu phai xuat hien trong corpus de duoc dem lam goi y. */
+    private static final int MIN_SUGGESTION_FREQUENCY = 3;
+
+    /**
+     * Dung lai Trie goi y tu cac CUM TU CO NGHIA trich ra tu tieu de tai lieu.
+     *
+     * <p>Ban dau ham nay chen nguyen ca tieu de lam mot goi y, dong thoi chen
+     * tung tieng le. Ca hai deu sai:
+     * <ul>
+     *   <li>Nguyen tieu de tao ra goi y dai loang ngoang, khong ai go het.</li>
+     *   <li>Tieng le trong tieng Viet phan lon KHONG phai tu ("cong", "the",
+     *       "kinh" deu vo nghia khi dung mot minh) nen goi y ra toan rac.</li>
+     * </ul>
+     * Thay vao do, tokenize tieu de bang chinh {@link VietnameseTokenizer} roi
+     * lay: (1) cac tu ghep ma tokenizer nhan ra, (2) cac cap token lien tiep.
+     * Ca hai deu la don vi ma nguoi dung thuc su go.
+     *
+     * <p>Loc them hai buoc: bo tieu de khong phai tieng Viet (corpus co lan
+     * bai tieng Anh cua VnExpress International, truoc day lam goi y hien ra
+     * "the city that helped vietnam..."), va chi giu cum tu xuat hien tu
+     * {@link #MIN_SUGGESTION_FREQUENCY} lan tro len de loai nhieu.
+     *
+     * <p>Moi cum tu duoc chen HAI lan - duoi khoa co dau va khoa khong dau -
+     * nhung cung tro toi mot chuoi hien thi co dau, de nguoi go "cong nghe"
+     * van nhan duoc goi y "cong nghe" dung chinh ta.
+     */
     private void rebuildSuggestTrie() {
+        // Phai xoa sach truoc khi dung lai: neu chi insert them, cac tieu de
+        // cua corpus CU van con nam trong trie sau moi lan crawl/reindex.
+        suggestTrie.clear();
+
+        Map<String, Integer> phraseFrequency = new HashMap<>();
         for (WebDocument doc : index.getAllDocuments().values()) {
-            if (doc.getTitle() == null || doc.getTitle().isBlank()) {
+            String title = doc.getTitle();
+            if (title == null || title.isBlank() || !looksVietnamese(title)) {
                 continue;
             }
-            String normalizedTitle = doc.getTitle().trim().toLowerCase();
-            suggestTrie.insert(normalizedTitle);
-            for (String word : normalizedTitle.split("\\s+")) {
-                String cleaned = word.replaceAll("[^\\p{L}\\p{N}]", "");
-                if (cleaned.length() > 1) {
-                    suggestTrie.insert(cleaned);
+            List<VietnameseTokenizer.Token> tokens = tokenizer.tokenize(title);
+            for (int i = 0; i < tokens.size(); i++) {
+                String term = tokens.get(i).term();
+                // Tu ghep (tokenizer da noi bang "_") von la mot tu hoan chinh.
+                if (term.indexOf('_') >= 0) {
+                    phraseFrequency.merge(term.replace('_', ' '), 1, Integer::sum);
+                }
+                // Cap token lien tiep: bat cac cum nguoi dung hay go ma tu dien
+                // tu ghep chua kip co, vi du "bong da Viet Nam".
+                if (i + 1 < tokens.size()) {
+                    String bigram = (term + " " + tokens.get(i + 1).term()).replace('_', ' ');
+                    phraseFrequency.merge(bigram, 1, Integer::sum);
                 }
             }
         }
+
+        for (Map.Entry<String, Integer> entry : phraseFrequency.entrySet()) {
+            if (entry.getValue() < MIN_SUGGESTION_FREQUENCY) {
+                continue;
+            }
+            String phrase = entry.getKey();
+            int frequency = entry.getValue();
+            suggestTrie.insert(phrase, phrase, frequency);
+            String withoutDiacritics = VietnameseTokenizer.stripDiacritics(phrase);
+            if (!withoutDiacritics.equals(phrase)) {
+                suggestTrie.insert(withoutDiacritics, phrase, frequency);
+            }
+        }
+    }
+
+    /**
+     * Doan xem mot tieu de co phai tieng Viet khong.
+     *
+     * <p>Dung dau thanh dieu lam dau hieu: van ban tieng Viet that gan nhu
+     * luon co it nhat mot nguyen am mang dau trong mot cau day du. Tieu de
+     * tieng Anh thi khong bao gio co. Nguong 15 ky tu de khong loai nham cac
+     * tieu de rat ngan (vi du "Video") von co the khong co dau nao.
+     */
+    private boolean looksVietnamese(String title) {
+        String trimmed = title.trim();
+        if (trimmed.length() < 15) {
+            return true;
+        }
+        return !VietnameseTokenizer.stripDiacritics(trimmed).equals(trimmed);
     }
 
     public SearchResponse search(String rawQuery, int page, int size) {
@@ -163,17 +268,11 @@ public class SearchEngineFacade {
         cacheMisses.incrementAndGet();
 
         QueryParser.ParsedQuery parsed = queryParser.parse(normalizedQuery);
-        List<String> allRequiredTerms = new ArrayList<>(parsed.mustTerms());
-        for (List<String> phrase : parsed.phrases()) {
-            allRequiredTerms.addAll(phrase);
-        }
-
-        List<Integer> candidates = resolveCandidates(allRequiredTerms, parsed.phrases(), parsed.excludedTerms());
-
-        Map<String, Integer> queryTermFrequency = new HashMap<>();
-        for (String term : allRequiredTerms) {
-            queryTermFrequency.merge(term, 1, Integer::sum);
-        }
+        // Dung CHUNG bo phan giai ung vien voi bo danh gia chat luong (com.vnsearch.eval),
+        // de nhung gi duoc do dung bang nhung gi duoc phuc vu.
+        CandidateResolver.ResolvedQuery resolved = CandidateResolver.resolve(index, parsed);
+        List<Integer> candidates = resolved.candidateDocIds();
+        Map<String, Integer> queryTermFrequency = resolved.queryTermFrequency();
 
         int topN = Math.max(page * size, size);
         List<ResultRanker.RankedResult> ranked = resultRanker.rank(
@@ -192,43 +291,17 @@ public class SearchEngineFacade {
         SearchResponse response = new SearchResponse(normalizedQuery, candidates.size(), page, elapsed, pageResults);
         searchCache.put(cacheKey, response);
 
-        if (!normalizedQuery.isBlank()) {
-            suggestTrie.insert(normalizedQuery.toLowerCase());
+        // Truy van that cua nguoi dung la nguon goi y tot nhat, nen ghi lai
+        // ngay. Chen ca duoi khoa khong dau de lan sau go kieu nao cung ra.
+        if (!normalizedQuery.isBlank() && !candidates.isEmpty()) {
+            String queryKey = normalizedQuery.toLowerCase();
+            suggestTrie.insert(queryKey, queryKey, 1);
+            String withoutDiacritics = VietnameseTokenizer.stripDiacritics(queryKey);
+            if (!withoutDiacritics.equals(queryKey)) {
+                suggestTrie.insert(withoutDiacritics, queryKey, 1);
+            }
         }
         return response;
-    }
-
-    private List<Integer> resolveCandidates(List<String> allRequiredTerms, List<List<String>> phrases,
-                                             List<String> excludedTerms) {
-        if (allRequiredTerms.isEmpty()) {
-            return new ArrayList<>();
-        }
-        List<List<Posting>> postingLists = new ArrayList<>();
-        for (String term : allRequiredTerms) {
-            List<Posting> postings = index.getPostings(term);
-            if (postings.isEmpty()) {
-                return new ArrayList<>(); // 1 term khong xuat hien -> AND ket qua rong
-            }
-            postingLists.add(postings);
-        }
-        List<Integer> candidates = PostingListMerger.intersectAll(postingLists);
-
-        if (!candidates.isEmpty() && !phrases.isEmpty()) {
-            candidates = candidates.stream()
-                    .filter(docId -> phrases.stream().allMatch(phrase -> PostingListMerger.matchesPhrase(index, phrase, docId)))
-                    .collect(Collectors.toList());
-        }
-
-        if (!candidates.isEmpty() && !excludedTerms.isEmpty()) {
-            Set<Integer> excludedDocIds = new HashSet<>();
-            for (String excludedTerm : excludedTerms) {
-                for (Posting p : index.getPostings(excludedTerm)) {
-                    excludedDocIds.add(p.docId());
-                }
-            }
-            candidates = candidates.stream().filter(id -> !excludedDocIds.contains(id)).collect(Collectors.toList());
-        }
-        return candidates;
     }
 
     public List<String> suggest(String prefix, int limit) {

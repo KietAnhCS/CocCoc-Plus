@@ -4,6 +4,7 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,6 +41,11 @@ public class Trie {
         final Map<Character, TrieNode> children = new HashMap<>();
         boolean isEndOfWord = false;
         int frequency = 0;
+        /**
+         * Chuỗi sẽ được HIỂN THỊ cho người dùng, có thể khác với khoá tra
+         * cứu dẫn tới node này. Null nghĩa là hiển thị đúng bằng khoá.
+         */
+        String display = null;
     }
 
     private static class WordFrequency {
@@ -52,7 +58,17 @@ public class Trie {
         }
     }
 
-    private final TrieNode root = new TrieNode();
+    private TrieNode root = new TrieNode();
+
+    /**
+     * O(1) - xoá sạch trie, dùng khi dựng lại gợi ý sau mỗi lần reindex.
+     *
+     * <p>Chỉ cần bỏ tham chiếu tới gốc cũ là toàn bộ cây con trở thành rác
+     * và được bộ gom rác thu hồi — không cần duyệt để giải phóng từng node.
+     */
+    public void clear() {
+        root = new TrieNode();
+    }
 
     private static String normalize(String s) {
         return Normalizer.normalize(s, Normalizer.Form.NFC);
@@ -60,17 +76,38 @@ public class Trie {
 
     /** O(L) - them mot tu vao trie, tang frequency neu da ton tai. */
     public void insert(String word) {
-        if (word == null || word.isEmpty()) {
+        insert(word, word, 1);
+    }
+
+    /**
+     * O(L) - them mot muc voi KHOA TRA CUU tach roi khoi CHUOI HIEN THI.
+     *
+     * <p>Vi sao can tach: nguoi Viet thuong go khong dau tren ban phim quoc
+     * te, nen prefix "cong" phai tim ra duoc goi y "cong nghe" co dau. Ma
+     * Trie khop tien to theo TUNG KY TU chinh xac, nen "cong" khong bao gio
+     * di toi duoc nhanh cua "cong nghe". Giai phap: chen cung mot muc hai
+     * lan - mot lan duoi khoa co dau, mot lan duoi khoa khong dau - nhung
+     * ca hai node deu ghi nho cung mot chuoi hien thi co dau. Nho vay go
+     * kieu nao cung ra goi y, ma thu nguoi dung nhin thay luon la ban co dau
+     * dung chinh ta.
+     *
+     * @param key       khoa dung de khop tien to
+     * @param display   chuoi tra ve cho nguoi dung
+     * @param frequency so lan xuat hien, dung de xep hang goi y
+     */
+    public void insert(String key, String display, int frequency) {
+        if (key == null || key.isEmpty() || frequency <= 0) {
             return;
         }
-        String normalized = normalize(word);
+        String normalized = normalize(key);
         TrieNode node = root;
         for (int i = 0; i < normalized.length(); i++) {
             char c = normalized.charAt(i);
             node = node.children.computeIfAbsent(c, k -> new TrieNode());
         }
         node.isEndOfWord = true;
-        node.frequency++;
+        node.frequency += frequency;
+        node.display = display == null ? null : normalize(display);
     }
 
     /** O(L) - kiem tra tu co ton tai chinh xac trong trie khong. */
@@ -120,8 +157,20 @@ public class Trie {
         List<WordFrequency> candidates = new ArrayList<>();
         collectWords(prefixNode, new StringBuilder(normalizedPrefix), candidates);
 
+        // Gop cac muc trung chuoi hien thi: cung mot goi y duoc chen hai lan
+        // (khoa co dau va khoa khong dau) nen mot tien to ngan co the cham
+        // toi ca hai node va lam goi y bi lap.
+        Map<String, Integer> bestFrequency = new LinkedHashMap<>();
+        for (WordFrequency wf : candidates) {
+            bestFrequency.merge(wf.word, wf.frequency, Math::max);
+        }
+        List<WordFrequency> deduplicated = new ArrayList<>(bestFrequency.size());
+        for (Map.Entry<String, Integer> entry : bestFrequency.entrySet()) {
+            deduplicated.add(new WordFrequency(entry.getKey(), entry.getValue()));
+        }
+
         List<WordFrequency> top = MinHeap.topK(
-                candidates,
+                deduplicated,
                 limit,
                 Comparator.comparingInt(wf -> wf.frequency));
 
@@ -133,7 +182,8 @@ public class Trie {
 
     private void collectWords(TrieNode node, StringBuilder prefix, List<WordFrequency> out) {
         if (node.isEndOfWord) {
-            out.add(new WordFrequency(prefix.toString(), node.frequency));
+            out.add(new WordFrequency(
+                    node.display != null ? node.display : prefix.toString(), node.frequency));
         }
         for (Map.Entry<Character, TrieNode> entry : node.children.entrySet()) {
             prefix.append(entry.getKey());

@@ -74,9 +74,11 @@ vốn thường là trang quan trọng nhất (trang chủ, trang chuyên mục)
 BFS chuẩn dùng hàng đợi FIFO. Nhưng không phải trang nào cũng đáng giá như
 nhau, nên ta thay bằng **hàng đợi ưu tiên**:
 
-```
-điểm ưu tiên = −(độ sâu × 2) + min(backlink, 50) × 0,5 + (5 nếu là .vn)
-```
+$$
+\mathrm{priority}(u) = -2\,\mathrm{depth}(u)
+\;+\; 0{,}5 \cdot \min\bigl(\mathrm{backlinks}(u),\, 50\bigr)
+\;+\; 5 \cdot \mathbb{1}\bigl[u \in \texttt{.vn}\bigr]
+$$
 
 Cài trong `UrlFrontier.java`. Có một mẹo đáng chú ý: ta có `MinHeap` (lấy
 phần tử **nhỏ nhất**) nhưng cần lấy phần tử **ưu tiên cao nhất**. Giải
@@ -135,14 +137,24 @@ hạn), và điều đó **không thể xảy ra**.
 
 Công thức chọn tham số tối ưu:
 
-```
-m = ⌈−n·ln(p) / (ln2)²⌉      (số bit)
-k = round((m/n)·ln2)          (số hàm băm)
-```
+$$
+m = \left\lceil \frac{-n \ln p}{(\ln 2)^2} \right\rceil
+\qquad
+k = \operatorname{round}\!\left(\frac{m}{n}\ln 2\right)
+$$
 
-Mẹo cài đặt: thay vì viết `k` hàm băm riêng, dùng **double hashing**
-(Kirsch & Mitzenmacher): `h_i(x) = h₁(x) + i·h₂(x) mod m`. Chỉ cần 2 hàm
-băm thật, phần còn lại là tổ hợp tuyến tính.
+với $n$ là số phần tử dự kiến, $p$ là tỷ lệ false positive mong muốn,
+$m$ là số bit cần cấp phát, $k$ là số hàm băm.
+
+Mẹo cài đặt: thay vì viết $k$ hàm băm riêng, dùng **double hashing**
+(Kirsch & Mitzenmacher):
+
+$$
+h_i(x) = \bigl(h_1(x) + i \cdot h_2(x)\bigr) \bmod m,
+\qquad i = 0, 1, \dots, k-1
+$$
+
+Chỉ cần 2 hàm băm thật, phần còn lại là tổ hợp tuyến tính của chúng.
 
 ### 2.5. Chuẩn hoá URL
 
@@ -413,11 +425,16 @@ liệu nên **rất giàu thông tin**.
 
 ### 6.2. Công thức
 
-```
-tf  = 1 + log₁₀(số lần xuất hiện)
-idf = log₁₀(N / df)
-trọng số = tf × idf
-```
+$$
+\mathrm{tf}(t,d) \;=\; 1 + \log_{10} f_{t,d}
+\qquad
+\mathrm{idf}(t) \;=\; \log_{10}\frac{N}{\mathrm{df}_t}
+\qquad
+w_{t,d} \;=\; \mathrm{tf}(t,d)\cdot\mathrm{idf}(t)
+$$
+
+trong đó $f_{t,d}$ là số lần term $t$ xuất hiện trong tài liệu $d$,
+$N$ là tổng số tài liệu, $\mathrm{df}_t$ là số tài liệu chứa $t$.
 
 **Vì sao TF dùng logarit?** Nếu dùng tf thô, tài liệu lặp từ khoá 100 lần
 sẽ được điểm gấp 100 lần tài liệu chỉ có 1 lần. Nhưng nó **không liên quan
@@ -425,28 +442,31 @@ gấp 100 lần** — chỉ là spam từ khoá. Logarit nén khoảng cách đ�
 
 **Ví dụ tính tay** (N = 5.011 tài liệu):
 
-| Term | df | idf = log₁₀(5011/df) |
+| Term | $\mathrm{df}$ | $\mathrm{idf} = \log_{10}(5011/\mathrm{df})$ |
 |---|---|---|
-| `công_nghệ` (phổ biến) | 1.639 | log₁₀(3,06) = **0,486** |
-| `máy_tính` (trung bình) | 50 | log₁₀(100,2) = **2,001** |
-| `blockchain` (hiếm) | 5 | log₁₀(1002) = **3,001** |
+| `công_nghệ` (phổ biến) | 1.639 | $\log_{10} 3{,}06 = \mathbf{0{,}486}$ |
+| `máy_tính` (trung bình) | 50 | $\log_{10} 100{,}2 = \mathbf{2{,}001}$ |
+| `blockchain` (hiếm) | 5 | $\log_{10} 1002 = \mathbf{3{,}001}$ |
 
 Term hiếm được trọng số cao gấp **6 lần** term phổ biến.
 
 Một tài liệu chứa `máy_tính` 5 lần:
-```
-tf  = 1 + log₁₀(5) = 1 + 0,699 = 1,699
-trọng số = 1,699 × 2,001 = 3,400
-```
+
+$$
+\mathrm{tf} = 1 + \log_{10} 5 = 1{,}699
+\qquad
+w = 1{,}699 \times 2{,}001 = \mathbf{3{,}400}
+$$
 
 ### 6.3. Cosine similarity
 
 Biểu diễn truy vấn và tài liệu thành **vector** trong không gian nhiều
 chiều (mỗi term là một chiều). Độ liên quan = **cosin góc giữa hai vector**:
 
-```
-similarity = (q · d) / (‖q‖ × ‖d‖)
-```
+$$
+\mathrm{sim}(q,d) \;=\; \cos\theta \;=\; \frac{\vec{q} \cdot \vec{d}}{\|\vec{q}\|\;\|\vec{d}\|}
+\;=\; \frac{\sum_t w_{t,q}\, w_{t,d}}{\sqrt{\sum_t w_{t,q}^2}\;\sqrt{\sum_t w_{t,d}^2}}
+$$
 
 **Vì sao phải chia cho độ dài vector?** Nếu không, tài liệu **dài** luôn
 thắng — chỉ vì chứa nhiều từ hơn nên tích vô hướng lớn hơn, chứ không phải
@@ -465,33 +485,41 @@ hầu hết hệ thống thật (Elasticsearch dùng nó làm mặc định).
 
 ### 7.1. Công thức
 
-```
-                    f(q,D) · (k₁ + 1)
-score = Σ IDF(q) · ─────────────────────────────
-        q          f(q,D) + k₁·(1 − b + b·|D|/avgdl)
+$$
+\mathrm{score}(D,Q) \;=\; \sum_{q \in Q} \mathrm{IDF}(q)\;\cdot\;
+\frac{f(q,D)\,\bigl(k_1 + 1\bigr)}
+     {f(q,D) + k_1\left(1 - b + b\,\dfrac{|D|}{\mathrm{avgdl}}\right)}
+$$
 
-IDF(q) = ln(1 + (N − df + 0,5)/(df + 0,5))
-```
+$$
+\mathrm{IDF}(q) \;=\; \ln\!\left(1 + \frac{N - \mathrm{df}_q + 0{,}5}{\mathrm{df}_q + 0{,}5}\right)
+$$
 
-với `k₁ = 1,2` và `b = 0,75` (giá trị chuẩn qua nhiều thập kỷ thực nghiệm).
+với $k_1 = 1{,}2$ và $b = 0{,}75$ (giá trị chuẩn qua nhiều thập kỷ thực
+nghiệm), $|D|$ là độ dài tài liệu và $\mathrm{avgdl}$ là độ dài trung bình
+của toàn corpus.
 
 ### 7.2. Cải tiến 1: bão hoà tần suất
 
 Ở TF-IDF, `tf = 1 + log₁₀(f)` vẫn **tăng vô hạn** theo f. Ở BM25, phân thức
-`f/(f + k₁·…)` tiến tới **trần** `k₁ + 1` khi f lớn.
+$\dfrac{f}{f + k_1(\cdots)}$ tiến tới **trần** $k_1 + 1$ khi $f \to \infty$.
 
-**Ví dụ tính tay** (N=5011, df=50, tài liệu độ dài trung bình):
+**Ví dụ tính tay** ($N = 5011$, $\mathrm{df} = 50$, tài liệu độ dài trung
+bình nên $|D| = \mathrm{avgdl}$):
 
-```
-IDF = ln(1 + (5011−50+0,5)/50,5) = ln(99,25) = 4,598
-lengthNorm = 1,2 × (1 − 0,75 + 0,75×1) = 1,2
-```
+$$
+\mathrm{IDF} = \ln\!\left(1 + \frac{5011 - 50 + 0{,}5}{50{,}5}\right) = \ln 99{,}25 = 4{,}598
+$$
 
-| tf | BM25 | TF-IDF (tf-weight) |
+$$
+k_1\left(1 - b + b\cdot\frac{|D|}{\mathrm{avgdl}}\right) = 1{,}2\,(1 - 0{,}75 + 0{,}75) = 1{,}2
+$$
+
+| $f$ | BM25 | TF-IDF (trọng số tf) |
 |---|---|---|
-| 5 | 4,598 × 11/6,2 = **8,16** | 1 + log₁₀5 = **1,70** |
-| 50 (gấp 10 lần) | 4,598 × 110/51,2 = **9,88** | 1 + log₁₀50 = **2,70** |
-| **Tỷ lệ tăng** | **1,21×** | **1,59×** |
+| 5 | $4{,}598 \times \tfrac{11}{6{,}2} = \mathbf{8{,}16}$ | $1 + \log_{10} 5 = \mathbf{1{,}70}$ |
+| 50 (gấp 10 lần) | $4{,}598 \times \tfrac{110}{51{,}2} = \mathbf{9{,}88}$ | $1 + \log_{10} 50 = \mathbf{2{,}70}$ |
+| **Tỷ lệ tăng** | $\mathbf{1{,}21\times}$ | $\mathbf{1{,}59\times}$ |
 
 Lặp từ khoá gấp 10 lần chỉ tăng điểm BM25 1,21 lần. Điều này khớp với trực
 giác: bài đã nói về "bóng đá" 20 lần thì rõ ràng nói về bóng đá rồi, lặp
@@ -554,12 +582,16 @@ Trang được nhiều trang khác trỏ tới → dễ bị ghé thăm → Page
 
 ### 8.2. Công thức
 
-```
-PR(j) = (1−d)/N + d · [ Σ  PR(i)/outDegree(i) + danglingMass/N ]
-                       i→j
-```
+$$
+PR(j) \;=\; \frac{1-d}{N} \;+\; d\left(
+\sum_{i \,\rightarrow\, j} \frac{PR(i)}{L(i)}
+\;+\; \frac{M_{\text{dangling}}}{N}
+\right)
+$$
 
-với `d = 0,85` (damping factor).
+với $d = 0{,}85$ (damping factor), $L(i)$ là số outlink của trang $i$,
+$i \rightarrow j$ nghĩa là trang $i$ có liên kết trỏ tới trang $j$, và
+$M_{\text{dangling}}$ là tổng PageRank của các trang không có outlink nào.
 
 Ba thành phần:
 
@@ -843,52 +875,87 @@ Một hệ thống trả về kết quả sai trong 1 ms vẫn vô dụng.
 Giả sử truy vấn có 3 tài liệu liên quan, hệ thống trả về 5 kết quả, trong
 đó vị trí 1, 3, 5 là đúng:
 
-**Precision@k** — trong k kết quả đầu, bao nhiêu phần đúng:
-```
-P@3 = 2/3 = 0,667      (vị trí 1 và 3 đúng)
-P@5 = 3/5 = 0,600
-```
-Mẫu số luôn là `k`, không phải số kết quả trả về — trả về quá ít kết quả tự
+**Precision@k** — trong $k$ kết quả đầu, bao nhiêu phần đúng:
+
+$$
+P@k = \frac{\left|\{\text{tài liệu liên quan}\} \cap \{k \text{ kết quả đầu}\}\right|}{k}
+\qquad\Longrightarrow\qquad
+P@3 = \tfrac{2}{3} = 0{,}667,\quad P@5 = \tfrac{3}{5} = 0{,}600
+$$
+
+Mẫu số luôn là $k$, không phải số kết quả trả về — trả về quá ít kết quả tự
 nó là khiếm khuyết và phải bị phạt.
 
 **Recall@k** — trong mọi tài liệu liên quan, lấy được bao nhiêu:
-```
-R@5 = 3/3 = 1,0
-```
+
+$$
+R@k = \frac{\left|\{\text{tài liệu liên quan}\} \cap \{k \text{ kết quả đầu}\}\right|}{\left|\{\text{tài liệu liên quan}\}\right|}
+\qquad\Longrightarrow\qquad
+R@5 = \tfrac{3}{3} = 1{,}0
+$$
 
 **MAP (Mean Average Precision)** — nhạy với **thứ tự**:
-```
-AP = (P@1 + P@3 + P@5) / 3          ← chỉ tính tại vị trí có kết quả đúng
-   = (1/1 + 2/3 + 3/5) / 3
-   = (1,0 + 0,667 + 0,6) / 3
-   = 0,756
-```
+
+$$
+AP = \frac{1}{R}\sum_{i\,:\,rel_i = 1} P@i
+\qquad
+\mathrm{MAP} = \frac{1}{|Q|}\sum_{q \in Q} AP(q)
+$$
+
+với $R$ là **tổng** số tài liệu liên quan. Áp vào ví dụ trên (đúng ở vị trí
+1, 3, 5):
+
+$$
+AP = \frac{P@1 + P@3 + P@5}{3}
+   = \frac{\tfrac{1}{1} + \tfrac{2}{3} + \tfrac{3}{5}}{3}
+   = \frac{2{,}267}{3} = \mathbf{0{,}756}
+$$
+
 Chia cho **tổng** số tài liệu liên quan (không phải số tìm được), nên bỏ
 sót vẫn bị phạt.
 
-**Vì sao cần MAP khi đã có P@k?** Hai hệ thống cùng P@4 = 0,5:
-```
-Hệ A: [đúng, đúng, sai, sai]   → AP = (1/1 + 2/2)/2 = 1,00
-Hệ B: [sai, sai, đúng, đúng]   → AP = (1/3 + 2/4)/2 = 0,42
-```
-P@4 không phân biệt được, MAP thì có. Mà người dùng thật **luôn** nhìn kết
+**Vì sao cần MAP khi đã có P@k?** Hai hệ thống cùng $P@4 = 0{,}5$:
+
+$$
+\text{Hệ A: } [\checkmark, \checkmark, \times, \times]
+\;\Rightarrow\; AP = \frac{\tfrac{1}{1} + \tfrac{2}{2}}{2} = \mathbf{1{,}00}
+$$
+
+$$
+\text{Hệ B: } [\times, \times, \checkmark, \checkmark]
+\;\Rightarrow\; AP = \frac{\tfrac{1}{3} + \tfrac{2}{4}}{2} = \mathbf{0{,}42}
+$$
+
+$P@4$ không phân biệt được, MAP thì có. Mà người dùng thật **luôn** nhìn kết
 quả đầu tiên trước.
 
 **nDCG** — độ đo duy nhất dùng được mức độ liên quan **nhiều bậc** (0/1/2):
-```
-DCG@k = Σ (2^rel_i − 1) / log₂(i + 1)
-nDCG  = DCG / IDCG        (IDCG = DCG của thứ tự lý tưởng)
-```
 
-Ví dụ tính tay với `[d1(mức 2), d2(mức 0), d3(mức 1)]`:
-```
-độ lợi:     2²−1=3,    2⁰−1=0,    2¹−1=1
-chiết khấu: log₂2=1,   log₂3=1,585, log₂4=2
+$$
+DCG@k = \sum_{i=1}^{k} \frac{2^{rel_i} - 1}{\log_2(i+1)}
+\qquad
+nDCG@k = \frac{DCG@k}{IDCG@k}
+$$
 
-DCG  = 3/1 + 0/1,585 + 1/2 = 3,5
-IDCG = 3/1 + 1/1,585 + 0/2 = 3,631      (thứ tự lý tưởng [2,1,0])
-nDCG = 3,5/3,631 = 0,964
-```
+trong đó $rel_i$ là mức độ liên quan của kết quả ở hạng $i$, còn $IDCG@k$
+là $DCG@k$ của thứ tự **lý tưởng** (sắp mọi nhãn giảm dần).
+
+Ví dụ tính tay với $[d_1(rel{=}2),\; d_2(rel{=}0),\; d_3(rel{=}1)]$:
+
+$$
+DCG@3 = \underbrace{\frac{2^2-1}{\log_2 2}}_{3/1} +
+        \underbrace{\frac{2^0-1}{\log_2 3}}_{0/1{,}585} +
+        \underbrace{\frac{2^1-1}{\log_2 4}}_{1/2} = 3{,}5
+$$
+
+$$
+IDCG@3 = \frac{3}{1} + \frac{1}{1{,}585} + \frac{0}{2} = 3{,}631
+\qquad\text{(thứ tự lý tưởng } [2,1,0])
+$$
+
+$$
+nDCG@3 = \frac{3{,}5}{3{,}631} = \mathbf{0{,}964}
+$$
 
 Dùng độ lợi **hàm mũ** `2^rel − 1` thay vì tuyến tính để nhấn mạnh: tài
 liệu "rất liên quan" (mức 2) được 3 điểm, "liên quan" (mức 1) được 1 điểm —
@@ -896,12 +963,17 @@ tỷ lệ 3:1 thay vì 2:1.
 
 **MRR (Mean Reciprocal Rank)** — nghịch đảo thứ hạng của kết quả đúng đầu
 tiên:
-```
-đúng ở hạng 1 → 1,0
-đúng ở hạng 2 → 0,5
-đúng ở hạng 10 → 0,1
-```
-Phù hợp nhất khi chỉ có **một** đáp án đúng.
+$$
+\mathrm{MRR} = \frac{1}{|Q|}\sum_{q \in Q} \frac{1}{\mathrm{rank}_q}
+\qquad\Longrightarrow\qquad
+\mathrm{rank} = 1 \to 1{,}0;\quad
+\mathrm{rank} = 2 \to 0{,}5;\quad
+\mathrm{rank} = 10 \to 0{,}1
+$$
+
+với $\mathrm{rank}_q$ là hạng của kết quả **đúng đầu tiên** cho truy vấn
+$q$ (bằng $0$ nếu không tìm thấy). Phù hợp nhất khi chỉ có **một** đáp án
+đúng.
 
 ### 12.3. Lấy nhãn liên quan ở đâu ra
 

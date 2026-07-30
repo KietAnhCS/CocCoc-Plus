@@ -63,8 +63,8 @@ public class GinBaselineRunner {
             System.out.println("  " + queries.size() + " truy van known-item");
 
             EvaluationHarness harness = new EvaluationHarness(index, pageRank.scores());
-            EvaluationHarness.RankingConfig config = new EvaluationHarness.RankingConfig(
-                    "tu cai", new TfIdfScorer(), 0.6, 0.3, 0.1);
+            EvaluationHarness.RankingConfig config = EvaluationHarness.RankingConfig.of(
+                    "tu cai", new TfIdfScorer(), pageRank.scores(), 0.3, 0.1);
 
             // --- Làm nóng JVM trước khi đo ---
             //

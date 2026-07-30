@@ -8,6 +8,8 @@ import com.vnsearch.datastructure.UrlFrontier;
 import com.vnsearch.model.WebDocument;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,6 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -25,42 +28,40 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Dich vu crawl web, duyet theo BFS (uu tien theo do sau tang dan qua diem
- * uu tien cua {@link UrlFrontier}) bang cach chia viec cho nhieu thread
- * trong mot {@link ExecutorService} co so luong thread co dinh.
+ * Dich vu crawl web, duyet theo BFS (uu tien theo diem uu tien cua
+ * {@link UrlFrontier}) bang cach chia viec cho nhieu thread trong mot
+ * {@link ExecutorService} co so luong thread co dinh.
  *
  * <p>Dedupe URL bang {@link BloomFilter} (khong luu toan bo chuoi URL nhu
  * HashSet) ket hop {@code ConcurrentHashMap} de luu ket qua crawl thread-safe.
- * Ton trong robots.txt qua {@link RobotsTxtParser}. Fetch HTML bang Jsoup
- * voi timeout 10s, retry toi da 2 lan neu that bai. Trich xuat noi dung
- * bang {@link HtmlExtractor}, dong goi thanh {@link WebDocument}.
+ * Ton trong robots.txt qua {@link RobotsTxtParser}. Fetch HTML bang Jsoup voi
+ * timeout 10s, retry toi da 2 lan neu that bai. Trich xuat noi dung bang
+ * {@link HtmlExtractor}, dong goi thanh {@link WebDocument}.
  *
- * <p>Log tien do dang: {@code [123/1000] Crawled: <url> (depth=2, 45 links)}
+ * <p><b>Observer:</b> tien do khong con duoc in thang trong vong lap worker
+ * ma duoc phat qua {@link CrawlListener}. Xem Javadoc cua giao dien do ve ly do.
+ *
+ * <p><b>Builder:</b> cau hinh la {@link CrawlConfig} bat bien, kiem tra tinh
+ * hop le tap trung trong {@code build()}.
  */
 public class CrawlerService {
+
+    private static final Logger log = LoggerFactory.getLogger(CrawlerService.class);
 
     private static final String USER_AGENT = "VnSearchBot/1.0 (+do an DSA; hoc thuat)";
     private static final int TIMEOUT_MS = 10_000;
     private static final int MAX_RETRIES = 2;
 
-    /** Cau hinh cho mot phien crawl. */
-    public static class CrawlConfig {
-        public int maxDepth = 3;
-        public int maxPages = 100;
-        public int threadCount = 4;
-        public Set<String> allowedDomains = Set.of(); // rong = khong gioi han
-        /** Tran thoi gian cho ca phien crawl (phut). */
-        public int maxDurationMinutes = 60;
-        /** Chi in log tien do moi N trang - tranh spam console khi crawl hang nghin trang. */
-        public int progressEveryN = 1;
-
-        public CrawlConfig maxDepth(int v) { this.maxDepth = v; return this; }
-        public CrawlConfig maxPages(int v) { this.maxPages = v; return this; }
-        public CrawlConfig threadCount(int v) { this.threadCount = v; return this; }
-        public CrawlConfig allowedDomains(Set<String> v) { this.allowedDomains = v; return this; }
-        public CrawlConfig maxDurationMinutes(int v) { this.maxDurationMinutes = v; return this; }
-        public CrawlConfig progressEveryN(int v) { this.progressEveryN = v; return this; }
-    }
+    /**
+     * Uoc luong so URL SE GAP tren moi trang SE LUU.
+     *
+     * <p>Bloom filter khong chi chua cac trang da luu ma chua MOI URL da kiem
+     * tra. Do thuc te: moi trang tin tuc sinh trung binh 78,8 outlink, tat ca
+     * deu di qua {@code mightContain}. Cap phat theo {@code maxPages} se khien
+     * n that gap ~80 lan n thiet ke -> ty le bit bat vot len gan 100% -> filter
+     * bao "da thay" cho MOI URL -> crawler dung sau vai trang.
+     */
+    private static final int URLS_SEEN_PER_PAGE = 200;
 
     private final UrlFrontier frontier = new UrlFrontier();
     private final ConcurrentHashMap<String, WebDocument> crawled = new ConcurrentHashMap<>();
@@ -68,69 +69,94 @@ public class CrawlerService {
     private final HtmlExtractor htmlExtractor = new HtmlExtractor();
     private final AtomicInteger docIdCounter = new AtomicInteger(0);
     private final AtomicInteger pagesCrawled = new AtomicInteger(0);
+
     /** So worker dang THUC SU xu ly mot trang - dung de biet khi nao that su het viec. */
     private final AtomicInteger activeWorkers = new AtomicInteger(0);
 
+    /**
+     * Danh sach listener. {@code CopyOnWriteArrayList} vi no duoc DOC tu nhieu
+     * worker thread nhung hiem khi ghi (chi luc dang ky) — dung ca su dung ma
+     * cau truc nay duoc thiet ke cho.
+     */
+    private final List<CrawlListener> listeners = new CopyOnWriteArrayList<>();
+
     private volatile BloomFilter visited = new BloomFilter(200_000, 0.01);
+
+    /** Dang ky mot bo quan sat phien crawl (Observer pattern). */
+    public CrawlerService addListener(CrawlListener listener) {
+        if (listener != null) {
+            listeners.add(listener);
+        }
+        return this;
+    }
 
     /** Chay mot phien crawl BFS day du, tra ve danh sach WebDocument da crawl duoc. */
     public List<WebDocument> crawl(List<String> seedUrls, CrawlConfig config) {
-        // Bloom filter phai du lon so voi quy mo crawl: moi trang sinh hang tram
-        // outlink deu duoc kiem tra qua filter nay, nen kich thuoc phai tinh theo
-        // so URL SE GAP chu khong phai so trang se luu.
-        visited = new BloomFilter(Math.max(200_000, config.maxPages * 200), 0.01);
+        long start = System.currentTimeMillis();
+        visited = new BloomFilter(
+                Math.max(200_000, config.maxPages() * URLS_SEEN_PER_PAGE), 0.01);
 
         for (String seed : seedUrls) {
             frontier.addUrl(seed, 0, 10);
         }
 
-        ExecutorService pool = Executors.newFixedThreadPool(config.threadCount);
-        CountDownLatch latch = new CountDownLatch(config.threadCount);
-        for (int i = 0; i < config.threadCount; i++) {
+        ExecutorService pool = Executors.newFixedThreadPool(config.threadCount());
+        CountDownLatch latch = new CountDownLatch(config.threadCount());
+        for (int i = 0; i < config.threadCount(); i++) {
             pool.submit(() -> {
                 try {
                     workerLoop(config);
                 } catch (Exception e) {
-                    System.out.printf("  [loi] worker dung bat thuong: %s%n", e);
+                    log.error("Worker dung bat thuong", e);
                 } finally {
-                    latch.countDown();
+                    latch.countDown(); // trong finally: thieu no thi await() cho du 60 phut vo ich
                 }
             });
         }
 
         try {
-            if (!latch.await(config.maxDurationMinutes, TimeUnit.MINUTES)) {
-                System.out.printf("Het tran thoi gian %d phut, dung crawl voi %d trang.%n",
-                        config.maxDurationMinutes, pagesCrawled.get());
+            if (!latch.await(config.maxDurationMinutes(), TimeUnit.MINUTES)) {
+                log.warn("Het tran thoi gian {} phut, dung crawl voi {} trang.",
+                        config.maxDurationMinutes(), pagesCrawled.get());
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
         pool.shutdownNow();
 
+        long elapsed = System.currentTimeMillis() - start;
+        notifyFinished(pagesCrawled.get(), elapsed);
         return new ArrayList<>(crawled.values());
     }
 
     /**
      * Vong lap cua mot worker thread.
      *
-     * <p><b>Dieu kien dung:</b> frontier rong KHONG dong nghia voi het viec —
-     * mot worker khac co the dang fetch mot trang va sap them hang tram
-     * outlink moi vao frontier. Neu thoat ngay khi thay frontier rong, cac
-     * worker se chet dan trong nhung khoang trong tam thoi va phien crawl
-     * dung som hon nhieu so voi maxPages. Vi vay chi thoat khi frontier rong
-     * VA khong con worker nao dang xu ly, va dieu do phai dung lien tiep
-     * {@code IDLE_CONFIRMATIONS} lan de loai bo truong hop chi la khe hep
-     * nhat thoi giua hai lan cap nhat.
+     * <p><b>Dieu kien dung.</b> Frontier rong KHONG dong nghia voi het viec —
+     * mot worker khac co the dang fetch mot trang va sap them hang tram outlink
+     * moi. Neu thoat ngay khi thay frontier rong, cac worker se chet dan trong
+     * nhung khoang trong tam thoi va phien crawl dung som hon nhieu so voi
+     * maxPages.
+     *
+     * <p>Dieu kien dung dung la {@code F = 0 AND A = 0}. Nhung hai phep doc do
+     * KHONG nguyen tu voi nhau, nen ton tai mot cua so dua: worker A thay
+     * frontier rong dung luc worker B da lay task nhung CHUA kip
+     * {@code incrementAndGet}. Yeu cau dieu kien dung {@code IDLE_CONFIRMATIONS}
+     * lan lien tiep, cach nhau 200ms, dua xac suat nham xuong khoang
+     * {@code (vai us / 200000 us)^3 ~= 10^-15}.
+     *
+     * <p>Day la mot HEURISTIC, khong phai thuat toan dung dan co chung minh —
+     * bai toan "phat hien ket thuc phan tan" co loi giai chinh xac
+     * (Dijkstra-Scholten, Safra) nhung phuc tap hon nhieu.
      */
     private void workerLoop(CrawlConfig config) {
-        final int IDLE_CONFIRMATIONS = 3;
+        final int idleConfirmations = 3;
         int idleChecks = 0;
 
-        while (pagesCrawled.get() < config.maxPages) {
+        while (pagesCrawled.get() < config.maxPages()) {
             UrlFrontier.Task task = frontier.nextUrl();
             if (task == null) {
-                if (activeWorkers.get() == 0 && ++idleChecks >= IDLE_CONFIRMATIONS) {
+                if (activeWorkers.get() == 0 && ++idleChecks >= idleConfirmations) {
                     break; // that su het viec
                 }
                 try {
@@ -141,10 +167,13 @@ public class CrawlerService {
                 }
                 continue;
             }
-            idleChecks = 0;
+            idleChecks = 0; // chi tich luy khi LIEN TUC rong
 
-            if (task.depth() > config.maxDepth
-                    || !isAllowedDomain(task.url(), config.allowedDomains)
+            // Loc theo thu tu chi phi TANG DAN: so sanh so nguyen -> phan tich
+            // URI -> bam Bloom -> co the fetch mang. Java danh gia || ngan mach
+            // nen dieu kien dat chi chay khi cac dieu kien re deu khong loai duoc.
+            if (task.depth() > config.maxDepth()
+                    || !isAllowedDomain(task.url(), config.allowedDomains())
                     || visited.mightContain(task.url())) {
                 continue;
             }
@@ -164,21 +193,54 @@ public class CrawlerService {
                 doc.setDocId(docIdCounter.getAndIncrement());
                 crawled.put(task.url(), doc);
                 int count = pagesCrawled.incrementAndGet();
-                if (count % config.progressEveryN == 0 || count == config.maxPages) {
-                    System.out.printf("[%d/%d] %s (depth=%d, %d links, frontier=%d, domains=%d)%n",
-                            count, config.maxPages, task.url(), task.depth(),
-                            doc.getOutlinks().size(), frontier.size(), frontier.domainCount());
-                }
+                notifyPageCrawled(new CrawlListener.CrawlEvent(
+                        count, config.maxPages(), task.url(), task.depth(),
+                        doc.getOutlinks().size(), frontier.size(), frontier.domainCount()));
 
-                if (task.depth() < config.maxDepth) {
+                if (task.depth() < config.maxDepth()) {
                     for (String outlink : doc.getOutlinks()) {
-                        if (isAllowedDomain(outlink, config.allowedDomains) && !visited.mightContain(outlink)) {
+                        if (isAllowedDomain(outlink, config.allowedDomains())
+                                && !visited.mightContain(outlink)) {
                             frontier.addUrl(outlink, task.depth() + 1, 1);
                         }
                     }
                 }
             } finally {
+                // BAT BUOC trong finally: neu fetch nem ngoai le ma khong giam,
+                // activeWorkers khong bao gio ve 0 va dieu kien dung khong bao
+                // gio dung -> moi worker ket trong vong lap ngu-thu-lai.
                 activeWorkers.decrementAndGet();
+            }
+        }
+    }
+
+    private void notifyPageCrawled(CrawlListener.CrawlEvent event) {
+        for (CrawlListener listener : listeners) {
+            try {
+                listener.onPageCrawled(event);
+            } catch (Exception e) {
+                // Mot listener hong khong duoc lam chet ca phien crawl.
+                log.warn("Listener {} nem ngoai le", listener.getClass().getSimpleName(), e);
+            }
+        }
+    }
+
+    private void notifyError(String url, Exception error) {
+        for (CrawlListener listener : listeners) {
+            try {
+                listener.onError(url, error);
+            } catch (Exception e) {
+                log.warn("Listener {} nem ngoai le", listener.getClass().getSimpleName(), e);
+            }
+        }
+    }
+
+    private void notifyFinished(int totalPages, long elapsedMs) {
+        for (CrawlListener listener : listeners) {
+            try {
+                listener.onFinished(totalPages, elapsedMs);
+            } catch (Exception e) {
+                log.warn("Listener {} nem ngoai le", listener.getClass().getSimpleName(), e);
             }
         }
     }
@@ -195,7 +257,15 @@ public class CrawlerService {
         }
     }
 
+    /**
+     * Toi da {@code MAX_RETRIES + 1} lan thu, moi lan timeout 10 giay -> chan
+     * tren 30 giay cho mot URL chet. Chi bao loi o lan thu CUOI de khong spam.
+     *
+     * <p>Day la retry don gian, KHONG co exponential backoff. Politeness delay
+     * 1 giay da tao mot muc gian toi thieu, nhung khong tang theo so lan loi.
+     */
     private WebDocument fetchWithRetry(String url) {
+        Exception lastError = null;
         for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
             try {
                 Document document = Jsoup.connect(url)
@@ -205,12 +275,10 @@ public class CrawlerService {
                         .get();
                 return htmlExtractor.extract(url, document);
             } catch (Exception e) {
-                if (attempt == MAX_RETRIES) {
-                    System.out.printf("  [loi] khong the fetch %s sau %d lan thu: %s%n",
-                            url, MAX_RETRIES + 1, e.getMessage());
-                }
+                lastError = e;
             }
         }
+        notifyError(url, lastError);
         return null;
     }
 
@@ -242,33 +310,29 @@ public class CrawlerService {
     public static List<WebDocument> loadFromJson(String path) throws IOException {
         ObjectMapper mapper = new ObjectMapper().registerModule(new JavaTimeModule());
         WebDocument[] docs = mapper.readValue(new File(path), WebDocument[].class);
-        List<WebDocument> result = new ArrayList<>();
-        for (WebDocument doc : docs) {
-            result.add(doc);
-        }
-        return result;
+        return new ArrayList<>(List.of(docs));
     }
 
     /**
-     * Demo/kiem chung PHASE 3: crawl that 100 trang tu seed vnexpress.net,
-     * in thong ke, luu ra data/crawled-documents.json.
+     * Demo/kiem chung: crawl that 100 trang tu seed vnexpress.net, in thong ke,
+     * luu ra data/crawled-documents.json.
      */
     public static void main(String[] args) throws IOException {
-        CrawlerService crawler = new CrawlerService();
-        CrawlConfig config = new CrawlConfig()
+        CrawlerService crawler = new CrawlerService()
+                .addListener(new ConsoleCrawlListener(1)); // Observer
+
+        CrawlConfig config = CrawlConfig.builder()
                 .maxDepth(3)
                 .maxPages(100)
                 .threadCount(4)
-                .allowedDomains(Set.of("vnexpress.net"));
+                .allowedDomains(Set.of("vnexpress.net"))
+                .build();
 
-        long start = System.currentTimeMillis();
         List<WebDocument> docs = crawler.crawl(List.of("https://vnexpress.net/"), config);
-        long elapsedSec = (System.currentTimeMillis() - start) / 1000;
 
         System.out.println();
         System.out.println("=== THONG KE CRAWL ===");
         System.out.println("Tong so trang crawl duoc: " + docs.size());
-        System.out.println("Thoi gian: " + elapsedSec + "s");
         int totalOutlinks = docs.stream().mapToInt(d -> d.getOutlinks().size()).sum();
         System.out.println("Tong so outlink thu duoc: " + totalOutlinks);
         System.out.println("Trung binh outlink/trang: " + (docs.isEmpty() ? 0 : totalOutlinks / docs.size()));

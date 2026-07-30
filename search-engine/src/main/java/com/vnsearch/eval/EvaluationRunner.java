@@ -78,7 +78,7 @@ public class EvaluationRunner {
 
         EvaluationHarness harness = new EvaluationHarness(index, pageRank.scores());
 
-        List<EvaluationHarness.RankingConfig> configs = buildConfigs();
+        List<EvaluationHarness.RankingConfig> configs = buildConfigs(pageRank.scores());
         List<ConfigResult> results = new ArrayList<>();
         for (EvaluationHarness.RankingConfig config : configs) {
             System.out.println("Danh gia: " + config.label() + " ...");
@@ -111,11 +111,10 @@ public class EvaluationRunner {
      */
     private static String analyseScoreScales(InvertedIndex index, Map<Integer, Double> pageRankScores,
                                               List<KnownItemQueryGenerator.KnownItemQuery> queries) {
-        EvaluationHarness.RankingConfig config = new EvaluationHarness.RankingConfig(
-                "phân tích thang đo", new TfIdfScorer(), 0.6, 0.3, 0.1);
+        EvaluationHarness.RankingConfig config = EvaluationHarness.RankingConfig.of(
+                "phân tích thang đo", new TfIdfScorer(), pageRankScores, 0.3, 0.1);
         com.vnsearch.query.QueryParser parser = new com.vnsearch.query.QueryParser();
-        com.vnsearch.ranking.ResultRanker ranker = new com.vnsearch.ranking.ResultRanker(
-                config.alpha(), config.beta(), config.gamma());
+        com.vnsearch.ranking.ResultRanker ranker = new com.vnsearch.ranking.ResultRanker();
 
         double sumTfidf = 0, sumPageRank = 0;
         double maxTfidf = 0, maxPageRank = 0;
@@ -209,29 +208,29 @@ public class EvaluationRunner {
      * mỗi cấu hình chỉ khác cấu hình nền đúng một yếu tố, để chênh lệch
      * quan sát được quy được về đúng yếu tố đó.
      */
-    private static List<EvaluationHarness.RankingConfig> buildConfigs() {
+    private static List<EvaluationHarness.RankingConfig> buildConfigs(
+            Map<Integer, Double> pageRankScores) {
         TfIdfScorer tfidf = new TfIdfScorer();
         BM25Scorer bm25 = new BM25Scorer();
         List<EvaluationHarness.RankingConfig> configs = new ArrayList<>();
 
         // Nhóm 1: so sánh mô hình tính điểm, tắt hết PageRank và title bonus.
-        configs.add(new EvaluationHarness.RankingConfig("TF-IDF thuần", tfidf, 1.0, 0.0, 0.0));
-        configs.add(new EvaluationHarness.RankingConfig("BM25 thuần", bm25, 1.0, 0.0, 0.0));
+        configs.add(EvaluationHarness.RankingConfig.of("TF-IDF thuần", tfidf, pageRankScores, 0.0, 0.0));
+        configs.add(EvaluationHarness.RankingConfig.of("BM25 thuần", bm25, pageRankScores, 0.0, 0.0));
 
         // Nhóm 2: thêm từng thành phần một vào TF-IDF để tách biệt đóng góp.
-        configs.add(new EvaluationHarness.RankingConfig("TF-IDF + title", tfidf, 0.9, 0.0, 0.1));
-        configs.add(new EvaluationHarness.RankingConfig("TF-IDF + PageRank", tfidf, 0.7, 0.3, 0.0));
-        configs.add(new EvaluationHarness.RankingConfig("TF-IDF + PR + title (đang dùng)", tfidf, 0.6, 0.3, 0.1));
+        configs.add(EvaluationHarness.RankingConfig.of("TF-IDF + title", tfidf, pageRankScores, 0.0, 0.1));
+        configs.add(EvaluationHarness.RankingConfig.of("TF-IDF + PageRank", tfidf, pageRankScores, 0.3, 0.0));
+        configs.add(EvaluationHarness.RankingConfig.of("TF-IDF + PR + title (đang dùng)", tfidf, pageRankScores, 0.3, 0.1));
 
         // Nhóm 3: quét trọng số PageRank để tìm điểm tối ưu thực nghiệm.
         for (double beta : new double[]{0.05, 0.10, 0.20, 0.50, 0.80}) {
-            double alpha = 1.0 - beta - 0.1;
-            configs.add(new EvaluationHarness.RankingConfig(
-                    String.format(Locale.US, "TF-IDF beta=%.2f", beta), tfidf, alpha, beta, 0.1));
+            configs.add(EvaluationHarness.RankingConfig.of(
+                    String.format(Locale.US, "TF-IDF beta=%.2f", beta), tfidf, pageRankScores, beta, 0.1));
         }
 
         // Nhóm 4: BM25 với cùng bộ trọng số đang dùng, xem có cộng hưởng không.
-        configs.add(new EvaluationHarness.RankingConfig("BM25 + PR + title", bm25, 0.6, 0.3, 0.1));
+        configs.add(EvaluationHarness.RankingConfig.of("BM25 + PR + title", bm25, pageRankScores, 0.3, 0.1));
         return configs;
     }
 

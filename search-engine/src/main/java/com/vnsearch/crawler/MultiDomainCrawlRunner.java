@@ -64,15 +64,16 @@ public class MultiDomainCrawlRunner {
         // Politeness delay 1s/domain nghia la thong luong toi da = so domain
         // (trang/giay). Dung so thread gap doi so domain de thread khong phai
         // la nut that co, phan con lai da bi politeness khong che.
-        CrawlerService.CrawlConfig config = new CrawlerService.CrawlConfig()
+        CrawlConfig config = CrawlConfig.builder()
                 .maxDepth(maxDepth)
                 .maxPages(maxPages)
                 .threadCount(allowedDomains.size() * 2)
                 .allowedDomains(allowedDomains)
                 .maxDurationMinutes(90)
-                .progressEveryN(25);
+                .build();
 
-        CrawlerService crawler = new CrawlerService();
+        CrawlerService crawler = new CrawlerService()
+                .addListener(new ConsoleCrawlListener(25)); // Observer
         long start = System.currentTimeMillis();
         List<WebDocument> docs = crawler.crawl(DEFAULT_SEEDS, config);
         long elapsedMs = System.currentTimeMillis() - start;

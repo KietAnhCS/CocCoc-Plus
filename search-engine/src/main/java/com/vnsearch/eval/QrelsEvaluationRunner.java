@@ -70,7 +70,7 @@ public class QrelsEvaluationRunner {
                 new PageRankService().computePageRank(index.getAllDocuments()).scores();
         System.out.printf("  %d tai lieu, %d term%n", docs.size(), index.getTermCount());
 
-        List<EvaluationHarness.RankingConfig> configs = poolConfigs();
+        List<EvaluationHarness.RankingConfig> configs = poolConfigs(pageRank);
 
         if ("pool".equalsIgnoreCase(mode)) {
             PoolBuilder builder = new PoolBuilder(index, pageRank);
@@ -147,14 +147,15 @@ public class QrelsEvaluationRunner {
         System.out.println("Da ghi bao cao vao " + out.toAbsolutePath().normalize());
     }
 
-    private static List<EvaluationHarness.RankingConfig> poolConfigs() {
+    private static List<EvaluationHarness.RankingConfig> poolConfigs(
+            Map<Integer, Double> pageRankScores) {
         TfIdfScorer tfidf = new TfIdfScorer();
         BM25Scorer bm25 = new BM25Scorer();
         return List.of(
-                new EvaluationHarness.RankingConfig("TF-IDF + PR + title (đang dùng)", tfidf, 0.6, 0.3, 0.1),
-                new EvaluationHarness.RankingConfig("TF-IDF thuần", tfidf, 1.0, 0.0, 0.0),
-                new EvaluationHarness.RankingConfig("BM25 thuần", bm25, 1.0, 0.0, 0.0),
-                new EvaluationHarness.RankingConfig("BM25 + PR + title", bm25, 0.6, 0.3, 0.1));
+                EvaluationHarness.RankingConfig.of("TF-IDF + PR + title (đang dùng)", tfidf, pageRankScores, 0.3, 0.1),
+                EvaluationHarness.RankingConfig.of("TF-IDF thuần", tfidf, pageRankScores, 0.0, 0.0),
+                EvaluationHarness.RankingConfig.of("BM25 thuần", bm25, pageRankScores, 0.0, 0.0),
+                EvaluationHarness.RankingConfig.of("BM25 + PR + title", bm25, pageRankScores, 0.3, 0.1));
     }
 
     private static InvertedIndex buildIndex(List<WebDocument> docs) {

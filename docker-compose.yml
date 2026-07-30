@@ -1,0 +1,24 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: vnsearch-postgres
+    environment:
+      POSTGRES_DB: vnsearch
+      POSTGRES_USER: vnsearch
+      POSTGRES_PASSWORD: vnsearch
+      # Sắp xếp theo chuẩn C cho tốc độ; việc so khớp tiếng Việt do
+      # VietnameseTokenizer tự cài đảm nhiệm chứ không dựa vào collation của DB.
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./search-engine/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vnsearch -d vnsearch"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

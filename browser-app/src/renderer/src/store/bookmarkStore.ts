@@ -65,6 +65,8 @@ interface BookmarkState {
   addBookmark: (parentId: string, title: string, url: string) => void
   addFolder: (parentId: string, name: string) => void
   removeNode: (id: string) => void
+  /** Bật/tắt bookmark cho một URL — dùng cho nút ★ và phím tắt Ctrl+D. */
+  toggleBookmark: (title: string, url: string) => void
   isBookmarked: (url: string) => boolean
   searchByPrefix: (prefix: string) => BookmarkNode[]
 }
@@ -98,6 +100,22 @@ export const useBookmarkStore = create<BookmarkState>()(
         set((state) => {
           const root = structuredClone(state.root)
           removeNodeById(root, id)
+          return { root }
+        })
+      },
+
+      toggleBookmark: (title, url) => {
+        set((state) => {
+          const root = structuredClone(state.root)
+          const all: BookmarkNode[] = []
+          collectAllBookmarks(root, all)
+          const existing = all.find((b) => b.url === url)
+          if (existing) {
+            removeNodeById(root, existing.id)
+          } else {
+            root.children = root.children ?? []
+            root.children.push({ id: createId(), title: title || url, url })
+          }
           return { root }
         })
       },

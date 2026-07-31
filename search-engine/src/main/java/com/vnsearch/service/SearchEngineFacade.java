@@ -147,9 +147,17 @@ public class SearchEngineFacade {
     private void loadCorpus() throws IOException {
         // Chi muc da dung san la duong nhanh nhat: khong phai index lai.
         if (Files.exists(Path.of(indexDataPath))) {
-            index = IndexPersistence.load(indexDataPath, tokenizer);
-            log.info("Da nap chi muc dung san tu {}", indexDataPath);
-            return;
+            try {
+                index = IndexPersistence.load(indexDataPath, tokenizer);
+                log.info("Da nap chi muc dung san tu {}", indexDataPath);
+                return;
+            } catch (IOException | RuntimeException e) {
+                // Chi muc dung san la CACHE dan xuat, khong phai nguon su that:
+                // mot file hong hoac ghi boi phien ban dinh dang cu KHONG duoc
+                // phep lam sap ung dung. Bo qua no va dung lai tu corpus goc.
+                log.warn("Khong doc duoc chi muc dung san tai {} ({}). Se dung lai tu corpus goc;"
+                        + " xoa file nay de het canh bao.", indexDataPath, e.toString());
+            }
         }
         for (DocumentStore store : buildStoreChain()) {
             if (!store.isAvailable()) {
@@ -216,17 +224,17 @@ public class SearchEngineFacade {
 
         int fromIndex = Math.min((Math.max(page, 1) - 1) * size, ranked.size());
         int toIndex = Math.min(fromIndex + size, ranked.size());
-        List<SearchResult> pageResults = new ArrayList<>();
+        List<SearchResult> pageResults = new ArrayList<>(toIndex - fromIndex);
         for (ResultRanker.RankedResult r : ranked.subList(fromIndex, toIndex)) {
             pageResults.add(new SearchResult(
                     r.document().getTitle(), r.document().getUrl(), r.snippet(),
-                    r.finalScore(), r.relevanceScore(), r.pageRankScore(),
-                    r.document().getCrawledAt()));
+                    r.finalScore(), r.pageRankScore(), r.document().getCrawledAt()));
         }
 
         long elapsed = System.currentTimeMillis() - start;
         SearchResponse response = new SearchResponse(
-                normalizedQuery, candidates.size(), page, elapsed, pageResults);
+                normalizedQuery, candidates.size(), page, elapsed, pageResults,
+                resolved.droppedTerms());
         cache.put(cacheKey, response);
 
         // Truy van THAT cua nguoi dung la nguon goi y tot nhat. Chi hoc tu truy

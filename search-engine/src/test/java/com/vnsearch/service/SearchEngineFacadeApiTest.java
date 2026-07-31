@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -59,8 +60,11 @@ class SearchEngineFacadeApiTest {
         String body = response.getBody();
         assertTrue(body.contains("test.local/a"));
         assertTrue(body.contains("<mark>"));
-        assertTrue(body.contains("\"tfidfScore\""));
+        assertTrue(body.contains("\"score\""));
         assertTrue(body.contains("\"pageRankScore\""));
+        // "tfidfScore" da bi bo khoi hop dong: no tra ve dung cung mot so voi
+        // "score" ke tu khi cac tin hieu duoc gom bang Decorator.
+        assertFalse(body.contains("\"tfidfScore\""));
     }
 
     @Test

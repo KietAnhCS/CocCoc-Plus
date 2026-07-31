@@ -10,11 +10,23 @@ interface BrowserApi {
   goForward: (id: string) => Promise<void>
   reload: (id: string) => Promise<void>
   onTabUpdate: (callback: (payload: unknown) => void) => void
+  onShortcut: (callback: (name: string) => void) => void
+}
+
+interface WindowApi {
+  minimize: () => Promise<void>
+  toggleMaximize: () => Promise<boolean>
+  close: () => Promise<void>
+  isMaximized: () => Promise<boolean>
+  dragStart: () => void
+  dragEnd: () => void
+  onMaximizeChanged: (callback: (maximized: boolean) => void) => void
 }
 
 declare global {
   interface Window {
     electron: ElectronAPI
     browser: BrowserApi
+    win: WindowApi
   }
 }

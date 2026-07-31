@@ -13,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Tokenizer tieng Viet tu cai dat, khong dung bat ky thu vien NLP/tach tu
@@ -47,6 +48,20 @@ import java.util.Set;
 public class VietnameseTokenizer implements Tokenizer {
 
     private static final int MAX_COMPOUND_LENGTH = 4;
+
+    /**
+     * Regex duoc BIEN DICH SAN.
+     *
+     * <p>{@code String.replaceAll}/{@code String.split} goi
+     * {@code Pattern.compile} MOI LAN duoc goi — mau regex bi phan tich va dich
+     * lai tu dau. Ba mau duoi day nam tren duong nong nhat cua ca he thong:
+     * {@link #stripDiacritics} chay cho MOI token cua MOI tai lieu (hon nam
+     * trieu lan tren corpus 5.011 trang), va con duoc goi lai o khau boi sang
+     * snippet cho tung tu cua tung ket qua. Bien dich mot lan roi dung lai la
+     * cung mot ket qua voi it viec hon han.
+     */
+    private static final Pattern NON_WORD = Pattern.compile("[^\\p{L}\\p{N}\\s]");
+    private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s+");
 
     /** Mot token da tach, kem ca ban co dau va khong dau, va vi tri thu tu (dung cho phrase search). */
     public record Token(String term, String noDiacriticTerm, int position) {
@@ -89,7 +104,8 @@ public class VietnameseTokenizer implements Tokenizer {
     /** Buoc 1-3: chuan hoa NFC, lowercase, bo dau cau, tach theo khoang trang. */
     private static String[] splitIntoSyllables(String text) {
         String nfc = Normalizer.normalize(text, Normalizer.Form.NFC).toLowerCase(Locale.forLanguageTag("vi"));
-        String cleaned = nfc.replaceAll("[^\\p{L}\\p{N}\\s]", " ").replaceAll("\\s+", " ").trim();
+        String cleaned = WHITESPACE_RUN.matcher(NON_WORD.matcher(nfc).replaceAll(" "))
+                .replaceAll(" ").trim();
         if (cleaned.isEmpty()) {
             return new String[0];
         }
@@ -104,7 +120,45 @@ public class VietnameseTokenizer implements Tokenizer {
     public static String stripDiacritics(String s) {
         String withoutDd = s.replace('đ', 'd').replace('Đ', 'D');
         String nfd = Normalizer.normalize(withoutDd, Normalizer.Form.NFD);
-        return nfd.replaceAll("\\p{M}", "");
+
+        // Truoc day dong nay la `nfd.replaceAll("\\p{M}", "")`. Ham nay chay cho
+        // MOI token cua MOI tai lieu luc lap chi muc, roi lai chay cho tung tu
+        // cua tung ket qua luc boi sang snippet — tren corpus 5.011 trang la
+        // hang trieu lan goi. Moi lan, `replaceAll` bien dich lai mau regex,
+        // dung Matcher va cap phat chuoi ket qua. Mot luot quet ky tu lam dung
+        // viec do voi it cong hon, va truong hop pho bien nhat (chuoi von khong
+        // co dau: chu so, tu tieng Anh, tu Viet khong dau) khong cap phat gi.
+        int firstMark = indexOfMark(nfd);
+        if (firstMark < 0) {
+            return nfd;
+        }
+        StringBuilder stripped = new StringBuilder(nfd.length());
+        stripped.append(nfd, 0, firstMark);
+        for (int i = firstMark + 1; i < nfd.length(); i++) {
+            char c = nfd.charAt(i);
+            if (!isCombiningMark(c)) {
+                stripped.append(c);
+            }
+        }
+        return stripped.toString();
+    }
+
+    /** Vi tri dau tien cua mot dau to hop, hoac -1 neu chuoi khong co dau nao. */
+    private static int indexOfMark(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (isCombiningMark(s.charAt(i))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** Dung mot lop ky tu voi {@code \p{M}} cua regex: ba loai dau to hop Unicode. */
+    private static boolean isCombiningMark(char c) {
+        int type = Character.getType(c);
+        return type == Character.NON_SPACING_MARK
+                || type == Character.COMBINING_SPACING_MARK
+                || type == Character.ENCLOSING_MARK;
     }
 
     /**

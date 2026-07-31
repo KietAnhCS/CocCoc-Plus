@@ -379,7 +379,7 @@ sequenceDiagram
 
         loop BƯỚC 1 — mỗi candidate
             Rank->>Scorer: score(queryTermFrequency, docId, index)
-            Scorer-->>Rank: tfidfScore (binary search posting list)
+            Scorer-->>Rank: score (binary search posting list)
             Note over Rank: finalScore = α·tfidf + β·pageRank + γ·titleBonus<br/>CHƯA sinh snippet
         end
 
@@ -392,7 +392,7 @@ sequenceDiagram
     end
 
     Facade-->>API: SearchResponse
-    API-->>Home: JSON (title/url/snippet/score/tfidfScore/pageRankScore)
+    API-->>Home: JSON (title/url/snippet/score/pageRankScore)
     Home->>Home: render SearchResultList, highlight <mark>
 ```
 
@@ -759,7 +759,7 @@ năng mới ở gói nào. Chi tiết:
 
 | Endpoint | Tham số | Ghi chú |
 |---|---|---|
-| `GET /api/search` | `q`, `page` (mặc định 1), `size` (mặc định 20, chặn trong [1, 100]) | Trả `SearchResponse` gồm `totalResults`, `timeTakenMs`, danh sách kết quả kèm `tfidfScore` / `pageRankScore` để bật chế độ debug trên UI |
+| `GET /api/search` | `q`, `page` (mặc định 1), `size` (mặc định 20, chặn trong [1, 100]) | Trả `SearchResponse` gồm `totalResults`, `timeTakenMs`, `droppedTerms` (các term hệ thống đã tự bỏ để tìm được kết quả), và danh sách kết quả kèm `score` / `pageRankScore` để bật chế độ debug trên UI |
 | `GET /api/suggest` | `prefix`, `limit` (mặc định 10, chặn trong [1, 50]) | Trả `{"suggestions": [...]}` |
 | `POST /api/admin/crawl` | body `{seedUrls, maxDepth, maxPages}` | Trả `jobId` ngay, crawl chạy nền |
 | `GET /api/admin/crawl/{jobId}/status` | — | `status`, `pagesCrawled`, `queueSize` |

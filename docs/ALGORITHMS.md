@@ -991,17 +991,41 @@ private static void writeVInt(ByteArrayOutputStream out, int value) {
 }
 ```
 
-**Kết quả đo thật** (`VByteCodec.main`, posting list 1.639 mục):
+*Bước 3 — offset tích luỹ cho danh sách vị trí.* Số vị trí của từng posting
+**không** tạo thành dãy tăng dần nên không delta hoá trực tiếp được. Nhưng
+**tổng tích luỹ** của chúng thì tăng dần:
 
 ```
-Không nén (int)  : 6556 byte
-Đã nén (VByte)   : 1639 byte
-Tỷ lệ nén        : 25,0 % (tiết kiệm 75,0 %)
-Giải nén đúng nguyên vẹn: true
+tf mỗi posting  : [3, 1, 2, 5]        ← không tăng dần
+offset tích luỹ : [0, 3, 4, 6, 11]    ← LUÔN tăng dần → delta hoá được
+```
+
+Biến một dãy không sắp xếp thành dãy sắp xếp bằng tổng tích luỹ, rồi dùng lại
+**đúng một** codec cho cả ba mảng. Đây chính là kỹ thuật `rowPtr` của định
+dạng CSR mà `SparseMatrix.freeze()` dùng — cùng ý tưởng, hai chỗ khác nhau
+trong đồ án. Nhờ đó `termFrequency` **không cần lưu** (nó bằng hiệu hai offset
+liên tiếp).
+
+**Kết quả đo thật trên corpus 5.011 trang** (`IndexPersistence.main`) — ba mốc
+để tách bạch công của việc bỏ thụt dòng và công của phần nén:
+
+```
+A. Thụt dòng + không nén (định dạng CŨ) : 341,5 MB
+B. Gói       + không nén                : 226,6 MB   (-33,7% so với A)
+C. Gói       + nén VByte (định dạng MỚI):  94,7 MB   (-58,2% so với B)
+
+Tổng A -> C: giảm 72,3% (nhỏ 3,60 lần)
+Nạp lại từ định dạng nén — đúng nguyên vẹn: true
 ```
 
 **Độ phức tạp.** Mã hoá và giải mã đều $O(n)$ một lượt, không cấp phát trung
 gian ngoài bộ đệm kết quả.
+
+**Vì sao không dùng GZIP cho xong?** GZIP nén tốt hơn nhưng phải **giải nén
+toàn bộ** mới đọc được một term. Dạng này giữ được tính chất quan trọng hơn:
+mỗi term là một đơn vị độc lập, nên về sau có thể nạp posting list **theo yêu
+cầu** thay vì nạp cả chỉ mục vào RAM. So sánh đầy đủ với PForDelta,
+Elias–Fano, Roaring Bitmap: [`SO-SANH-PHUONG-AN.md`](SO-SANH-PHUONG-AN.md) §4.
 
 Chi tiết kèm ví dụ tính tay từng bit: [`Math/03-index/VByteCodec.md`](Math/03-index/VByteCodec.md).
 
@@ -1270,12 +1294,23 @@ public static boolean matchesPhrase(SearchIndex index, List<String> phraseTerms,
     if (phraseTerms.isEmpty()) {
         return true;
     }
-    List<Integer> firstPositions = index.getPositions(phraseTerms.get(0), docId);
+    // TỐI ƯU 1: lấy tất cả danh sách vị trí MỘT lần, NGOÀI vòng lặp.
+    List<List<Integer>> positionsByTerm = new ArrayList<>(phraseTerms.size());
+    for (String term : phraseTerms) {
+        List<Integer> positions = index.getPositions(term, docId);
+        if (positions.isEmpty()) {
+            return false;       // một term không xuất hiện -> không thể có cụm
+        }
+        positionsByTerm.add(positions);
+    }
+
+    List<Integer> firstPositions = positionsByTerm.get(0);
     for (int start : firstPositions) {
         boolean allMatch = true;
         for (int i = 1; i < phraseTerms.size(); i++) {
-            List<Integer> positions = index.getPositions(phraseTerms.get(i), docId);
-            if (!positions.contains(start + i)) {
+            // TỐI ƯU 2: binary search trên danh sách đã sắp xếp,
+            // thay vì List.contains quét tuyến tính.
+            if (Collections.binarySearch(positionsByTerm.get(i), start + i) < 0) {
                 allMatch = false;
                 break;
             }
@@ -1288,14 +1323,18 @@ public static boolean matchesPhrase(SearchIndex index, List<String> phraseTerms,
 }
 ```
 
-**Độ phức tạp.** $O(p_1 \cdot k \cdot \log n)$ với `p₁` là số vị trí của từ đầu, `k` là
-số từ trong cụm, `log n` là binary search trong `getPositions`.
+**Độ phức tạp.** $O(p_1 \cdot k \cdot \log p)$ với `p₁` là số vị trí của từ đầu,
+`k` là số từ trong cụm, `log p` là binary search **trong danh sách vị trí**
+(chú ý: `p`, không phải `n` — binary search chạy trên `positionsByTerm`, không
+phải trên posting list).
 
-> **Điểm còn tối ưu được:** `positions.contains(start + i)` là quét tuyến
-> tính trên một danh sách vốn **đã sắp xếp** — có thể đổi sang binary search.
-> Và `getPositions` bị gọi lại cho cùng một term ở mọi vòng `start`, có thể
-> lấy trước một lần. Với số vị trí thực tế (vài chục) thì chưa thành vấn đề,
-> nhưng đây là chỗ đáng sửa nếu mở rộng.
+> **Hai tối ưu này từng là "điểm còn tối ưu được" và nay đã sửa.** Bản cũ gọi
+> `index.getPositions(...)` **bên trong** vòng lặp qua từng vị trí của từ đầu —
+> nhưng kết quả đó **không phụ thuộc vị trí đang xét**. Với từ đầu xuất hiện 20
+> lần và cụm 3 từ, đó là **40 lần binary search thay vì 2**. Và `contains` quét
+> tuyến tính $O(p)$ trên một danh sách vốn **đã sắp xếp** — đúng cùng một bất
+> biến mà tầng docId đã khai thác bằng two-pointer, chỉ là ở tầng này thì trước
+> đó bị bỏ quên.
 
 ---
 
@@ -1652,9 +1691,12 @@ Hai lý do:
    BM25 (thang 0,18 so với 12,1) **không cần chỉnh lại trọng số**. Có test
    khẳng định đúng tính chất đó (`pageRankBoostIsInvariantToBaseScorerScale`).
 
-Lý do (2) giải thích luôn nghịch lý trong bảng đánh giá cũ: *"BM25 + PR +
-title" (0,9089) thua "TF-IDF + PR + title" (0,9229)* — vì bộ trọng số cộng
-được tinh chỉnh cho thang TF-IDF.
+Lý do (2) từng giải thích một nghịch lý trong bảng đánh giá **cũ**: khi các
+tín hiệu còn cộng tuyến tính, "BM25 + PR + title" (0,9089) *thua* "TF-IDF + PR
++ title" (0,9229) vì bộ trọng số được tinh chỉnh cho thang TF-IDF. Sau khi
+chuyển sang phép nhân (bất biến với thang đo), nghịch lý đó **biến mất**: đo
+lại cho BM25 + PR + title 0,9093 so với TF-IDF + PR + title 0,8758 — nghĩa là
+BM25 giờ đã thắng đúng như kỳ vọng.
 
 **Lắp ghép** do `ScorerFactory` lo, đọc từ `application.properties`:
 
@@ -1797,7 +1839,7 @@ $O(\text{topN}\cdot\lvert d\rvert)$ cho cả truy vấn.
 
 ## 6. Giai đoạn EVALUATE — đo chất lượng
 
-> **Vì sao phần này tồn tại.** Đo được "truy vấn mất 3,41 ms" và "cache hit
+> **Vì sao phần này tồn tại.** Đo được "truy vấn mất 1,59 ms" và "cache hit
 > rate 90%" là đo **tốc độ**. Nó không trả lời được câu hỏi quan trọng nhất:
 > **kết quả trả về có đúng không?** Một hệ thống trả về kết quả sai trong 1 ms
 > vẫn vô dụng.

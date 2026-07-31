@@ -1,17 +1,45 @@
-import { BrowserWindow, WebContentsView } from 'electron'
+import { BrowserWindow, WebContentsView, type Input, type WebContents } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 
 /**
- * Chieu cao (px) vung TabBar + AddressBar o renderer. Cac WebContentsView
- * cua tab (trang ngoai) duoc dat ben duoi vung nay de khong che mat thanh
- * cong cu, giong cach Chrome/Coc Coc bo tri.
+ * Chiều cao (px) vùng TabBar + AddressBar ở renderer: 40px thanh tab + 48px
+ * thanh công cụ (kể cả đường kẻ dưới). PHẢI khớp với App.tsx. Các
+ * WebContentsView của tab (trang ngoài) được đặt bên dưới vùng này để không
+ * che mất thanh công cụ, giống cách Chrome/Cốc Cốc bố trí.
  */
-const CHROME_HEIGHT = 76
+const CHROME_HEIGHT = 88
 
 /** URL noi bo dai dien cho "trang chu tim kiem" - khong tao WebContentsView rieng,
  *  chrome view (chinh la React app) tu ve SearchHomePage/SearchResultList. */
 export const HOME_URL = 'vnsearch://home'
+
+/**
+ * Bảng phím tắt phía main process. Phải khớp với `shortcutFromEvent` bên
+ * renderer (lib/useBrowserShortcuts.ts) — hai tiến trình không dùng chung
+ * mã được, nên chỗ nào sửa thì sửa cả hai.
+ */
+function shortcutName(input: Input): string | null {
+  const key = input.key.toLowerCase()
+
+  if (input.control && !input.alt && !input.shift) {
+    if (key === 't') return 'newTab'
+    if (key === 'w') return 'closeTab'
+    if (key === 'l') return 'focusOmnibox'
+    if (key === 'd') return 'bookmark'
+    if (key === 'r') return 'reload'
+  }
+  if (input.alt && !input.control) {
+    if (key === 'd') return 'focusOmnibox'
+    if (key === 'arrowleft') return 'back'
+    if (key === 'arrowright') return 'forward'
+    if (key === 'home') return 'home'
+  }
+  if (key === 'f5' && !input.control && !input.alt) {
+    return 'reload'
+  }
+  return null
+}
 
 export interface TabState {
   id: string
@@ -253,6 +281,8 @@ export class TabManager {
     wc.on('did-navigate', pushUpdate)
     wc.on('did-navigate-in-page', pushUpdate)
 
+    this.forwardShortcuts(wc)
+
     // Chan popup va bien target=_blank thanh tab moi thay vi mo cua so Electron rieng.
     wc.setWindowOpenHandler(({ url: targetUrl }) => {
       this.createTab(targetUrl)
@@ -260,6 +290,27 @@ export class TabManager {
     })
 
     return view
+  }
+
+  /**
+   * Khi con trỏ đang ở một trang ngoài, phím bấm đi thẳng vào WebContentsView
+   * của trang đó và vỏ trình duyệt không hề hay biết — Ctrl+T sẽ "chết".
+   * Bắt lấy các tổ hợp của trình duyệt ở đây rồi chuyển tiếp về vỏ để chỉ có
+   * một chỗ duy nhất thực thi lệnh (xem renderer lib/useBrowserShortcuts.ts).
+   */
+  private forwardShortcuts(wc: WebContents): void {
+    wc.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown') {
+        return
+      }
+      const name = shortcutName(input)
+      if (name) {
+        event.preventDefault()
+        if (!this.chromeView.webContents.isDestroyed()) {
+          this.chromeView.webContents.send('browser:shortcut', name)
+        }
+      }
+    })
   }
 
   /** Chrome view (React app) la noi DUY NHAT hien thi TabBar/AddressBar nen no

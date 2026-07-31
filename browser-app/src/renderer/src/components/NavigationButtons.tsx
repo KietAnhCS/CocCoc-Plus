@@ -1,46 +1,54 @@
 import { useTabStore, HOME_URL } from '../store/tabStore'
 import { useSearchViewStore } from '../store/searchViewStore'
+import { ArrowLeftIcon, ArrowRightIcon, HomeIcon, ReloadIcon } from './icons'
 
-/** Icon back/forward/reload/home. Back/forward doc trang thai tu historyStore.ts (Stack tu cai). */
+/**
+ * Cụm back / forward / reload / home. Trạng thái bật-tắt của back/forward
+ * đọc từ historyStore.ts (Stack tự cài) chứ không hỏi Electron, nên hai nút
+ * này mờ đi đúng lúc ngay cả khi tab đang ở trang chủ nội bộ.
+ */
 function NavigationButtons(): JSX.Element {
   const goBack = useTabStore((s) => s.goBack)
   const goForward = useTabStore((s) => s.goForward)
   const reload = useTabStore((s) => s.reload)
   const navigate = useTabStore((s) => s.navigate)
   const setQuery = useSearchViewStore((s) => s.setQuery)
-  // Doc truc tiep tu historyStore (qua canGoBack/canGoForward) de re-render dung khi stack thay doi.
   const canGoBack = useTabStore((s) => s.canGoBack())
   const canGoForward = useTabStore((s) => s.canGoForward())
 
-  const buttonClass = (enabled: boolean): string =>
-    'flex h-7 w-7 items-center justify-center rounded-full text-lg ' +
-    (enabled ? 'text-gray-600 hover:bg-gray-200' : 'text-gray-300 cursor-default')
-
   return (
-    <div className="flex items-center gap-0.5">
-      <button onClick={() => goBack()} disabled={!canGoBack} className={buttonClass(canGoBack)} aria-label="Quay lại">
-        ←
+    <div className="flex shrink-0 items-center gap-0.5">
+      <button
+        onClick={() => goBack()}
+        disabled={!canGoBack}
+        className="icon-btn"
+        aria-label="Quay lại"
+        title="Quay lại (Alt+←)"
+      >
+        <ArrowLeftIcon className="h-[18px] w-[18px]" />
       </button>
       <button
         onClick={() => goForward()}
         disabled={!canGoForward}
-        className={buttonClass(canGoForward)}
+        className="icon-btn"
         aria-label="Tiến tới"
+        title="Tiến tới (Alt+→)"
       >
-        →
+        <ArrowRightIcon className="h-[18px] w-[18px]" />
       </button>
-      <button onClick={() => reload()} className={buttonClass(true)} aria-label="Tải lại">
-        ⟳
+      <button onClick={() => reload()} className="icon-btn" aria-label="Tải lại" title="Tải lại (F5)">
+        <ReloadIcon className="h-[18px] w-[18px]" />
       </button>
       <button
         onClick={() => {
           setQuery(null)
           navigate(HOME_URL)
         }}
-        className={buttonClass(true)}
+        className="icon-btn"
         aria-label="Trang chủ"
+        title="Trang chủ VnSearch"
       >
-        ⌂
+        <HomeIcon className="h-[18px] w-[18px]" />
       </button>
     </div>
   )

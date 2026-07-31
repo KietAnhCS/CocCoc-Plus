@@ -91,12 +91,4 @@ public class ScorerFactory {
         }
         return scorer;
     }
-
-    public double pageRankWeight() {
-        return pageRankWeight;
-    }
-
-    public double titleWeight() {
-        return titleWeight;
-    }
 }

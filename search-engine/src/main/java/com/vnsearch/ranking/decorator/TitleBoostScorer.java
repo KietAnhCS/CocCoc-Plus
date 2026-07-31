@@ -51,17 +51,42 @@ public final class TitleBoostScorer implements RelevanceScorer {
 
     @Override
     public double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index) {
-        double base = inner.score(queryTermFrequency, docId, index);
-        if (base == 0.0 || weight == 0.0) {
+        return prepare(queryTermFrequency, index).score(docId);
+    }
+
+    /**
+     * Dung {@link QuerySyllables} <b>mot lan cho ca truy van</b>.
+     *
+     * <p>Truoc day dong {@code QuerySyllables.from(...)} nam TRONG
+     * {@code score}, tuc chay lai cho MOI tai lieu ung vien: moi lan la hai
+     * {@code HashSet} moi, cong voi mot phep bo dau cho tung tieng truy van —
+     * roi bi vut di ngay sau khi cham xong mot tai lieu. Voi 5.000 ung vien do
+     * la 5.000 lan dung cung mot doi tuong khong he doi. Day la truong hop kinh
+     * dien cua "bat bien vong lap bi ket ben trong vong lap".
+     */
+    @Override
+    public DocumentScorer prepare(Map<String, Integer> queryTermFrequency, SearchIndex index) {
+        DocumentScorer base = inner.prepare(queryTermFrequency, index);
+        if (weight == 0.0) {
+            return base; // tin hieu bi tat: khong boc them lop nao
+        }
+        QuerySyllables syllables = QuerySyllables.from(queryTermFrequency.keySet()); // ← MOT lan
+        if (syllables.isEmpty()) {
             return base;
         }
-        WebDocument document = index.getDocument(docId);
-        if (document == null) {
-            return base;
-        }
-        QuerySyllables syllables = QuerySyllables.from(queryTermFrequency.keySet());
-        double bonus = syllables.titleMatchRatio(document.getTitle()); // thuoc [0, 1]
-        return base * (1 + weight * bonus);
+
+        return docId -> {
+            double baseScore = base.score(docId);
+            if (baseScore == 0.0) {
+                return baseScore;
+            }
+            WebDocument document = index.getDocument(docId);
+            if (document == null) {
+                return baseScore;
+            }
+            double bonus = syllables.titleMatchRatio(document.getTitle()); // thuoc [0, 1]
+            return baseScore * (1 + weight * bonus);
+        };
     }
 
     @Override

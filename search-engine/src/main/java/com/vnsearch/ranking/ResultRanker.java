@@ -51,13 +51,22 @@ public class ResultRanker {
         this.snippetBuilder = snippetBuilder == null ? new SnippetBuilder() : snippetBuilder;
     }
 
-    public record RankedResult(WebDocument document, double finalScore, double relevanceScore,
+    /**
+     * Mot ket qua da xep hang.
+     *
+     * <p>Truoc day record nay co BA truong diem: {@code finalScore},
+     * {@code relevanceScore} va mot ham {@code tfidfScore()}. Ca ba tra ve
+     * <b>cung mot so</b> — ke tu khi Decorator thay cong thuc cong tuyen tinh,
+     * scorer chi con tra ve mot gia tri duy nhat da gom moi tin hieu. Ba ten
+     * cho mot dai luong khong phai la su tien loi: no khien tang goi tuong minh
+     * dang doc ba thanh phan doc lap, va {@code EvaluationRunner} da that su
+     * nham — no do "thang do cua TF-IDF tho" bang chinh diem tong.
+     *
+     * @param pageRankScore chi de BAO CAO ra API; viec DUNG no de xep hang
+     *                      thuoc ve {@code PageRankBoostScorer}
+     */
+    public record RankedResult(WebDocument document, double finalScore,
                                 double pageRankScore, String snippet) {
-
-        /** Ten cu, giu de tuong thich voi ma goi da co. */
-        public double tfidfScore() {
-            return relevanceScore;
-        }
     }
 
     /** Ung vien da cham diem nhung CHUA sinh snippet (xem giai thich o Javadoc lop). */
@@ -82,6 +91,11 @@ public class ResultRanker {
                                     RelevanceScorer scorer,
                                     Map<Integer, Double> pageRankScores,
                                     int topN) {
+        // --- GIAI DOAN 0: chuan bi phan chi phu thuoc TRUY VAN, dung MOT lan ---
+        // Xem RelevanceScorer#prepare: idf, trong so truy van va tap tieng cua
+        // truy van truoc day deu bi tinh lai cho TUNG ung vien.
+        RelevanceScorer.DocumentScorer prepared = scorer.prepare(queryTermFrequency, index);
+
         // --- GIAI DOAN 1: chi CHAM DIEM, chua sinh snippet ---
         List<ScoredCandidate> scored = new ArrayList<>(candidateDocIds.size());
         for (int docId : candidateDocIds) {
@@ -89,9 +103,8 @@ public class ResultRanker {
             if (doc == null) {
                 continue;
             }
-            double finalScore = scorer.score(queryTermFrequency, docId, index);
             double pageRank = pageRankScores == null ? 0.0 : pageRankScores.getOrDefault(docId, 0.0);
-            scored.add(new ScoredCandidate(doc, finalScore, pageRank));
+            scored.add(new ScoredCandidate(doc, prepared.score(docId), pageRank));
         }
 
         // --- GIAI DOAN 2: top-K bang MinHeap, O(c log K) thay vi O(c log c) ---
@@ -104,7 +117,6 @@ public class ResultRanker {
         for (ScoredCandidate candidate : top) {
             results.add(new RankedResult(
                     candidate.document(),
-                    candidate.finalScore(),
                     candidate.finalScore(),
                     candidate.pageRankScore(),
                     snippetBuilder.build(candidate.document().getBodyText(), syllables)));

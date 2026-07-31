@@ -89,13 +89,24 @@ public final class PageRankBoostScorer implements RelevanceScorer {
 
     @Override
     public double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index) {
-        double base = inner.score(queryTermFrequency, docId, index);
-        if (base == 0.0 || weight == 0.0) {
-            return base; // thoat som: khong tinh gi them
+        return prepare(queryTermFrequency, index).score(docId);
+    }
+
+    @Override
+    public DocumentScorer prepare(Map<String, Integer> queryTermFrequency, SearchIndex index) {
+        DocumentScorer base = inner.prepare(queryTermFrequency, index);
+        if (weight == 0.0) {
+            return base; // tin hieu bi tat: khong boc them lop nao
         }
-        double pageRank = pageRankScores.getOrDefault(docId, minPageRank);
-        double normalized = Math.log1p(pageRank / minPageRank) / logRange; // thuoc [0, 1]
-        return base * (1 + weight * normalized);
+        return docId -> {
+            double baseScore = base.score(docId);
+            if (baseScore == 0.0) {
+                return baseScore; // thoat som: uy tin khong cuu duoc tai lieu khong lien quan
+            }
+            double pageRank = pageRankScores.getOrDefault(docId, minPageRank);
+            double normalized = Math.log1p(pageRank / minPageRank) / logRange; // thuoc [0, 1]
+            return baseScore * (1 + weight * normalized);
+        };
     }
 
     @Override

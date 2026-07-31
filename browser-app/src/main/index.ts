@@ -2,23 +2,33 @@ import { app, BrowserWindow } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { TabManager } from './tabManager'
 import { registerIpcHandlers } from './ipcHandlers'
+import { registerWindowControls } from './windowControls'
 
 /**
- * Cua so chinh (1280x800). Noi dung thuc su (chrome UI + tab) do
- * TabManager quan ly qua WebContentsView, khong load truc tiep vao
- * mainWindow.webContents nua (TabManager tu goi window.show() khi chrome
- * view tai xong lan dau - xem comment trong tabManager.ts).
+ * Cửa sổ chính (1280x800), chạy frameless để thanh tab nằm ngang hàng với
+ * ba nút điều khiển cửa sổ như một trình duyệt thật — phần kéo/thu/phóng
+ * do windowControls.ts đảm nhiệm. Nội dung thực sự (vỏ trình duyệt + các
+ * tab) do TabManager quản lý qua WebContentsView, không load trực tiếp vào
+ * mainWindow.webContents (TabManager tự gọi window.show() khi vỏ trình
+ * duyệt tải xong lần đầu — xem comment trong tabManager.ts).
  */
 function createWindow(): void {
   const mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
+    // Dưới ~900px thanh tab và ô địa chỉ bắt đầu chen nhau, nên chặn luôn.
+    minWidth: 900,
+    minHeight: 560,
     show: false,
-    autoHideMenuBar: true
+    frame: false,
+    autoHideMenuBar: true,
+    // Cùng tông với nền thanh tab (--c-chrome) để không loé trắng lúc mở.
+    backgroundColor: '#dfe3eb'
   })
 
   const tabManager = new TabManager(mainWindow)
   registerIpcHandlers(tabManager)
+  registerWindowControls(mainWindow)
 }
 
 app.whenReady().then(() => {

@@ -47,7 +47,11 @@ thử được độc lập trong vài chục milli-giây.
 |---|---|---|---|---|
 | **Vietnamese Tokenizer** | `VietnameseTokenizer.java` | Tách từ, chuẩn hoá, bỏ dấu, lọc stopword | `tokenize` O(n × 4) = **O(n)** · `stripDiacritics` O(L) | O(n) cho token + O(\|từ điển\|) cố định |
 | **Inverted Index** | `InvertedIndex.java` | Tra tài liệu chứa một term | `addDocument` O(L) · `getPostings` / `getDocumentFrequency` **O(1)** · `getPositions` **O(log n)** · `getAverageDocLength` **O(1)** | O(tổng số cặp (term, doc)) |
-| **Posting List Merger** | `PostingListMerger.java` | Giao/hợp posting list, khớp cụm từ | `intersect` / `union` **O(m+n)** · `intersectAll` O(Σ\|list\|) với shortest-first · `matchesPhrase` O(p₁ · k · log n) | O(\|kết quả\|) |
+| **Term Dictionary** | `TermDictionary.java` | Flyweight cho khoá term | `intern` **O(1)** khấu hao | O(số term phân biệt) — thay vì O(số lần xuất hiện) |
+| **Posting Cursor** | `ArrayPostingCursor.java` | Duyệt posting list có nhảy cóc | `next` O(1) · **`skipTo` O(log d)** (galloping) | O(1) — không cấp phát |
+| **VByte Codec** | `VByteCodec.java` | Nén danh sách số nguyên tăng dần | `encodeSorted` / `decodeSorted` **O(n)** · `encodeSegments` / `decodeSegments` O(Σn) | O(số byte kết quả) |
+| **Compressed Postings** | `CompressedPostings.java` | Dạng nén của posting list trên đĩa | `of` / `toPostings` **O(n + Σ vị trí)** | O(số byte nén) — xem mục 4.2 |
+| **Posting List Merger** | `PostingListMerger.java` | Giao/hợp posting list, khớp cụm từ | `intersect` / `union` **O(m+n)** · `intersectCursors` **O(m log(d/m))** · `intersectAll` shortest-first · `matchesPhrase` O(p₁ · k · log p) | O(\|kết quả\|) |
 | **Query Parser** | `QueryParser.java` | Tách mustTerms / phrases / excludedTerms | `parse` **O(L)** | O(số term) |
 | **Candidate Resolver** | `CandidateResolver.java` | Từ truy vấn đã phân tích → danh sách ứng viên | Chi phối bởi `intersectAll` | O(số ứng viên) |
 
@@ -214,13 +218,22 @@ khiến PageRank **có ý nghĩa**: liên kết nội bộ một tờ báo phả
 có **0** liên kết chéo domain, nên PageRank trên đó gần như vô nghĩa — và đó
 chính là lý do `MultiDomainCrawlRunner` được viết ra.
 
-**Vì sao adjacency list chứ không phải CSR "cứng"?** CSR (3 mảng liên tục)
-có locality tốt hơn khi `multiply`, nhưng cần **biết trước** số phần tử để
-cấp phát mảng cố định. Ma trận này được **xây dần** trong lúc dựng
-(`incoming.set(...)` mỗi khi phát hiện một cạnh), nên adjacency list cho phép
-thêm phần tử $O(1)$ amortised. Có thể "đóng băng" sang CSR sau khi xây xong
-để tăng locality — nhưng ở quy mô đồ án (hàng chục nghìn trang) adjacency
-list đã đủ nhanh: PageRank hội tụ trong **0,2 giây**.
+**Vì sao adjacency list *rồi mới* CSR — dùng cả hai chứ không chọn một.** CSR
+(3 mảng liên tục) có locality tốt hơn hẳn khi `multiply`, nhưng cần **biết
+trước** số phần tử để cấp phát mảng cố định. Ma trận này lại được **xây dần**
+(`incoming.set(...)` mỗi khi phát hiện một cạnh), nên lúc xây phải là adjacency
+list để thêm phần tử trong $O(1)$ khấu hao.
+
+Lời giải là **hai chế độ trong một lớp**: xây bằng adjacency list, rồi
+`freeze()` sang CSR $O(nnz)$ **một lần** trước khi bắt đầu lặp. Từ đó mọi vòng
+`multiply` chạy trên 3 mảng nguyên thuỷ liên tục. `PageRankService` gọi
+`incoming.freeze()` ngay trước vòng lặp power iteration, và `set()` sau khi
+freeze sẽ ném `IllegalStateException` — bất biến "đã đóng băng thì bất biến"
+được **ép bởi code**, không phải bằng quy ước.
+
+Đây cũng là kỹ thuật `rowPtr` được **dùng lại lần thứ hai** ở
+`CompressedPostings` để nén danh sách vị trí (xem mục 4.2) — cùng một ý tưởng,
+hai chỗ khác nhau trong đồ án.
 
 ---
 
@@ -461,8 +474,8 @@ for (int round = 0; round < 2; round++) {
 
 *(Cặp số trên là phép đo **lịch sử** tại thời điểm phát hiện lỗi, chụp trên
 cùng một máy và cùng một lần chạy — giữ lại để thấy độ lớn của sai lệch. Con
-số hiện hành, đo lại trên máy hiện tại, là **3,41 ms** so với **1,17 ms**;
-xem mục 4.4 và `docs/GIN-BASELINE.md`.)*
+số hiện hành, sau đợt tối ưu tính-trước-theo-truy-vấn ở mục 4.4, là
+**1,62 ms** so với **1,24 ms**; xem `docs/GIN-BASELINE.md`.)*
 
 Chi phí warmup chiếm **~40%** con số ban đầu ở phía chạy trước. **Kết luận
 cuối cùng không đổi** (GIN vẫn nhanh hơn), nhưng mức chênh lệch báo cáo sai
@@ -563,8 +576,41 @@ Mọi số dưới đây đo trên corpus **5.011 trang** từ 6 báo điện t�
 | Thời gian dựng chỉ mục đảo | **6,8 – 9,5 giây** (biến động giữa các lần chạy) |
 | Số term phân biệt | **136.768** (gồm cả bản không dấu) |
 | Độ dài tài liệu trung bình | **1.043,3 token** |
-| Kích thước `data/index.json` | **9,1 MB** |
 | Kích thước `data/crawled-multi.json` | **62 MB** |
+
+#### Nén chỉ mục — ba mốc, tách bạch hai thay đổi
+
+`data/index.json` chứa **cả ba phần**: posting list, toàn văn `WebDocument`, và
+độ dài tài liệu. Định dạng cũ vừa *không nén* vừa *thụt dòng*; đo riêng từng
+thay đổi:
+
+| Định dạng | Kích thước | So với mốc trước |
+|---|---|---|
+| A. Thụt dòng + không nén (**cũ**) | **341,5 MB** | — |
+| B. Gói + không nén | **226,6 MB** | −33,7% |
+| C. Gói + nén VByte (**đang dùng**) | **94,7 MB** | **−58,2%** |
+| | | **Tổng A→C: −72,3% (nhỏ 3,60 lần)** |
+
+> **Vì sao phải ba mốc chứ không phải hai.** Gộp cả hai thay đổi rồi báo một
+> con số sẽ quy nhầm công của việc bỏ thụt dòng cho phần nén: nén sẽ được báo
+> là −72,3% trong khi công thật của nó là **−58,2%**. Đây là cùng một bài học
+> phương pháp với lỗi JIT warmup ở mục 3.2 — *không bao giờ đổi hai biến cùng
+> lúc rồi báo một tỷ lệ*.
+
+Chạy lại phép đo này:
+
+```bash
+MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \
+  -Dexec.mainClass=com.vnsearch.index.IndexPersistence \
+  -Dexec.args="data/crawled-multi.json"
+```
+
+Ba kỹ thuật nén và lý do không dùng GZIP: xem `CompressedPostings` Javadoc và
+[`SO-SANH-PHUONG-AN.md`](SO-SANH-PHUONG-AN.md) §4.
+
+*(Con số lịch sử **9,1 MB** trong các bản báo cáo trước là của corpus rút gọn
+`crawled-documents.json` (~150 trang), **không** phải corpus 5.011 trang — giữ
+lại ghi chú này để tránh so sánh nhầm hai quy mô.)*
 
 ### 4.3. PageRank
 
@@ -587,10 +633,49 @@ kết chéo thì càng cần nhiều vòng để hội tụ:
 
 | Phép đo | Kết quả |
 |---|---|
-| Thời gian truy vấn trung bình (**đã làm nóng JVM**) | **3,41 ms** |
+| Thời gian truy vấn trung bình (**đã làm nóng JVM**) | **1,59 ms** |
+| Cùng phép đo, **trước** tối ưu tính-trước-theo-truy-vấn | 3,84 ms |
 | Thời gian truy vấn, phép đo lịch sử đã làm nóng (máy khác) | 6,43 ms |
 | Thời gian truy vấn, phép đo lịch sử **chưa** làm nóng (số **sai**) | 10,83 ms |
 | Cache miss → hit (đo qua HTTP) | 34,5 ms → **12,8 ms** (nhanh 2,7 lần) |
+
+#### Tối ưu tính-trước-theo-truy-vấn (nhanh 2,4 lần)
+
+Chu kỳ một truy vấn là: lấy `c` ứng viên rồi chấm điểm từng cái. Nhưng giao
+diện `RelevanceScorer.score` nhận `queryTermFrequency` ở **mỗi** lần gọi, nên
+mọi đại lượng suy ra từ truy vấn bị tính lại `c` lần dù chúng không hề đổi:
+
+| Nơi | Việc bị lặp lại cho từng ứng viên | Chi phí mỗi lần |
+|---|---|---|
+| `TfIdfScorer` | `idf` + trọng số truy vấn của từng term | 2 × `Math.log10` |
+| `BM25Scorer` | `idf` của từng term | 1 × `Math.log` |
+| `TitleBoostScorer` | dựng lại **cả đối tượng** `QuerySyllables` | 2 `HashSet` + bỏ dấu từng tiếng |
+
+Với 5.000 ứng viên và 3 term, đó là **30.000 phép logarit** và **5.000 đối
+tượng tập băm** bị vứt đi ngay sau khi tạo. `RelevanceScorer.prepare` tách
+phần chỉ phụ thuộc truy vấn ra một lần, đưa chi phí từ `O(c·q)` xuống `O(q)`.
+
+Đo A/B trên cùng máy, cùng corpus, cùng 200 truy vấn:
+
+| Cấu hình | Trước | Sau | Nhanh hơn |
+|---|---|---|---|
+| TF-IDF thuần | 3,58 ms | 3,10 ms | 1,2× |
+| BM25 thuần | 3,43 ms | 2,20 ms | 1,6× |
+| TF-IDF + title | 3,34 ms | 1,97 ms | 1,7× |
+| **TF-IDF + PR + title (đang dùng)** | **3,84 ms** | **1,59 ms** | **2,4×** |
+
+**MRR của cả 11 cấu hình không đổi một chữ số thập phân nào** — đây là điều
+kiện cần để gọi một thay đổi là "tối ưu" chứ không phải "đánh đổi". Cấu hình
+có title boost nhanh lên nhiều nhất, đúng chỗ lãng phí lớn nhất: đó là bài học
+"bất biến vòng lặp bị kẹt bên trong vòng lặp".
+
+Một khoản thứ hai cùng loại, ở tầng thấp hơn: `VietnameseTokenizer.stripDiacritics`
+trước đây gọi `String.replaceAll("\p{M}", "")`, mà `replaceAll` **biên dịch lại
+mẫu regex ở mỗi lần gọi**. Hàm này chạy cho mọi token của mọi tài liệu lúc lập
+chỉ mục (hàng triệu lần) rồi lại chạy cho từng từ lúc bôi sáng snippet. Nay là
+một lượt quét ký tự, và trường hợp phổ biến nhất (chuỗi vốn không dấu) không
+cấp phát gì. Tính tương đương được kiểm chứng vét cạn trên toàn dải U+0000–U+1FFF
+cộng 500.000 chuỗi ngẫu nhiên.
 
 > **Cách đọc con số cache.** Phần lớn 12,8 ms còn lại là chi phí round-trip
 > HTTP, **không** phải xử lý tìm kiếm — nên đừng đọc nó như "cache hit mất
@@ -611,17 +696,27 @@ kết chéo thì càng cần nhiều vòng để hội tụ:
 
 | Cấu hình | MRR | Success@1 |
 |---|---|---|
-| TF-IDF thuần | 0,8537 | 78,0% |
+| TF-IDF thuần | 0,8541 | 78,0% |
+| TF-IDF + title | 0,8715 | 81,0% |
+| TF-IDF + PageRank + title (đang dùng) | 0,8758 | 81,5% |
 | BM25 thuần | 0,8989 | 85,0% |
-| **TF-IDF + PageRank + title (đang dùng)** | **0,9229** | **88,0%** |
+| **BM25 + PageRank + title** | **0,9093** | **85,5%** |
 
-Đầy đủ 11 cấu hình và phân tích: `docs/EVALUATION.md`.
+Đầy đủ 11 cấu hình, kiểm định ý nghĩa thống kê và phân tích thang đo:
+`docs/EVALUATION.md`.
+
+> **Cấu hình mặc định không phải cấu hình tốt nhất, và điều đó được nói ra.**
+> BM25 hơn TF-IDF 0,0335 MRR trên cùng tập truy vấn. Mặc định vẫn là TF-IDF vì
+> bộ trọng số PageRank/title được tinh chỉnh cho thang điểm TF-IDF; đổi
+> `app.ranking.scorer=bm25` là chuyển sang cấu hình tốt hơn. Chênh lệch này có
+> vượt ngưỡng ý nghĩa thống kê hay không thì `EVALUATION.md` §5 trả lời bằng
+> paired t-test và randomization test.
 
 ---
 
 ## 5. Kiểm thử
 
-**233 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
+**280 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
 
 ```bash
 cd search-engine
@@ -632,24 +727,27 @@ cd search-engine
 
 | Lớp test | Số test | Trọng tâm |
 |---|---|---|
+| **`SignificanceTestTest`** | **23** | Paired t-test + randomization test; kỳ vọng lấy từ **dạng đóng giải tích** (Cauchy khi df=1, dạng đóng khi df=2), không lấy từ thư viện khác |
 | `EvaluationMetricsTest` | 20 | Mọi giá trị kỳ vọng **tính tay** |
-| **`QueryAstTest`** | **14** | Cây truy vấn AND/OR/NOT, shortest-first, ngữ nghĩa `NOT` |
+| `QueryAstTest` | 14 | Cây truy vấn AND/OR/NOT, shortest-first, ngữ nghĩa `NOT` |
+| `VByteCodecTest` | 13 | Delta + variable-byte, mã hoá theo **đoạn**, vòng lặp mã hoá → giải mã |
+| **`CandidateResolverTest`** | **12** | Lui dần về AND-của-tập-con: thứ tự bỏ term theo IDF, cụm từ và mệnh đề `NOT` **không bao giờ** bị bỏ |
+| `HeapifyAndFreezeTest` | 12 | Floyd heapify $O(n)$, đóng băng `SparseMatrix` sang CSR |
 | `TrieTest` | 12 | Prefix search, tách khoá/hiển thị, top-k theo frequency, **thread-safe** |
-| **`HeapifyAndFreezeTest`** | **12** | Floyd heapify $O(n)$, đóng băng `SparseMatrix` sang CSR |
-| `UrlFrontierTest` | 11 | Ưu tiên, politeness, **đồng thời với 8 thread** |
 | `BM25ScorerTest` | 11 | Kiểm chứng **tính chất** phân biệt BM25 với TF-IDF |
+| `UrlFrontierTest` | 11 | Ưu tiên, politeness, **đồng thời với 8 thread** |
+| `CrawlConfigTest` | 10 | Giá trị mặc định, kiểm tra hợp lệ, **2 test bản sao phòng thủ** |
 | `UrlCanonicalizerTest` | 10 | Từng phép chuẩn hoá, và những phép **không** được làm |
-| **`CrawlConfigTest`** | **10** | Giá trị mặc định, kiểm tra hợp lệ, **2 test bản sao phòng thủ** |
+| `PostingCursorTest` | 9 | Galloping đối chiếu quét tuyến tính ở **mọi** vị trí |
 | `PostingListMergerTest` | 9 | intersect / union / shortest-first / phrase |
-| **`ScorerDecoratorTest`** | **9** | Decorator **bất biến với thang đo** của scorer cơ sở |
-| **`VByteCodecTest`** | **9** | Delta + variable-byte, vòng lặp mã hoá → giải mã |
-| **`PostingCursorTest`** | **9** | Galloping đối chiếu quét tuyến tính ở **mọi** vị trí |
+| `ScorerDecoratorTest` | 9 | Decorator **bất biến với thang đo** của scorer cơ sở |
+| **`CompressedPostingsTest`** | **8** | Nén/giải nén posting list, **ép bất biến `tf == |positions|`**, ví dụ tính tay 13 byte, 200 vòng ngẫu nhiên |
 | `MinHeapTest` | 8 | siftUp/siftDown, topK |
 | `QueryParserTest` | 8 | Cụm từ, loại trừ, `OR`, `site:`, tokenize khớp index |
 | `SearchEngineFacadeApiTest` | 8 | Hợp đồng API qua facade (không qua HTTP) |
 | `TfIdfScorerTest` | 8 | tf, idf, cosine, chuẩn hoá độ dài |
-| **`CrawlStatusTest`** | **7** | Máy trạng thái; **không trạng thái nào chuyển về chính nó** |
 | `BloomFilterTest` | 7 | Không false negative, tỷ lệ false positive |
+| `CrawlStatusTest` | 7 | Máy trạng thái; **không trạng thái nào chuyển về chính nó** |
 | `LRUCacheTest` | 7 | Thứ tự MRU/LRU, eviction |
 | `ResultRankerTest` | 7 | Kết hợp điểm, snippet, **bôi sáng có dấu** |
 | `VietnameseTokenizerTest` | 7 | Longest Matching, NFC/NFD, `đ`, stopword |
@@ -660,11 +758,10 @@ cd search-engine
 | `HtmlExtractorTest` | 4 | Trích title/meta/body/outlink |
 | `IndexPersistenceTest` | 1 | Lưu rồi nạp lại phải bằng nhau |
 | `VnSearchApplicationTests` | 1 | Spring context khởi động được |
-| | **233** | |
+| **31 lớp** | **280** | |
 
-Bảy lớp in đậm là **test mới của đợt tái cấu trúc** (+70 test): chúng phủ các
-cấu trúc nén/nhảy cóc và các design pattern. Phân tích từng mẫu:
-[`Math/09-design-patterns/`](Math/09-design-patterns/README.md).
+Ba lớp in đậm là test của đợt sửa lỗi và tối ưu gần nhất: chúng phủ dạng nén
+posting list, kiểm định thống kê, và cơ chế nới lỏng truy vấn.
 
 ### 5.2. Bốn lớp test đáng chú ý nhất
 
@@ -740,26 +837,42 @@ Cách khắc phục: chuẩn hoá PageRank trước khi kết hợp (chia cho gi
 nhất, hoặc min-max normalisation trên tập ứng viên của từng truy vấn). Phân
 tích đầy đủ ở mục 6 của `docs/EVALUATION.md`.
 
-### 6.4. Chưa nén chỉ mục
+### 6.4. Nén chỉ mục — đã cài, nhưng chỉ ở tầng lưu trữ
 
-Posting list lưu nguyên `docId` dạng số nguyên, **chưa** dùng delta encoding
-hay variable-byte. Hai kỹ thuật này thường giảm kích thước posting list 50–70%
-trong hệ thống thật.
+Posting list **trên đĩa** đã được nén bằng delta + variable-byte (mục 4.2:
+giảm 58,2%). Nhưng chỉ mục **trong bộ nhớ** vẫn là `List<Posting>` với
+`Integer` boxed — nghĩa là mỗi docId tốn 16 byte thay vì 4.
 
-### 6.5. Chỉ mục tự cài chậm hơn PostgreSQL GIN 2,9 lần
+Nén ngay trong bộ nhớ (giữ posting list ở dạng `byte[]` và giải mã khi duyệt)
+sẽ tiết kiệm nhiều hơn hẳn, nhưng đổi lại phải giải mã ở **đường nóng** của
+mỗi truy vấn. Đây là đánh đổi chưa được đo — và là việc đáng làm tiếp.
 
-**3,41 ms so với 1,17 ms** — báo cáo trung thực kèm phân tích nguyên nhân
-trong `docs/GIN-BASELINE.md`. Đáng chú ý vì GIN còn phải đi qua tầng mạng và
-SQL, nghĩa là chỉ mục tự cài **còn nhiều dư địa tối ưu** (nén, CSR thay
-adjacency list, tránh boxing `Integer`).
+### 6.5. Chưa có WAND / MaxScore — khoảng trống thuật toán lớn nhất
 
-### 6.6. Một số điểm còn tối ưu được, đã xác định nhưng chưa sửa
+`ResultRanker` chấm điểm **mọi** ứng viên rồi mới cắt top-K.
+`MaxCandidatesFilter` là chặn trên an toàn, **không** phải tối ưu top-K chính
+xác: nó cắt danh sách ứng viên **trước khi biết điểm**, nên về nguyên tắc có
+thể loại nhầm một tài liệu đáng lẽ đứng đầu.
+
+**WAND** (Broder 2003) giải đúng bài toán này: dùng cận trên điểm của từng term
+để bỏ qua tài liệu không thể vào top-K, mà kết quả vẫn **đúng chính xác**. Hạ
+tầng cần thiết đã có sẵn — `PostingCursor.skipTo` với galloping. Phân tích đầy
+đủ: [`SO-SANH-PHUONG-AN.md`](SO-SANH-PHUONG-AN.md) §6.
+
+### 6.6. Chỉ mục tự cài vẫn chậm hơn PostgreSQL GIN
+
+**1,62 ms so với 1,24 ms** (trước đợt tối ưu ở mục 4.4 là 3,84 ms, tức chậm
+hơn 2,9 lần; nay còn 1,31 lần) — báo cáo trung thực kèm phân tích
+nguyên nhân trong `docs/GIN-BASELINE.md`. Đáng chú ý vì GIN còn phải đi qua
+tầng mạng và SQL, nghĩa là chỉ mục tự cài **vẫn còn dư địa**: nén trong bộ
+nhớ (6.4), WAND (6.5), và tránh boxing `Integer` ở `docIdsOf`.
+
+### 6.7. Một số điểm còn tối ưu được, đã xác định nhưng chưa sửa
 
 | Chỗ | Vấn đề | Ảnh hưởng hiện tại |
 |---|---|---|
-| `PostingListMerger.matchesPhrase` | `positions.contains(...)` quét tuyến tính trên danh sách **đã sắp xếp** — dùng được binary search | Nhỏ (vài chục vị trí) |
-| `PostingListMerger.matchesPhrase` | `getPositions` bị gọi lại cho cùng term ở mọi vòng `start` | Nhỏ |
 | `PostingListMerger` | `docIdsOf` tạo `List<Integer>` mới → boxing 250.000 `Integer` mỗi phép giao lớn | Trung bình; dùng `int[]` sẽ nhanh hơn đáng kể |
+| `CandidateResolver` | Chuỗi `FILTERS` là `static final`, không inject được → không cấu hình được theo request, khó mock trong test | Nhỏ ở quy mô hiện tại |
 | `UrlFrontier.nextUrl` | Ties được phá theo thứ tự nội bộ `HashMap` → thứ tự crawl không tái lập được | Không ảnh hưởng đúng đắn |
 | `RobotsTxtParser` | Bỏ qua wildcard `*` / `$`; khi hai luật cùng độ dài thì luật đầu thắng (chuẩn: `Allow` thắng) | Nhỏ |
 | `CrawlerService.fetchWithRetry` | Retry **không có** exponential backoff | Có thể dồn tải lên server đang gặp sự cố |
@@ -778,7 +891,7 @@ corpus cố định.
 ```bash
 cd search-engine
 
-# 1. Bộ test đầy đủ (233 test)
+# 1. Bộ test đầy đủ (280 test)
 ./mvnw.cmd test
 
 # 2. Demo từng cấu trúc dữ liệu, chạy độc lập không cần Spring
@@ -794,6 +907,11 @@ cd search-engine
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.ranking.TfIdfScorer
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.ranking.PageRankService
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.ranking.ResultRanker
+
+# 2b. Đo kích thước chỉ mục theo 3 định dạng (mục 4.2) + kiểm chứng nạp lại
+MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \
+  -Dexec.mainClass=com.vnsearch.index.IndexPersistence \
+  -Dexec.args="data/crawled-multi.json"
 
 # 3. Dựng lại corpus lớn (~3-5 phút, cần mạng)
 ./mvnw.cmd compile exec:java \

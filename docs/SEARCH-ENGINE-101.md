@@ -1436,7 +1436,7 @@ sắp theo `frequency` giảm dần. Tham khảo: `datastructure/Trie.java`, tes
 
 ### 12.1. Vì sao thời gian truy vấn không nói lên điều gì
 
-Đo được "truy vấn mất 3,41 ms" và "cache hit rate 90%" là đo **tốc độ**. Nó
+Đo được "truy vấn mất 1,59 ms" và "cache hit rate 90%" là đo **tốc độ**. Nó
 hoàn toàn không trả lời được câu hỏi quan trọng nhất:
 
 > **Kết quả trả về có đúng không?**
@@ -1641,11 +1641,12 @@ lần:
 
 | Cấu hình | α / β / γ | MRR | Success@1 |
 |---|---|---|---|
-| TF-IDF thuần | 1,0 / 0 / 0 | 0,8537 | 78,0% |
+| TF-IDF thuần | 1,0 / 0 / 0 | 0,8541 | 78,0% |
+| TF-IDF + PageRank | 0,7 / 0,3 / 0 | 0,8567 | 78,0% |
+| TF-IDF + title | 0,9 / 0 / 0,1 | 0,8715 | 81,0% |
+| TF-IDF + PR + title (đang dùng) | 0,6 / 0,3 / 0,1 | 0,8758 | 81,5% |
 | BM25 thuần | 1,0 / 0 / 0 | 0,8989 | 85,0% |
-| TF-IDF + title | 0,9 / 0 / 0,1 | 0,9083 | 86,0% |
-| TF-IDF + PageRank | 0,7 / 0,3 / 0 | 0,8625 | 79,0% |
-| **TF-IDF + PR + title (đang dùng)** | **0,6 / 0,3 / 0,1** | **0,9229** | **88,0%** |
+| **BM25 + PR + title (tốt nhất)** | — | **0,9093** | **85,5%** |
 
 Giờ câu hỏi "tại sao α = 0,6?" có câu trả lời **bằng số liệu**, không còn là
 con số chọn bừa.
@@ -1679,8 +1680,8 @@ Thực đo trong dự án:
 | PostgreSQL GIN | 1,42 ms | 1,18 ms |
 
 *(Cặp số này là phép đo **lịch sử** tại thời điểm phát hiện lỗi — giữ lại để
-thấy độ lớn sai lệch. Con số hiện hành trên máy hiện tại: 3,41 ms so với
-1,17 ms.)*
+thấy độ lớn sai lệch. Con số hiện hành, sau đợt tối ưu tính-trước-theo-truy-vấn:
+1,62 ms so với 1,24 ms.)*
 
 Chi phí warmup chiếm **~40%** con số ban đầu. **Kết luận cuối cùng không đổi**
 (GIN vẫn nhanh hơn), nhưng mức chênh lệch báo cáo sai lệch đáng kể nếu không
@@ -1702,11 +1703,12 @@ Kết quả (chi tiết ở `docs/GIN-BASELINE.md`):
 
 | Tiêu chí | Chỉ mục tự cài | PostgreSQL GIN |
 |---|---|---|
-| MRR | **0,9229** | 0,8330 |
-| Thời gian truy vấn | 3,41 ms | **1,17 ms** |
+| MRR | **0,8758** | 0,8330 |
+| Thời gian truy vấn | 1,62 ms | **1,24 ms** |
 
-Thắng về chất lượng tiếng Việt (+10,8% MRR), **thua về tốc độ** (chậm hơn 2,9
-lần). Báo cáo **cả hai** — kể cả phần mình thua — mới là báo cáo đáng tin.
+Thắng về chất lượng tiếng Việt (+5,1% MRR), **vẫn thua về tốc độ** (chậm hơn
+1,31 lần — trước đợt tối ưu là 2,9 lần). Báo cáo **cả hai** — kể cả phần mình
+thua — mới là báo cáo đáng tin.
 
 Và phải nêu rõ **điều so sánh này KHÔNG chứng minh**: rằng cài đặt tự viết tốt
 hơn PostgreSQL. GIN chạy đa người dùng, có giao dịch ACID, bền vững sau sự cố,

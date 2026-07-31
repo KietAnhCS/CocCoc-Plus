@@ -216,11 +216,6 @@ public class QueryParser {
         return new AndNode(children);
     }
 
-    /** Tien ich: phan tich va dung cay trong mot buoc. */
-    public QueryNode parseToAst(String rawQuery) {
-        return buildAst(parse(rawQuery));
-    }
-
     private List<String> tokenizeToTerms(String text) {
         List<String> terms = new ArrayList<>();
         for (VietnameseTokenizer.Token token : tokenizer.tokenize(text)) {

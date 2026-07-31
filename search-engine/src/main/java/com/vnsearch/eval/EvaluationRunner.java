@@ -116,6 +116,14 @@ public class EvaluationRunner {
         com.vnsearch.query.QueryParser parser = new com.vnsearch.query.QueryParser();
         com.vnsearch.ranking.ResultRanker ranker = new com.vnsearch.ranking.ResultRanker();
 
+        // Thang đo phải đo trên scorer TRẦN. Trước đây mục này đọc
+        // `result.tfidfScore()` của kết quả đã xếp hạng — mà giá trị đó là điểm
+        // TỔNG đã bọc đủ PageRank lẫn title, không phải thành phần TF-IDF. Tức
+        // là bảng "so sánh thang đo giữa hai thành phần" đang so một thành phần
+        // với chính cái tổng chứa nó. Chấm điểm lại bằng một TfIdfScorer trần
+        // mới trả lời đúng câu hỏi mục này đặt ra.
+        TfIdfScorer bareTfIdf = new TfIdfScorer();
+
         double sumTfidf = 0, sumPageRank = 0;
         double maxTfidf = 0, maxPageRank = 0;
         int samples = 0;
@@ -126,11 +134,15 @@ public class EvaluationRunner {
             if (resolved.candidateDocIds().isEmpty()) {
                 continue;
             }
+            // Vẫn xếp hạng bằng cấu hình ĐẦY ĐỦ để lấy đúng tập top-N mà người
+            // dùng thật sẽ thấy; chỉ khâu ĐO thành phần mới dùng scorer trần.
             for (var result : ranker.rank(resolved.candidateDocIds(), resolved.queryTermFrequency(),
                     index, config.scorer(), pageRankScores, TOP_N)) {
-                sumTfidf += result.tfidfScore();
+                double tfidf = bareTfIdf.score(resolved.queryTermFrequency(),
+                        result.document().getDocId(), index);
+                sumTfidf += tfidf;
                 sumPageRank += result.pageRankScore();
-                maxTfidf = Math.max(maxTfidf, result.tfidfScore());
+                maxTfidf = Math.max(maxTfidf, tfidf);
                 maxPageRank = Math.max(maxPageRank, result.pageRankScore());
                 samples++;
             }
@@ -144,7 +156,7 @@ public class EvaluationRunner {
         double weightedPageRank = 0.3 * meanPageRank;
 
         StringBuilder sb = new StringBuilder();
-        sb.append("## 7. Phân tích thang đo của các thành phần điểm\n\n");
+        sb.append("## 8. Phân tích thang đo của các thành phần điểm\n\n");
         sb.append("> **Vì sao phải có mục này.** Mục 3 cho thấy bộ trọng số 0.6/0.3/0.1 đạt\n");
         sb.append("> MRR cao nhất. Nhưng một bảng số liệu chỉ nói *cấu hình nào tốt hơn*, nó\n");
         sb.append("> không nói *vì sao*. Trước khi rút ra bất kỳ kết luận nào về ý nghĩa của\n");
@@ -234,8 +246,16 @@ public class EvaluationRunner {
         return configs;
     }
 
+    /**
+     * @param reciprocalRanks reciprocal rank của TỪNG truy vấn, giữ nguyên thứ
+     *                        tự truy vấn. Bắt buộc phải giữ lại để chạy kiểm
+     *                        định THEO CẶP — chỉ có MRR trung bình thì không
+     *                        ghép cặp được, và kiểm định không theo cặp mất
+     *                        phần lớn độ mạnh thống kê.
+     */
     private record ConfigResult(String label, double mrr, double success1, double success5,
-                                 double success10, double avgQueryMs, double avgCandidates) {
+                                 double success10, double avgQueryMs, double avgCandidates,
+                                 double[] reciprocalRanks) {
     }
 
     private static ConfigResult evaluate(EvaluationHarness harness,
@@ -259,12 +279,129 @@ public class EvaluationRunner {
         }
 
         int n = queries.size();
+        double[] perQuery = new double[reciprocalRanks.size()];
+        for (int i = 0; i < perQuery.length; i++) {
+            perQuery[i] = reciprocalRanks.get(i);
+        }
         return new ConfigResult(config.label(),
                 EvaluationMetrics.meanReciprocalRank(reciprocalRanks),
                 (double) hit1 / n, (double) hit5 / n, (double) hit10 / n,
                 totalNanos / 1_000_000.0 / n,
-                (double) totalCandidates / n);
+                (double) totalCandidates / n,
+                perQuery);
     }
+
+    /**
+     * Bảng kiểm định ý nghĩa thống kê cho các cặp cấu hình đáng so sánh nhất.
+     *
+     * <p>Chỉ kiểm định những cặp <b>đã có giả thuyết từ trước</b>, không kiểm
+     * định tất cả các cặp. Lý do là vấn đề <b>so sánh bội</b>: chạy 13 cấu hình
+     * cho 78 cặp, và ở mức α = 0,05 thì trung bình có <b>~4 cặp</b> đạt "có ý
+     * nghĩa" thuần tuý do ngẫu nhiên. Chọn trước một số ít cặp cần trả lời là
+     * cách phòng vệ rẻ nhất và trung thực nhất.
+     */
+    private static String renderSignificanceSection(List<ConfigResult> results) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("## 5. Kiểm định ý nghĩa thống kê\n\n");
+        sb.append(SIGNIFICANCE_WHY);
+        sb.append("\n\n");
+
+        List<String[]> pairs = List.of(
+                new String[]{"BM25 thuần", "TF-IDF thuần"},
+                new String[]{"TF-IDF + title", "TF-IDF thuần"},
+                new String[]{"TF-IDF + PageRank", "TF-IDF thuần"},
+                new String[]{"TF-IDF + PR + title (đang dùng)", "TF-IDF thuần"},
+                new String[]{"TF-IDF + PR + title (đang dùng)", "BM25 thuần"},
+                new String[]{"TF-IDF + PR + title (đang dùng)", "TF-IDF + title"});
+
+        sb.append("| So sánh (A với B) | ΔMRR | KTC 95 % | p (t-test) | p (hoán vị) | Kết luận |\n");
+        sb.append("|---|---|---|---|---|---|\n");
+
+        for (String[] pair : pairs) {
+            ConfigResult a = findByLabel(results, pair[0]);
+            ConfigResult b = findByLabel(results, pair[1]);
+            if (a == null || b == null) {
+                continue;
+            }
+            SignificanceTest.Result test =
+                    SignificanceTest.pairedTest(a.reciprocalRanks(), b.reciprocalRanks());
+
+            String verdict;
+            if (test.testsDisagree()) {
+                verdict = "⚠️ hai kiểm định **không đồng ý**";
+            } else if (test.isSignificant()) {
+                verdict = "✅ **có ý nghĩa**";
+            } else {
+                verdict = "❌ **chưa kết luận được**";
+            }
+
+            sb.append(String.format(Locale.US,
+                    "| %s **vs** %s | %+.4f | [%+.4f, %+.4f] | %s | %s | %s |%n",
+                    pair[0], pair[1], test.meanDifference(),
+                    test.confidenceLow(), test.confidenceHigh(),
+                    formatPValue(test.pValueTTest()),
+                    formatPValue(test.pValueRandomization()),
+                    verdict));
+        }
+
+        sb.append("\n");
+        sb.append(SIGNIFICANCE_HOW_TO_READ);
+        sb.append("\n");
+        return sb.toString();
+    }
+
+    private static ConfigResult findByLabel(List<ConfigResult> results, String label) {
+        return results.stream().filter(r -> r.label().equals(label)).findFirst().orElse(null);
+    }
+
+    /** p-value rất nhỏ thì báo dạng ngưỡng — báo "0,0000" là nói quá điều đo được. */
+    private static String formatPValue(double p) {
+        if (p < 1e-4) {
+            return "< 0,0001";
+        }
+        return String.format(Locale.US, "%.4f", p).replace('.', ',');
+    }
+
+    private static final String SIGNIFICANCE_WHY = """
+            Bảng ở mục 3 nói *cấu hình nào có MRR cao hơn*. Nó **không** trả lời
+            được câu hỏi quan trọng hơn:
+
+            > Nếu hai cấu hình thực sự ngang nhau, xác suất quan sát được chênh
+            > lệch lớn bằng hoặc hơn thế này — chỉ do ngẫu nhiên của việc chọn
+            > đúng 200 truy vấn đó — là bao nhiêu?
+
+            Đó là **p-value**. Không có nó, mọi câu "cấu hình A tốt hơn B" đều là
+            khẳng định **chưa được chứng minh**.
+
+            **Kiểm định theo cặp.** Cả hai cấu hình chạy trên *cùng* tập truy vấn,
+            nên ta xét **hiệu từng cặp** `d_i = RR_A(q_i) − RR_B(q_i)` thay vì so
+            sánh hai trung bình độc lập. Cách này khử được nguồn biến thiên lớn
+            nhất và hoàn toàn không liên quan tới thứ cần đo: *truy vấn này vốn
+            dễ, truy vấn kia vốn khó*.
+
+            **Hai kiểm định, hai giả định khác nhau.** Paired t-test giả định hiệu
+            phân phối xấp xỉ chuẩn — với reciprocal rank (rất lệch, dồn ở 1,0 và
+            0) thì đó là giả định đáng hoài nghi. Randomization test **không giả
+            định gì** và là kiểm định được khuyến dùng trong ngành truy hồi thông
+            tin (Smucker, Allan & Carterette, CIKM 2007). Báo cáo cả hai: khi
+            chúng đồng ý, kết luận vững; khi khác nhau, đó là phát hiện đáng nói
+            chứ không phải thứ để giấu.""";
+
+    private static final String SIGNIFICANCE_HOW_TO_READ = """
+            **Cách đọc bảng.**
+
+            - **ΔMRR** là trung bình hiệu theo từng truy vấn, *không* phải hiệu
+              của hai giá trị MRR ở mục 3 — hai số này bằng nhau về mặt đại số,
+              nhưng chỉ cách tính theo cặp mới cho được sai số chuẩn.
+            - **KTC 95 %** là khoảng tin cậy của ΔMRR. Nếu khoảng này **chứa 0**
+              thì không loại trừ được khả năng hai cấu hình thực sự ngang nhau —
+              bất kể ΔMRR dương bao nhiêu.
+            - **"Chưa kết luận được"** ≠ **"hai cấu hình ngang nhau"**. Nó chỉ có
+              nghĩa là 200 truy vấn chưa đủ để phân biệt. Đây là phân biệt hay bị
+              nói sai nhất khi đọc kết quả kiểm định.
+            - p-value được báo dạng `< 0,0001` thay vì `0,0000`: với 100.000 lần
+              hoán vị, sàn phân giải của randomization test là `1/100.001`, nên
+              viết `0,0000` là nói quá điều đo được.""";
 
     private static String renderTable(List<ConfigResult> results) {
         StringBuilder sb = new StringBuilder();
@@ -344,7 +481,9 @@ public class EvaluationRunner {
 
         sb.append(HOW_TO_READ_TABLE);
 
-        sb.append("## 5. Nhận xét\n\n");
+        sb.append(renderSignificanceSection(results)).append("\n");
+
+        sb.append("## 6. Nhận xét\n\n");
         sb.append(String.format(Locale.US,
                 "**BM25 với TF-IDF.** BM25 thuần đạt MRR %.4f so với %.4f của TF-IDF cosine thuần "
                         + "(chênh %+.1f%%). ", bm25Only.mrr(), tfidfOnly.mrr(),
@@ -509,7 +648,7 @@ public class EvaluationRunner {
             """;
 
     private static final String LIMITATIONS = """
-            ## 6. Hạn chế của phương pháp
+            ## 7. Hạn chế của phương pháp
 
             Phải nêu rõ để kết quả được diễn giải đúng. Một báo cáo không nêu hạn chế
             thì không đáng tin, vì mọi phương pháp đo đều có hạn chế.

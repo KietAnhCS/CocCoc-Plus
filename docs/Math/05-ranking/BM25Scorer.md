@@ -219,7 +219,7 @@ Với $q = 3$ term và 500 ứng viên: tiết kiệm 1.000 phép tính mỗi tr
 int df = postings.size();
 if (df == 0) continue;                        // term không có trong chỉ mục
 
-int termFrequency = findTermFrequencyInDoc(postings, docId);
+int termFrequency = index.getTermFrequency(term, docId);   // binary search O(log n)
 if (termFrequency == 0) continue;             // term không có trong tài liệu NÀY
 ```
 
@@ -320,7 +320,7 @@ Bộ $\alpha = 0{,}6$, $\beta = 0{,}3$, $\gamma = 0{,}1$ được chọn (và qu
 | Thao tác | Thời gian |
 |---|---|
 | `idf` | $O(1)$ — một `Math.log` |
-| `findTermFrequencyInDoc` | $O(\log n)$ |
+| `index.getTermFrequency` | $O(\log n)$ |
 | **`score`** | **$O(q \log d)$** — giống TF-IDF |
 
 Bộ nhớ $O(1)$ ngoài dữ liệu chỉ mục.
@@ -351,15 +351,19 @@ BM25 chậm hơn TF-IDF khoảng **4,6 %** (4,08 ms so với 3,90 ms) — chênh
 1. **Không có BM25F** (bản đa trường). BM25F cho phép đặt trọng số riêng cho tiêu đề, mô tả, thân bài — đúng thứ mà `titleMatchBonus` đang vá vụng ở tầng trên.
 2. **Không quét tham số $k_1$, $b$.** `EVALUATION.md` quét $\beta$ (trọng số PageRank) qua 5 giá trị nhưng $k_1$ và $b$ để nguyên mặc định. Quét chúng là một thí nghiệm rẻ và có giá trị — nhất là vì corpus tiếng Việt có đặc điểm độ dài khác corpus tiếng Anh mà giá trị mặc định được hiệu chỉnh trên đó.
 3. **Điểm không chuẩn hoá** — không so sánh được giữa các truy vấn, và không kết hợp tuyến tính được với PageRank (§8).
-4. **Trùng lặp `findTermFrequencyInDoc`** với `TfIdfScorer` và `InvertedIndex`.
+4. ~~**Trùng lặp `findTermFrequencyInDoc`**~~ ✅ **Đã khắc phục** — ba bản sao đã gom về **một** cài đặt `binarySearchPosting` trong `InvertedIndex`, hai scorer nay gọi qua `SearchIndex.getTermFrequency(term, docId)`.
 5. **Không có BM25+ hay BM25L** — hai biến thể sửa lỗi "BM25 phạt tài liệu dài quá tay ngay cả khi $b$ nhỏ".
-6. **Không dùng trong sản phẩm.** `SearchEngineFacade` chôn cứng `tfIdfScorer`:
+6. ~~**Không dùng trong sản phẩm.**~~ ✅ **Đã khắc phục.** Đoạn dưới là mã **cũ** — Facade từng chôn cứng lớp cụ thể:
    ```java
-   private final TfIdfScorer tfIdfScorer = new TfIdfScorer();
-   ...
-   resultRanker.rank(candidates, queryTermFrequency, index, tfIdfScorer, ...);
+   private final TfIdfScorer tfIdfScorer = new TfIdfScorer();   // ← BẢN CŨ
    ```
-   Interface `RelevanceScorer` tồn tại nhưng chỉ được `EvaluationHarness` tận dụng. Người dùng thật luôn nhận kết quả TF-IDF. Sửa bằng cách đọc lựa chọn từ `application.properties` — xem [PATTERNS-DE-XUAT.md](../09-design-patterns/DESIGN-PATTERNS.md).
+   Nghĩa là kết quả đo *"BM25 hơn TF-IDF 5,3 % MRR"* **không tới được người dùng thật**. Nay `ScorerFactory` đọc lựa chọn từ `application.properties`:
+   ```properties
+   app.ranking.scorer=bm25
+   app.ranking.bm25.k1=1.2
+   app.ranking.bm25.b=0.75
+   ```
+   Xem [**02-FACTORY.md**](../09-design-patterns/02-FACTORY.md).
 
 ---
 

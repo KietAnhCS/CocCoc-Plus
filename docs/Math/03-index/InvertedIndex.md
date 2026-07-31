@@ -86,31 +86,48 @@ Là `record` (bất biến) vì một `Posting` không bao giờ thay đổi sau
 
 ```java
 public void addDocument(WebDocument doc) {
+    int docId = doc.getDocId();
+    if (docId <= lastDocId) {                              // ← LỚP TỰ ÉP BẤT BIẾN
+        throw new IllegalArgumentException(
+                "addDocument phải được gọi theo docId TĂNG DẦN để giữ bất biến"
+                        + " 'posting list sắp xếp theo docId'. docId trước = " + lastDocId
+                        + ", docId hiện tại = " + docId
+                        + ". Hãy sắp xếp danh sách tài liệu trước khi index.");
+    }
+    lastDocId = docId;
+
     String combinedText = String.join(" ",
             doc.getTitle() != null ? doc.getTitle() : "",
             doc.getMetaDescription() != null ? doc.getMetaDescription() : "",
             doc.getBodyText() != null ? doc.getBodyText() : "");
 
     List<VietnameseTokenizer.Token> tokens = tokenizer.tokenize(combinedText);
-    documents.put(doc.getDocId(), doc);
-    Integer previousLength = docLength.put(doc.getDocId(), tokens.size());
-    totalTokens += tokens.size() - (previousLength == null ? 0 : previousLength);
+    documents.put(docId, doc);
+    docLength.put(docId, tokens.size());
+    totalTokens += tokens.size();
 
     Map<String, List<Integer>> positionsByTerm = new LinkedHashMap<>();
     for (VietnameseTokenizer.Token token : tokens) {
-        positionsByTerm.computeIfAbsent(token.term(), k -> new ArrayList<>()).add(token.position());
+        String term = termDictionary.intern(token.term());          // ← FLYWEIGHT
+        positionsByTerm.computeIfAbsent(term, k -> new ArrayList<>()).add(token.position());
         if (!token.noDiacriticTerm().equals(token.term())) {
-            positionsByTerm.computeIfAbsent(token.noDiacriticTerm(), k -> new ArrayList<>()).add(token.position());
+            String noDiacritic = termDictionary.intern(token.noDiacriticTerm());
+            positionsByTerm.computeIfAbsent(noDiacritic, k -> new ArrayList<>()).add(token.position());
         }
     }
 
     for (Map.Entry<String, List<Integer>> entry : positionsByTerm.entrySet()) {
         List<Integer> positions = entry.getValue();
-        Posting posting = new Posting(doc.getDocId(), positions.size(), positions);
+        Posting posting = new Posting(docId, positions.size(), positions);
         index.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(posting);   // ← APPEND
     }
 }
 ```
+
+Hai chi tiết mới so với bản đầu, cả hai đều là **quyết định thiết kế**, không phải tối ưu vặt:
+
+- **`lastDocId` + ném ngoại lệ** — bất biến sắp xếp nay do **lớp tự ép**, không còn phụ thuộc người gọi nhớ sort. Xem §4.
+- **`termDictionary.intern(...)`** — Flyweight cho khoá term, giảm từ ~7 triệu `String` xuống 136.768 instance. Xem [**10-FLYWEIGHT.md**](../09-design-patterns/10-FLYWEIGHT.md).
 
 ### 3.1 Gom vị trí vào `positionsByTerm` TRƯỚC, rồi mới tạo `Posting`
 
@@ -133,16 +150,30 @@ $$\underbrace{c}_{\text{ứng viên}} \times \underbrace{N}_{\text{duyệt map}}
 
 Giữ sẵn một biến tổng biến $O(N)$ thành $O(1)$. Đây là kỹ thuật **duy trì giá trị tổng hợp tăng dần** (incremental aggregate) — cùng ý tưởng với việc một `ArrayList` giữ sẵn `size` thay vì đếm mỗi lần.
 
-### 3.3 Phép trừ `- previousLength` xử lý index lại
+### 3.3 Vì sao `totalTokens` nay cộng thẳng, không cần trừ giá trị cũ
+
+**Bản cũ** phải trừ độ dài cũ để xử lý trường hợp index lại cùng một `docId`:
 
 ```java
 Integer previousLength = docLength.put(doc.getDocId(), tokens.size());
-totalTokens += tokens.size() - (previousLength == null ? 0 : previousLength);
+totalTokens += tokens.size() - (previousLength == null ? 0 : previousLength);   // ← BẢN CŨ
 ```
 
-`Map.put` trả về **giá trị cũ** (hoặc `null` nếu chưa có). Không trừ giá trị cũ thì index lại cùng một `docId` sẽ khiến `totalTokens` chỉ tăng, và `avgdl` **sai dần** theo mỗi lần reindex — làm hỏng chuẩn hoá độ dài của BM25 một cách âm thầm.
+Nhưng phép trừ đó chỉ chữa **một nửa** vấn đề: `docLength` và `documents` được cập nhật đúng, còn `index` thì **không** — `computeIfAbsent(...).add(posting)` chỉ **thêm**, không thay thế posting cũ của cùng `docId`, nên vẫn tạo **posting trùng** và vẫn phá vỡ bất biến.
 
-> **Một hạn chế thật ở đây:** `docLength` và `documents` được cập nhật đúng khi index lại, nhưng `index` thì **không** — `computeIfAbsent(...).add(posting)` chỉ **thêm**, không thay thế posting cũ của cùng `docId`. Nghĩa là index lại cùng `docId` sẽ tạo **posting trùng** trong list, phá vỡ bất biến. Trên thực tế điều này không xảy ra vì `buildIndexFrom` luôn tạo một `InvertedIndex` **mới** tinh, nhưng lớp không tự bảo vệ mình khỏi cách dùng sai.
+**Bản hiện tại giải quyết triệt để bằng cách chặn từ đầu:**
+
+```java
+if (docId <= lastDocId) throw new IllegalArgumentException(...);   // index lại cùng docId là LỖI
+...
+totalTokens += tokens.size();                                      // cộng thẳng, không cần trừ
+```
+
+Vì `addDocument` **không idempotent theo thiết kế**, cách dùng đúng là **luôn dựng chỉ mục mới** — đúng điều `IndexBuilder.build()` làm. Javadoc của nó nói rõ:
+
+> *"Luôn tạo chỉ mục mới thay vì cập nhật chỉ mục cũ: `addDocument` không idempotent, và việc dựng lại chỉ tốn 6,8–9,5 giây nên không đáng đánh đổi tính đúng đắn."*
+
+> **Bài học thiết kế:** một phép trừ khéo léo *che* triệu chứng của cách dùng sai; ném ngoại lệ *loại bỏ* cách dùng sai. Cái thứ hai đơn giản hơn và đúng hơn.
 
 ---
 
@@ -167,33 +198,41 @@ $$\sum_{t} O(\lvert\text{list}_t\rvert \log \lvert\text{list}_t\rvert)$$
 
 Với tổng số cặp (term, doc) khoảng 5,2 triệu, đó là hàng chục triệu phép so sánh — cộng vào 6,8 giây dựng chỉ mục.
 
-### 4.2 Người gọi phải giữ đúng tiền đề
+### 4.2 Tiền đề nay được ép ở HAI lớp độc lập
 
-Điều kiện (1) **không** được lớp tự ép, nên mọi nơi gọi phải sắp xếp trước:
+**Trước đây** điều kiện (1) không được lớp tự ép, nên mỗi nơi gọi phải nhớ sort — và tiền đề đó bị **lặp lại ở ba chỗ** (`SearchEngineFacade`, `EvaluationRunner`, `GinBaselineRunner`). Quên một chỗ là hệ thống **im lặng trả kết quả sai**: binary search trên list chưa sắp xếp cho kết quả tuỳ ý, không ném ngoại lệ nào.
+
+**Nay có hai lớp bảo vệ độc lập:**
+
+**Lớp 1 — `IndexBuilder` gom tiền đề về một chỗ duy nhất:**
 
 ```java
-private InvertedIndex buildIndexFrom(List<WebDocument> docs) {
-    InvertedIndex newIndex = new InvertedIndex();
-    List<WebDocument> sorted = new ArrayList<>(docs);
-    sorted.sort((a, b) -> Integer.compare(a.getDocId(), b.getDocId()));    // ← BẮT BUỘC
+public InvertedIndex build(List<WebDocument> documents) {
+    InvertedIndex index = new InvertedIndex(tokenizer);
+    List<WebDocument> sorted = new ArrayList<>(documents);
+    sorted.sort(Comparator.comparingInt(WebDocument::getDocId));   // ← TIỀN ĐỀ bắt buộc
     for (WebDocument doc : sorted) {
-        newIndex.addDocument(doc);
+        index.addDocument(doc);
     }
-    return newIndex;
+    return index;
 }
 ```
 
-`SearchEngineFacade` và `EvaluationRunner` đều làm vậy.
+**Lớp 2 — `InvertedIndex` tự ép, ném ngoại lệ nếu bị gọi sai thứ tự:**
 
-> **Đây là một điểm yếu thiết kế đáng nói.** Bất biến quan trọng nhất của lớp lại phụ thuộc vào việc **người gọi nhớ** làm đúng — trái với nguyên tắc "ép bất biến tại ranh giới" mà [UrlCanonicalizer](../01-crawler/UrlCanonicalizer.md) áp dụng rất tốt. Nếu ai đó viết một đường nạp dữ liệu mới mà quên sort, hệ thống sẽ **im lặng trả kết quả sai** (binary search trên list chưa sắp xếp cho kết quả tuỳ ý, không ném ngoại lệ).
+```java
+if (docId <= lastDocId) {
+    throw new IllegalArgumentException(
+            "addDocument phải được gọi theo docId TĂNG DẦN để giữ bất biến"
+                    + " 'posting list sắp xếp theo docId'. docId trước = " + lastDocId
+                    + ", docId hiện tại = " + docId
+                    + ". Hãy sắp xếp danh sách tài liệu trước khi index.");
+}
+```
+
+> **Nguyên tắc rút ra:** *ép bất biến tại ranh giới của lớp*, giống cách [UrlCanonicalizer](../01-crawler/UrlCanonicalizer.md) ép "URL luôn chuẩn hoá tại cửa vào". Một lỗi im lặng đã trở thành một lỗi ồn ào, ném ra **ngay tại chỗ gây ra**, với thông điệp chỉ đúng cách sửa.
 >
-> Cách sửa rẻ nhất: thêm một `assert` hoặc một kiểm tra trong `addDocument`:
-> ```java
-> if (doc.getDocId() <= lastDocId) {
->     throw new IllegalArgumentException("addDocument phải gọi theo docId tăng dần");
-> }
-> ```
-> Biến một lỗi im lặng thành một lỗi ồn ào ngay tại chỗ gây ra.
+> Hai lớp bảo vệ không thừa: `IndexBuilder` làm việc đúng **tự động**, còn kiểm tra trong `InvertedIndex` bắt được mọi đường nạp dữ liệu mới mà người viết chưa biết tới `IndexBuilder`.
 
 ### 4.3 Bất biến này mở khoá hai thứ
 
@@ -229,7 +268,7 @@ public List<Integer> getPositions(String term, int docId) {
 }
 ```
 
-Bản gần như y hệt cũng có trong `TfIdfScorer.findTermFrequencyInDoc` và `BM25Scorer.findTermFrequencyInDoc`.
+Trước đây bản gần như y hệt cũng có trong `TfIdfScorer` và `BM25Scorer`; nay cả ba đã gom về một `binarySearchPosting` — xem §5.2.
 
 **Số bước:**
 
@@ -247,11 +286,30 @@ Dịch bit không dấu `>>>` coi 32 bit là số **không dấu** nên xử lý
 
 Đây là lỗi từng tồn tại **9 năm** trong `java.util.Arrays.binarySearch` của chính JDK, được Joshua Bloch công bố năm 2006. Trong dự án này posting list dài nhất chỉ 1.639 nên không bao giờ tràn — nhưng viết đúng ngay từ đầu là thói quen đáng có.
 
-### 5.2 Ba bản sao của cùng một hàm
+### 5.2 Ba bản sao đã gom về một — ✅ đã khắc phục
 
-`findTermFrequencyInDoc` xuất hiện **gần như y hệt** ở ba nơi: `InvertedIndex.getPositions`, `TfIdfScorer`, `BM25Scorer`.
+`findTermFrequencyInDoc` từng xuất hiện **gần như y hệt** ở ba nơi: `InvertedIndex.getPositions`, `TfIdfScorer`, `BM25Scorer`. Đây là **trùng lặp mã** — ba cơ hội để cùng một thuật toán trôi lệch.
 
-Đây là **trùng lặp mã** đáng ghi nhận trong phần đánh giá chất lượng. Cách sửa: đưa lên `InvertedIndex` thành `public int getTermFrequency(String term, int docId)` và để hai scorer gọi. Lợi ích không chỉ là ít code hơn mà là **một chỗ duy nhất để sửa** nếu sau này đổi sang skip list hay cấu trúc khác.
+Nay chỉ còn **một** cài đặt riêng tư `binarySearchPosting`, lộ ra qua hai phương thức của interface `SearchIndex`:
+
+```java
+private static int binarySearchPosting(List<Posting> postings, int docId) { ... }
+
+@Override public int getTermFrequency(String term, int docId) {
+    int position = binarySearchPosting(getPostings(term), docId);
+    ...
+}
+
+@Override public List<Integer> getPositions(String term, int docId) {
+    List<Posting> postings = getPostings(term);
+    int position = binarySearchPosting(postings, docId);
+    ...
+}
+```
+
+Hai scorer nay gọi `index.getTermFrequency(term, docId)`.
+
+Lợi ích không chỉ là ít code hơn: giờ có **một chỗ duy nhất để sửa** nếu đổi sang skip list — và quan trọng hơn, một cài đặt `SearchIndex` khác (chỉ mục nén, chỉ mục trên đĩa) có thể tự chọn cách tra tần suất tối ưu cho định dạng của nó mà scorer không cần biết.
 
 ---
 
@@ -301,7 +359,7 @@ record IndexData(Map<String, List<Posting>> index, Map<Integer, WebDocument> doc
 
 IndexData exportData() { ... }
 
-static InvertedIndex importData(IndexData data, VietnameseTokenizer tokenizer) {
+static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
     InvertedIndex result = new InvertedIndex(tokenizer);
     result.index.putAll(data.index());
     result.documents.putAll(data.documents());
@@ -365,14 +423,14 @@ static InvertedIndex importData(IndexData data, VietnameseTokenizer tokenizer) {
 
 ## 10. Hạn chế đã biết
 
-1. **Bất biến phụ thuộc người gọi** (xem §4.2) — nên ép bằng kiểm tra trong `addDocument`.
-2. **`addDocument` không idempotent** — gọi hai lần cùng `docId` tạo posting trùng (xem §3.3).
-3. **Ba bản sao của `findTermFrequencyInDoc`** (xem §5.2).
-4. **`getAllDocuments()` trả về map nội bộ**, không phải bản sao hay `unmodifiableMap` — người gọi có thể sửa trạng thái trong của chỉ mục. Vi phạm đóng gói.
-5. **Không nén chỉ mục.** Posting list lưu `docId` là `int` đầy đủ và `positions` là `List<Integer>` (mỗi phần tử là một **object** `Integer`, tốn 16 byte thay vì 4). Chỉ mục thật dùng **delta encoding + VByte**: lưu hiệu `docId` giữa hai posting liên tiếp (số nhỏ) rồi mã hoá biến độ dài. Với posting list 1.639 mục, hiệu trung bình khoảng 3 nên chỉ tốn 1 byte thay vì 4 — tiết kiệm ~75%.
-6. **Không có skip pointer.** Posting list dài mà phải giao với list ngắn thì two-pointer vẫn duyệt tuần tự cả list dài. Skip list cho phép nhảy cóc, đưa chi phí về $O(m \log n)$ thay vì $O(m+n)$ khi $m \ll n$.
-7. **Toàn bộ nằm trong RAM.** 9,1 MB với 5.011 tài liệu là ổn, nhưng tỉ lệ tuyến tính: 5 triệu tài liệu sẽ cần ~9 GB. Chỉ mục thật lưu trên đĩa với bộ nhớ đệm.
-8. **Không có interface.** `InvertedIndex` là lớp cụ thể, nên không thể thay bằng một cài đặt khác (trên đĩa, phân tán) mà không sửa mọi nơi dùng — xem [PATTERNS-DE-XUAT.md](../09-design-patterns/DESIGN-PATTERNS.md).
+1. ~~**Bất biến phụ thuộc người gọi**~~ ✅ **Đã khắc phục** — `addDocument` ném `IllegalArgumentException` nếu bị gọi sai thứ tự docId, và `IndexBuilder` gom tiền đề sort về một chỗ (xem §4.2).
+2. **`addDocument` không idempotent** — gọi hai lần cùng `docId` nay **bị chặn bằng ngoại lệ** thay vì tạo posting trùng âm thầm. Cách dùng đúng là luôn dựng chỉ mục mới qua `IndexBuilder.build()` (xem §3.3).
+3. ~~**Ba bản sao của `findTermFrequencyInDoc`**~~ ✅ **Đã khắc phục** — gom về một `binarySearchPosting` (xem §5.2).
+4. ~~**`getAllDocuments()` trả về map nội bộ**~~ ✅ **Đã khắc phục** — nay trả `Collections.unmodifiableMap(documents)`.
+5. ~~**Không nén chỉ mục.**~~ ✅ **Đã cài đặt** — `VByteCodec` làm **delta encoding + variable-byte**: lưu hiệu `docId` giữa hai posting liên tiếp (số nhỏ) rồi mã hoá biến độ dài. Với posting list 1.639 mục, hiệu trung bình khoảng 3 nên chỉ tốn 1 byte thay vì 4 — đo được **tiết kiệm > 66 %**, 9 test. Xem [VByteCodec](VByteCodec.md).
+6. ~~**Không có skip pointer.**~~ ✅ **Đã cài đặt** — `PostingCursor.skipTo` dùng **galloping search**, đưa chi phí về $O(m\log\frac{n}{m})$ thay vì $O(m+n)$ khi $m \ll n$: 4005 bước → **48 bước**. Xem [ArrayPostingCursor](../06-datastructures/ArrayPostingCursor.md) và [09-ITERATOR-CURSOR.md](../09-design-patterns/09-ITERATOR-CURSOR.md).
+7. **Toàn bộ nằm trong RAM.** 9,1 MB với 5.011 tài liệu là ổn, nhưng tỉ lệ tuyến tính: 5 triệu tài liệu sẽ cần ~9 GB. Chỉ mục thật lưu trên đĩa với bộ nhớ đệm. *(Interface `SearchIndex` nay cho phép thêm cài đặt trên đĩa mà không sửa tầng trên — xem điểm 8.)*
+8. ~~**Không có interface.**~~ ✅ **Đã khắc phục** — nay có interface `SearchIndex`, và 4 lớp dùng nó (`CandidateResolver`, `TfIdfScorer`, `BM25Scorer`, `ResultRanker`) đều nhận kiểu trừu tượng thay vì lớp cụ thể. Nhờ vậy giả lập được trong test và thay được bằng cài đặt nén/trên đĩa. Xem [**01-STRATEGY.md §4.3**](../09-design-patterns/01-STRATEGY.md).
 
 ---
 

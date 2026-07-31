@@ -116,7 +116,7 @@ Trả về `0.0` đúng ngữ nghĩa: một term không tồn tại thì không 
 
 ```java
 @Override
-public double score(Map<String, Integer> queryTermFrequency, int docId, InvertedIndex index) {
+public double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index) {
     int totalDocs = index.getTotalDocs();
     double dot = 0.0;
     double queryNormSq = 0.0;
@@ -132,7 +132,7 @@ public double score(Map<String, Integer> queryTermFrequency, int docId, Inverted
         double queryWeight = tf(entry.getValue()) * idfValue;
         queryNormSq += queryWeight * queryWeight;
 
-        int docTermFrequency = findTermFrequencyInDoc(postings, docId);
+        int docTermFrequency = index.getTermFrequency(term, docId);  // binary search O(log n)
         if (docTermFrequency > 0) {
             double docWeight = tf(docTermFrequency) * idfValue;
             dot += queryWeight * docWeight;
@@ -256,19 +256,37 @@ Nên bỏ nó đi thì thứ hạng **y hệt**, mà tiết kiệm một phép `
 
 ## 6. Binary search tận dụng bất biến
 
+Trước đây hàm này được **sao chép gần như y hệt ở ba nơi** (`TfIdfScorer`, `BM25Scorer`, `InvertedIndex.getPositions`). Nay chỉ còn **một** cài đặt, nằm trong `InvertedIndex` và lộ ra qua interface `SearchIndex`:
+
 ```java
-private int findTermFrequencyInDoc(List<Posting> postings, int docId) {
+// InvertedIndex — MỘT cài đặt duy nhất
+private static int binarySearchPosting(List<Posting> postings, int docId) {
     int low = 0, high = postings.size() - 1;
     while (low <= high) {
-        int mid = (low + high) >>> 1;
+        int mid = (low + high) >>> 1;          // >>> chống tràn
         int midDocId = postings.get(mid).docId();
-        if (midDocId == docId) return postings.get(mid).termFrequency();
+        if (midDocId == docId) return mid;
         else if (midDocId < docId) low = mid + 1;
         else high = mid - 1;
     }
-    return 0;
+    return -1;
+}
+
+@Override
+public int getTermFrequency(String term, int docId) {
+    int position = binarySearchPosting(getPostings(term), docId);
+    ...
 }
 ```
+
+Hai scorer nay chỉ gọi:
+
+```java
+int docTermFrequency = index.getTermFrequency(term, docId);   // TfIdfScorer
+int termFrequency    = index.getTermFrequency(term, docId);   // BM25Scorer
+```
+
+> **Bài học OOP:** ba bản sao của cùng một thuật toán là ba cơ hội để chúng trôi lệch. Gom về một chỗ và lộ qua interface vừa xoá trùng lặp, vừa cho phép cài đặt `SearchIndex` khác (chỉ mục nén) tự chọn cách tra tần suất tối ưu cho định dạng của nó.
 
 Đây là **lợi ích thứ hai** (ngoài two-pointer merge) của bất biến "posting list luôn sắp xếp theo docId".
 
@@ -284,7 +302,7 @@ Chi tiết `>>>` chống tràn: xem [InvertedIndex §5.1](../03-index/InvertedIn
 
 ```java
 public interface RelevanceScorer {
-    double score(Map<String, Integer> queryTermFrequency, int docId, InvertedIndex index);
+    double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index);
     String name();
 }
 ```
@@ -341,7 +359,7 @@ $$\text{docNorm} = \sqrt{9} = 3$$
 
 $$\text{score}(d_0) = \frac{0{,}11791}{0{,}30103 \times 3} = \mathbf{0{,}1306}$$
 
-**Bước 5 — doc1.** Term không xuất hiện → `findTermFrequencyInDoc` trả 0 → `dot = 0` → thoát sớm:
+**Bước 5 — doc1.** Term không xuất hiện → `index.getTermFrequency` trả 0 → `dot = 0` → thoát sớm:
 
 $$\text{score}(d_1) = \mathbf{0{,}0}$$
 
@@ -354,7 +372,7 @@ $$\text{score}(d_1) = \mathbf{0{,}0}$$
 | Thao tác | Thời gian |
 |---|---|
 | `tf`, `idf` | $O(1)$ |
-| `findTermFrequencyInDoc` | $O(\log n)$ |
+| `index.getTermFrequency` | $O(\log n)$ |
 | **`score`** | **$O(q \log d)$** |
 
 với $q$ = số term phân biệt trong truy vấn (1–4), $d$ = độ dài posting list dài nhất.
@@ -390,7 +408,7 @@ Bộ nhớ: $O(1)$ ngoài dữ liệu chỉ mục — không cấp phát gì tro
 2. **IDF có thể âm** về mặt công thức; code chặn bằng cách bỏ qua term thay vì kẹp (§3.2).
 3. **Điểm không thực sự trong $[0,1]$** — đo được max 1,8948 (§5).
 4. **Không có trọng số theo trường.** Term trong tiêu đề và trong thân bài được tính như nhau. `ResultRanker` bù bằng `titleMatchBonus` riêng, nhưng đó là vá ở tầng trên chứ không phải giải ở đúng chỗ. Cách chuẩn: **field boosting** ngay trong scorer.
-5. **Ba bản sao `findTermFrequencyInDoc`** (§6).
+5. ~~**Ba bản sao `findTermFrequencyInDoc`**~~ ✅ **Đã khắc phục** — gom về một `binarySearchPosting` trong `InvertedIndex`; hai scorer nay gọi qua `SearchIndex.getTermFrequency(term, docId)` (§6).
 6. **Không có pivoted length normalization** — cải tiến kinh điển của Singhal (1996) cho đúng vấn đề ở §4.
 7. **Không cache trọng số truy vấn.** `tf(entry.getValue()) * idfValue` được tính lại cho **mỗi** tài liệu ứng viên, dù nó không phụ thuộc `docId`. Với 500 ứng viên × 3 term, đó là 1.500 lần tính thừa. Tách thành hai vòng (tính trọng số truy vấn một lần, rồi duyệt ứng viên) sẽ sửa được — cùng loại tối ưu mà `ResultRanker` đã áp dụng cho snippet.
 

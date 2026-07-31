@@ -45,7 +45,7 @@ public static void save(InvertedIndex index, String path) throws IOException {
     createMapper().writeValue(new File(path), index.exportData());
 }
 
-public static InvertedIndex load(String path, VietnameseTokenizer tokenizer) throws IOException {
+public static InvertedIndex load(String path, Tokenizer tokenizer) throws IOException {
     InvertedIndex.IndexData data = createMapper().readValue(new File(path), InvertedIndex.IndexData.class);
     return InvertedIndex.importData(data, tokenizer);
 }
@@ -157,7 +157,7 @@ Cùng đoạn code này xuất hiện ở `CrawlerService.saveToJson` và `PoolB
 Đây là phần quan trọng nhất về mặt đúng đắn.
 
 ```java
-static InvertedIndex importData(IndexData data, VietnameseTokenizer tokenizer) {
+static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
     InvertedIndex result = new InvertedIndex(tokenizer);
     result.index.putAll(data.index());
     result.documents.putAll(data.documents());
@@ -193,20 +193,40 @@ Không có ngoại lệ, không có log. Chỉ là mọi kết quả BM25 bằng
 
 `SearchEngineFacade.init()` dùng `IndexPersistence.load` như một mắt xích trong chuỗi:
 
+**Bản cũ** — bốn nhánh `else if` chôn cứng trong `init()`:
+
 ```java
-if (postgresEnabled && loadFromPostgres()) {
+if (postgresEnabled && loadFromPostgres()) {                // ← BẢN CŨ
     System.out.println("Da nap corpus tu PostgreSQL");
 } else if (Files.exists(Path.of(indexDataPath))) {
-    index = IndexPersistence.load(indexDataPath);           // ← nhanh nhất
+    index = IndexPersistence.load(indexDataPath);
 } else if (Files.exists(Path.of(crawledDataPath))) {
-    lastCrawledDocuments = CrawlerService.loadFromJson(crawledDataPath);
-    index = buildIndexFrom(lastCrawledDocuments);           // ← phải index lại
+    ...
 } else if (Files.exists(Path.of(seedDataPath))) {
-    lastCrawledDocuments = CrawlerService.loadFromJson(seedDataPath);
-    index = buildIndexFrom(lastCrawledDocuments);           // ← seed mẫu ~40 tài liệu
-    System.out.println("Khong tim thay du lieu da crawl, dung seed mau (" + seedDataPath + ")");
+    ...
 }
 ```
+
+**Bản hiện tại** — chuỗi dự phòng trở thành **dữ liệu** thay vì **cấu trúc điều khiển**:
+
+```java
+// Đường nhanh nhất: chỉ mục đã dựng sẵn, không phải tokenize lại.
+if (Files.exists(Path.of(indexDataPath))) {
+    index = IndexPersistence.load(indexDataPath, tokenizer);
+    log.info("Da nap chi muc dung san tu {}", indexDataPath);
+    return;
+}
+for (DocumentStore store : buildStoreChain()) {
+    if (!store.isAvailable()) continue;
+    lastCrawledDocuments = store.loadAll();
+    index = indexBuilder.build(lastCrawledDocuments);
+    log.info("Da nap corpus tu {} ({} tai lieu)", store.describe(), lastCrawledDocuments.size());
+    return;
+}
+log.warn("Khong tim thay nguon du lieu nao, bat dau voi index rong");
+```
+
+Thêm nguồn thứ tư (S3, MongoDB, Redis) = **thêm một lớp**, không sửa hàm này. Xem [**01-STRATEGY.md §4.4**](../09-design-patterns/01-STRATEGY.md).
 
 | Tầng | Nguồn | Chi phí |
 |---|---|---|

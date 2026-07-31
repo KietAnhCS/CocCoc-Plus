@@ -96,7 +96,7 @@ Bookmark "b1" tiêu đề "tin tức công nghệ"
 
 Chèn từng từ cho phép khớp **từ bất kỳ vị trí nào** trong tiêu đề. Đánh đổi: nhiều node hơn, nhưng với vài chục bookmark thì không đáng kể.
 
-**Chú ý sự bất đối xứng với `Trie.java`:** ở backend, `SearchEngineFacade.rebuildSuggestTrie()` chèn **cụm từ** (từ ghép và cặp token liên tiếp), không chèn từng tiếng — vì tiếng lẻ tiếng Việt phần lớn **không phải từ** (`cong`, `the`, `kinh` vô nghĩa khi đứng một mình).
+**Chú ý sự bất đối xứng với `Trie.java`:** ở backend, `SuggestionService.rebuild(index)` chèn **cụm từ** (từ ghép và cặp token liên tiếp), không chèn từng tiếng — vì tiếng lẻ tiếng Việt phần lớn **không phải từ** (`cong`, `the`, `kinh` vô nghĩa khi đứng một mình).
 
 Ở đây thì chèn từng từ lại đúng, vì mục tiêu khác: không phải gợi ý cho người gõ, mà là **lọc một danh sách nhỏ** người dùng đã biết nội dung.
 
@@ -235,7 +235,7 @@ Trie được **dựng lại từ đầu** mỗi khi danh sách bookmark đổi,
 
 Với $B \approx 50$ bookmark, $W \approx 5$ từ, $L \approx 8$ ký tự: $50 \times 5 \times 8 = \mathbf{2\,000}$ thao tác — **dưới một mili giây**.
 
-Cùng nguyên tắc với `SearchEngineFacade.rebuildSuggestTrie()` gọi `suggestTrie.clear()` trước khi nạp lại: **khi dựng lại đủ rẻ, hãy dựng lại thay vì cập nhật tăng dần** — code đơn giản hơn và không có nguy cơ lệch trạng thái.
+Cùng nguyên tắc với `SuggestionService.rebuild(index)` gọi `suggestTrie.clear()` trước khi nạp lại: **khi dựng lại đủ rẻ, hãy dựng lại thay vì cập nhật tăng dần** — code đơn giản hơn và không có nguy cơ lệch trạng thái.
 
 Đây là một đánh đổi có ý thức, và nó **chỉ đúng khi $B$ nhỏ**. Với backend ($N = 5011$ tài liệu), việc dựng lại Trie gợi ý sau mỗi lần crawl tốn vài giây — vẫn chấp nhận được vì crawl là thao tác hiếm.
 

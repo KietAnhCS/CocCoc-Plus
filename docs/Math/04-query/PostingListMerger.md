@@ -246,7 +246,7 @@ Thử start = 2:  cần duyệt ở 3 ✅, web ở 4 ✅ → KHỚP
 ```
 
 ```java
-public static boolean matchesPhrase(InvertedIndex index, List<String> phraseTerms, int docId) {
+public static boolean matchesPhrase(SearchIndex index, List<String> phraseTerms, int docId) {
     if (phraseTerms.isEmpty()) return true;
     List<Integer> firstPositions = index.getPositions(phraseTerms.get(0), docId);
     for (int start : firstPositions) {

@@ -67,73 +67,53 @@ Nguyên tắc rút ra:
 
 ---
 
-## 2. Đường ống ba tầng
+## 2. Đường ống lọc
+
+**Bản hiện tại — hai giai đoạn, 25 dòng.** Ba tầng lọc cũ đã tách thành hai mẫu thiết kế có trách nhiệm rạch ròi:
 
 ```java
-public static ResolvedQuery resolve(InvertedIndex index, QueryParser.ParsedQuery parsed) {
-    // GOM: mustTerms + mọi term trong mọi phrase = tập term BẮT BUỘC
-    List<String> allRequiredTerms = new ArrayList<>(parsed.mustTerms());
-    for (List<String> phrase : parsed.phrases()) {
-        allRequiredTerms.addAll(phrase);
-    }
+public static ResolvedQuery resolve(SearchIndex index, QueryParser.ParsedQuery parsed) {
+    Map<String, Integer> queryTermFrequency = buildQueryTermFrequency(parsed);
 
-    Map<String, Integer> queryTermFrequency = new HashMap<>();
-    for (String term : allRequiredTerms) {
-        queryTermFrequency.merge(term, 1, Integer::sum);
-    }
-
-    if (allRequiredTerms.isEmpty()) {
+    // --- Giai đoạn 1: truy hồi boolean bằng cây biểu thức (Composite) ---
+    QueryNode ast = AST_BUILDER.buildAst(parsed);
+    if (ast == null) {
         return new ResolvedQuery(new ArrayList<>(), queryTermFrequency);
     }
+    List<Integer> candidates = ast.evaluate(index);
 
-    // TẦNG 1: giao posting list
-    List<List<Posting>> postingLists = new ArrayList<>();
-    for (String term : allRequiredTerms) {
-        List<Posting> postings = index.getPostings(term);
-        if (postings.isEmpty()) {
-            // AND ngầm định: chỉ cần một term không xuất hiện là kết quả rỗng.
-            return new ResolvedQuery(new ArrayList<>(), queryTermFrequency);
-        }
-        postingLists.add(postings);
-    }
-    List<Integer> candidates = PostingListMerger.intersectAll(postingLists);
-
-    // TẦNG 2: lọc theo cụm từ
-    if (!candidates.isEmpty() && !parsed.phrases().isEmpty()) {
-        List<Integer> filtered = new ArrayList<>();
-        for (int docId : candidates) {
-            boolean allPhrasesMatch = true;
-            for (List<String> phrase : parsed.phrases()) {
-                if (!PostingListMerger.matchesPhrase(index, phrase, docId)) {
-                    allPhrasesMatch = false;
-                    break;
-                }
-            }
-            if (allPhrasesMatch) filtered.add(docId);
-        }
-        candidates = filtered;
-    }
-
-    // TẦNG 3: loại trừ
-    if (!candidates.isEmpty() && !parsed.excludedTerms().isEmpty()) {
-        Set<Integer> excludedDocIds = new HashSet<>();
-        for (String excludedTerm : parsed.excludedTerms()) {
-            for (Posting posting : index.getPostings(excludedTerm)) {
-                excludedDocIds.add(posting.docId());
-            }
-        }
-        List<Integer> filtered = new ArrayList<>();
-        for (int docId : candidates) {
-            if (!excludedDocIds.contains(docId)) filtered.add(docId);
-        }
-        candidates = filtered;
+    // --- Giai đoạn 2: ràng buộc sau truy hồi (Chain of Responsibility) ---
+    // Rỗng là PHẦN TỬ HẤP THỤ của mọi phép lọc, nên một khi rỗng thì dừng ngay.
+    CandidateFilter.FilterContext context = new CandidateFilter.FilterContext(index, parsed);
+    for (CandidateFilter filter : FILTERS) {
+        if (candidates.isEmpty()) break;
+        if (!filter.isApplicable(context)) continue;
+        candidates = filter.apply(candidates, context);
     }
 
     return new ResolvedQuery(candidates, queryTermFrequency);
 }
 ```
 
-**Thứ tự ba tầng là thứ tự "rẻ và loại nhiều trước":**
+Ba tầng lọc cũ nay nằm ở đâu:
+
+| Tầng cũ (chôn trong thân hàm 104 dòng) | Nay ở |
+|---|---|
+| Giao posting list | `AndNode.evaluate` — [Composite](../09-design-patterns/04-COMPOSITE.md) |
+| Khớp cụm từ | `PhraseNode.evaluate` — filter-and-refine ngay trong nút |
+| Loại trừ | `NotNode.evaluateAgainst` — two-pointer $O(m+n)$ |
+| *(mới)* Lọc domain `site:` | `DomainFilter` — [Chain of Responsibility](../09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md) |
+| *(mới)* Chặn trên số ứng viên | `MaxCandidatesFilter` |
+
+Chuỗi lọc khai báo ở **một chỗ duy nhất**, thêm bộ lọc = thêm một dòng:
+
+```java
+private static final List<CandidateFilter> FILTERS = List.of(
+        new DomainFilter(),
+        new MaxCandidatesFilter());
+```
+
+**Thứ tự vẫn theo nguyên tắc "rẻ và loại nhiều trước":**
 
 | Tầng | Chi phí mỗi ứng viên | Tỉ lệ loại điển hình |
 |---|---|---|
@@ -298,7 +278,7 @@ với $k$ = số term bắt buộc, $c$ = số ứng viên sau tầng 1, $P$ = s
 
 ## 10. Hạn chế đã biết
 
-1. **Ba tầng lọc là cứng.** Muốn thêm một bộ lọc mới (theo domain, theo ngày, theo ngôn ngữ) phải sửa thân hàm. Đây đúng là chỗ mà **Chain of Responsibility** giải quyết gọn — xem [PATTERNS-DE-XUAT.md](../09-design-patterns/DESIGN-PATTERNS.md).
+1. ~~**Ba tầng lọc là cứng.**~~ ✅ **Đã khắc phục** — nay dùng **Chain of Responsibility**: `resolve()` chỉ còn 7 dòng chạy qua `List<CandidateFilter> FILTERS`, thêm bộ lọc = thêm một lớp và một dòng. Và truy hồi boolean đã tách sang **Composite** (`QueryNode`), với nguyên tắc phân công rõ ràng: *ràng buộc có posting list → cây; ràng buộc trên siêu dữ liệu → đường ống lọc*. Xem [**05-CHAIN-OF-RESPONSIBILITY.md**](../09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md) và [**04-COMPOSITE.md**](../09-design-patterns/04-COMPOSITE.md).
 2. **Không có ngưỡng số ứng viên.** Truy vấn một term phổ biến có thể cho hàng nghìn ứng viên, và tất cả đều được chấm điểm ở tầng sau. Máy tìm kiếm thật dùng **WAND** hoặc **MaxScore** để bỏ qua sớm các tài liệu không thể lọt top-K.
 3. **Không hỗ trợ OR** (kế thừa từ [QueryParser](QueryParser.md)).
 4. **Term của phrase bị đếm vào `queryTermFrequency`** — hợp lý nhưng là tác dụng phụ chưa có chủ đích (§4).

@@ -198,7 +198,8 @@ public void add(String item) {
     long h1 = hash1(item);      // FNV-1a 64-bit
     long h2 = hash2(item);      // polynomial rolling hash + avalanche mix
     for (int i = 0; i < numHashes; i++) {
-        setBit(indexFor(h1, h2, i));
+        int idx = indexFor(h1, h2, i);
+        setBit(idx);
     }
 }
 

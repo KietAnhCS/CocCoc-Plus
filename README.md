@@ -14,8 +14,9 @@ phân tích độ phức tạp và **đo đạc thực nghiệm** trên corpus t
 | Corpus | **5.011 trang** thật từ 6 báo điện tử Việt Nam, 52 host phân biệt |
 | Chỉ mục | 136.768 term phân biệt, 1.043 token/tài liệu |
 | Đồ thị liên kết | 239.691 cạnh (42.002 cạnh chéo domain), độ thưa 0,95% |
-| Kiểm thử | **163 test**, tất cả xanh |
-| Mã nguồn | ~5.950 dòng Java (backend) + ~2.050 dòng test + ~1.500 dòng TypeScript (frontend) |
+| Kiểm thử | **233 test**, tất cả xanh |
+| Mã nguồn | **74 lớp Java / 9.286 dòng** (backend) + **2.843 dòng test** + ~1.500 dòng TypeScript (frontend) |
+| Trừu tượng hoá | **8 interface** tự định nghĩa, **10 design pattern** có chủ đích |
 | Chất lượng tìm kiếm | MRR **0,9229**, Success@1 **88,0%** |
 
 ## Cấu trúc thư mục
@@ -24,14 +25,17 @@ phân tích độ phức tạp và **đo đạc thực nghiệm** trên corpus t
 search-engine/
 ├── search-engine/          # Backend: Spring Boot (Java 17, Maven Wrapper)
 │   ├── src/main/java/com/vnsearch/
-│   │   ├── crawler/        # Crawler BFS đa luồng, robots.txt, trích xuất HTML
+│   │   ├── crawler/        # Crawler BFS đa luồng, robots.txt, trích xuất HTML, CrawlConfig (Builder)
 │   │   ├── datastructure/  # Trie, BloomFilter, LRUCache, MinHeap, SparseMatrix, UrlFrontier
-│   │   ├── index/          # Tokenizer tiếng Việt, chỉ mục đảo, lưu/nạp chỉ mục
-│   │   ├── query/          # Phân tích truy vấn, giao posting list, lọc ứng viên
-│   │   ├── ranking/        # TF-IDF, BM25, PageRank, xếp hạng + snippet
+│   │   ├── index/          # Tokenizer, chỉ mục đảo, nén VByte, PostingCursor, TermDictionary
+│   │   ├── query/          # Phân tích truy vấn
+│   │   │   ├── ast/        #   Cây biểu thức AND/OR/NOT (Composite)
+│   │   │   └── filter/     #   Đường ống lọc ứng viên (Chain of Responsibility)
+│   │   ├── ranking/        # TF-IDF, BM25, PageRank, ScorerFactory, snippet
+│   │   │   └── decorator/  #   Tín hiệu bổ sung: PageRank, khớp tiêu đề (Decorator)
 │   │   ├── eval/           # Bộ đánh giá chất lượng (độ đo IR, known-item, pooling)
-│   │   ├── storage/        # Kho tài liệu PostgreSQL + đối chứng GIN
-│   │   ├── service/        # Facade điều phối
+│   │   ├── storage/        # DocumentStore (Strategy): PostgreSQL / JSON / seed
+│   │   ├── service/        # Facade điều phối + IndexBuilder, SuggestionService, CrawlJobManager
 │   │   └── controller/     # REST API
 │   └── data/               # Corpus, chỉ mục, dữ liệu đánh giá
 ├── browser-app/            # Frontend: Electron + React + TypeScript + Tailwind
@@ -41,18 +45,20 @@ search-engine/
 
 ## Tài liệu
 
-Sáu tài liệu dưới đây viết theo kiểu **giáo trình**: mỗi khái niệm đi từ *vấn
-đề* → *ý tưởng* → *công thức* → *ví dụ tính tay* → *mã thật trong repo* → *độ
-phức tạp*. Đọc theo thứ tự trong bảng.
+Tài liệu viết theo kiểu **giáo trình**: mỗi khái niệm đi từ *vấn đề* → *ý
+tưởng* → *công thức* → *ví dụ tính tay* → *mã thật trong repo* → *độ phức
+tạp*. Đọc theo thứ tự trong bảng.
 
 | # | Tài liệu | Nội dung | Nên đọc khi |
 |---|---|---|---|
 | 1 | [**docs/SEARCH-ENGINE-101.md**](docs/SEARCH-ENGINE-101.md) | **Bắt đầu từ đây** — giáo trình đầy đủ về lý thuyết máy tìm kiếm, 13 chương, kèm ví dụ tính tay và bài tập "tự code thử" | Muốn **hiểu và tự code lại** |
-| 2 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Ba tầng hệ thống, sơ đồ thành phần, 4 luồng xử lý, 9 quyết định thiết kế kèm phương án thay thế | Muốn biết các mảnh **ghép lại** thế nào |
+| 2 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Ba tầng hệ thống, sơ đồ thành phần, 4 luồng xử lý, quyết định thiết kế kèm phương án thay thế | Muốn biết các mảnh **ghép lại** thế nào |
 | 3 | [docs/ALGORITHMS.md](docs/ALGORITHMS.md) | Từng thuật toán theo thứ tự pipeline, mỗi mục có mã giả + trích mã Java thật | Đang **đọc code** và cần tra cứu |
-| 4 | [docs/DSA-REPORT.md](docs/DSA-REPORT.md) | Bảng Big-O đầy đủ, lý do chọn từng cấu trúc kèm **số đo**, 3 lỗi hiệu năng phát hiện nhờ đo đạc | Viết **báo cáo đồ án** |
-| 5 | [docs/EVALUATION.md](docs/EVALUATION.md) | **Đánh giá chất lượng tìm kiếm** — known-item search, 11 cấu hình ablation, phân tích thang đo *(sinh tự động)* | Cần **chứng minh** chất lượng |
-| 6 | [docs/GIN-BASELINE.md](docs/GIN-BASELINE.md) | **Đối chứng với PostgreSQL GIN** — baseline bên ngoài, có làm nóng JVM đúng cách *(sinh tự động)* | Cần một **mốc so sánh** |
+| 4 | [**docs/Math/**](docs/Math/README.md) | **Một trang cho mỗi file nguồn** — công thức đầy đủ, chứng minh, ví dụ tính tay, độ phức tạp, hạn chế | Cần **đào sâu** một thành phần |
+| 5 | [**docs/Math/09-design-patterns/**](docs/Math/09-design-patterns/README.md) | **12 trang học OOP** — mỗi design pattern một trang, kèm lỗi thật mà nó sửa và câu hỏi bảo vệ | Học **OOP**, chuẩn bị **bảo vệ** |
+| 6 | [docs/DSA-REPORT.md](docs/DSA-REPORT.md) | Bảng Big-O đầy đủ, lý do chọn từng cấu trúc kèm **số đo**, 3 lỗi hiệu năng phát hiện nhờ đo đạc | Viết **báo cáo đồ án** |
+| 7 | [docs/EVALUATION.md](docs/EVALUATION.md) | **Đánh giá chất lượng tìm kiếm** — known-item search, 11 cấu hình ablation, phân tích thang đo *(sinh tự động)* | Cần **chứng minh** chất lượng |
+| 8 | [docs/GIN-BASELINE.md](docs/GIN-BASELINE.md) | **Đối chứng với PostgreSQL GIN** — baseline bên ngoài, có làm nóng JVM đúng cách *(sinh tự động)* | Cần một **mốc so sánh** |
 | — | [docs/api-examples.http](docs/api-examples.http) | Ví dụ gọi REST API | Muốn thử API ngay |
 
 > ⚠️ **`EVALUATION.md` và `GIN-BASELINE.md` được sinh tự động — đừng sửa tay.**

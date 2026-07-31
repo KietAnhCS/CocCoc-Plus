@@ -248,14 +248,14 @@ Vẫn không có Singleton thủ công, không kế thừa sâu, không Service 
 
 # 📋 Những gì đã thay đổi
 
-## Tệp mới (26)
+## Tệp mới (32)
 
-**DSA:** `VByteCodec`, `PostingCursor`, `ArrayPostingCursor`, `TermDictionary`
-**Interface:** `Tokenizer`, `SearchIndex`, `DocumentStore`, `CandidateFilter`, `QueryNode`, `CrawlListener`
-**Pattern:** `ScorerFactory`, `CrawlStatus`, `CrawlConfig`, `ConsoleCrawlListener`, `PageRankBoostScorer`, `TitleBoostScorer`, `TermNode`, `PhraseNode`, `AndNode`, `OrNode`, `NotNode`, `DomainFilter`, `MaxCandidatesFilter`, `JsonDocumentStore`, `PostgresDocumentStore`, `SearchConfig`
-**Tách trách nhiệm:** `IndexBuilder`, `SuggestionService`, `CrawlJobManager`, `LanguageDetector`, `SnippetBuilder`, `QuerySyllables`
+**DSA (4):** `VByteCodec`, `PostingCursor`, `ArrayPostingCursor`, `TermDictionary`
+**Interface (6):** `Tokenizer`, `SearchIndex`, `DocumentStore`, `CandidateFilter`, `QueryNode`, `CrawlListener`
+**Pattern (16):** `ScorerFactory`, `CrawlStatus`, `CrawlConfig` *(viết lại thành bất biến)*, `ConsoleCrawlListener`, `PageRankBoostScorer`, `TitleBoostScorer`, `TermNode`, `PhraseNode`, `AndNode`, `OrNode`, `NotNode`, `DomainFilter`, `MaxCandidatesFilter`, `JsonDocumentStore`, `PostgresDocumentStore`, `SearchConfig`
+**Tách trách nhiệm (6):** `IndexBuilder`, `SuggestionService`, `CrawlJobManager`, `LanguageDetector`, `SnippetBuilder`, `QuerySyllables`
 
-## Tệp test mới (6) — +70 test
+## Tệp test mới (7) — +70 test
 
 `VByteCodecTest` (9) · `PostingCursorTest` (9) · `QueryAstTest` (14) · `ScorerDecoratorTest` (9) · `CrawlConfigTest` (10) · `CrawlStatusTest` (7) · `HeapifyAndFreezeTest` (12)
 
@@ -281,7 +281,7 @@ Vẫn không có Singleton thủ công, không kế thừa sâu, không Service 
 | Số test | 163 | **233** |
 | Interface tự định nghĩa | **1** | **8** |
 | Design pattern có chủ đích | 5 | **10** |
-| Dòng của `SearchEngineFacade` | 420 | **~250, chỉ điều phối** |
+| Dòng của `SearchEngineFacade` | 420 | **296, chỉ điều phối** *(trong đó ~60 dòng Javadoc)* |
 | Lỗi thread-safety đã biết | 1 (`Trie`) | **0** |
 | Lỗi XSS tiềm tàng | 1 | **0** |
 | Nén chỉ mục | ✗ | **✓ delta + VByte** |
@@ -312,4 +312,5 @@ Vẫn không có Singleton thủ công, không kế thừa sâu, không Service 
 ## Liên kết
 
 - Pattern đang dùng, chi tiết: [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md)
+- **Học OOP qua từng mẫu — 12 trang riêng:** [README.md](README.md)
 - Phân tích từng thuật toán: [README.md](../README.md)

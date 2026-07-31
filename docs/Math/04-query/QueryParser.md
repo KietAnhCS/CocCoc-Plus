@@ -38,7 +38,7 @@ Nhưng phần quan trọng nhất của lớp này không phải việc tách. �
 ## 1. Bất biến quyết định: phải dùng CHÍNH tokenizer đã dùng lúc index
 
 ```java
-public QueryParser(VietnameseTokenizer tokenizer) {
+public QueryParser(Tokenizer tokenizer) {
     this.tokenizer = tokenizer;
 }
 ```
@@ -72,7 +72,7 @@ Chú ý vế "cùng từ điển": hai instance `VietnameseTokenizer` khác nhau
 
 ```java
 // SearchEngineFacade
-private final VietnameseTokenizer tokenizer = new VietnameseTokenizer();
+private final Tokenizer tokenizer;   // tiem qua constructor
 private final QueryParser queryParser = new QueryParser(tokenizer);   // ← truyền vào, dùng chung
 ```
 
@@ -186,12 +186,32 @@ for (String phraseRaw : phrasesRaw) {
 
 ## 5. `ParsedQuery` — cấu trúc phẳng và giới hạn của nó
 
+**Bản cũ — ba danh sách phẳng:**
+
 ```java
 public record ParsedQuery(List<String> mustTerms, List<List<String>> phrases, List<String> excludedTerms) {
 }
 ```
 
-Ba danh sách phẳng. Cấu trúc này đơn giản và đủ cho ngôn ngữ truy vấn hiện tại, nhưng nó **cứng**: nó mã hoá sẵn giả định *"mọi mustTerm nối với nhau bằng AND"*.
+**Bản hiện tại — năm trường, kèm constructor rút gọn giữ tương thích ngược:**
+
+```java
+public record ParsedQuery(List<String> mustTerms, List<List<String>> phrases,
+                          List<String> excludedTerms, List<List<String>> orGroups,
+                          String siteFilter) {
+
+    /** Constructor rút gọn giữ tương thích với mã cũ (không OR, không site:). */
+    public ParsedQuery(List<String> mustTerms, List<List<String>> phrases, List<String> excludedTerms) {
+        this(mustTerms, phrases, excludedTerms, List.of(), null);
+    }
+
+    public boolean isEmpty() {
+        return mustTerms.isEmpty() && phrases.isEmpty() && orGroups.isEmpty();
+    }
+}
+```
+
+Nhưng ngay cả năm trường phẳng vẫn **cứng**: chúng mã hoá sẵn giả định *"mọi `mustTerm` nối với nhau bằng AND, mọi `orGroup` là một tầng OR duy nhất"*.
 
 **Không biểu diễn được:**
 
@@ -210,9 +230,20 @@ TERM   TERM
 (máy_tính)(laptop)
 ```
 
-Phân tích đầy đủ và đề xuất cài đặt ở [PATTERNS-DE-XUAT.md](../09-design-patterns/DESIGN-PATTERNS.md).
+> ✅ **Đã khắc phục.** Cấu trúc phẳng vẫn còn (làm đầu vào cho `buildAst`), nhưng truy hồi boolean nay chạy trên **cây biểu thức** `QueryNode` — biểu diễn được `(máy tính OR laptop) AND giá rẻ` và lồng nhau tuỳ ý. `ParsedQuery` cũng đã có thêm `orGroups` và `siteFilter`. Phân tích đầy đủ: [**04-COMPOSITE.md**](../09-design-patterns/04-COMPOSITE.md).
 
-**Vì sao cấu trúc phẳng vẫn là lựa chọn hợp lý cho hiện tại:** ngôn ngữ truy vấn chỉ có AND ngầm định và loại trừ. Dựng cây cho một ngữ pháp không có OR là **phức tạp thừa**. Đây là ranh giới đúng — nhưng nên biết rằng thêm OR sẽ đòi hỏi thay cấu trúc chứ không phải thêm một nhánh `if`.
+**Vai trò của hai lớp hiện nay:** `ParsedQuery` là **kết quả phân tích cú pháp** — phẳng, dễ tuần tự hoá, dễ log. `QueryNode` là **dạng thực thi được** — cây, đệ quy, biết tự tối ưu shortest-first. `buildAst(ParsedQuery)` là cầu nối giữa hai dạng:
+
+```java
+public QueryNode buildAst(ParsedQuery parsed) { ... }
+
+/** Tiện lợi: phân tích rồi dựng cây trong một bước. */
+public QueryNode buildAst(String rawQuery) {
+    return buildAst(parse(rawQuery));
+}
+```
+
+Tách hai dạng là lựa chọn đúng: cú pháp và ngữ nghĩa thực thi thay đổi vì những lý do khác nhau.
 
 ---
 
@@ -246,7 +277,7 @@ private static final Pattern PHRASE_PATTERN = Pattern.compile("\"([^\"]*)\"");
 |---|---|
 | **Phân tích cú pháp bằng regex** | tách cụm trong ngoặc kép |
 | **Bất biến xuyên tầng** | cùng tokenizer lúc index và lúc query |
-| **Tiêm phụ thuộc qua constructor** | `QueryParser(VietnameseTokenizer)` |
+| **Tiêm phụ thuộc qua constructor** | `QueryParser(Tokenizer)` |
 | **Bản ghi bất biến** | `record ParsedQuery` |
 | **Biên dịch trước mẫu regex** | `static final Pattern` |
 | **Xử lý điều kiện biên** | `-` lơ lửng, chuỗi rỗng, cụm rỗng |
@@ -271,5 +302,5 @@ private static final Pattern PHRASE_PATTERN = Pattern.compile("\"([^\"]*)\"");
 - Tokenizer phải dùng chung: [VietnameseTokenizer.md](../02-tokenize/VietnameseTokenizer.md)
 - Người tiêu thụ `ParsedQuery`: [CandidateResolver.md](CandidateResolver.md)
 - Nơi `phrases` được kiểm tra: [PostingListMerger §5](PostingListMerger.md)
-- Đề xuất cây biểu thức truy vấn: [PATTERNS-DE-XUAT.md](../09-design-patterns/DESIGN-PATTERNS.md)
+- Cây biểu thức truy vấn (Composite): [04-COMPOSITE.md](../09-design-patterns/04-COMPOSITE.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

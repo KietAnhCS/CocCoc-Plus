@@ -24,9 +24,9 @@
 |---|---|
 | [**1. Crawl**](#1-giai-đoạn-crawl--thu-thập-dữ-liệu) | BFS có ưu tiên · Hàng đợi tách theo host (Mercator) · Politeness scheduling · Bloom Filter với double hashing · Chuẩn hoá URL · Longest-prefix-match cho robots.txt · Retry có giới hạn |
 | [**2. Tokenize**](#2-giai-đoạn-tokenize--tách-từ-tiếng-việt) | Longest Matching · Chuẩn hoá Unicode NFC/NFD · Sinh bản không dấu · Lọc từ dừng |
-| [**3. Index**](#3-giai-đoạn-index--lập-chỉ-mục) | Dựng chỉ mục đảo · Bất biến sắp xếp · Binary search trên posting list · Chỉ mục kép có dấu/không dấu |
-| [**4. Query**](#4-giai-đoạn-query--xử-lý-truy-vấn) | Phân tích truy vấn bằng regex · Two-pointer intersect/union · Shortest-first · Khớp cụm từ theo vị trí |
-| [**5. Rank**](#5-giai-đoạn-rank--xếp-hạng) | TF-IDF + cosine · BM25 · PageRank power iteration · Kết hợp tuyến tính · Top-K bằng MinHeap · Cửa sổ trượt sinh snippet |
+| [**3. Index**](#3-giai-đoạn-index--lập-chỉ-mục) | Dựng chỉ mục đảo · Bất biến sắp xếp (tự ép) · Binary search trên posting list · Chỉ mục kép có dấu/không dấu · **Flyweight cho khoá term** · **Nén delta + VByte** |
+| [**4. Query**](#4-giai-đoạn-query--xử-lý-truy-vấn) | Phân tích truy vấn bằng regex · Cây biểu thức AND/OR/NOT · Two-pointer intersect/union · Shortest-first · **Galloping skip pointer** · Khớp cụm từ theo vị trí |
+| [**5. Rank**](#5-giai-đoạn-rank--xếp-hạng) | TF-IDF + cosine · BM25 · PageRank power iteration · **Kết hợp tín hiệu bằng nhân + log (Decorator)** · Top-K bằng MinHeap · Cửa sổ trượt sinh snippet |
 | [**6. Evaluate**](#6-giai-đoạn-evaluate--đo-chất-lượng) | P@k / R@k / F1@k · AP / MAP · nDCG · MRR / Success@k · Sinh truy vấn known-item · TREC pooling |
 | [**7. Serve**](#7-giai-đoạn-serve--phục-vụ-và-gợi-ý) | Trie prefix search · LRU eviction |
 | [**8. Trình duyệt**](#8-phía-trình-duyệt-electron--typescript) | Stack cho back/forward · Trie TypeScript |
@@ -114,7 +114,7 @@ Phần tử có `priority` cao nhất sẽ có `−priority` nhỏ nhất nên v
 tiên. Kỹ thuật này biến một min-heap thành "max-heap theo tiêu chí X" mà
 không phải viết lại cấu trúc.
 
-**Độ phức tạp.** Toàn bộ phiên crawl: `O(P · (log n_d + D))` với `P` là số
+**Độ phức tạp.** Toàn bộ phiên crawl: $O(P\,(\log n_d + D))$ với `P` là số
 trang crawl được — nhưng trong thực tế **hoàn toàn bị chi phối bởi độ trễ
 mạng và politeness delay**, không phải bởi thuật toán. Đo thực tế: 5.011
 trang trong 3,2 phút = 26,2 trang/giây.
@@ -200,10 +200,10 @@ while (it.hasNext()) {
 
 | Thiết kế | Chi phí mỗi `nextUrl()` |
 |---|---|
-| Một heap toàn cục | `O(n log n)` — phụ thuộc **tổng** kích thước frontier |
-| **Tách theo host** | **`O(D + log n_d)`** — không phụ thuộc tổng kích thước |
+| Một heap toàn cục | $O(n\log n)$ — phụ thuộc **tổng** kích thước frontier |
+| **Tách theo host** | **$O(D + \log n_d)$** — không phụ thuộc tổng kích thước |
 
-`addUrl` là `O(log n_d)`. Xem phân tích đầy đủ ở mục 2.5 của `DSA-REPORT.md`.
+`addUrl` là $O(\log n_d)$. Xem phân tích đầy đủ ở mục 2.5 của `DSA-REPORT.md`.
 
 **Hạn chế đã biết:** khi hai host cùng ưu tiên bằng nhau, phép so sánh
 `priority > bestPriority` (dấu `>` chặt) khiến host được quét trước thắng —
@@ -312,7 +312,8 @@ public void add(String item) {
     long h1 = hash1(item);      // FNV-1a 64-bit
     long h2 = hash2(item);      // polynomial rolling hash + avalanche mix
     for (int i = 0; i < numHashes; i++) {
-        setBit(indexFor(h1, h2, i));
+        int idx = indexFor(h1, h2, i);
+        setBit(idx);
     }
 }
 
@@ -333,8 +334,8 @@ Ba chi tiết cài đặt đáng chú ý:
   để các bit thấp của `h2` không tương quan với `h1` — nếu tương quan thì `k`
   hàm băm dẫn xuất sẽ đụng nhau và tỷ lệ false positive tăng vọt.
 
-**Độ phức tạp.** `add` và `mightContain` đều `O(k)` với `k` là hằng số nhỏ
-(thường dưới 20). Bộ nhớ `O(m)` bit, **không phụ thuộc độ dài chuỗi**.
+**Độ phức tạp.** `add` và `mightContain` đều $O(k)$ với `k` là hằng số nhỏ
+(thường dưới 20). Bộ nhớ $O(m)$ bit, **không phụ thuộc độ dài chuỗi**.
 
 ---
 
@@ -384,7 +385,7 @@ public boolean addUrl(String rawUrl, int depth, int knownBacklinks) {
 là một mẫu thiết kế đáng ghi nhớ: nó biến "phải nhớ chuẩn hoá" thành "không
 thể quên chuẩn hoá".
 
-**Độ phức tạp.** `O(L)` với `L` là độ dài URL.
+**Độ phức tạp.** $O(L)$ với `L` là độ dài URL.
 
 ---
 
@@ -446,9 +447,9 @@ boolean isPathAllowed(List<Rule> rules, String path) {
 luật khớp **cùng độ dài** thì luật xuất hiện trước thắng (chuẩn quy định
 `Allow` thắng).
 
-**Độ phức tạp.** Fetch + parse `O(kích thước file)` **một lần** cho mỗi
-domain; `isAllowed` sau đó là `O(số luật)`, thực tế dưới 50 luật nên coi như
-`O(1)`.
+**Độ phức tạp.** Fetch + parse $O(\lvert\text{file}\rvert)$ **một lần** cho mỗi
+domain; `isAllowed` sau đó là $O(R)$, thực tế dưới 50 luật nên coi như
+$O(1)$.
 
 ---
 
@@ -471,12 +472,10 @@ private WebDocument fetchWithRetry(String url) {
                     .userAgent(USER_AGENT).timeout(TIMEOUT_MS).followRedirects(true).get();
             return htmlExtractor.extract(url, document);
         } catch (Exception e) {
-            if (attempt == MAX_RETRIES) {
-                System.out.printf("  [loi] khong the fetch %s sau %d lan thu: %s%n",
-                        url, MAX_RETRIES + 1, e.getMessage());
-            }
+            lastError = e;                      // ghi nho, chua bao
         }
     }
+    notifyError(url, lastError);                // <- Observer: listener tu quyet dinh log the nao
     return null;
 }
 ```
@@ -575,7 +574,7 @@ Hai chi tiết dễ bỏ qua:
   **không chiếm** một vị trí. Điều này quan trọng cho tìm cụm từ: cụm
   `"trình duyệt web"` vẫn khớp dù giữa các tiếng có stopword bị loại.
 
-**Độ phức tạp.** `O(n × MAX_COMPOUND_LENGTH) = O(n)` vì 4 là hằng số.
+**Độ phức tạp.** $O(n \cdot \texttt{MAX\_COMPOUND\_LENGTH}) = O(n)$ vì 4 là hằng số.
 
 > **Hạn chế thật của dự án — trần chất lượng của toàn hệ thống.** Từ điển
 > `vietnamese-bigrams.txt` chỉ có **154 mục** (131 cụm 2 tiếng, 11 cụm 3
@@ -631,7 +630,7 @@ private static String normalize(String s) {
 }
 ```
 
-**Độ phức tạp.** `O(L)`.
+**Độ phức tạp.** $O(L)$.
 
 ---
 
@@ -660,7 +659,7 @@ public static String stripDiacritics(String s) {
 }
 ```
 
-**Độ phức tạp.** `O(L)`.
+**Độ phức tạp.** $O(L)$.
 
 ---
 
@@ -689,7 +688,7 @@ Vì sao: một tiếng có thể là stopword khi đứng riêng nhưng lại l�
 mang nghĩa của một từ ghép. Nếu lọc stopword *trước* khi ghép từ, ta sẽ phá
 vỡ chính những cụm từ mình muốn giữ.
 
-**Độ phức tạp.** `O(1)` mỗi token (tra `HashSet`).
+**Độ phức tạp.** $O(1)$ mỗi token (tra `HashSet`).
 
 ---
 
@@ -702,7 +701,7 @@ muốn tìm tài liệu chứa `máy_tính` phải duyệt hết **mọi** tài 
 liệu × 1.043 token = **5,2 triệu phép so sánh** cho mỗi truy vấn.
 
 **Ý tưởng.** Lật ngược quan hệ: `từ → danh sách tài liệu`. Tra một từ trở
-thành một phép tra `HashMap`: **`O(1)`**.
+thành một phép tra `HashMap`: **$O(1)$**.
 
 ```
 Chỉ mục xuôi                      Chỉ mục đảo
@@ -736,21 +735,23 @@ String combinedText = String.join(" ",
         doc.getBodyText() != null ? doc.getBodyText() : "");
 
 List<VietnameseTokenizer.Token> tokens = tokenizer.tokenize(combinedText);
-documents.put(doc.getDocId(), doc);
-Integer previousLength = docLength.put(doc.getDocId(), tokens.size());
-totalTokens += tokens.size() - (previousLength == null ? 0 : previousLength);
+documents.put(docId, doc);
+docLength.put(docId, tokens.size());
+totalTokens += tokens.size();
 
 Map<String, List<Integer>> positionsByTerm = new LinkedHashMap<>();
 for (VietnameseTokenizer.Token token : tokens) {
-    positionsByTerm.computeIfAbsent(token.term(), k -> new ArrayList<>()).add(token.position());
+    String term = termDictionary.intern(token.term());          // ← FLYWEIGHT
+    positionsByTerm.computeIfAbsent(term, k -> new ArrayList<>()).add(token.position());
     if (!token.noDiacriticTerm().equals(token.term())) {
-        positionsByTerm.computeIfAbsent(token.noDiacriticTerm(), k -> new ArrayList<>()).add(token.position());
+        String noDiacritic = termDictionary.intern(token.noDiacriticTerm());
+        positionsByTerm.computeIfAbsent(noDiacritic, k -> new ArrayList<>()).add(token.position());
     }
 }
 
 for (Map.Entry<String, List<Integer>> entry : positionsByTerm.entrySet()) {
     List<Integer> positions = entry.getValue();
-    Posting posting = new Posting(doc.getDocId(), positions.size(), positions);
+    Posting posting = new Posting(docId, positions.size(), positions);
     index.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(posting);   // ← APPEND
 }
 ```
@@ -763,13 +764,20 @@ Ba điều đáng học từ đoạn code này:
    (term, doc) một posting" mà binary search dựa vào.
 2. **`totalTokens` được cộng dồn** thay vì tính lại bằng cách duyệt `docLength`
    mỗi lần cần độ dài trung bình. BM25 gọi `getAverageDocLength()` cho **mọi**
-   tài liệu ứng viên của **mọi** truy vấn, nên một phép cộng `O(N)` ở đó sẽ
-   biến việc xếp hạng thành `O(N · c)`.
-3. **Phép trừ `- previousLength`** xử lý trường hợp index lại cùng một
-   `docId`: không trừ thì `totalTokens` chỉ tăng và độ dài trung bình sai dần.
+   tài liệu ứng viên của **mọi** truy vấn, nên một phép cộng $O(N)$ ở đó sẽ
+   biến việc xếp hạng thành $O(N\cdot c)$.
+3. **`termDictionary.intern(...)`** — Flyweight cho khoá term. Tokenizer tạo
+   chuỗi **mới** mỗi lần gặp, nên 5.011 tài liệu × ~1.400 tiếng sinh ra
+   ~7 triệu object `String` cho chỉ **136.768** giá trị phân biệt. Pool trả về
+   instance chuẩn tắc, chuỗi mới thành rác ngay — xem
+   [`Math/03-index/TermDictionary.md`](Math/03-index/TermDictionary.md).
+4. **`addDocument` tự ép bất biến sắp xếp**: ném `IllegalArgumentException`
+   nếu bị gọi với `docId` không tăng dần. Nhờ vậy `totalTokens` cộng thẳng
+   được, không cần phép trừ `- previousLength` của bản cũ — index lại cùng
+   `docId` nay là **lỗi bị chặn**, không phải trường hợp phải chữa.
 
-**Độ phức tạp.** `addDocument` `O(L)` với `L` là số token;
-`getPostings` / `getDocumentFrequency` `O(1)`. Bộ nhớ `O(tổng số cặp (term, doc))`.
+**Độ phức tạp.** `addDocument` $O(L)$ với `L` là số token;
+`getPostings` / `getDocumentFrequency` $O(1)$. Bộ nhớ $O(\lvert\{(t,d)\}\rvert)$.
 
 ---
 
@@ -781,23 +789,43 @@ Bất biến được đảm bảo **miễn phí**: `addDocument()` luôn đư�
 `docId` tăng dần, và mỗi lần chỉ **append** vào cuối posting list. Không tốn
 **một phép sort nào**.
 
-Người gọi phải giữ đúng tiền đề đó — nên `SearchEngineFacade` và cả
-`EvaluationRunner` đều sắp xếp trước khi index:
+Tiền đề đó được ép ở **hai lớp độc lập**. Lớp thứ nhất — `IndexBuilder` gom
+việc sort về một chỗ duy nhất (trước đây nó bị lặp ở ba nơi: `SearchEngineFacade`,
+`EvaluationRunner`, `GinBaselineRunner`):
 
 ```java
-List<WebDocument> sorted = new ArrayList<>(docs);
-sorted.sort((a, b) -> Integer.compare(a.getDocId(), b.getDocId()));
-for (WebDocument doc : sorted) {
-    newIndex.addDocument(doc);
+public InvertedIndex build(List<WebDocument> documents) {
+    InvertedIndex index = new InvertedIndex(tokenizer);
+    List<WebDocument> sorted = new ArrayList<>(documents);
+    sorted.sort(Comparator.comparingInt(WebDocument::getDocId));   // ← TIỀN ĐỀ bắt buộc
+    for (WebDocument doc : sorted) {
+        index.addDocument(doc);
+    }
+    return index;
 }
 ```
 
-Bất biến này mở khoá **hai** thứ, và đó chính là toàn bộ lý do nó tồn tại:
+Lớp thứ hai — `InvertedIndex` **tự ép**, biến một lỗi im lặng thành một lỗi
+ồn ào ngay tại chỗ gây ra:
+
+```java
+if (docId <= lastDocId) {
+    throw new IllegalArgumentException(
+            "addDocument phai duoc goi theo docId TANG DAN de giu bat bien"
+                    + " 'posting list sap xep theo docId'. docId truoc = " + lastDocId
+                    + ", docId hien tai = " + docId
+                    + ". Hay sap xep danh sach tai lieu truoc khi index.");
+}
+```
+
+Bất biến này mở khoá **bốn** thứ, và đó chính là toàn bộ lý do nó tồn tại:
 
 | Mở khoá | Thay vì |
 |---|---|
-| Giao posting list bằng two-pointer `O(m+n)` (mục 4.2) | Sort lại `O(n log n)` mỗi truy vấn |
-| Binary search `O(log n)` để tra tần suất/vị trí (mục 3.3) | Quét tuyến tính `O(n)` |
+| Giao posting list bằng two-pointer $O(m+n)$ (mục 4.2) | Sort lại $O(n\log n)$ mỗi truy vấn |
+| Binary search $O(\log n)$ để tra tần suất/vị trí (mục 3.3) | Quét tuyến tính $O(n)$ |
+| **Delta encoding** cho nén (`VByteCodec`) | Hiệu có thể âm → không mã hoá được |
+| **Galloping skip** $O(\log d)$ (`PostingCursor`) | Bước tuần tự qua cả list dài |
 
 > **Bài học tổng quát:** chọn đúng **bất biến** khi xây dựng cấu trúc dữ liệu
 > thường có giá trị hơn tối ưu thuật toán về sau.
@@ -808,29 +836,36 @@ Bất biến này mở khoá **hai** thứ, và đó chính là toàn bộ lý d
 
 **Vấn đề.** Khi chấm điểm TF-IDF cho tài liệu `docId = 3.500`, cần biết term
 `công_nghệ` xuất hiện bao nhiêu lần **trong đúng tài liệu đó**. Posting list
-của `công_nghệ` có 1.639 mục. Quét tuyến tính là `O(1639)` — và phải làm vậy
+của `công_nghệ` có 1.639 mục. Quét tuyến tính là $O(1639)$ — và phải làm vậy
 cho **mọi** ứng viên × **mọi** term.
 
 **Ý tưởng.** Posting list đã sắp xếp theo `docId` (mục 3.2) → binary search.
 
-**Mã thật.** `ranking/TfIdfScorer.findTermFrequencyInDoc()` (bản gần như y
-hệt cũng có trong `BM25Scorer` và `InvertedIndex.getPositions`):
+**Mã thật.** `index/InvertedIndex.binarySearchPosting()` — **một** cài đặt duy
+nhất, lộ ra cho hai scorer qua `SearchIndex.getTermFrequency(term, docId)`
+(trước đây hàm này bị sao chép gần như y hệt ở ba nơi):
 
 ```java
-private int findTermFrequencyInDoc(List<Posting> postings, int docId) {
+private static int binarySearchPosting(List<Posting> postings, int docId) {
     int low = 0, high = postings.size() - 1;
     while (low <= high) {
         int mid = (low + high) >>> 1;        // ← >>> chứ không phải /2
         int midDocId = postings.get(mid).docId();
         if (midDocId == docId) {
-            return postings.get(mid).termFrequency();
+            return mid;
         } else if (midDocId < docId) {
             low = mid + 1;
         } else {
             high = mid - 1;
         }
     }
-    return 0;                                // term không xuất hiện trong tài liệu này
+    return -1;                               // term không xuất hiện trong tài liệu này
+}
+
+@Override
+public int getTermFrequency(String term, int docId) {
+    int position = binarySearchPosting(getPostings(term), docId);
+    return position < 0 ? 0 : getPostings(term).get(position).termFrequency();
 }
 ```
 
@@ -840,7 +875,7 @@ lớn, `low + high` có thể **tràn `int` thành số âm**, và `/2` giữ ng
 kinh điển từng tồn tại nhiều năm trong `java.util.Arrays.binarySearch` của
 chính JDK.
 
-**Độ phức tạp.** `O(log n)` thay vì `O(n)`. Với `n = 1639`: 11 phép so sánh
+**Độ phức tạp.** $O(\log n)$ thay vì $O(n)$. Với `n = 1639`: 11 phép so sánh
 thay vì 1.639.
 
 ---
@@ -872,6 +907,103 @@ thành `ngan`). Đây chính là gốc rễ của lỗi bôi sáng snippet — x
 ```java
 if (!token.noDiacriticTerm().equals(token.term())) { ... }
 ```
+
+---
+
+### 3.5. Flyweight cho khoá term
+
+**Vấn đề.** Tokenizer tạo chuỗi **mới** mỗi lần gặp một term:
+
+```java
+term = String.join("_", Arrays.copyOfRange(syllables, i, i + matchedLen));
+```
+
+$$5011 \text{ tài liệu} \times \approx 1400 \text{ tiếng} \approx \mathbf{7\ \text{triệu}}\ \texttt{String}$$
+
+cho chỉ **136.768** giá trị phân biệt — tỷ lệ trùng lặp $\approx 51:1$. Mỗi
+`String` tốn $\approx 44 + L$ byte.
+
+**Ý tưởng.** Giữ một kho (pool) ánh xạ nội dung chuỗi sang **một instance
+chuẩn tắc** duy nhất.
+
+**Mã thật.** `index/TermDictionary.java`:
+
+```java
+public String intern(String term) {
+    if (term == null) return null;
+    String existing = pool.putIfAbsent(term, term);
+    return existing != null ? existing : term;
+}
+```
+
+`putIfAbsent` làm **cả hai việc trong một lần băm** — `containsKey` rồi `put`
+sẽ băm hai lần, tức thêm $7 \times 10^7$ phép tính hash vô ích.
+
+**Vì sao không dùng `String.intern()` của JDK:** nó dùng bảng chuỗi nội bộ
+JVM — **không giải phóng được** (rò rỉ sau mỗi lần reindex), kích thước cấu
+hình cứng, và **không đo được**. Pool tự quản lý thì kiểm soát được vòng đời
+(`clear()`) và đo được (`size()`, `estimatedBytes()`).
+
+**Độ phức tạp.** `intern` $O(L)$; bộ nhớ $O(\sum_{t \in V} L_t)$ — tổng ký tự
+của các term **phân biệt**, không phụ thuộc số lần xuất hiện.
+
+Chi tiết kèm định luật Zipf/Heaps: [`Math/03-index/TermDictionary.md`](Math/03-index/TermDictionary.md).
+
+---
+
+### 3.6. Nén chỉ mục bằng delta + variable-byte
+
+**Vấn đề.** Posting list lưu `docId` là `int` — 4 byte mỗi số, kể cả khi số
+đó là `3`. Hai tính chất của dữ liệu bị bỏ phí: danh sách **đã sắp xếp** (nên
+hiệu nhỏ hơn giá trị tuyệt đối), và **số nhỏ không cần 4 byte**.
+
+**Ý tưởng — hai bước.**
+
+*Bước 1 — delta encoding.* Lưu hiệu giữa hai phần tử liên tiếp:
+
+$$\delta_i = x_i - x_{i-1}, \qquad \bar{\delta} \approx \frac{N}{n}$$
+
+```
+gốc   : [3, 17, 19, 40, 1041]
+delta : [3, 14,  2, 21, 1001]
+```
+
+Với term `công_nghệ` (1.639 mục trên 5.011 tài liệu): $\bar\delta \approx 3{,}06$.
+
+*Bước 2 — variable-byte.* 7 bit thấp mỗi byte mang dữ liệu; bit cao nhất là
+cờ *"còn byte nữa"*:
+
+| Số byte | Khoảng giá trị |
+|---|---|
+| 1 | $0 \ldots 127$ |
+| 2 | $128 \ldots 16\,383$ |
+| 3 | $16\,384 \ldots 2\,097\,151$ |
+
+**Mã thật.** `index/VByteCodec.java`:
+
+```java
+private static void writeVInt(ByteArrayOutputStream out, int value) {
+    while ((value & ~0x7F) != 0) {          // còn bit ngoài 7 bit thấp
+        out.write((value & 0x7F) | 0x80);   // ghi 7 bit + bật cờ "còn nữa"
+        value >>>= 7;                       // >>> chứ không phải >> (số âm lặp vô hạn)
+    }
+    out.write(value & 0x7F);                // byte cuối: bit cao = 0
+}
+```
+
+**Kết quả đo thật** (`VByteCodec.main`, posting list 1.639 mục):
+
+```
+Không nén (int)  : 6556 byte
+Đã nén (VByte)   : 1639 byte
+Tỷ lệ nén        : 25,0 % (tiết kiệm 75,0 %)
+Giải nén đúng nguyên vẹn: true
+```
+
+**Độ phức tạp.** Mã hoá và giải mã đều $O(n)$ một lượt, không cấp phát trung
+gian ngoài bộ đệm kết quả.
+
+Chi tiết kèm ví dụ tính tay từng bit: [`Math/03-index/VByteCodec.md`](Math/03-index/VByteCodec.md).
 
 ---
 
@@ -913,7 +1045,7 @@ remaining.append(rawQuery.substring(lastEnd));
 được tokenize bằng **chính** tokenizer đã dùng lúc index:
 
 ```java
-public QueryParser(VietnameseTokenizer tokenizer) {
+public QueryParser(Tokenizer tokenizer) {
     this.tokenizer = tokenizer;
 }
 ```
@@ -922,7 +1054,7 @@ Nếu lúc index tạo ra `máy_tính` mà lúc truy vấn tạo ra `máy` + `t�
 **không bao giờ khớp** — và lỗi này im lặng, không có ngoại lệ nào được ném
 ra, chỉ là kết quả rỗng một cách khó hiểu.
 
-**Độ phức tạp.** `O(L)` với `L` là độ dài chuỗi truy vấn.
+**Độ phức tạp.** $O(L)$ với `L` là độ dài chuỗi truy vấn.
 
 **Hạn chế đã biết.** Dấu `-` chỉ loại trừ **một tiếng** ngay sau nó (giống
 toán tử `-word` của Google). `-quảng cáo` chỉ loại trừ `quảng`, còn `cáo`
@@ -994,7 +1126,7 @@ trúc trung gian nào. Trong hệ thống thật, posting list là `List<Posting
 thẳng từ chỉ mục nên **phải tính cả** chi phí dựng HashSet mỗi truy vấn —
 dòng thứ 3 là so sánh công bằng nhất.
 
-**Độ phức tạp.** `O(m + n)` tuyệt đối, không có hằng số ẩn của hashing.
+**Độ phức tạp.** $O(m+n)$ tuyệt đối, không có hằng số ẩn của hashing.
 
 ---
 
@@ -1009,7 +1141,7 @@ $$
 $$
 
 Vậy nên bắt đầu từ list **ngắn nhất** để `|A|` nhỏ ngay từ đầu, khiến các
-bước giao kế tiếp — mỗi bước tốn `O(|A| + |\text{list kế tiếp}|)` — rẻ hơn
+bước giao kế tiếp — mỗi bước tốn $O(\lvert A\rvert + \lvert\text{list ke tiep}\rvert)$ — rẻ hơn
 đáng kể.
 
 Ví dụ: `iPhone` (df = 5) và `của` (df = 4000)
@@ -1053,7 +1185,68 @@ for (String term : allRequiredTerms) {
 
 ---
 
-### 4.4. Khớp cụm từ theo vị trí liên tiếp
+### 4.4. Galloping search — nhảy cóc thay vì bước từng bước
+
+**Vấn đề.** Shortest-first (mục 4.3) giảm kích thước kết quả trung gian, nhưng
+**không** giảm số bước duyệt: giao list 5 phần tử với list 4.000 phần tử vẫn
+tốn $O(m+n) = 4005$ bước, vì two-pointer thuần phải bước qua gần hết list dài.
+
+Nhưng cả hai list **đã sắp xếp**. Sao phải bước từng bước khi chỉ cần 5 vị trí?
+
+**Ý tưởng — galloping search** (exponential search), hai pha:
+
+*Pha 1 — nhảy theo cấp số nhân* `1, 2, 4, 8, …` cho tới khi vượt mục tiêu. Sau
+$k$ vòng bước nhảy là $2^k$, dừng khi $2^k \ge d$ với $d$ là khoảng cách thật.
+
+*Pha 2 — binary search* trong đoạn vừa khoanh (độ dài $\le d$).
+
+$$O(m + n) = 4005 \text{ bước} \quad\longrightarrow\quad O\!\left(m\log\frac{n}{m}\right) = 5 \times \log_2 800 \approx \mathbf{48}\ \text{bước}$$
+
+**Mã thật.** `index/ArrayPostingCursor.skipTo()`:
+
+```java
+// Pha 1: nhảy theo cấp số nhân
+int step = 1, low = index, high = index + step;
+while (high < n && postings.get(high).docId() < targetDocId) {
+    low = high;
+    step <<= 1;                     // 1, 2, 4, 8, ...
+    high = index + step;
+}
+if (high >= n) high = n - 1;
+
+// Pha 2: binary search (lower_bound) trong đoạn (low, high]
+int lo = low, hi = high;
+while (lo < hi) {
+    int mid = (lo + hi) >>> 1;      // >>> chống tràn
+    if (postings.get(mid).docId() < targetDocId) lo = mid + 1;
+    else                                          hi = mid;
+}
+```
+
+**Điểm mạnh so với binary search thuần trên cả mảng:** chi phí phụ thuộc
+**khoảng cách thật** $d$, **không phụ thuộc kích thước mảng** $n$. Khi hai
+posting list chồng lấn nhiều — trường hợp phổ biến — $d$ nhỏ nên galloping
+gần như miễn phí.
+
+**Lợi ích thứ hai — không cấp phát.** Cursor duyệt thẳng trên dữ liệu gốc,
+toàn bộ trạng thái là **một `int`**. Cách cũ vật chất hoá posting list thành
+`List<Integer>`, mỗi `docId` bị autobox thành object 16 byte thay vì 4 —
+$4000 \times 16 = \mathbf{64\ KB}$ rác GC mỗi lần gọi, nhân với $k$ term.
+
+**Sentinel `NO_MORE = Integer.MAX_VALUE`** lớn hơn mọi docId hợp lệ, nên vòng
+lặp giao *"tiến cursor có docId nhỏ hơn"* tự dừng đúng chỗ mà **không cần một
+nhánh `if` riêng** kiểm tra hết list.
+
+**Kiểm chứng.** `PostingCursorTest` đối chiếu galloping với **quét tuyến tính
+ở mọi vị trí** từ 0 tới 1100 — phủ trọn trước phần tử đầu, sau phần tử cuối,
+và trùng khớp chính xác.
+
+Chi tiết kèm chứng minh cận bằng bất đẳng thức Jensen:
+[`Math/06-datastructures/ArrayPostingCursor.md`](Math/06-datastructures/ArrayPostingCursor.md).
+
+---
+
+### 4.5. Khớp cụm từ theo vị trí liên tiếp
 
 **Vấn đề.** `"trình duyệt web"` yêu cầu 3 từ xuất hiện **liên tiếp đúng thứ
 tự**, không chỉ là cùng có mặt trong tài liệu.
@@ -1073,7 +1266,7 @@ Thử start = 2: cần duyệt ở 3 ✅, web ở 4 ✅ → KHỚP
 **Mã thật.** `PostingListMerger.matchesPhrase()`:
 
 ```java
-public static boolean matchesPhrase(InvertedIndex index, List<String> phraseTerms, int docId) {
+public static boolean matchesPhrase(SearchIndex index, List<String> phraseTerms, int docId) {
     if (phraseTerms.isEmpty()) {
         return true;
     }
@@ -1095,7 +1288,7 @@ public static boolean matchesPhrase(InvertedIndex index, List<String> phraseTerm
 }
 ```
 
-**Độ phức tạp.** `O(p₁ · k · log n)` với `p₁` là số vị trí của từ đầu, `k` là
+**Độ phức tạp.** $O(p_1 \cdot k \cdot \log n)$ với `p₁` là số vị trí của từ đầu, `k` là
 số từ trong cụm, `log n` là binary search trong `getPositions`.
 
 > **Điểm còn tối ưu được:** `positions.contains(start + i)` là quét tuyến
@@ -1150,7 +1343,7 @@ public static double idf(int totalDocs, int documentFrequency) {
 }
 
 @Override
-public double score(Map<String, Integer> queryTermFrequency, int docId, InvertedIndex index) {
+public double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index) {
     int totalDocs = index.getTotalDocs();
     double dot = 0.0, queryNormSq = 0.0;
 
@@ -1163,7 +1356,7 @@ public double score(Map<String, Integer> queryTermFrequency, int docId, Inverted
         double queryWeight = tf(entry.getValue()) * idfValue;
         queryNormSq += queryWeight * queryWeight;
 
-        int docTermFrequency = findTermFrequencyInDoc(postings, docId);
+        int docTermFrequency = index.getTermFrequency(term, docId);  // binary search O(log n)
         if (docTermFrequency > 0) {
             dot += queryWeight * tf(docTermFrequency) * idfValue;
         }
@@ -1184,12 +1377,12 @@ quan hơn.
 
 **Xấp xỉ `‖d‖ ≈ √(độ dài tài liệu)`** là xấp xỉ kinh điển của Lucene classic
 Similarity. Tính `‖d‖` chuẩn xác đòi hỏi duyệt **mọi** term của tài liệu, tốn
-`O(|từ vựng|)` cho **mỗi** tài liệu — trong khi `getDocLength(docId)` là
-`O(1)` vì đã lưu sẵn.
+$O(\lvert V\rvert)$ cho **mỗi** tài liệu — trong khi `getDocLength(docId)` là
+$O(1)$ vì đã lưu sẵn.
 
 Chú ý `Math.max(..., 1)`: chặn chia cho 0 với tài liệu rỗng.
 
-**Độ phức tạp.** `O(q log d)` với `q` là số term phân biệt trong truy vấn,
+**Độ phức tạp.** $O(q\log d)$ với `q` là số term phân biệt trong truy vấn,
 `d` là độ dài posting list dài nhất.
 
 ---
@@ -1235,7 +1428,7 @@ public static double idf(int totalDocs, int documentFrequency) {
 }
 
 @Override
-public double score(Map<String, Integer> queryTermFrequency, int docId, InvertedIndex index) {
+public double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index) {
     ...
     int docLength = index.getDocLength(docId);
     // Hệ số chuẩn hoá độ dài, tính một lần cho cả truy vấn vì không phụ thuộc term.
@@ -1246,7 +1439,7 @@ public double score(Map<String, Integer> queryTermFrequency, int docId, Inverted
         List<Posting> postings = index.getPostings(entry.getKey());
         int df = postings.size();
         if (df == 0) continue;
-        int termFrequency = findTermFrequencyInDoc(postings, docId);
+        int termFrequency = index.getTermFrequency(entry.getKey(), docId);
         if (termFrequency == 0) continue;
         double saturated = (termFrequency * (k1 + 1)) / (termFrequency + lengthNorm);
         total += idf(totalDocs, df) * saturated;
@@ -1266,7 +1459,7 @@ thuần đạt MRR **0,8989** so với **0,8537** của TF-IDF cosine thuần, h
 `EvaluationHarness` thay mô hình tính điểm mà không sửa gì ở `ResultRanker` —
 đây chính là điều làm thí nghiệm ablation "chỉ thay một biến số" khả thi.
 
-**Độ phức tạp.** `O(q log d)` — giống TF-IDF, cũng dùng binary search.
+**Độ phức tạp.** $O(q\log d)$ — giống TF-IDF, cũng dùng binary search.
 
 ---
 
@@ -1397,36 +1590,19 @@ Ma trận đặc:  5011 × 5011 × 8 byte = 191,5 MB
 Thực tế chỉ có 239.691 ô khác 0 → adjacency list: ~3,7 MB
 ```
 
-**Độ phức tạp.** `O(iterations · (nnz + N))`. Bộ nhớ `O(N + nnz)`.
+**Độ phức tạp.** $O(\text{iter}\cdot(\text{nnz} + N))$. Bộ nhớ $O(N + \text{nnz})$.
 
 ---
 
-### 5.4. Kết hợp tuyến tính nhiều tín hiệu
+### 5.4. Kết hợp nhiều tín hiệu — và cái bẫy thang đo
 
-**Ý tưởng.**
+#### Bản cũ: cộng tuyến tính
 
 ```
-finalScore = α·relevance + β·pageRank + γ·titleBonus
+finalScore = α·relevance + β·pageRank + γ·titleBonus     ← BẢN CŨ
 ```
 
-Mặc định `α = 0,6`, `β = 0,3`, `γ = 0,1`, đọc từ `application.properties` nên
-đổi được không cần biên dịch lại.
-
-**Mã thật.** `ranking/ResultRanker.rank()`, bước 1:
-
-```java
-double relevance = scorer.score(queryTermFrequency, docId, index);
-double pageRank = pageRankScores.getOrDefault(docId, 0.0);
-double titleBonus = titleMatchBonus(queryKeywordSyllables, doc.getTitle());
-double finalScore = alpha * relevance + beta * pageRank + gamma * titleBonus;
-```
-
-`titleMatchBonus` là tỷ lệ tiếng trong truy vấn xuất hiện ở tiêu đề, chặn
-trên bằng 1:
-
-```java
-return Math.min(1.0, (double) matched / queryKeywordSyllables.exact().size());
-```
+với `α = 0,6`, `β = 0,3`, `γ = 0,1` chôn cứng trong `ResultRanker`.
 
 > ### ⚠️ Cái bẫy lớn nhất của dự án: thang đo không tương thích
 >
@@ -1435,33 +1611,73 @@ return Math.min(1.0, (double) matched / queryKeywordSyllables.exact().size());
 >
 > | Thành phần | Trung bình | Sau khi nhân trọng số |
 > |---|---|---|
-> | TF-IDF cosine | 0,177687 | 0,106612 (α = 0,6) |
-> | PageRank | 0,00035388 | 0,00010616 (β = 0,3) |
+> | TF-IDF cosine | 0,177687 | 0,106612 ($\alpha = 0{,}6$) |
+> | PageRank | 0,00035388 | 0,00010616 ($\beta = 0{,}3$) |
 >
-> TF-IDF đóng góp **gấp ~1.004 lần** PageRank.
+> $$\frac{\beta\,\overline{\text{PR}}}{\alpha\,\overline{\text{TF-IDF}}} \approx \mathbf{0{,}1\,\%}$$
 >
 > **Nguyên nhân:** PageRank là một **phân phối xác suất tổng bằng 1** trên
-> 5.011 tài liệu, nên giá trị điển hình quanh `1/N ≈ 0,0002`. TF-IDF cosine
-> nằm trong `[0; 1]` với giá trị điển hình lớn hơn hàng nghìn lần.
->
-> **Hệ quả:** `β = 0,3` **không** có nghĩa "PageRank đóng góp 30%". Trên
-> thực tế nó gần như không ảnh hưởng tới thứ hạng ở **mọi** giá trị β thử
-> nghiệm.
->
-> **Cách sửa:** chuẩn hoá PageRank về cùng thang trước khi kết hợp — chia
-> cho PageRank lớn nhất trong corpus, hoặc min-max normalisation trên tập
-> ứng viên của từng truy vấn.
->
-> **Bài học tổng quát:** khi kết hợp tuyến tính nhiều tín hiệu, **luôn kiểm
-> tra độ lớn thực tế** của từng thành phần trước khi diễn giải trọng số.
-> Phân tích đầy đủ ở mục 6 của `docs/EVALUATION.md`.
+> 5.011 tài liệu, nên giá trị điển hình buộc phải quanh $1/N \approx 0{,}0002$
+> — và **co lại** khi corpus lớn hơn. Cộng một độ tương tự với một phân phối
+> xác suất là phép toán không có ý nghĩa; **bất kỳ $\beta$ nào cũng không sửa
+> được**. Bằng chứng: quét $\beta$ từ 0,05 tới 0,80 (gấp 16 lần) chỉ làm MRR
+> đổi 0,0040.
+
+#### Bản hiện tại: Decorator, nhân thay vì cộng
+
+Việc kết hợp tín hiệu đã chuyển khỏi `ResultRanker` sang chuỗi **Decorator**
+bọc quanh `RelevanceScorer`:
+
+$$\text{final} = \text{base} \times \bigl(1 + w \cdot \hat{p}\bigr),
+\qquad \hat{p} = \frac{\log(1 + p/p_{\min})}{\log(1 + p_{\max}/p_{\min})} \in [0,1]$$
+
+**Mã thật.** `ranking/decorator/PageRankBoostScorer.score()`:
+
+```java
+public double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index) {
+    double base = inner.score(queryTermFrequency, docId, index);
+    if (base == 0.0 || weight == 0.0) return base;          // thoát sớm
+    double pageRank   = pageRankScores.getOrDefault(docId, minPageRank);
+    double normalized = Math.log1p(pageRank / minPageRank) / logRange;   // ∈ [0,1]
+    return base * (1 + weight * normalized);
+}
+```
+
+Hai lý do:
+
+1. **Logarit nén dải động** — PageRank trải trên nhiều bậc độ lớn; $\log$
+   biến nó thành đại lượng cộng được, và chuẩn hoá về $[0,1]$ làm `weight`
+   trở thành tỷ lệ đóng góp **thật**.
+2. **Phép nhân bất biến với thang đo của scorer cơ sở** — đổi TF-IDF sang
+   BM25 (thang 0,18 so với 12,1) **không cần chỉnh lại trọng số**. Có test
+   khẳng định đúng tính chất đó (`pageRankBoostIsInvariantToBaseScorerScale`).
+
+Lý do (2) giải thích luôn nghịch lý trong bảng đánh giá cũ: *"BM25 + PR +
+title" (0,9089) thua "TF-IDF + PR + title" (0,9229)* — vì bộ trọng số cộng
+được tinh chỉnh cho thang TF-IDF.
+
+**Lắp ghép** do `ScorerFactory` lo, đọc từ `application.properties`:
+
+```properties
+app.ranking.scorer=bm25
+app.ranking.beta=0.30     # trọng số PageRank
+app.ranking.gamma=0.10    # trọng số khớp tiêu đề
+```
+
+Trọng số bằng 0 thì lớp bọc tương ứng **bị bỏ hẳn** — không trả chi phí cho
+tín hiệu đã tắt.
+
+> **Bài học tổng quát:** khi kết hợp nhiều tín hiệu, **luôn kiểm tra độ lớn
+> thực tế** của từng thành phần trước khi diễn giải trọng số. Phân tích đầy
+> đủ: [`Math/09-design-patterns/03-DECORATOR.md`](Math/09-design-patterns/03-DECORATOR.md)
+> và mục 6 của [`Math/05-ranking/ResultRanker.md`](Math/05-ranking/ResultRanker.md).
 
 ---
 
 ### 5.5. Top-K bằng MinHeap (không sort toàn bộ)
 
 **Vấn đề.** Có 1.639 ứng viên, cần 10 kết quả tốt nhất. Sort toàn bộ là
-`O(n log n)` — lãng phí, vì ta **vứt đi 1.629 kết quả**.
+$O(n\log n)$ — lãng phí, vì ta **vứt đi 1.629 kết quả**.
 
 **Ý tưởng.** Duy trì một min-heap kích thước tối đa `K`. Đỉnh heap là **phần
 tử nhỏ nhất trong K tốt nhất hiện tại** — nên nó chính là "ngưỡng cửa": phần
@@ -1505,7 +1721,7 @@ public static <T> List<T> topK(Collection<T> items, int k, Comparator<T> cmp) {
 Bản thân heap là mảng, không con trỏ: phần tử tại `i` có con trái ở `2i+1`,
 con phải ở `2i+2`, cha ở `(i−1)/2`.
 
-**Độ phức tạp.** `O(n log K)`. Với `n = 1639`, `K = 10`:
+**Độ phức tạp.** $O(n\log K)$. Với `n = 1639`, `K = 10`:
 
 | Cách | Phép so sánh (xấp xỉ) |
 |---|---|
@@ -1521,7 +1737,7 @@ dùng ở **hai** nơi: `ResultRanker.rank()` và `Trie.getSuggestions()`.
 
 **Vấn đề.** Trong một bài viết 1.043 token, chọn đoạn 25 từ **chứa nhiều từ
 khoá nhất**. Cách ngây thơ — với mỗi vị trí đếm lại số từ khoá trong cửa sổ —
-là `O(n × windowSize)`.
+là $O(n\cdot w)$.
 
 **Ý tưởng.** Khi trượt sang phải một bước, chỉ có **một** từ ra khỏi cửa sổ
 và **một** từ vào:
@@ -1531,7 +1747,7 @@ count = count − (từ vừa ra là từ khoá ? 1 : 0)
               + (từ vừa vào là từ khoá ? 1 : 0)
 ```
 
-Cập nhật `O(1)` mỗi bước → tổng **`O(n)`**.
+Cập nhật $O(1)$ mỗi bước → tổng **$O(n)$**.
 
 **Mã thật.** `ranking/ResultRanker.buildSnippet()`:
 
@@ -1572,10 +1788,10 @@ Hai chi tiết:
 `buildSnippet()` từng được gọi cho **mọi** ứng viên rồi mới cắt top-N. Với
 500 ứng viên thì 490 snippet bị tạo ra rồi vứt đi ngay. Sửa thành ba bước —
 chấm điểm → lấy top-K → **chỉ** sinh snippet cho K sống sót — hạ chi phí từ
-`O(c × docLength)` xuống `O(topN × docLength)`.
+$O(c\cdot\lvert d\rvert)$ xuống $O(\text{topN}\cdot\lvert d\rvert)$.
 
-**Độ phức tạp.** `O(docLength)` cho một snippet;
-`O(topN × docLength)` cho cả truy vấn.
+**Độ phức tạp.** $O(\lvert d\rvert)$ cho một snippet;
+$O(\text{topN}\cdot\lvert d\rvert)$ cho cả truy vấn.
 
 ---
 
@@ -1849,9 +2065,9 @@ hai lần nên mới cần bước gộp trùng ở trên.
 **Nguồn dữ liệu gợi ý cũng quan trọng** — xem mục 3.4 của `ARCHITECTURE.md`
 để biết ba lỗi đã sửa (chèn nguyên tiêu đề, chèn tiếng lẻ, quên `clear()`).
 
-**Độ phức tạp.** `insert` `O(L)`; `search` `O(L)`;
-`getSuggestions` `O(L + m log k)` với `m` là số từ trong cây con của prefix.
-Bộ nhớ `O(tổng số ký tự các từ đã insert)`, tiết kiệm hơn khi nhiều từ chung
+**Độ phức tạp.** `insert` $O(L)$; `search` $O(L)$;
+`getSuggestions` $O(L + m\log k)$ với `m` là số từ trong cây con của prefix.
+Bộ nhớ $O(\textstyle\sum \lvert w_i\rvert)$, tiết kiệm hơn khi nhiều từ chung
 tiền tố.
 
 ---
@@ -1863,7 +2079,7 @@ tiền tố.
 đầy — **loại mục nào?**
 
 **Ý tưởng.** **LRU (Least Recently Used)**: loại mục **lâu nhất không được
-dùng**. Cần hai thao tác đồng thời `O(1)`: tra cứu theo khoá, và di chuyển
+dùng**. Cần hai thao tác đồng thời $O(1)$: tra cứu theo khoá, và di chuyển
 một mục lên đầu thứ tự sử dụng. Một cấu trúc không làm được cả hai, nên ghép
 hai cấu trúc:
 
@@ -1896,8 +2112,8 @@ private void moveToFront(Node<K, V> node) {
 **Ba câu hỏi hay bị hỏi, và câu trả lời:**
 
 **(a) Vì sao danh sách liên kết *đôi*?** Để xoá một node ở **giữa** danh
-sách trong `O(1)`, cần biết **cả** node trước và node sau. Danh sách liên kết
-đơn phải duyệt từ đầu để tìm node trước → `O(n)`.
+sách trong $O(1)$, cần biết **cả** node trước và node sau. Danh sách liên kết
+đơn phải duyệt từ đầu để tìm node trước → $O(n)$.
 
 **(b) Vì sao 2 sentinel node?** Hai node giả ở đầu và cuối, không chứa dữ
 liệu. Nhờ chúng, `removeNode` chỉ cần **2 dòng** và **không bao giờ** phải
@@ -1912,7 +2128,7 @@ có `prev` và `next`.
 Tự viết là để **chứng minh hiểu cơ chế** — đúng yêu cầu cốt lõi của đồ án
 DSA. Xem mục 2.4 của `DSA-REPORT.md`.
 
-**Độ phức tạp.** `get` và `put` đều `O(1)`. Bộ nhớ `O(capacity)`, mặc định
+**Độ phức tạp.** `get` và `put` đều $O(1)$. Bộ nhớ $O(\text{capacity})$, mặc định
 200 mục.
 
 Đo thực tế qua HTTP: cache miss 34,5 ms → cache hit 12,8 ms (nhanh **2,7
@@ -1948,7 +2164,7 @@ ra — không có nó thì bấm Back sẽ vô tình ghi thêm một mục lịc
 gọi trực tiếp `array.push/pop` mà phải qua method của class — để thể hiện
 đúng tính đóng gói của cấu trúc Stack.
 
-**Độ phức tạp.** `push` / `pop` / `peek` đều `O(1)`.
+**Độ phức tạp.** `push` / `pop` / `peek` đều $O(1)$.
 
 ### 8.2. Trie prefix search bằng TypeScript
 
@@ -1962,7 +2178,7 @@ từ trong tiêu đề (`tin tức công nghệ` và `tin tức thể thao` đ�
 
 **Đánh đổi được ghi rõ:** Trie được **xây lại** mỗi lần gọi `searchByPrefix`
 (không lưu thường trú trong Zustand state, vì Trie không serialize được sang
-JSON để persist). Chấp nhận `O(tổng số bookmark)` mỗi lần tìm, vì số bookmark
+JSON để persist). Chấp nhận $O(B)$ mỗi lần tìm, vì số bookmark
 thực tế rất nhỏ, đổi lại đơn giản hoá đáng kể việc đồng bộ Trie với cây khi
 thêm/xoá.
 
@@ -1981,16 +2197,21 @@ thêm/xoá.
    │     ├─ (df = 0 ở bất kỳ term → trả rỗng ngay)
    │     ├─ PostingListMerger.intersectAll()     O(Σ|list|), two-pointer + shortest-first
    │     │     → 1.639 docId ứng viên
-   │     ├─ matchesPhrase() nếu có "cụm từ"      theo vị trí liên tiếp
-   │     └─ loại excludedTerms
+   │     ├─ PhraseNode  — filter-and-refine      giao thô rồi khớp vị trí liên tiếp
+   │     └─ NotNode.evaluateAgainst()            two-pointer O(m+n)
+   │
+   ├─ CandidateFilter chain  — Chain of Responsibility
+   │     ├─ DomainFilter          (site:vnexpress.net)
+   │     └─ MaxCandidatesFilter   (chặn trên 10.000)
    │
    ├─ ResultRanker.rank()  — BA BƯỚC TÁCH RỜI
    │     ├─ BƯỚC 1: chấm điểm mọi ứng viên       O(c · q · log d)
-   │     │     TfIdfScorer / BM25Scorer          binary search posting list
-   │     │     + PageRankService (tính sẵn)      power iteration, O(iter · (nnz+N))
-   │     │     → finalScore = α·relevance + β·pageRank + γ·titleBonus
+   │     │     scorer.score(...) — một lời gọi đa hình:
+   │     │       TitleBoostScorer( PageRankBoostScorer( BM25Scorer ))
+   │     │       do ScorerFactory lắp từ application.properties
+   │     │       final = base × (1 + w·p̂)   ← NHÂN, bất biến với thang đo
    │     ├─ BƯỚC 2: MinHeap.topK(topN)           O(c log topN), KHÔNG sort toàn bộ
-   │     └─ BƯỚC 3: buildSnippet CHỈ cho topN    O(topN · docLength), cửa sổ trượt
+   │     └─ BƯỚC 3: SnippetBuilder CHỈ cho topN  O(topN · docLength), cửa sổ trượt
    │
    ├─ cắt trang [fromIndex, toIndex)
    ├─ LRUCache.put(cacheKey, response)           O(1)

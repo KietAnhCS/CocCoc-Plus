@@ -35,12 +35,12 @@ Việc thứ ba từng là một **lỗi hiệu năng nghiêm trọng** đã đ�
 
 ## 1. Công thức kết hợp
 
+### 1.1 Bản cũ — cộng tuyến tính, chôn cứng trong lớp này
+
 $$\text{finalScore}(d) = \alpha \cdot \text{relevance}(d,q) \;+\; \beta \cdot \text{PR}(d) \;+\; \gamma \cdot \text{titleBonus}(d,q)$$
 
 ```java
-public ResultRanker() {
-    this(0.6, 0.3, 0.1);
-}
+public ResultRanker() { this(0.6, 0.3, 0.1); }          // ← BẢN CŨ
 ...
 double finalScore = alpha * relevance + beta * pageRank + gamma * titleBonus;
 ```
@@ -51,15 +51,25 @@ double finalScore = alpha * relevance + beta * pageRank + gamma * titleBonus;
 | $\beta$ | 0,3 | PageRank | *Trang này có uy tín không?* |
 | $\gamma$ | 0,1 | Khớp tiêu đề | *Tiêu đề có đúng thứ tôi gõ không?* |
 
-Ba trọng số cộng lại bằng 1 — nhìn thì gọn, nhưng §6 sẽ cho thấy điều đó **không có ý nghĩa gì** khi ba thành phần không cùng thang đo.
+Ba trọng số cộng lại bằng 1 — nhìn thì gọn, nhưng **§6 sẽ cho thấy điều đó không có ý nghĩa gì** khi ba thành phần không cùng thang đo. Đây là lỗi nghiêm trọng nhất mà dự án tự phát hiện bằng đo đạc.
 
-Trọng số truyền qua constructor và đọc từ `application.properties`:
+### 1.2 Bản hiện tại — kết hợp tín hiệu đã rời khỏi lớp này
+
+`ResultRanker` nay **không còn kết hợp tín hiệu**. Nó chỉ gọi `scorer.score(...)` và nhận về một điểm duy nhất:
 
 ```java
-@Value("${app.ranking.alpha:0.6}") private double alpha;
+double finalScore = scorer.score(queryTermFrequency, docId, index);
+double pageRank   = pageRankScores == null ? 0.0 : pageRankScores.getOrDefault(docId, 0.0);
+scored.add(new ScoredCandidate(doc, finalScore, pageRank));   // pageRank chỉ để HIỂN THỊ
 ```
 
-Nhờ vậy `EvaluationHarness` chạy được 11 cấu hình ablation mà không sửa code.
+Việc kết hợp chuyển sang chuỗi **Decorator** bọc quanh `RelevanceScorer`, dùng **phép nhân** thay phép cộng:
+
+$$\text{final} = \text{base} \times \bigl(1 + w \cdot \hat{p}\bigr), \qquad \hat{p} \in [0,1]$$
+
+`ScorerFactory` lắp chuỗi đó từ `application.properties`, nên `EvaluationHarness` vẫn chạy được các cấu hình ablation mà không sửa code — nhưng nay **người dùng thật cũng đổi được**, chỉ bằng một dòng cấu hình.
+
+> `ResultRanker` từ **ba việc** (chấm điểm + kết hợp tín hiệu + sinh snippet) xuống **một việc**: chấm điểm và lấy top-K. Sinh snippet chuyển sang `SnippetBuilder`, kết hợp tín hiệu chuyển sang Decorator. Xem [**03-DECORATOR.md**](../09-design-patterns/03-DECORATOR.md).
 
 ---
 
@@ -350,7 +360,13 @@ $$\log\text{final} = \alpha\log r + \beta\log p + \gamma\log(1+t)$$
 
 Cách này bất biến với việc nhân thang — nghĩa là PageRank nhỏ vẫn có tiếng nói tương xứng. Nhược điểm: một thành phần bằng 0 làm cả tích bằng 0, phải xử lý riêng.
 
-**Đề xuất cài đặt (Decorator pattern cho scorer) ở [PATTERNS-DE-XUAT.md](../09-design-patterns/DESIGN-PATTERNS.md).**
+> ✅ **Đã cài đặt.** Bản hiện tại dùng **Decorator**: `PageRankBoostScorer` và `TitleBoostScorer` bọc scorer cơ sở và **nhân** thay vì cộng:
+>
+> $$\text{final} = \text{base} \times \bigl(1 + w\,\hat{p}\bigr), \qquad \hat{p} = \frac{\log(1 + p/p_{\min})}{\log(1 + p_{\max}/p_{\min})} \in [0,1]$$
+>
+> Logarit nén dải động của PageRank; phép nhân làm công thức **bất biến với thang đo** của scorer cơ sở, nên đổi TF-IDF sang BM25 không phải chỉnh lại trọng số. Có test khẳng định đúng tính chất đó (`pageRankBoostIsInvariantToBaseScorerScale`).
+>
+> Phân tích đầy đủ: [**03-DECORATOR.md**](../09-design-patterns/03-DECORATOR.md).
 
 ### 6.5 Vì sao vẫn đáng ghi nhận
 

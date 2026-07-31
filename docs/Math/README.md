@@ -10,7 +10,7 @@ Tài liệu này quét **toàn bộ mã nguồn** của dự án và tổng hợ
 - **Chủ đề DSA** mà đoạn code đó thể hiện
 - **Hạn chế đã biết**, nói thẳng
 
-**28 tài liệu**, chia theo 9 nhóm, cộng 3 tài liệu về design pattern và chấm điểm.
+**30 tài liệu** phân tích mã nguồn, chia theo 8 nhóm, cộng **15 tài liệu** về design pattern, OOP và chấm điểm ở nhóm 9.
 
 > 📖 **Đọc [00 — Từ điển ký hiệu toán](00-KY-HIEU-TOAN.md) trước tiên** nếu chưa quen ký hiệu.
 
@@ -20,7 +20,7 @@ Tài liệu này quét **toàn bộ mã nguồn** của dự án và tổng hợ
 
 ### 0. Từ điển ký hiệu — [`00-KY-HIEU-TOAN.md`](00-KY-HIEU-TOAN.md)
 
-Mọi ký hiệu lạ xuất hiện trong 27 tài liệu còn lại đều được giải thích ở đây, bằng tiếng Việt thường, kèm ví dụ số lấy từ chính corpus 5.011 trang.
+Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn còn lại đều được giải thích ở đây, bằng tiếng Việt thường, kèm ví dụ số lấy từ chính corpus 5.011 trang.
 
 ### 1. Thu thập dữ liệu — [`01-crawler/`](01-crawler/)
 
@@ -45,6 +45,8 @@ Mọi ký hiệu lạ xuất hiện trong 27 tài liệu còn lại đều đư�
 |---|---|---|
 | [InvertedIndex](03-index/InvertedIndex.md) | `index/InvertedIndex.java` | **Bất biến quan trọng nhất dự án**, binary search, chỉ mục kép có/không dấu, `>>>` chống tràn |
 | [IndexPersistence](03-index/IndexPersistence.md) | `index/IndexPersistence.java` | Trạng thái dẫn xuất phải cập nhật ở **mọi** đường vào, chuỗi dự phòng 4 tầng |
+| [**VByteCodec**](03-index/VByteCodec.md) | `index/VByteCodec.java` | **Delta + variable-byte**, tiết kiệm **75 %**, thao tác bit, đóng gói 2 giá trị vào một `long` |
+| [**TermDictionary**](03-index/TermDictionary.md) | `index/TermDictionary.java` | **Flyweight**, 7 triệu → 136.768 `String`, định luật Zipf/Heaps, vì sao không dùng `String.intern()` |
 
 ### 4. Xử lý truy vấn — [`04-query/`](04-query/)
 
@@ -62,6 +64,7 @@ Mọi ký hiệu lạ xuất hiện trong 27 tài liệu còn lại đều đư�
 | [BM25Scorer](05-ranking/BM25Scorer.md) | `ranking/BM25Scorer.java` | **Hàm bão hoà có tiệm cận $k_1+1$**, điểm nửa bão hoà, IDF Robertson–Sparck Jones |
 | [PageRankService](05-ranking/PageRankService.md) | `ranking/PageRankService.java` | **Chuỗi Markov, Perron–Frobenius, chứng minh $\sum\text{PR}=1$**, hội tụ $C\,d^{\,k}$, 53 vòng |
 | [ResultRanker](05-ranking/ResultRanker.md) | `ranking/ResultRanker.java` | **Cửa sổ trượt $O(n)$**, top-K, và **phân tích lỗi thang đo 1000×** |
+| [**QuerySyllables**](05-ranking/QuerySyllables.md) | `ranking/QuerySyllables.java` | **Ánh xạ nhiều-một và mất thông tin**, điểm bất động, kẹp trần chống nhồi từ khoá |
 
 ### 6. Cấu trúc dữ liệu — [`06-datastructures/`](06-datastructures/)
 
@@ -71,6 +74,7 @@ Mọi ký hiệu lạ xuất hiện trong 27 tài liệu còn lại đều đư�
 | [Trie](06-datastructures/Trie.md) | `datastructure/Trie.java` | $O(L)$ **không phụ thuộc $M$**, tách khoá tra cứu khỏi chuỗi hiển thị, DFS quay lui |
 | [LRUCache](06-datastructures/LRUCache.md) | `datastructure/LRUCache.java` | HashMap + DLL, **sentinel xoá mọi nhánh `if`**, vì sao `get` phải khoá **ghi** |
 | [SparseMatrix](06-datastructures/SparseMatrix.md) | `datastructure/SparseMatrix.java` | **$\rho = \bar k/N \propto 1/N$**, 191,5 MB → 3,7 MB, lưu ở dạng đã chuyển vị |
+| [**ArrayPostingCursor**](06-datastructures/ArrayPostingCursor.md) | `index/ArrayPostingCursor.java` | **Galloping search**, chứng minh $O(m\log\frac{n}{m})$ bằng Jensen, sentinel, 4005 → 48 bước |
 
 ### 7. Đánh giá chất lượng — [`07-eval/`](07-eval/)
 
@@ -91,8 +95,26 @@ Mọi ký hiệu lạ xuất hiện trong 27 tài liệu còn lại đều đư�
 
 | Tài liệu | Nội dung chính |
 |---|---|
+| [**README**](09-design-patterns/README.md) | Chỉ mục loạt bài học OOP, lộ trình đọc, tra cứu ngược theo khái niệm |
 | [**DESIGN-PATTERNS**](09-design-patterns/DESIGN-PATTERNS.md) | **10 mẫu thiết kế** — mỗi mẫu giải một vấn đề đo được, kèm mã thật và số liệu |
 | [**CHAM-DIEM**](09-design-patterns/CHAM-DIEM.md) | **Chấm điểm OOP · DSA · Design Pattern** — tiêu chí có trọng số công khai, dẫn chứng từ code |
+
+**Loạt 12 trang học OOP — mỗi mẫu một trang:**
+
+| # | Trang | Trong dự án |
+|---|---|---|
+| 00 | [OOP căn bản](09-design-patterns/00-OOP-CO-BAN.md) | 4 trụ cột, SOLID, composition vs kế thừa |
+| 01 | [Strategy](09-design-patterns/01-STRATEGY.md) | `RelevanceScorer`, `Tokenizer`, `SearchIndex`, `DocumentStore` |
+| 02 | [Factory](09-design-patterns/02-FACTORY.md) | `ScorerFactory` |
+| 03 | [Decorator](09-design-patterns/03-DECORATOR.md) | `PageRankBoostScorer`, `TitleBoostScorer` |
+| 04 | [Composite](09-design-patterns/04-COMPOSITE.md) | `QueryNode` + 5 nút |
+| 05 | [Chain of Responsibility](09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md) | `CandidateFilter` + 2 lọc |
+| 06 | [State](09-design-patterns/06-STATE.md) | `CrawlStatus` |
+| 07 | [Observer](09-design-patterns/07-OBSERVER.md) | `CrawlListener` |
+| 08 | [Builder](09-design-patterns/08-BUILDER.md) | `CrawlConfig` |
+| 09 | [Iterator / Cursor](09-design-patterns/09-ITERATOR-CURSOR.md) | `PostingCursor` |
+| 10 | [Flyweight](09-design-patterns/10-FLYWEIGHT.md) | `TermDictionary` |
+| 11 | [Bảy mẫu bổ trợ](09-design-patterns/11-MAU-BO-TRO.md) | Facade, Adapter, Repository, Value Object, Cache-Aside, Producer–Consumer, DI |
 
 ---
 
@@ -108,6 +130,9 @@ Mọi ký hiệu lạ xuất hiện trong 27 tài liệu còn lại đều đư�
 | **Danh sách liên kết đôi** | Thứ tự LRU | [LRUCache](06-datastructures/LRUCache.md) |
 | **Ngăn xếp (LIFO)** | Back/forward trình duyệt | [Stack](08-frontend/Stack.md) |
 | **Cấu trúc xác suất** | Khử trùng lặp URL | [BloomFilter](01-crawler/BloomFilter.md) |
+| **Kho chuỗi dùng chung** (Flyweight) | Khóa term của chỉ mục | [TermDictionary](03-index/TermDictionary.md) |
+| **Con trỏ có nhảy cóc** (skip cursor) | Duyệt posting list không cấp phát | [ArrayPostingCursor](06-datastructures/ArrayPostingCursor.md) |
+| **Mã có độ dài thay đổi** (VByte) | Nén chỉ mục | [VByteCodec](03-index/VByteCodec.md) |
 | **Ma trận thưa** | Đồ thị liên kết web | [SparseMatrix](06-datastructures/SparseMatrix.md) |
 | **Chỉ mục đảo** | Tra tài liệu chứa term | [InvertedIndex](03-index/InvertedIndex.md) |
 | **Adjacency list** | Đồ thị 239.691 cạnh | [SparseMatrix](06-datastructures/SparseMatrix.md) |
@@ -127,6 +152,8 @@ Mọi ký hiệu lạ xuất hiện trong 27 tài liệu còn lại đều đư�
 | **Longest-prefix-match** | $O(R\cdot L)$ | [RobotsTxtParser](01-crawler/RobotsTxtParser.md) |
 | **DFS có quay lui** | $O(m)$ | [Trie](06-datastructures/Trie.md) |
 | **Double hashing** | $O(k)$ | [BloomFilter](01-crawler/BloomFilter.md) |
+| **Galloping / exponential search** | $O(\log d)$ — không phụ thuộc $n$ | [ArrayPostingCursor](06-datastructures/ArrayPostingCursor.md) |
+| **Delta encoding + prefix sum** | $O(n)$ | [VByteCodec](03-index/VByteCodec.md) |
 
 ### Kỹ thuật tối ưu
 
@@ -135,6 +162,9 @@ Mọi ký hiệu lạ xuất hiện trong 27 tài liệu còn lại đều đư�
 | **Tách hàng đợi theo host** | $O(n\log n) \to O(D+\log n_d)$ — **112 000×** | [UrlFrontier](01-crawler/UrlFrontier.md) |
 | **Ma trận thưa** | 191,5 MB → 3,7 MB — **52×** | [SparseMatrix](06-datastructures/SparseMatrix.md) |
 | **Bloom Filter thay HashSet** | 108 MB → 1,1 MB — **95×** | [BloomFilter](01-crawler/BloomFilter.md) |
+| **Delta + VByte nén chỉ mục** | 6.556 B → 1.639 B — **tiết kiệm 75 %** | [VByteCodec](03-index/VByteCodec.md) |
+| **Galloping skip pointer** | 4.005 bước → **48 bước** — 83× | [ArrayPostingCursor](06-datastructures/ArrayPostingCursor.md) |
+| **Flyweight cho term** | ~7 triệu → **136.768** `String` — 51× | [TermDictionary](03-index/TermDictionary.md) |
 | **Hoãn công việc đắt** | 500 snippet → 10 — **50×** | [ResultRanker](05-ranking/ResultRanker.md) |
 | **Two-pointer thay HashSet** | 27,0 ms → 10,0 ms — **2,7×** | [PostingListMerger](04-query/PostingListMerger.md) |
 | **Cache LRU** | 34,5 ms → 12,8 ms — **2,7×** | [LRUCache](06-datastructures/LRUCache.md) |
@@ -248,9 +278,22 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 - **Cấu hình Spring**: `CorsConfig`, `GlobalExceptionHandler`, `VnSearchApplication`
 - **Controller**: `SearchController`, `SuggestController`, `AdminController` — chỉ ràng buộc tham số rồi uỷ quyền cho Facade
 - **Runner / script**: `MultiDomainCrawlRunner`, `EvaluationRunner`, `QrelsEvaluationRunner`, `PostgresImportRunner`, `GinBaselineRunner` — điều phối và sinh báo cáo, không có thuật toán riêng
-- **Lớp keo dán**: `SearchEngineFacade` (phân tích ở [CHAM-DIEM §2.3](09-design-patterns/CHAM-DIEM.md)), `EvaluationHarness` (ở [PoolBuilder §2](07-eval/PoolBuilder.md))
+- **Lớp keo dán**: `SearchEngineFacade` (phân tích ở [CHAM-DIEM §2.3](09-design-patterns/CHAM-DIEM.md) và [11-MAU-BO-TRO §1](09-design-patterns/11-MAU-BO-TRO.md)), `EvaluationHarness` (ở [PoolBuilder §2](07-eval/PoolBuilder.md))
 - **Truy cập CSDL**: `DocumentRepository` — CRUD JDBC chuẩn, phần GIN đã có `docs/GIN-BASELINE.md` riêng
 - **Frontend**: `tabManager.ts`, `ipcHandlers.ts`, các store Zustand — bố cục UI và IPC
+- **Interface thuần và lớp thực thi mẫu thiết kế**: `Tokenizer`, `SearchIndex`, `DocumentStore`, `CandidateFilter`, `QueryNode` + 5 nút, `PostingCursor`, `CrawlListener`, `ScorerFactory`, `CrawlStatus`, `CrawlConfig`, hai Decorator, hai Filter, `IndexBuilder`, `SuggestionService`, `CrawlJobManager`, `LanguageDetector`, `SnippetBuilder` — chúng **không chứa toán học mới**, nhưng mỗi cái có một trang riêng trong [`09-design-patterns/`](09-design-patterns/README.md) phân tích **vấn đề thiết kế** mà nó giải
+
+**Đối chiếu nhanh — mọi file `.java` có nội dung thuật toán đều đã có trang:**
+
+| Gói | File có trang riêng |
+|---|---|
+| `datastructure/` | BloomFilter, LRUCache, MinHeap, SparseMatrix, Trie, UrlFrontier — **6/6** ✅ |
+| `index/` | InvertedIndex, IndexPersistence, VietnameseTokenizer, VByteCodec, TermDictionary, ArrayPostingCursor — **6/6** ✅ |
+| `crawler/` | CrawlerService, HtmlExtractor, RobotsTxtParser, UrlCanonicalizer — **4/4** ✅ |
+| `query/` | PostingListMerger, QueryParser, CandidateResolver — **3/3** ✅ |
+| `ranking/` | TfIdfScorer, BM25Scorer, PageRankService, ResultRanker, QuerySyllables — **5/5** ✅ |
+| `eval/` | EvaluationMetrics, KnownItemQueryGenerator, PoolBuilder — **3/3** ✅ |
+| Frontend | Stack, BookmarkTrie — **2/2** ✅ |
 
 ---
 
@@ -270,15 +313,17 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 
 **Nếu bạn viết báo cáo đồ án**, bắt đầu từ:
 
-[CHAM-DIEM](09-design-patterns/CHAM-DIEM.md) → [DESIGN-PATTERNS](09-design-patterns/DESIGN-PATTERNS.md) → [PATTERNS-DE-XUAT](09-design-patterns/DESIGN-PATTERNS.md)
+[CHAM-DIEM](09-design-patterns/CHAM-DIEM.md) → [DESIGN-PATTERNS](09-design-patterns/DESIGN-PATTERNS.md) → [loạt 12 trang học OOP](09-design-patterns/README.md)
 
-**Nếu bạn muốn cải thiện dự án**, ba việc rẻ nhất có lợi ích lớn nhất:
+**Nếu bạn muốn hiểu OOP qua chính dự án này**, đọc [09-design-patterns/README.md](09-design-patterns/README.md) — mỗi design pattern một trang, kèm mã thật, lỗi mà nó sửa, và câu hỏi bảo vệ.
 
-1. **Factory cho scorer** (~30 dòng) — biến kết quả đo BM25 thành tính năng dùng được
-2. **State enum cho `CrawlJob`** (~40 dòng) — xoá một nguồn lỗi thầm lặng
-3. **Sửa thread-safety của `Trie`** — đây là một lỗi thật, không phải hạn chế
+**Nếu bạn muốn cải thiện dự án**, những hạn chế **còn lại** (ba việc trong danh sách cũ — Factory cho scorer, State enum cho `CrawlJob`, thread-safety của `Trie` — **đều đã làm xong**):
 
-Chi tiết: [PATTERNS-DE-XUAT §Lộ trình](09-design-patterns/DESIGN-PATTERNS.md)
+1. **Mở rộng từ điển từ ghép** từ 154 mục lên 30.000–70.000 — đây là **trần chất lượng** của cả hệ thống
+2. **Kiểm định thống kê** cho chênh lệch MRR (paired t-test)
+3. **WAND / MaxScore** thay cho `MaxCandidatesFilter` — tối ưu top-K chính xác
+
+Chi tiết: [CHAM-DIEM §Hạn chế còn lại](09-design-patterns/CHAM-DIEM.md)
 
 ---
 

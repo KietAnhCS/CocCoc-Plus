@@ -352,7 +352,7 @@ Các hạn chế khác:
 2. **Longest Matching là tham lam, không tối ưu toàn cục.** Có trường hợp chọn cụm dài nhất tại vị trí $i$ khiến phần còn lại không ghép được, trong khi chọn cụm ngắn hơn sẽ cho kết quả tổng thể tốt hơn. Thuật toán đúng là **quy hoạch động** trên toàn câu (tối đa hoá tổng điểm), hoặc mô hình xác suất (CRF, n-gram) như VnCoreNLP dùng.
 3. **Không xử lý từ láy, tên riêng, số, đơn vị.** `Hà Nội` bị tách thành 2 token nếu không có trong từ điển.
 4. **Nạp từ điển trong constructor.** Mỗi `new VietnameseTokenizer()` đọc lại 2 tệp từ classpath. `SearchEngineFacade` tạo một instance dùng chung, nhưng `QueryParser()` và `EvaluationHarness` có constructor không tham số tự tạo instance mới — lãng phí và dễ dẫn tới hai từ điển khác nhau nếu tệp thay đổi.
-5. **Không có tokenizer nào khác để so sánh.** Vì `VietnameseTokenizer` là lớp cụ thể chứ không phải interface, không thể làm thí nghiệm ablation "tokenizer nào tốt hơn" — trong khi `RelevanceScorer` thì làm được. Đề xuất cải tiến ở [PATTERNS-DE-XUAT.md](../09-design-patterns/DESIGN-PATTERNS.md).
+5. ~~**Không có tokenizer nào khác để so sánh.**~~ ✅ **Đã khắc phục** — nay có interface `Tokenizer`, nên thí nghiệm ablation *"tokenizer nào tốt hơn"* đã đo được, xoá bỏ sự bất đối xứng với `RelevanceScorer`. `InvertedIndex` và `QueryParser` đều nhận `Tokenizer` qua constructor, ép luôn bất biến *"index và query phải dùng cùng một cài đặt"*. Xem [**01-STRATEGY.md §4.2**](../09-design-patterns/01-STRATEGY.md).
 
 ---
 

@@ -58,22 +58,21 @@ Nghĩa là với `maxPages = 5000`, crawler thực tế **chưa duyệt xong l�
 
 ```java
 private void workerLoop(CrawlConfig config) {
-    final int IDLE_CONFIRMATIONS = 3;
     int idleChecks = 0;
 
-    while (pagesCrawled.get() < config.maxPages) {
+    while (pagesCrawled.get() < config.maxPages()) {
         UrlFrontier.Task task = frontier.nextUrl();
         if (task == null) {
-            if (activeWorkers.get() == 0 && ++idleChecks >= IDLE_CONFIRMATIONS) {
-                break; // that su het viec
+            if (activeWorkers.get() == 0 && ++idleChecks >= idleConfirmations) {
+                break; // thật sự hết việc
             }
             try { Thread.sleep(200); } catch (InterruptedException e) { ...; return; }
             continue;
         }
-        idleChecks = 0;
+        idleChecks = 0; // chỉ tích luỹ khi LIÊN TỤC rỗng
 
-        if (task.depth() > config.maxDepth
-                || !isAllowedDomain(task.url(), config.allowedDomains)
+        if (task.depth() > config.maxDepth()
+                || !isAllowedDomain(task.url(), config.allowedDomains())
                 || visited.mightContain(task.url())) {
             continue;
         }
@@ -91,10 +90,10 @@ private void workerLoop(CrawlConfig config) {
             doc.setDocId(docIdCounter.getAndIncrement());
             crawled.put(task.url(), doc);
             int count = pagesCrawled.incrementAndGet();
-            ...
-            if (task.depth() < config.maxDepth) {
+            notifyPageCrawled(new CrawlListener.CrawlEvent(...));   // ← Observer
+            if (task.depth() < config.maxDepth()) {
                 for (String outlink : doc.getOutlinks()) {
-                    if (isAllowedDomain(outlink, config.allowedDomains)
+                    if (isAllowedDomain(outlink, config.allowedDomains())
                             && !visited.mightContain(outlink)) {
                         frontier.addUrl(outlink, task.depth() + 1, 1);
                     }
@@ -138,12 +137,12 @@ private final AtomicInteger activeWorkers = new AtomicInteger(0);
 ```
 
 ```java
-if (activeWorkers.get() == 0 && ++idleChecks >= IDLE_CONFIRMATIONS) {
+if (activeWorkers.get() == 0 && ++idleChecks >= idleConfirmations) {
     break;
 }
 ```
 
-### 3.1 Vì sao cần `IDLE_CONFIRMATIONS = 3` chứ không phải 1
+### 3.1 Vì sao cần `idleConfirmations = 3` chứ không phải 1
 
 Vì `frontier.nextUrl()` và `activeWorkers.get()` là **hai phép đọc riêng biệt, không nguyên tử với nhau**. Có một cửa sổ đua thật sự:
 
@@ -191,7 +190,7 @@ Crawler có **ba** cơ chế dừng độc lập, mỗi cơ chế chặn một k
 | Cơ chế | Chặn kiểu hỏng nào | Code |
 |---|---|---|
 | `maxPages` | Đủ dữ liệu thì dừng | `while (pagesCrawled.get() < config.maxPages)` |
-| `maxDepth` | Lao quá sâu vào một nhánh | `if (task.depth() > config.maxDepth) continue;` |
+| `maxDepth` | Lao quá sâu vào một nhánh | `if (task.depth() > config.maxDepth()) continue;` |
 | `maxDurationMinutes` | Mọi thứ khác hỏng | `latch.await(config.maxDurationMinutes, TimeUnit.MINUTES)` |
 
 ```java
@@ -225,12 +224,10 @@ private WebDocument fetchWithRetry(String url) {
                     .userAgent(USER_AGENT).timeout(TIMEOUT_MS).followRedirects(true).get();
             return htmlExtractor.extract(url, document);
         } catch (Exception e) {
-            if (attempt == MAX_RETRIES) {
-                System.out.printf("  [loi] khong the fetch %s sau %d lan thu: %s%n",
-                        url, MAX_RETRIES + 1, e.getMessage());
-            }
+            lastError = e;                      // ghi nho, chua bao
         }
     }
+    notifyError(url, lastError);                // <- Observer: listener tu quyet dinh log the nao
     return null;
 }
 ```
@@ -241,7 +238,9 @@ private WebDocument fetchWithRetry(String url) {
 
 $$(\text{MAX\_RETRIES} + 1) \times \text{TIMEOUT} = 3 \times 10\text{s} = \mathbf{30\ giây}$$
 
-Chỉ log ở lần thử **cuối** (`if (attempt == MAX_RETRIES)`) để không spam console — với 5.000 trang và tỉ lệ lỗi vài phần trăm, chênh lệch là hàng trăm dòng log.
+Chỉ báo lỗi **một lần**, sau khi đã hết số lần thử — với 5.000 trang và tỉ lệ lỗi vài phần trăm, chênh lệch so với báo mỗi lần thử là hàng trăm dòng log.
+
+**Việc *báo* đã tách khỏi việc *thực thi*.** Bản cũ gọi thẳng `System.out.printf` trong vòng lặp worker; bản hiện tại phát sự kiện qua `notifyError(url, lastError)`, và từng `CrawlListener` tự quyết định làm gì: in log, đẩy WebSocket, hoặc — trong test — **không đăng ký gì cả**. Xem [**07-OBSERVER.md**](../09-design-patterns/07-OBSERVER.md).
 
 > **Ghi chú:** đây là retry đơn giản, **không có exponential backoff**. Với crawler nghiêm túc nên giãn khoảng chờ theo số lần thất bại ($1s, 2s, 4s, \dots$) để không dồn tải lên một server đang gặp sự cố. Ở đây politeness delay 1 giây đã tạo ra một mức giãn tối thiểu, nhưng không tăng theo số lần lỗi.
 
@@ -311,7 +310,9 @@ CrawlerService.CrawlConfig config = new CrawlerService.CrawlConfig()
 
 **Vì sao tốt hơn constructor 6 tham số:** `new CrawlConfig(3, 5000, 12, domains, 90, 25)` không đọc được — người đọc phải tra thứ tự tham số. Fluent setter làm mỗi giá trị **tự giải thích tên**.
 
-**Vì sao đây chưa phải Builder pattern đầy đủ:** trường là `public` và có thể sửa **sau khi** đã dùng, nên đối tượng không bất biến. Builder đúng nghĩa sẽ có `CrawlConfig.Builder` riêng với `build()` trả về một `CrawlConfig` bất biến. Phân tích và đề xuất cải tiến ở [09-design-patterns/PATTERNS-DE-XUAT.md](../09-design-patterns/DESIGN-PATTERNS.md).
+> ✅ **Đã khắc phục.** Bản trích ở trên là `CrawlConfig` **cũ**: trường `public`, sửa được **sau khi** đã dùng, và không kiểm tra hợp lệ ở đâu cả. Bản hiện tại là một object **bất biến hoàn toàn**, dựng qua `CrawlConfig.builder()…build()`, với mọi ràng buộc kiểm tra tập trung trong `build()` và `Set.copyOf` làm bản sao phòng thủ cho `allowedDomains`. 10 test riêng, gồm 2 test cho bản sao phòng thủ.
+>
+> Phân tích đầy đủ: [**08-BUILDER.md**](../09-design-patterns/08-BUILDER.md).
 
 ---
 

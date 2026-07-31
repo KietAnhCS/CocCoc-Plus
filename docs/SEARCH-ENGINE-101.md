@@ -163,15 +163,15 @@ Muốn 400 trang/giây thì phải có ít nhất **400 host** được crawl so
 
 Đây cũng là lý do phải **tách hàng đợi theo host**. Với một heap toàn cục, khi
 phần tử đầu thuộc host đang bị hoãn, ta phải rút nó ra, gác lại, rút tiếp…
-Trường hợp xấu nhất phải rút **cạn** cả heap rồi nhét lại: **`O(n log n)` cho
+Trường hợp xấu nhất phải rút **cạn** cả heap rồi nhét lại: **$O(n\log n)$ cho
 mỗi lần lấy một URL**.
 
 Giải pháp là `Map<host, MinHeap>` — mỗi host một hàng đợi riêng, chỉ quét qua
-các host (`D` nhỏ) rồi lấy một phần tử: **`O(D + log n_d)`**. Đây chính là mô
+các host (`D` nhỏ) rồi lấy một phần tử: **$O(D + \log n_d)$**. Đây chính là mô
 hình "back queue" của crawler **Mercator** (Heydon & Najork, 1999).
 
 > ⚠️ **Cạm bẫy: lỗi này không lộ ra ở corpus nhỏ.** Ở quy mô 150 trang, chi
-> phí `O(n log n)` **không quan sát được**. Nhưng mỗi trang tin tức sinh trung
+> phí $O(n\log n)$ **không quan sát được**. Nhưng mỗi trang tin tức sinh trung
 > bình **78,8 outlink**, nên crawl 5.000 trang đẩy frontier lên hàng chục
 > nghìn URL và crawler thực tế **đứng hình**. Bài học: một số lỗi hiệu năng
 > chỉ tồn tại ở quy mô, nên **phải thử ở quy mô thật**.
@@ -349,8 +349,8 @@ Một mẫu thiết kế nhỏ nhưng đáng nhớ. Crawler có bốn lớp lọ
 chúng **không** tuỳ ý:
 
 ```java
-if (task.depth() > config.maxDepth                              // 1. so sánh số nguyên
-        || !isAllowedDomain(task.url(), config.allowedDomains)  // 2. parse URL + so chuỗi
+if (task.depth() > config.maxDepth()                            // 1. so sánh số nguyên
+        || !isAllowedDomain(task.url(), config.allowedDomains())// 2. parse URL + so chuỗi
         || visited.mightContain(task.url())) {                  // 3. k phép băm
     continue;
 }
@@ -417,7 +417,7 @@ matching*, và `khoa học máy tính` sẽ bị cắt thành `khoa_học` + `m�
 token thay vì một, làm mất khái niệm gốc. Chữ "Longest" trong tên thuật toán
 chính là chi tiết này.
 
-**Độ phức tạp** `O(n × 4) = O(n)` vì 4 là hằng số.
+**Độ phức tạp** $O(n \cdot 4) = O(n)$ vì 4 là hằng số.
 
 ⚠️ **Hai chi tiết cài đặt dễ bỏ qua:**
 
@@ -551,7 +551,7 @@ xách_tay  → [doc1]
 công_nghệ → [doc2]
 ```
 
-Giờ tra `máy_tính` là một phép tra `HashMap`: **`O(1)`**.
+Giờ tra `máy_tính` là một phép tra `HashMap`: **$O(1)$**.
 
 Đây là ý tưởng nền tảng của **mọi** máy tìm kiếm. Tên gọi "đảo" chính vì nó
 lật quan hệ `tài liệu → từ` thành `từ → tài liệu`.
@@ -595,16 +595,16 @@ Bất biến này mở khoá **hai** thứ, và đó chính là toàn bộ lý d
 
 | Mở khoá | Thay vì |
 |---|---|
-| **Giao posting list bằng two-pointer `O(m+n)`** (mục 5.2) | Sort lại `O(n log n)` mỗi truy vấn |
-| **Binary search `O(log n)`** để tra tần suất/vị trí của một tài liệu cụ thể | Quét tuyến tính `O(n)` |
+| **Giao posting list bằng two-pointer $O(m+n)$** (mục 5.2) | Sort lại $O(n\log n)$ mỗi truy vấn |
+| **Binary search $O(\log n)$** để tra tần suất/vị trí của một tài liệu cụ thể | Quét tuyến tính $O(n)$ |
 
 Người gọi phải giữ đúng tiền đề đó — nên mọi chỗ dựng chỉ mục đều sắp xếp
 trước:
 
 ```java
-sorted.sort((a, b) -> Integer.compare(a.getDocId(), b.getDocId()));
+sorted.sort(Comparator.comparingInt(WebDocument::getDocId));
 for (WebDocument doc : sorted) {
-    newIndex.addDocument(doc);
+    index.addDocument(doc);
 }
 ```
 
@@ -683,7 +683,7 @@ j hết → dừng
 Kết quả: [3, 5]
 ```
 
-Mỗi phần tử được xét đúng **một** lần: **`O(m+n)`**.
+Mỗi phần tử được xét đúng **một** lần: **$O(m+n)$**.
 
 **Vì sao không dùng `HashSet.retainAll`?** Đo thực tế với 2 danh sách 500.000
 phần tử:
@@ -833,8 +833,8 @@ quan hơn. Chia cho độ dài đưa mọi tài liệu về cùng thang đo.
 coi chúng tương đương, khoảng cách Euclid thì không.
 
 **Xấp xỉ của Lucene.** Dự án dùng `‖d‖ ≈ √(độ dài tài liệu)`. Tính chuẩn xác
-`‖d‖` đòi hỏi duyệt **mọi** term của tài liệu, tốn `O(|từ vựng|)` cho mỗi tài
-liệu — trong khi `getDocLength(docId)` là `O(1)` vì đã lưu sẵn. Đây là xấp xỉ
+`‖d‖` đòi hỏi duyệt **mọi** term của tài liệu, tốn $O(\lvert V\rvert)$ cho mỗi tài
+liệu — trong khi `getDocLength(docId)` là $O(1)$ vì đã lưu sẵn. Đây là xấp xỉ
 kinh điển của Lucene classic Similarity, và nó vẫn phát huy đúng tính chất
 "trang dài không được lợi thế quá mức vì lặp từ nhiều hơn".
 
@@ -1073,7 +1073,7 @@ ngoài corpus thì vẫn là **dangling node** theo định nghĩa này.
 chiều ngay từ đầu** — hàng `j` là danh sách các nguồn `i` trỏ tới `j` — thì
 phép nhân ma trận-vector thông thường đã tính đúng `Mᵀ · PR`, khỏi cần thao
 tác transpose riêng. Đây chỉ là chọn "chiều lưu" của ma trận, không phải thủ
-thuật gì phức tạp, nhưng nó tiết kiệm một bước `O(nnz)` và một bản copy ma
+thuật gì phức tạp, nhưng nó tiết kiệm một bước $O(\text{nnz})$ và một bản copy ma
 trận.
 
 ### 8.5. Ma trận thưa — vì sao bắt buộc
@@ -1175,7 +1175,7 @@ vấn.
 
 ### 9.3. Lấy top-K bằng Min-Heap
 
-Có 1.639 ứng viên, cần 10 kết quả tốt nhất. Sort toàn bộ là **`O(n log n)`** —
+Có 1.639 ứng viên, cần 10 kết quả tốt nhất. Sort toàn bộ là **$O(n\log n)$** —
 lãng phí, vì ta **vứt đi 1.629 kết quả**.
 
 **Kỹ thuật heap kích thước K.** Ý tưởng cốt lõi: đỉnh của min-heap là **phần tử
@@ -1190,7 +1190,7 @@ Duy trì min-heap tối đa K phần tử:
 Cuối cùng: lấy hết heap ra (được thứ tự tăng) rồi ĐẢO NGƯỢC
 ```
 
-Độ phức tạp **`O(n log K)`**. Với `n = 1639`, `K = 10`:
+Độ phức tạp **$O(n\log K)$**. Với `n = 1639`, `K = 10`:
 
 | Cách | Phép so sánh (xấp xỉ) |
 |---|---|
@@ -1220,7 +1220,7 @@ Bài toán: trong một bài viết 1.043 token, chọn đoạn 25 từ **chứa
 nhất**.
 
 Cách ngây thơ: với mỗi vị trí, đếm lại số từ khoá trong cửa sổ →
-**`O(n × windowSize)`**.
+**$O(n\cdot w)$**.
 
 **Cửa sổ trượt:** khi trượt sang phải một bước, chỉ có **một** từ ra khỏi cửa
 sổ và **một** từ vào:
@@ -1230,7 +1230,7 @@ count = count − (từ vừa ra là từ khoá ? 1 : 0)
               + (từ vừa vào là từ khoá ? 1 : 0)
 ```
 
-Cập nhật `O(1)` mỗi bước → tổng **`O(n)`**.
+Cập nhật $O(1)$ mỗi bước → tổng **$O(n)$**.
 
 **Ví dụ chạy tay** với `windowSize = 3`, dấu `*` là từ khoá:
 
@@ -1247,7 +1247,7 @@ thắng — với bài báo thì đoạn đầu thường là đoạn dẫn, nê
 
 ⚠️ **Cạm bẫy: nhớ tiền xử lý `isMatch[]` một lần.** Nếu gọi hàm so khớp lại ở
 mỗi vòng trượt thì phép so khớp (có cả bỏ dấu, hạ chữ thường) bị lặp
-`windowSize` lần cho mỗi từ — và bạn đã mất trắng ưu điểm `O(1)` vừa giành
+`windowSize` lần cho mỗi từ — và bạn đã mất trắng ưu điểm $O(1)$ vừa giành
 được.
 
 ### 10.2. Chỉ sinh snippet cho top-N
@@ -1257,7 +1257,7 @@ Một lỗi hiệu năng thật đã gặp trong dự án: `buildSnippet()` đư
 vứt đi ngay**.
 
 Sửa thành 3 bước: **chấm điểm → lấy top-K → chỉ sinh snippet cho K tài liệu
-sống sót.** Chi phí giảm từ `O(c × docLength)` xuống `O(topN × docLength)`.
+sống sót.** Chi phí giảm từ $O(c\cdot\lvert d\rvert)$ xuống $O(\text{topN}\cdot\lvert d\rvert)$.
 
 **Vì sao Big-O không phát hiện được lỗi này.** Vì cả hai bản đều là "một vòng
 lặp qua `c` ứng viên". Sai lệch nằm ở **hằng số** bên trong vòng lặp — mà Big-O
@@ -1313,7 +1313,7 @@ Truy vấn phổ biến được lặp lại rất nhiều. Cache kết quả th
 **LRU (Least Recently Used)**: khi cache đầy, loại bỏ mục **lâu nhất không được
 dùng**.
 
-Yêu cầu: cần hai thao tác **đồng thời** `O(1)` — tra cứu theo khoá, và di
+Yêu cầu: cần hai thao tác **đồng thời** $O(1)$ — tra cứu theo khoá, và di
 chuyển một mục lên đầu thứ tự sử dụng. Một cấu trúc không làm được cả hai, nên
 **ghép hai cấu trúc**:
 
@@ -1322,14 +1322,14 @@ HashMap:   khoá → node          (tra cứu O(1))
 Danh sách: MRU ⟷ ... ⟷ LRU      (thứ tự sử dụng)
 ```
 
-- `get(k)`: tra HashMap `O(1)`, chuyển node lên đầu `O(1)`
-- `put(k,v)`: thêm vào đầu, nếu quá sức chứa thì xoá node cuối `O(1)`
+- `get(k)`: tra HashMap $O(1)$, chuyển node lên đầu $O(1)$
+- `put(k,v)`: thêm vào đầu, nếu quá sức chứa thì xoá node cuối $O(1)$
 
 **Ba câu hỏi hay bị hỏi khi bảo vệ, và câu trả lời:**
 
 **(a) Vì sao danh sách liên kết *đôi*?** Để xoá một node ở **giữa** danh sách
-trong `O(1)`, cần biết **cả** node trước và node sau. Danh sách liên kết đơn
-phải duyệt từ đầu để tìm node trước → `O(n)`, và khi đó cache LRU mất hoàn toàn
+trong $O(1)$, cần biết **cả** node trước và node sau. Danh sách liên kết đơn
+phải duyệt từ đầu để tìm node trước → $O(n)$, và khi đó cache LRU mất hoàn toàn
 ưu điểm.
 
 **(b) Vì sao 2 sentinel node?** Hai node giả ở đầu và cuối, không chứa dữ liệu.
@@ -1371,10 +1371,10 @@ tiền tố.
 
 | Thao tác | Độ phức tạp |
 |---|---|
-| `insert` | `O(L)` với `L` là độ dài chuỗi |
-| Tìm node của tiền tố | `O(L)` |
-| Thu thập mọi từ dưới cây con (DFS) | `O(m)` |
-| Lấy top-k theo tần suất (`MinHeap.topK`) | `O(m log k)` |
+| `insert` | $O(L)$ với `L` là độ dài chuỗi |
+| Tìm node của tiền tố | $O(L)$ |
+| Thu thập mọi từ dưới cây con (DFS) | $O(m)$ |
+| Lấy top-k theo tần suất (`MinHeap.topK`) | $O(m\log k)$ |
 
 **Vấn đề riêng của tiếng Việt:** Trie khớp **từng ký tự chính xác**, nên tiền
 tố `cong` **không bao giờ** đi tới được nhánh `công nghệ`.
@@ -1413,7 +1413,7 @@ Cách sửa: tokenize tiêu đề rồi lấy **từ ghép** và **cặp token l
 bỏ tiêu đề không phải tiếng Việt, chỉ giữ cụm xuất hiện ≥ 3 lần, và `clear()`
 trước khi dựng lại.
 
-Lưu ý `Trie.clear()` là `O(1)` chứ không phải `O(n)` — chỉ cần bỏ tham chiếu
+Lưu ý `Trie.clear()` là $O(1)$ chứ không phải $O(n)$ — chỉ cần bỏ tham chiếu
 tới gốc cũ là toàn bộ cây con trở thành rác cho bộ gom rác thu hồi.
 
 > **Điểm đáng chú ý về lỗi thứ hai:** vấn đề "tiếng lẻ không phải từ" đã xuất
@@ -1752,17 +1752,17 @@ phải viết lại bằng `long` thay vì `int` (cả `numBits`, cả chỉ s�
 Frontier phải chuyển sang **lưu trên đĩa hoặc phân tán**, và tài liệu crawl
 được phải **ghi ra ngoài theo luồng** thay vì giữ trong RAM tới cuối phiên.
 
-### 13.3. Quét `O(D)` không còn rẻ
+### 13.3. Quét $O(D)$ không còn rẻ
 
 `nextUrl()` quét qua **mọi** host. Với 52 host thì không sao. Web thật có
 **~200 triệu host** — mỗi lần lấy một URL phải quét 200 triệu mục.
 
 Cần hàng đợi ưu tiên theo **thời điểm khả dụng tiếp theo** (một heap các host,
 sắp theo `lastAccess + delay`), không phải quét tuyến tính. Khi đó chi phí
-xuống `O(log D)`.
+xuống $O(\log D)$.
 
-Đây là ví dụ hay: một thiết kế **đúng** ở quy mô này (`O(D + log n_d)` thắng
-`O(n log n)`) lại **sai** ở quy mô khác, vì giả định "D nhỏ" không còn đúng.
+Đây là ví dụ hay: một thiết kế **đúng** ở quy mô này ($O(D + \log n_d)$ thắng
+$O(n\log n)$) lại **sai** ở quy mô khác, vì giả định "D nhỏ" không còn đúng.
 
 ### 13.4. Politeness đặt trần cứng lên thông lượng
 

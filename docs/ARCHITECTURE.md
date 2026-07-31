@@ -60,14 +60,18 @@ flowchart LR
 
     subgraph Backend["search-engine (Spring Boot, Java 17)"]
         Ctl["Controller: Search / Suggest / Admin"]
-        Facade[SearchEngineFacade]
+        Facade["SearchEngineFacade<br/>(chỉ điều phối)"]
+        Svc["IndexBuilder / SuggestionService<br/>CrawlJobManager / LanguageDetector"]
         Cache["LRUCache — 200 mục"]
-        Crawl[CrawlerService]
+        Crawl["CrawlerService + CrawlListener"]
         QP[QueryParser]
+        Ast["QueryNode — cây AND/OR/NOT<br/>(Composite)"]
+        Filt["CandidateFilter chain<br/>(Chain of Responsibility)"]
         Resolve[CandidateResolver]
-        Idx["InvertedIndex — TRONG BỘ NHỚ"]
-        Rank["TfIdfScorer / BM25Scorer<br/>PageRankService / ResultRanker"]
-        DS[("Trie / BloomFilter / MinHeap<br/>UrlFrontier / SparseMatrix")]
+        Idx["SearchIndex (interface)<br/>← InvertedIndex TRONG BỘ NHỚ"]
+        Fact["ScorerFactory<br/>(Factory + Decorator)"]
+        Rank["RelevanceScorer: TfIdf / BM25<br/>+ PageRankBoost / TitleBoost<br/>PageRankService / ResultRanker"]
+        DS[("Trie / BloomFilter / MinHeap<br/>UrlFrontier / SparseMatrix<br/>VByteCodec / PostingCursor / TermDictionary")]
     end
 
     subgraph Eval["Bộ đánh giá chất lượng (eval/)"]
@@ -84,17 +88,25 @@ flowchart LR
     UI -->|"REST /api/search, /api/suggest"| Ctl
     Ctl --> Facade
     Facade --> Cache
+    Facade --> Svc
     Facade --> QP
     QP --> Resolve
-    Resolve --> Idx
+    Resolve --> Ast
+    Resolve --> Filt
+    Ast --> Idx
+    Filt --> Idx
+    Facade --> Fact
+    Fact --> Rank
     Facade --> Rank
+    Rank --> Idx
+    Idx --> DS
     Rank --> DS
-    Facade --> Crawl
+    Svc --> Crawl
     Crawl --> Web
-    Crawl --> Idx
+    Svc --> Idx
     Idx --> Data
     Crawl --> PG
-    PG -->|"nạp lúc khởi động, DỰNG LẠI chỉ mục"| Idx
+    PG -->|"DocumentStore — nạp lúc khởi động, DỰNG LẠI chỉ mục"| Idx
     Known --> Idx
     Harness --> Resolve
     Harness --> Rank
@@ -102,25 +114,59 @@ flowchart LR
     Pool --> Harness
 ```
 
+### Tám interface là "khớp nối" của sơ đồ trên
+
+Mỗi mũi tên đi qua một trong tám interface tự định nghĩa, chứ không đi thẳng
+tới lớp cụ thể. Đây là thứ làm sơ đồ này **thay được từng mảnh**:
+
+| Interface | Tách *cái gì* khỏi *làm thế nào* | Cài đặt hiện có |
+|---|---|---|
+| `RelevanceScorer` | "chấm điểm liên quan" | `TfIdfScorer`, `BM25Scorer`, 2 Decorator |
+| `Tokenizer` | "tách từ" | `VietnameseTokenizer` |
+| `SearchIndex` | "tra posting list" | `InvertedIndex` |
+| `DocumentStore` | "nạp corpus" | `PostgresDocumentStore`, `JsonDocumentStore` ×2 |
+| `CandidateFilter` | "thu hẹp ứng viên" | `DomainFilter`, `MaxCandidatesFilter` |
+| `QueryNode` (`sealed`) | "đánh giá một mệnh đề" | `TermNode`, `PhraseNode`, `AndNode`, `OrNode`, `NotNode` |
+| `PostingCursor` | "duyệt posting list" | `ArrayPostingCursor` |
+| `CrawlListener` | "phản ứng với sự kiện crawl" | `ConsoleCrawlListener` |
+
+Phân tích từng mẫu thiết kế:
+[`Math/09-design-patterns/`](Math/09-design-patterns/README.md).
+
 ### Hai lưu ý kiến trúc quan trọng nhất
 
 **Thứ nhất: bộ đánh giá dùng lại đúng code path của sản phẩm.**
 
 `EvaluationHarness` gọi **chính** `QueryParser`, `CandidateResolver` và
 `ResultRanker` mà tầng REST đang dùng — không có bản sao nào. Mỗi thí nghiệm
-chỉ thay **đúng một** biến số (mô hình tính điểm, hoặc bộ trọng số
-α/β/γ). Trích từ `eval/EvaluationHarness.java`:
+chỉ thay **đúng một** biến số: object `RelevanceScorer` được truyền vào.
+Trích từ `eval/EvaluationHarness.java`:
 
 ```java
+public record RankingConfig(String label, RelevanceScorer scorer) { }
+
 public List<String> search(String queryText, RankingConfig config, int topN) {
     QueryParser.ParsedQuery parsed = queryParser.parse(queryText);
     CandidateResolver.ResolvedQuery resolved = CandidateResolver.resolve(index, parsed);
     if (resolved.candidateDocIds().isEmpty()) {
         return List.of();
     }
-    ResultRanker ranker = new ResultRanker(config.alpha(), config.beta(), config.gamma());
+
+    List<ResultRanker.RankedResult> ranked = ranker.rank(
+            resolved.candidateDocIds(), resolved.queryTermFrequency(),
+            index, config.scorer(), pageRankScores, topN);   // ← biến số DUY NHẤT
     ...
 }
+```
+
+Chi tiết đáng chú ý: từ khi kết hợp tín hiệu chuyển sang **Decorator**,
+`RankingConfig` chỉ còn **hai** trường (`label` + `scorer`) thay vì kèm cả
+bộ `alpha`/`beta`/`gamma`. Cấu hình *"BM25 + PageRank + tiêu đề"* nay là một
+**object được lắp ghép**, không phải ba con số truyền rời — nên nhãn trong
+bảng kết quả tự sinh ra từ chính cấu trúc object:
+
+```java
+scorer.name();   // "BM25(k1=1.2,b=0.75) + PR x0.30 + title x0.10"
 ```
 
 Vì sao điều này quan trọng đến mức phải viết ra: **nếu bộ đánh giá có đường
@@ -134,7 +180,7 @@ viết một bản sao. Hai bản sao chắc chắn sẽ trôi lệch theo thờ
 
 ```mermaid
 flowchart LR
-    PG[("PostgreSQL<br/>bảng documents + outlinks")] -->|"repo.findAll()"| Build["buildIndexFrom(docs)"]
+    PG[("PostgreSQL<br/>bảng documents + outlinks")] -->|"repo.findAll()"| Build["IndexBuilder.build(docs)"]
     Build --> Idx["InvertedIndex trong RAM<br/>(tự cài)"]
     Idx --> Serve["phục vụ /api/search"]
     GIN[("chỉ mục GIN của PostgreSQL")] -.->|"CHỈ dùng đối chứng<br/>GinBaselineRunner"| Report["docs/GIN-BASELINE.md"]
@@ -184,8 +230,8 @@ mạng để lấy `robots.txt` đắt nhất, nên đứng cuối. Trích
 `crawler/CrawlerService.java`:
 
 ```java
-if (task.depth() > config.maxDepth
-        || !isAllowedDomain(task.url(), config.allowedDomains)
+if (task.depth() > config.maxDepth()
+        || !isAllowedDomain(task.url(), config.allowedDomains())
         || visited.mightContain(task.url())) {
     continue;
 }
@@ -203,16 +249,16 @@ trong những khoảng trống tạm thời và phiên crawl dừng sớm hơn `
 nhiều. Cách xử lý trong `workerLoop`:
 
 ```java
-final int IDLE_CONFIRMATIONS = 3;
+int idleChecks = 0;
 ...
 if (task == null) {
-    if (activeWorkers.get() == 0 && ++idleChecks >= IDLE_CONFIRMATIONS) {
+    if (activeWorkers.get() == 0 && ++idleChecks >= idleConfirmations) {
         break; // thật sự hết việc
     }
     Thread.sleep(200);
     continue;
 }
-idleChecks = 0;
+idleChecks = 0; // chỉ tích luỹ khi LIÊN TỤC rỗng
 ```
 
 Tức là phải thoả **đồng thời** hai điều kiện — frontier rỗng **và** không
@@ -261,23 +307,36 @@ tiên khớp tiêu đề" được xử lý muộn hơn, ở khâu xếp hạng,
 
 **Bất biến quyết định toàn bộ hiệu năng phía sau:** posting list luôn sắp
 xếp tăng dần theo `docId`. Nó được đảm bảo *miễn phí* vì `addDocument()`
-luôn được gọi theo thứ tự `docId` tăng dần và chỉ **append** vào cuối:
+luôn được gọi theo thứ tự `docId` tăng dần và chỉ **append** vào cuối.
+
+Tiền đề đó nay được ép ở **hai lớp độc lập**. Lớp thứ nhất — `IndexBuilder`
+gom việc sort về một chỗ duy nhất (trước đây nó bị lặp ở ba nơi):
 
 ```java
-private InvertedIndex buildIndexFrom(List<WebDocument> docs) {
-    InvertedIndex newIndex = new InvertedIndex();
-    List<WebDocument> sorted = new ArrayList<>(docs);
-    sorted.sort((a, b) -> Integer.compare(a.getDocId(), b.getDocId())); // ← bảo đảm bất biến
+public InvertedIndex build(List<WebDocument> documents) {
+    InvertedIndex index = new InvertedIndex(tokenizer);
+    List<WebDocument> sorted = new ArrayList<>(documents);
+    sorted.sort(Comparator.comparingInt(WebDocument::getDocId));   // ← bảo đảm bất biến
     for (WebDocument doc : sorted) {
-        newIndex.addDocument(doc);
+        index.addDocument(doc);
     }
-    return newIndex;
+    return index;
 }
 ```
 
-Không tốn một phép `sort` nào trên posting list, mà đổi lại được hai thứ:
-giao posting list bằng two-pointer `O(m+n)`, và binary search `O(log n)` để
-tra tần suất của một tài liệu cụ thể.
+Lớp thứ hai — `InvertedIndex` **tự ép**, ném ngoại lệ nếu bị gọi sai thứ tự:
+
+```java
+if (docId <= lastDocId) {
+    throw new IllegalArgumentException(
+            "addDocument phải được gọi theo docId TĂNG DẦN ...");
+}
+```
+
+Không tốn một phép `sort` nào trên posting list, mà đổi lại được **ba** thứ:
+giao posting list bằng two-pointer $O(m+n)$, binary search $O(\log n)$ để
+tra tần suất của một tài liệu cụ thể, và **delta encoding** cho việc nén
+(`VByteCodec` — hiệu giữa hai `docId` liên tiếp luôn dương và nhỏ).
 
 ### 3.3. Luồng QUERY + RANK — sơ đồ tuần tự đầy đủ
 
@@ -342,8 +401,8 @@ hiệu năng thật đã từng tồn tại trong dự án. Ban đầu `buildSni
 **bên trong** vòng lặp chấm điểm, tức cho **mọi** ứng viên. Mỗi snippet phải
 tách toàn bộ `bodyText` (trung bình **1.043 token**) rồi trượt cửa sổ qua
 từng từ. Với 500 ứng viên thì **490 snippet bị tạo ra rồi vứt đi ngay**.
-Tách thành ba bước hạ độ phức tạp phần snippet từ `O(c · docLength)` xuống
-`O(topN · docLength)`.
+Tách thành ba bước hạ độ phức tạp phần snippet từ $O(c\cdot\lvert d\rvert)$ xuống
+$O(\text{topN}\cdot\lvert d\rvert)$.
 
 **Chi tiết về phân trang.** `topN = max(page * size, size)` — muốn lấy trang
 3 với 10 kết quả/trang thì phải xếp hạng đủ 30 kết quả rồi mới cắt lấy 10
@@ -372,7 +431,7 @@ flowchart TD
 ```
 
 Hai lỗi của bản đầu, cả hai đều được ghi lại trong Javadoc của
-`SearchEngineFacade.rebuildSuggestTrie()`:
+`SuggestionService.rebuild(index)`:
 
 1. **Chèn nguyên tiêu đề** → gợi ý ra những chuỗi dài loằng ngoằng mà không
    ai gõ hết.
@@ -381,12 +440,12 @@ Hai lỗi của bản đầu, cả hai đều được ghi lại trong Javadoc c
    học đã nói ở mục 3 của `SEARCH-ENGINE-101.md`, quay lại lần thứ hai ở một
    chỗ hoàn toàn khác.
 
-Còn một lỗi thứ ba, dạng khác: `rebuildSuggestTrie()` ban đầu chỉ `insert`
+Còn một lỗi thứ ba, dạng khác: `SuggestionService.rebuild()` ban đầu chỉ `insert`
 thêm mà không xoá, nên tiêu đề của corpus **cũ** vẫn nằm trong Trie sau mỗi
 lần crawl lại. Sửa bằng một dòng, nhưng phải hiểu vòng đời mới thấy:
 
 ```java
-private void rebuildSuggestTrie() {
+public void rebuild(SearchIndex index) {          // SuggestionService
     // Phải xoá sạch trước khi dựng lại: nếu chỉ insert thêm, các tiêu đề
     // của corpus CŨ vẫn còn nằm trong trie sau mỗi lần crawl/reindex.
     suggestTrie.clear();
@@ -394,7 +453,7 @@ private void rebuildSuggestTrie() {
 }
 ```
 
-Và `Trie.clear()` là `O(1)` chứ không phải `O(n)` — chỉ cần bỏ tham chiếu
+Và `Trie.clear()` là $O(1)$ chứ không phải $O(n)$ — chỉ cần bỏ tham chiếu
 tới gốc cũ là toàn bộ cây con trở thành rác cho bộ gom rác thu hồi:
 
 ```java
@@ -418,6 +477,43 @@ vì sao chọn thế này**. Đây là dạng câu hỏi hay bị hỏi khi bả
 | **Vì sao không** | Muốn kiểm thử logic đó thì phải dựng cả tầng web (MockMvc, ApplicationContext). Test sẽ chậm và mỗi lần lỗi thì không biết lỗi ở logic hay ở tầng HTTP |
 | **Kết quả** | `controller/` chỉ còn 29 dòng mỗi lớp, làm đúng một việc: chuẩn hoá tham số và trả mã trạng thái. Xem `SearchEngineFacadeApiTest` (8 test) gọi thẳng facade |
 
+**Nhưng Facade rất dễ thoái hoá thành God Object** — và bản đầu của dự án
+này đúng là như vậy: **420 dòng, bảy trách nhiệm**. Sáu trong số đó đã được
+tách ra:
+
+| Trách nhiệm cũ trong Facade | Nay ở | Mẫu |
+|---|---|---|
+| Nạp dữ liệu từ 4 nguồn (chuỗi `else if`) | `DocumentStore` + 3 cài đặt | Strategy |
+| Dựng chỉ mục (tiền đề sort lặp ở 3 nơi) | `IndexBuilder` | — |
+| Quản lý job crawl (`String status`) | `CrawlJobManager` + `CrawlStatus` | State |
+| Dựng Trie gợi ý | `SuggestionService` | — |
+| Đoán ngôn ngữ (`looksVietnamese`) | `LanguageDetector` | — |
+| Chọn scorer (chôn cứng `new TfIdfScorer()`) | `ScorerFactory` | Factory + Decorator |
+
+Javadoc hiện tại nói thẳng: *"Lớp này **KHÔNG chứa thuật toán DSA nào** —
+mọi logic lõi nằm trong các lớp chuyên trách."* Đó là bài kiểm tra nhanh
+nhất để biết một Facade còn đúng vai trò hay đã phình ra.
+
+Phụ thuộc nay **tiêm qua constructor**, không phải `@Autowired` lên trường:
+
+```java
+public SearchEngineFacade(Tokenizer tokenizer,
+                          IndexBuilder indexBuilder,
+                          SuggestionService suggestionService,
+                          CrawlJobManager crawlJobManager,
+                          ScorerFactory scorerFactory,
+                          PageRankService pageRankService) {
+    // BẤT BIẾN: query parser phải dùng CHÍNH tokenizer đã dùng lúc index.
+    this.queryParser = new QueryParser(tokenizer);
+    this.index = new InvertedIndex(tokenizer);
+    ...
+}
+```
+
+Constructor injection có bốn lợi ích, nhưng lợi ích sâu nhất là lợi ích thứ
+tư: **một constructor dài là tín hiệu báo động *thấy được* rằng lớp đang
+gánh quá nhiều.** Field injection giấu mất tín hiệu đó.
+
 ### 4.2. Vì sao chỉ mục kép có dấu / không dấu, cùng trong **một** HashMap
 
 | | |
@@ -427,9 +523,11 @@ vì sao chọn thế này**. Đây là dạng câu hỏi hay bị hỏi khi bả
 | **Kết quả** | Cùng một `LinkedHashMap`, hai khoá trỏ tới cùng danh sách `Posting`. Truy vấn không dấu tự động hoạt động mà không có thêm một dòng code nào ở tầng truy vấn |
 
 ```java
-positionsByTerm.computeIfAbsent(token.term(), k -> new ArrayList<>()).add(token.position());
+String term = termDictionary.intern(token.term());          // <- Flyweight
+positionsByTerm.computeIfAbsent(term, k -> new ArrayList<>()).add(token.position());
 if (!token.noDiacriticTerm().equals(token.term())) {
-    positionsByTerm.computeIfAbsent(token.noDiacriticTerm(), k -> new ArrayList<>()).add(token.position());
+    String noDiacritic = termDictionary.intern(token.noDiacriticTerm());
+    positionsByTerm.computeIfAbsent(noDiacritic, k -> new ArrayList<>()).add(token.position());
 }
 ```
 
@@ -450,7 +548,7 @@ Với `HashMap`, thứ tự khoá khi ghi ra phụ thuộc vào hàm băm nên c
 nhau giữa các lần chạy, làm file JSON `diff` ra khác nhau dù nội dung logic
 y hệt. `LinkedHashMap` giữ thứ tự chèn nên file ghi ra ổn định và so sánh
 được giữa các lần dựng lại. Chi phí: mỗi mục thêm hai con trỏ. Độ phức tạp
-tra cứu vẫn `O(1)`.
+tra cứu vẫn $O(1)$.
 
 ### 4.4. Vì sao khâu bôi sáng snippet **không** được bỏ dấu
 
@@ -566,29 +664,61 @@ mặc định là `false`, và `loadFromPostgres()` trả về `false` khi khôn
 
 ### 4.9. Thứ tự ưu tiên nguồn dữ liệu khi khởi động
 
-`SearchEngineFacade.init()` thử bốn nguồn theo thứ tự, dừng ở nguồn đầu tiên
+`SearchEngineFacade.init()` thử các nguồn theo thứ tự, dừng ở nguồn đầu tiên
 thành công:
 
 ```mermaid
 flowchart TD
-    Start["@PostConstruct init()"] --> PG{"postgres.enabled<br/>VÀ nạp được?"}
-    PG -->|có| Done["dựng chỉ mục xong"]
-    PG -->|không| IndexJson{"data/index.json<br/>tồn tại?"}
+    Start["@PostConstruct init()"] --> IndexJson{"data/index.json<br/>tồn tại?"}
     IndexJson -->|có| Load["IndexPersistence.load()<br/>— nhanh nhất, không tokenize lại"]
-    IndexJson -->|không| Crawled{"data/crawled-documents.json<br/>tồn tại?"}
-    Crawled -->|có| Build1["buildIndexFrom() — tokenize lại"]
-    Crawled -->|không| SeedJson{"data/seed-documents.json<br/>tồn tại?"}
-    SeedJson -->|có| Build2["dùng seed 40 tài liệu<br/>— để vừa clone repo là chạy được"]
+    IndexJson -->|không| Chain["duyệt List&lt;DocumentStore&gt;"]
+    Chain --> PG{"PostgresDocumentStore<br/>isAvailable()?"}
+    PG -->|có| Build0["IndexBuilder.build()"]
+    PG -->|không| Crawled{"JsonDocumentStore<br/>crawled-multi.json?"}
+    Crawled -->|có| Build1["IndexBuilder.build() — tokenize lại"]
+    Crawled -->|không| SeedJson{"JsonDocumentStore<br/>seed-documents.json?"}
+    SeedJson -->|có| Build2["dùng seed ~40 tài liệu<br/>— để vừa clone repo là chạy được"]
     SeedJson -->|không| Empty["chỉ mục rỗng"]
-    Load --> Done
+    Load --> Done["dựng chỉ mục xong"]
+    Build0 --> Done
     Build1 --> Done
     Build2 --> Done
     Empty --> Done
-    Done --> PR["recomputePageRank()"]
-    PR --> TrieB["rebuildSuggestTrie()"]
+    Done --> Refresh["refreshDerivedState()"]
+    Refresh --> PR["PageRankService.computePageRank()"]
+    PR --> Fact["ScorerFactory.create(pageRankScores)"]
+    Fact --> TrieB["SuggestionService.rebuild(index)"]
+    TrieB --> CacheR["LRUCache mới"]
 ```
 
-Nhánh cuối cùng (`seed-documents.json`, 40 tài liệu thật đã crawl sẵn) là một
+**Điểm kiến trúc đáng nói: chuỗi dự phòng nay là *dữ liệu*, không phải *cấu
+trúc điều khiển*.** Trước đây đây là bốn nhánh `else if` chôn cứng trong
+`init()`; nay là một `List<DocumentStore>` dựng ở một chỗ:
+
+```java
+private List<DocumentStore> buildStoreChain() {
+    List<DocumentStore> chain = new ArrayList<>();
+    if (postgresEnabled) {
+        chain.add(new PostgresDocumentStore(postgresUrl, postgresUser, postgresPassword));
+    }
+    chain.add(new JsonDocumentStore(crawledDataPath, "corpus đã crawl"));
+    chain.add(new JsonDocumentStore(seedDataPath, "seed mẫu"));
+    return chain;
+}
+
+for (DocumentStore store : buildStoreChain()) {
+    if (!store.isAvailable()) continue;
+    lastCrawledDocuments = store.loadAll();
+    index = indexBuilder.build(lastCrawledDocuments);
+    log.info("Đã nạp corpus từ {} ({} tài liệu)", store.describe(), lastCrawledDocuments.size());
+    return;
+}
+```
+
+Thêm nguồn thứ tư (S3, MongoDB, Redis) = **thêm một lớp**, không sửa
+`loadCorpus()`. Đó là nguyên tắc Open/Closed áp dụng đúng chỗ.
+
+Nhánh cuối cùng (`seed-documents.json`, ~40 tài liệu thật đã crawl sẵn) là một
 quyết định nhỏ nhưng có giá trị thực tế: người vừa clone repo về **có dữ liệu
 tìm kiếm được ngay**, không phải chờ crawl mạng thật.
 
@@ -602,18 +732,28 @@ vào** gói nào.
 | Gói | Trách nhiệm | Phụ thuộc vào |
 |---|---|---|
 | `datastructure/` | Trie, BloomFilter, LRUCache, MinHeap, SparseMatrix, UrlFrontier | Chỉ Java Collections. **Không** phụ thuộc gói nào khác trong dự án (trừ `UrlFrontier` → `UrlCanonicalizer`) |
-| `index/` | `VietnameseTokenizer`, `InvertedIndex`, `Posting`, `IndexPersistence` | `model/` |
-| `crawler/` | `CrawlerService`, `HtmlExtractor`, `RobotsTxtParser`, `UrlCanonicalizer`, `MultiDomainCrawlRunner` | `datastructure/`, `model/`, Jsoup |
-| `query/` | `QueryParser`, `PostingListMerger`, `CandidateResolver` | `index/` |
-| `ranking/` | `RelevanceScorer` (giao diện), `TfIdfScorer`, `BM25Scorer`, `PageRankService`, `ResultRanker` | `index/`, `datastructure/`, `model/` |
+| `index/` | `Tokenizer` + `VietnameseTokenizer`, `SearchIndex` + `InvertedIndex`, `Posting`, `IndexPersistence`, **`VByteCodec`**, **`PostingCursor`** + `ArrayPostingCursor`, **`TermDictionary`** | `model/` |
+| `crawler/` | `CrawlerService`, **`CrawlConfig`** (Builder), **`CrawlListener`** + `ConsoleCrawlListener`, `HtmlExtractor`, `RobotsTxtParser`, `UrlCanonicalizer`, `MultiDomainCrawlRunner` | `datastructure/`, `model/`, Jsoup |
+| `query/` | `QueryParser`, `PostingListMerger`, `CandidateResolver` | `index/`, `query/ast/`, `query/filter/` |
+| `query/ast/` | **`QueryNode`** (`sealed`) + `TermNode`, `PhraseNode`, `AndNode`, `OrNode`, `NotNode` | `index/`, `query/` |
+| `query/filter/` | **`CandidateFilter`** + `DomainFilter`, `MaxCandidatesFilter` | `index/`, `query/`, `model/` |
+| `ranking/` | `RelevanceScorer` (giao diện), `TfIdfScorer`, `BM25Scorer`, **`ScorerFactory`**, `PageRankService`, `ResultRanker`, **`SnippetBuilder`**, **`QuerySyllables`** | `index/`, `datastructure/`, `model/` |
+| `ranking/decorator/` | **`PageRankBoostScorer`**, **`TitleBoostScorer`** | `ranking/`, `index/`, `model/` |
 | `eval/` | `EvaluationMetrics`, `KnownItemQueryGenerator`, `EvaluationHarness`, `PoolBuilder`, hai runner | `query/`, `ranking/`, `index/` |
-| `storage/` | `DocumentRepository` (JDBC), hai runner | `model/`, JDBC |
-| `service/` | `SearchEngineFacade` — lớp keo dán duy nhất | Gần như tất cả gói trên |
-| `controller/` | Ba REST controller + `GlobalExceptionHandler` + `CorsConfig` | Chỉ `service/` và `model/` |
+| `storage/` | **`DocumentStore`** (giao diện) + `JsonDocumentStore`, `PostgresDocumentStore`; `DocumentRepository` (JDBC), hai runner | `model/`, JDBC |
+| `service/` | `SearchEngineFacade` (chỉ điều phối) + **`IndexBuilder`**, **`SuggestionService`**, **`CrawlJobManager`** + **`CrawlStatus`**, **`LanguageDetector`** | Gần như tất cả gói trên |
+| `controller/` | Ba REST controller + `GlobalExceptionHandler` + `CorsConfig` + `SearchConfig` | Chỉ `service/` và `model/` |
 
 Điểm đáng chú ý: **`datastructure/` không phụ thuộc gì cả**. Đó là lý do
 `MinHeapTest`, `TrieTest`, `BloomFilterTest`… chạy trong vài chục
 milli-giây, không cần Spring.
+
+Điểm thứ hai: hai gói con `query/ast/` và `query/filter/` tách rạch ròi theo
+một **nguyên tắc phân công** viết thẳng trong Javadoc — *ràng buộc **có
+posting list** thuộc về cây; ràng buộc trên **siêu dữ liệu** thuộc về đường
+ống lọc*. Nhờ nguyên tắc đó, người thứ hai vào sửa biết ngay nên đặt tính
+năng mới ở gói nào. Chi tiết:
+[`Math/09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md`](Math/09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md).
 
 ### Hợp đồng REST
 
@@ -651,13 +791,37 @@ tiếp:
 6. **Không có `Content Seen?`** — dự án khử trùng lặp **URL** nhưng không
    khử trùng lặp **nội dung**. Cùng một bài báo ở ba URL khác nhau sẽ có ba
    bản trong chỉ mục. Giải pháp chuẩn là SimHash + khoảng cách Hamming.
-7. **`nextUrl()` quét tuyến tính qua các host** — `O(D)`. Với 52 host thì
+7. **`nextUrl()` quét tuyến tính qua các host** — $O(D)$. Với 52 host thì
    không sao; web thật có khoảng 200 triệu host thì cần hàng đợi ưu tiên
    theo *thời điểm khả dụng tiếp theo*.
 8. **Toán tử `-` chỉ loại trừ một tiếng**, không loại trừ cả cụm từ ghép.
+9. **`MaxCandidatesFilter` không bảo toàn top-K chính xác.** Nó cắt 10.000
+   ứng viên đầu tiên **theo `docId`**, không theo điểm — là một chặn trên an
+   toàn để bảo vệ hệ thống khỏi truy vấn bất thường, **không phải** một tối
+   ưu xếp hạng. Cách chuẩn của ngành là **WAND** hoặc **MaxScore**. Javadoc
+   của lớp nói rõ điều này.
+10. **Từ điển từ ghép chỉ 154 mục** (cần 30.000–70.000). Đây là **trần chất
+    lượng của toàn hệ thống** — và là dữ liệu, không phải mã nguồn.
+
+### Những hạn chế đã được khắc phục
+
+Ghi lại để đối chiếu với các bản tài liệu cũ:
+
+| Hạn chế cũ | Cách khắc phục |
+|---|---|
+| Chỉ mục là lớp cụ thể, không thay được | Interface `SearchIndex` — 4 lớp dùng nó nay phụ thuộc trừu tượng |
+| Bất biến sắp xếp phụ thuộc người gọi nhớ | `InvertedIndex` **tự ép**, `IndexBuilder` gom tiền đề về một chỗ |
+| Không nén chỉ mục | `VByteCodec` — delta + variable-byte, tiết kiệm > 66 % |
+| Không có skip pointer | `PostingCursor.skipTo` — galloping search, 4005 → 48 bước |
+| Chuỗi nguồn dữ liệu là 4 nhánh `else if` | `List<DocumentStore>` — thêm nguồn = thêm một lớp |
+| Trạng thái job crawl là `String` | `enum CrawlStatus` có máy trạng thái |
+| `Trie` không thread-safe | `ReentrantReadWriteLock` |
+| Snippet có lỗ hổng XSS | `SnippetBuilder.escapeHtml` |
+| Kết hợp tín hiệu sai thang đo 1000× | Decorator, nhân + log thay vì cộng |
 
 Phân tích đầy đủ hơn về những điểm vỡ ở quy mô lớn: mục 13 của
-`SEARCH-ENGINE-101.md`. Số liệu đo và Big-O: `DSA-REPORT.md`.
+`SEARCH-ENGINE-101.md`. Số liệu đo và Big-O: `DSA-REPORT.md`. Từng mẫu thiết
+kế và lỗi mà nó sửa: [`Math/09-design-patterns/`](Math/09-design-patterns/README.md).
 
 ---
 
@@ -667,6 +831,8 @@ Phân tích đầy đủ hơn về những điểm vỡ ở quy mô lớn: mục
 |---|---|
 | [`SEARCH-ENGINE-101.md`](SEARCH-ENGINE-101.md) | **Nên đọc trước** — toàn bộ lý thuyết, kèm ví dụ tính tay |
 | [`ALGORITHMS.md`](ALGORITHMS.md) | Từng thuật toán theo thứ tự pipeline, kèm mã giả |
+| [`Math/`](Math/README.md) | **Một trang cho mỗi file nguồn** — công thức, chứng minh, ví dụ tính tay |
+| [`Math/09-design-patterns/`](Math/09-design-patterns/README.md) | **12 trang học OOP** — mỗi design pattern một trang |
 | [`DSA-REPORT.md`](DSA-REPORT.md) | Big-O và số liệu đo thực nghiệm |
 | [`EVALUATION.md`](EVALUATION.md) | Kết quả đánh giá chất lượng (sinh tự động) |
 | [`GIN-BASELINE.md`](GIN-BASELINE.md) | Đối chứng với PostgreSQL GIN (sinh tự động) |

@@ -166,7 +166,7 @@ quả giao ~250.000 phần tử, trung bình 5 lần chạy:
 **Vì sao two-pointer thắng ở cả hai kịch bản:**
 
 1. **Không có overhead tính hash và xử lý va chạm** của `HashMap`/`HashSet`.
-   `O(m+n)` của two-pointer là `O(m+n)` **tuyệt đối**, không có hằng số ẩn.
+   $O(m+n)$ của two-pointer là $O(m+n)$ **tuyệt đối**, không có hằng số ẩn.
 2. **Tận dụng trực tiếp tính chất "đã sắp xếp"** vốn có của posting list —
    một bất biến được đảm bảo *miễn phí* lúc dựng chỉ mục (xem mục 3.2 của
    `ALGORITHMS.md`).
@@ -218,7 +218,7 @@ chính là lý do `MultiDomainCrawlRunner` được viết ra.
 có locality tốt hơn khi `multiply`, nhưng cần **biết trước** số phần tử để
 cấp phát mảng cố định. Ma trận này được **xây dần** trong lúc dựng
 (`incoming.set(...)` mỗi khi phát hiện một cạnh), nên adjacency list cho phép
-thêm phần tử `O(1)` amortised. Có thể "đóng băng" sang CSR sau khi xây xong
+thêm phần tử $O(1)$ amortised. Có thể "đóng băng" sang CSR sau khi xây xong
 để tăng locality — nhưng ở quy mô đồ án (hàng chục nghìn trang) adjacency
 list đã đủ nhanh: PageRank hội tụ trong **0,2 giây**.
 
@@ -230,11 +230,11 @@ list đã đủ nhanh: PageRank hội tụ trong **0,2 giây**.
 `removeEldestEntry` làm được LRU cache "miễn phí", chỉ vài dòng.
 
 **Vì sao vẫn tự viết.** Đây là mục duy nhất trong báo cáo mà lý do **không**
-phải hiệu năng — hai cách đều `O(1)`. Lý do là **yêu cầu cốt lõi của đồ án
+phải hiệu năng — hai cách đều $O(1)$. Lý do là **yêu cầu cốt lõi của đồ án
 DSA: chứng minh hiểu bản chất, không chỉ biết gọi API có sẵn.** Tự viết Doubly
 Linked List + 2 sentinel node buộc phải trả lời được ba câu hỏi:
 
-**(a) Vì sao di chuyển một node lên đầu là `O(1)`?** Vì chỉ đổi **4 con trỏ**,
+**(a) Vì sao di chuyển một node lên đầu là $O(1)$?** Vì chỉ đổi **4 con trỏ**,
 không cần duyệt danh sách:
 
 ```java
@@ -247,8 +247,8 @@ private void addToFront(Node<K, V> node) {
 ```
 
 **(b) Vì sao cần danh sách liên kết *đôi*?** Để xoá một node ở **giữa** trong
-`O(1)` cần biết **cả** node trước và node sau. Danh sách liên kết đơn phải
-duyệt từ đầu để tìm node trước → `O(n)`, và khi đó cache LRU mất hoàn toàn ưu
+$O(1)$ cần biết **cả** node trước và node sau. Danh sách liên kết đơn phải
+duyệt từ đầu để tìm node trước → $O(n)$, và khi đó cache LRU mất hoàn toàn ưu
 điểm.
 
 **(c) Vì sao 2 sentinel node?** Để `removeNode` chỉ cần 2 dòng và **không bao
@@ -307,8 +307,8 @@ nhất, rồi `extractMin` **đúng một lần**:
 
 | Thiết kế | Chi phí mỗi `nextUrl()` |
 |---|---|
-| Một heap toàn cục | `O(n log n)` — phụ thuộc **tổng** kích thước frontier |
-| **Tách theo domain** | **`O(D + log n_d)`** — **không** phụ thuộc tổng kích thước |
+| Một heap toàn cục | $O(n\log n)$ — phụ thuộc **tổng** kích thước frontier |
+| **Tách theo domain** | **$O(D + \log n_d)$** — **không** phụ thuộc tổng kích thước |
 
 **Kết quả đo:** crawl 5.011 trang trong **3,2 phút**, thông lượng **26,2
 trang/giây**, với **52 host** phân biệt hoạt động song song.
@@ -350,7 +350,7 @@ $$
 $$
 
 Bắt đầu từ list **ngắn nhất** giúp `|A|` nhỏ **ngay từ đầu**, nên các bước
-giao kế tiếp — mỗi bước tốn `O(|A| + |\text{list kế tiếp}|)` — rẻ hơn đáng kể
+giao kế tiếp — mỗi bước tốn $O(\lvert A\rvert + \lvert\text{list ke tiep}\rvert)$ — rẻ hơn đáng kể
 so với bắt đầu từ list dài nhất.
 
 **Khi nào lợi nhất:** khi một term **hiếm** (df nhỏ) trộn với nhiều term **phổ
@@ -416,7 +416,7 @@ MinHeap → **chỉ** sinh snippet cho K tài liệu sống sót.
 
 | | Trước | Sau |
 |---|---|---|
-| Độ phức tạp phần snippet | `O(c · docLength)` | **`O(topN · docLength)`** |
+| Độ phức tạp phần snippet | $O(c\cdot\lvert d\rvert)$ | **$O(\text{topN}\cdot\lvert d\rvert)$** |
 | Với c = 500, topN = 10 | 500 snippet | **10 snippet** |
 
 Comment trong code ghi lại nguyên nhân để không ai "tối ưu" ngược trở lại:
@@ -478,7 +478,7 @@ bấm giờ, và **hoài nghi** mọi phép đo mà thứ tự chạy có thể 
 **Triệu chứng.** Gõ `cong` vào ô tìm kiếm thì gợi ý ra `cong`, `the`,
 `congreso`, và cả những tiêu đề tiếng Anh dài loằng ngoằng.
 
-**Nguyên nhân — ba lỗi cùng lúc trong `rebuildSuggestTrie()`:**
+**Nguyên nhân — ba lỗi cùng lúc trong `SuggestionService.rebuild()`:**
 
 | Lỗi | Hậu quả |
 |---|---|
@@ -496,11 +496,11 @@ lấy hai loại đơn vị mà người dùng **thực sự gõ**:
 Kèm ba bước lọc:
 
 ```java
-private static final int MIN_SUGGESTION_FREQUENCY = 3;
+public static final int MIN_SUGGESTION_FREQUENCY = 3;
 ...
 suggestTrie.clear();                                    // (1) xoá sạch trước
 ...
-if (title == null || title.isBlank() || !looksVietnamese(title)) {
+if (title == null || title.isBlank() || !LanguageDetector.looksVietnamese(title)) {
     continue;                                           // (2) bỏ tiêu đề không phải tiếng Việt
 }
 ...
@@ -510,17 +510,28 @@ if (entry.getValue() < MIN_SUGGESTION_FREQUENCY) {
 ```
 
 Cách phát hiện tiếng Việt cũng đáng nhắc — dùng **dấu thanh** làm dấu hiệu,
-với ngưỡng độ dài để không loại nhầm tiêu đề rất ngắn:
+với ngưỡng độ dài để không loại nhầm tiêu đề rất ngắn. Hàm này nay nằm trong
+lớp riêng `service/LanguageDetector` (trước đây là phương thức private trong
+`SearchEngineFacade` — một ví dụ **Feature Envy** rõ rệt):
 
 ```java
-private boolean looksVietnamese(String title) {
-    String trimmed = title.trim();
-    if (trimmed.length() < 15) {
+public static final int MIN_LENGTH_TO_JUDGE = 15;
+
+public static boolean looksVietnamese(String text) {
+    if (text == null) return false;
+    String trimmed = text.trim();
+    if (trimmed.isEmpty()) return false;
+    if (trimmed.length() < MIN_LENGTH_TO_JUDGE) {
         return true;    // "Video" có thể không có dấu nào
     }
+    // Điểm bất động: stripDiacritics(s) == s ⟺ s không có dấu nào.
     return !VietnameseTokenizer.stripDiacritics(trimmed).equals(trimmed);
 }
 ```
+
+Tách ra còn cho phép dùng nó ở **chỗ thứ hai** mà trước đây bỏ sót:
+`KnownItemQueryGenerator` sinh truy vấn đánh giá từ corpus có lẫn bài tiếng
+Trung và tiếng Anh, tạo ra những truy vấn vô nghĩa.
 
 **Vì sao lỗi này thuộc mục "chỉ đo mới thấy".** Không có test đơn vị nào bắt
 được nó — mọi hàm đều làm đúng thứ nó được viết ra để làm. Lỗi chỉ hiện ra khi
@@ -610,7 +621,7 @@ kết chéo thì càng cần nhiều vòng để hội tụ:
 
 ## 5. Kiểm thử
 
-**163 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
+**233 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
 
 ```bash
 cd search-engine
@@ -622,26 +633,38 @@ cd search-engine
 | Lớp test | Số test | Trọng tâm |
 |---|---|---|
 | `EvaluationMetricsTest` | 20 | Mọi giá trị kỳ vọng **tính tay** |
-| `TrieTest` | 12 | Prefix search, tách khoá/hiển thị, top-k theo frequency |
+| **`QueryAstTest`** | **14** | Cây truy vấn AND/OR/NOT, shortest-first, ngữ nghĩa `NOT` |
+| `TrieTest` | 12 | Prefix search, tách khoá/hiển thị, top-k theo frequency, **thread-safe** |
+| **`HeapifyAndFreezeTest`** | **12** | Floyd heapify $O(n)$, đóng băng `SparseMatrix` sang CSR |
 | `UrlFrontierTest` | 11 | Ưu tiên, politeness, **đồng thời với 8 thread** |
 | `BM25ScorerTest` | 11 | Kiểm chứng **tính chất** phân biệt BM25 với TF-IDF |
 | `UrlCanonicalizerTest` | 10 | Từng phép chuẩn hoá, và những phép **không** được làm |
+| **`CrawlConfigTest`** | **10** | Giá trị mặc định, kiểm tra hợp lệ, **2 test bản sao phòng thủ** |
 | `PostingListMergerTest` | 9 | intersect / union / shortest-first / phrase |
+| **`ScorerDecoratorTest`** | **9** | Decorator **bất biến với thang đo** của scorer cơ sở |
+| **`VByteCodecTest`** | **9** | Delta + variable-byte, vòng lặp mã hoá → giải mã |
+| **`PostingCursorTest`** | **9** | Galloping đối chiếu quét tuyến tính ở **mọi** vị trí |
 | `MinHeapTest` | 8 | siftUp/siftDown, topK |
-| `QueryParserTest` | 8 | Cụm từ, loại trừ, tokenize khớp index |
+| `QueryParserTest` | 8 | Cụm từ, loại trừ, `OR`, `site:`, tokenize khớp index |
 | `SearchEngineFacadeApiTest` | 8 | Hợp đồng API qua facade (không qua HTTP) |
 | `TfIdfScorerTest` | 8 | tf, idf, cosine, chuẩn hoá độ dài |
+| **`CrawlStatusTest`** | **7** | Máy trạng thái; **không trạng thái nào chuyển về chính nó** |
 | `BloomFilterTest` | 7 | Không false negative, tỷ lệ false positive |
 | `LRUCacheTest` | 7 | Thứ tự MRU/LRU, eviction |
 | `ResultRankerTest` | 7 | Kết hợp điểm, snippet, **bôi sáng có dấu** |
 | `VietnameseTokenizerTest` | 7 | Longest Matching, NFC/NFD, `đ`, stopword |
-| `InvertedIndexTest` | 6 | Bất biến sắp xếp, chỉ mục kép, binary search |
+| `InvertedIndexTest` | 6 | Bất biến sắp xếp **tự ép**, chỉ mục kép, binary search |
 | `PageRankServiceTest` | 6 | Kiểm chứng bằng **tính chất toán học** |
 | `RobotsTxtParserTest` | 6 | Longest-prefix-match, section riêng thắng `*` |
 | `SparseMatrixTest` | 6 | set/multiply/nnz, biên |
 | `HtmlExtractorTest` | 4 | Trích title/meta/body/outlink |
 | `IndexPersistenceTest` | 1 | Lưu rồi nạp lại phải bằng nhau |
 | `VnSearchApplicationTests` | 1 | Spring context khởi động được |
+| | **233** | |
+
+Bảy lớp in đậm là **test mới của đợt tái cấu trúc** (+70 test): chúng phủ các
+cấu trúc nén/nhảy cóc và các design pattern. Phân tích từng mẫu:
+[`Math/09-design-patterns/`](Math/09-design-patterns/README.md).
 
 ### 5.2. Bốn lớp test đáng chú ý nhất
 
@@ -755,7 +778,7 @@ corpus cố định.
 ```bash
 cd search-engine
 
-# 1. Bộ test đầy đủ (163 test)
+# 1. Bộ test đầy đủ (233 test)
 ./mvnw.cmd test
 
 # 2. Demo từng cấu trúc dữ liệu, chạy độc lập không cần Spring

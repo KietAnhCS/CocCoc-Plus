@@ -147,7 +147,7 @@ Chỉ cần bỏ tham chiếu tới gốc cũ là **toàn bộ cây con trở th
 
 Đây là lợi ích của môi trường có GC. Trong C++ ta phải duyệt đệ quy để `delete` từng node — $O(\text{tổng số node})$.
 
-**Vì sao `clear()` tồn tại và tại sao nó quan trọng.** Từ `SearchEngineFacade.rebuildSuggestTrie()`:
+**Vì sao `clear()` tồn tại và tại sao nó quan trọng.** Từ `SuggestionService.rebuild(index)`:
 
 ```java
 // Phai xoa sach truoc khi dung lai: neu chi insert them, cac tieu de
@@ -174,7 +174,7 @@ là **hai đường đi hoàn toàn khác nhau** — `o` (U+006F) và `ô` (U+00
 **Giải pháp: chèn cùng một mục HAI lần, dưới hai khoá, nhưng cùng một chuỗi hiển thị.**
 
 ```java
-// SearchEngineFacade.rebuildSuggestTrie()
+// SuggestionService.rebuild(index)
 suggestTrie.insert(phrase, phrase, frequency);
 String withoutDiacritics = VietnameseTokenizer.stripDiacritics(phrase);
 if (!withoutDiacritics.equals(phrase)) {
@@ -373,7 +373,7 @@ Chi tiết về NFC/NFD ở [VietnameseTokenizer §3](../02-tokenize/VietnameseT
 
 ## 9. Nguồn dữ liệu gợi ý — và ba lỗi đã sửa
 
-`SearchEngineFacade.rebuildSuggestTrie()` là nơi Trie được nạp. Javadoc ghi lại **ba lỗi thật đã sửa**:
+`SuggestionService.rebuild(index)` là nơi Trie được nạp. Javadoc ghi lại **ba lỗi thật đã sửa**:
 
 | Lỗi | Hậu quả |
 |---|---|

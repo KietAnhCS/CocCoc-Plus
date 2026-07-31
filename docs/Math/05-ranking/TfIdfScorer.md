@@ -246,7 +246,7 @@ Nên bỏ nó đi thì thứ hạng **y hệt**, mà tiết kiệm một phép `
 
 - Ngưỡng cắt tuyệt đối ("chỉ hiện kết quả có điểm > 0,3").
 - Kết hợp tuyến tính với PageRank — nếu thang điểm trôi theo truy vấn thì trọng số $\alpha, \beta$ mất ý nghĩa.
-- Hiển thị điểm cho người dùng (API trả về `tfidfScore`).
+- Hiển thị điểm cho người dùng (API trả về `score`).
 
 Đây là đánh đổi **đúng**: trả một phép `sqrt` mỗi truy vấn để có thang điểm ổn định.
 

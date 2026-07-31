@@ -310,9 +310,9 @@ Quét $\beta$ qua 6 giá trị:
 
 | $\beta$ | 0,05 | 0,10 | 0,20 | 0,30 | 0,50 | 0,80 |
 |---|---|---|---|---|---|---|
-| MRR | 0,9196 | 0,9196 | 0,9204 | **0,9229** | **0,9229** | 0,9189 |
+| MRR | **0,8800** | 0,8783 | 0,8788 | 0,8758 | 0,8651 | 0,8582 |
 
-$$\text{biên độ MRR} = 0{,}9229 - 0{,}9189 = \mathbf{0{,}0040} \quad\text{tức } \mathbf{0{,}4\,\%}$$
+$$\text{biên độ MRR} = 0{,}8800 - 0{,}8582 = \mathbf{0{,}0218} \quad\text{tức } \mathbf{2{,}5\,\%}$$
 
 Thay đổi $\beta$ **gấp 16 lần** chỉ làm MRR đổi 0,4 %. Nếu $\beta$ thực sự là "trọng số 30 %", thay đổi này phải làm kết quả biến động mạnh.
 
@@ -428,7 +428,7 @@ Hai dấu `...` chỉ thêm khi cửa sổ **thật sự** không ở đầu/cu�
 
 **Chi phối bởi bước 1** trong đa số trường hợp. Nhưng trước khi tối ưu §5, bước 3 là $O(c\cdot\lvert d\rvert) = 521\,500$ — lớn hơn bước 1 ($500\times3\times11 = 16\,500$) tới **32 lần**, tức nó **là** nút thắt.
 
-**Số đo:** thời gian truy vấn trung bình **3,41 ms** (đã làm nóng JVM). Lịch sử đo cho thấy tối ưu này góp phần đưa con số từ **10,83 ms** xuống — dù phần lớn chênh lệch đó đến từ việc làm nóng JVM đúng cách.
+**Số đo:** thời gian truy vấn trung bình **1,59 ms** (đã làm nóng JVM). Lịch sử đo cho thấy tối ưu này góp phần đưa con số từ **10,83 ms** xuống — dù phần lớn chênh lệch đó đến từ việc làm nóng JVM đúng cách.
 
 ---
 

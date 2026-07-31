@@ -259,7 +259,7 @@ Tách hai dạng là lựa chọn đúng: cú pháp và ngữ nghĩa thực thi 
 
 với $L$ = độ dài chuỗi truy vấn (thực tế 10–50 ký tự).
 
-Chi phí này hoàn toàn không đáng kể so với 3,41 ms trung bình mỗi truy vấn — phần lớn thời gian nằm ở giao posting list và chấm điểm.
+Chi phí này hoàn toàn không đáng kể so với 1,59 ms trung bình mỗi truy vấn — phần lớn thời gian nằm ở giao posting list và chấm điểm.
 
 **Regex được biên dịch một lần:**
 

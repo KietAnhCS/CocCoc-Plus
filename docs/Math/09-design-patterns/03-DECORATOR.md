@@ -94,6 +94,8 @@ Hai lý do, cả hai đều đáng viết vào báo cáo:
 Lý do (2) giải thích luôn một nghịch lý trong bảng đánh giá cũ:
 
 > *"BM25 + PR + title" (MRR 0,9089) **thua** "TF-IDF + PR + title" (0,9229)*
+>
+> — đó là số liệu của **công thức cộng cũ**. Sau khi Decorator chuyển sang phép nhân, đo lại cho **0,9093 so với 0,8758**: BM25 thắng, nghịch lý biến mất.
 
 — nghe vô lý vì BM25 thuần hơn TF-IDF thuần. Nguyên nhân: bộ trọng số cộng được tinh chỉnh cho **thang TF-IDF**, dùng lại cho BM25 thì lệch. Phép nhân xoá bỏ vấn đề này.
 

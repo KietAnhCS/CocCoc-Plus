@@ -45,7 +45,8 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 |---|---|---|
 | [InvertedIndex](03-index/InvertedIndex.md) | `index/InvertedIndex.java` | **Bất biến quan trọng nhất dự án**, binary search, chỉ mục kép có/không dấu, `>>>` chống tràn |
 | [IndexPersistence](03-index/IndexPersistence.md) | `index/IndexPersistence.java` | Trạng thái dẫn xuất phải cập nhật ở **mọi** đường vào, chuỗi dự phòng 4 tầng |
-| [**VByteCodec**](03-index/VByteCodec.md) | `index/VByteCodec.java` | **Delta + variable-byte**, tiết kiệm **75 %**, thao tác bit, đóng gói 2 giá trị vào một `long` |
+| [**VByteCodec**](03-index/VByteCodec.md) | `index/VByteCodec.java` | **Delta + variable-byte**, mã hoá theo đoạn, thao tác bit, đóng gói 2 giá trị vào một `long` |
+| [**CompressedPostings**](03-index/CompressedPostings.md) | `index/CompressedPostings.java` | **Nén chỉ mục 341,5 MB → 94,7 MB**, prefix sum kiểu CSR, chứng minh một trường là thừa |
 | [**TermDictionary**](03-index/TermDictionary.md) | `index/TermDictionary.java` | **Flyweight**, 7 triệu → 136.768 `String`, định luật Zipf/Heaps, vì sao không dùng `String.intern()` |
 
 ### 4. Xử lý truy vấn — [`04-query/`](04-query/)
@@ -133,6 +134,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 | **Kho chuỗi dùng chung** (Flyweight) | Khóa term của chỉ mục | [TermDictionary](03-index/TermDictionary.md) |
 | **Con trỏ có nhảy cóc** (skip cursor) | Duyệt posting list không cấp phát | [ArrayPostingCursor](06-datastructures/ArrayPostingCursor.md) |
 | **Mã có độ dài thay đổi** (VByte) | Nén chỉ mục | [VByteCodec](03-index/VByteCodec.md) |
+| **CSR / prefix sum (`rowPtr`)** | Nén posting list, ma trận thưa | [CompressedPostings](03-index/CompressedPostings.md), [SparseMatrix](06-datastructures/SparseMatrix.md) |
 | **Ma trận thưa** | Đồ thị liên kết web | [SparseMatrix](06-datastructures/SparseMatrix.md) |
 | **Chỉ mục đảo** | Tra tài liệu chứa term | [InvertedIndex](03-index/InvertedIndex.md) |
 | **Adjacency list** | Đồ thị 239.691 cạnh | [SparseMatrix](06-datastructures/SparseMatrix.md) |
@@ -162,7 +164,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 | **Tách hàng đợi theo host** | $O(n\log n) \to O(D+\log n_d)$ — **112 000×** | [UrlFrontier](01-crawler/UrlFrontier.md) |
 | **Ma trận thưa** | 191,5 MB → 3,7 MB — **52×** | [SparseMatrix](06-datastructures/SparseMatrix.md) |
 | **Bloom Filter thay HashSet** | 108 MB → 1,1 MB — **95×** | [BloomFilter](01-crawler/BloomFilter.md) |
-| **Delta + VByte nén chỉ mục** | 6.556 B → 1.639 B — **tiết kiệm 75 %** | [VByteCodec](03-index/VByteCodec.md) |
+| **Delta + VByte nén chỉ mục** | 341,5 MB → **94,7 MB** — nhỏ **3,60 lần** | [CompressedPostings](03-index/CompressedPostings.md) |
 | **Galloping skip pointer** | 4.005 bước → **48 bước** — 83× | [ArrayPostingCursor](06-datastructures/ArrayPostingCursor.md) |
 | **Flyweight cho term** | ~7 triệu → **136.768** `String` — 51× | [TermDictionary](03-index/TermDictionary.md) |
 | **Hoãn công việc đắt** | 500 snippet → 10 — **50×** | [ResultRanker](05-ranking/ResultRanker.md) |
@@ -264,8 +266,8 @@ Phân tích đầy đủ kèm mã thật: [**DESIGN-PATTERNS.md**](09-design-pat
 | Crawl | 3,2 phút, **26,2 trang/giây** (trần lý thuyết 52) |
 | Dựng chỉ mục | 6,8 – 9,5 giây |
 | PageRank | **53 vòng lặp**, 0,2 giây |
-| Truy vấn | **3,41 ms** (đã làm nóng JVM) |
-| Chất lượng | MRR **0,9229**, Success@1 **88,0 %** |
+| Truy vấn | **1,59 ms** (đã làm nóng JVM; trước tối ưu: 3,84 ms) |
+| Chất lượng | MRR **0,8758**, Success@1 **81,5 %** (cấu hình đang dùng); tốt nhất BM25+PR+title: **0,9093** |
 | Kiểm thử | **233 test**, tất cả xanh |
 
 ---
@@ -288,7 +290,7 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 | Gói | File có trang riêng |
 |---|---|
 | `datastructure/` | BloomFilter, LRUCache, MinHeap, SparseMatrix, Trie, UrlFrontier — **6/6** ✅ |
-| `index/` | InvertedIndex, IndexPersistence, VietnameseTokenizer, VByteCodec, TermDictionary, ArrayPostingCursor — **6/6** ✅ |
+| `index/` | InvertedIndex, IndexPersistence, VietnameseTokenizer, VByteCodec, CompressedPostings, TermDictionary, ArrayPostingCursor — **7/7** ✅ |
 | `crawler/` | CrawlerService, HtmlExtractor, RobotsTxtParser, UrlCanonicalizer — **4/4** ✅ |
 | `query/` | PostingListMerger, QueryParser, CandidateResolver — **3/3** ✅ |
 | `ranking/` | TfIdfScorer, BM25Scorer, PageRankService, ResultRanker, QuerySyllables — **5/5** ✅ |

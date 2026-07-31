@@ -9,7 +9,7 @@
 
 ## 📌 Hiểu trong 30 giây
 
-`DSA-REPORT.md` nói hệ thống trả lời trong **3,41 ms**. Con số đó **không nói gì** về việc kết quả có **đúng** không. Một hệ thống trả về 10 kết quả ngẫu nhiên trong 0,1 ms là cực nhanh và hoàn toàn vô dụng.
+`DSA-REPORT.md` nói hệ thống trả lời trong **1,59 ms**. Con số đó **không nói gì** về việc kết quả có **đúng** không. Một hệ thống trả về 10 kết quả ngẫu nhiên trong 0,1 ms là cực nhanh và hoàn toàn vô dụng.
 
 Lớp này cài đặt các độ đo trả lời câu hỏi *"kết quả có tốt không?"*, theo đúng chuẩn của ngành.
 
@@ -364,9 +364,9 @@ public static double successAtK(List<String> ranked, String targetUrl, int k) {
 |---|---|---|---|---|
 | TF-IDF thuần | 0,8537 | 78,0 % | 95,0 % | 96,5 % |
 | BM25 thuần | 0,8989 | 85,0 % | 96,5 % | 97,5 % |
-| **TF-IDF + PR + title** | **0,9229** | **88,0 %** | **97,5 %** | **98,0 %** |
+| **TF-IDF + PR + title** | **0,8758** | **81,5 %** | **95,5 %** | **97,5 %** |
 
-**Đọc MRR = 0,9229 thế nào:** trung bình, tài liệu đích nằm ở hạng $1/0{,}9229 = 1{,}08$ — tức **gần như luôn ở hạng 1**. Success@1 = 88 % xác nhận: 176/200 truy vấn có đích ngay ở vị trí đầu.
+**Đọc MRR = 0,8758 thế nào:** MRR là trung bình của $1/	ext{hạng}$, nên **không** được nghịch đảo nó để suy ra hạng trung bình — $1/0{,}8758$ chỉ là hạng của một truy vấn *giả định* đại diện, không phải trung bình hạng thật (bất đẳng thức Jensen). Cách đọc đúng là qua Success@k: 81,5 % số truy vấn có đích ngay hạng 1, và 95,5 % có đích trong 5 hạng đầu.
 
 > ⚠️ **Chú ý về cách diễn giải:** $1/\text{MRR}$ **không** phải hạng trung bình, vì $\mathbb{E}[1/X] \ne 1/\mathbb{E}[X]$ (bất đẳng thức Jensen). Nó là **nghịch đảo của trung bình điều hoà** của các hạng. Cách đọc chính xác vẫn là: "MRR càng gần 1 thì đích càng thường xuyên ở đầu".
 
@@ -385,7 +385,7 @@ public static double successAtK(List<String> ranked, String targetUrl, int k) {
 | `reciprocalRank`, `successAtK` | $O(\lvert\text{ranked}\rvert)$ — `indexOf` |
 | `mean` | $O(\lvert\text{values}\rvert)$ |
 
-Chi phí đo đạc hoàn toàn không đáng kể so với chi phí chạy truy vấn (3,41 ms mỗi truy vấn × 200 truy vấn × 11 cấu hình).
+Chi phí đo đạc hoàn toàn không đáng kể so với chi phí chạy truy vấn (1,59 ms mỗi truy vấn × 200 truy vấn × 11 cấu hình).
 
 > **Một điểm kém hiệu quả nhỏ:** `recallAtK` gọi `countRelevant(qrels)` mỗi lần, và `countRelevant` dùng stream duyệt cả map. Với `f1AtK` gọi cả `precisionAtK` lẫn `recallAtK`, đó là duyệt qrels một lần thừa. Không đáng kể ở quy mô này.
 

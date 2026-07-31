@@ -440,18 +440,18 @@ Từ `docs/EVALUATION.md`:
 
 | Cấu hình | MRR | Success@1 |
 |---|---|---|
-| TF-IDF thuần | 0,8537 | 78,0 % |
-| TF-IDF + PageRank ($\beta = 0{,}3$) | 0,8625 | 79,0 % |
-| TF-IDF + title | 0,9083 | 86,0 % |
-| **TF-IDF + PR + title** | **0,9229** | **88,0 %** |
+| TF-IDF thuần | 0,8541 | 78,0 % |
+| TF-IDF + PageRank ($\beta = 0{,}3$) | 0,8567 | 78,0 % |
+| TF-IDF + title | 0,8715 | 81,0 % |
+| **TF-IDF + PR + title** | **0,8758** | **81,5 %** |
 
 **Quét trọng số $\beta$:**
 
 | $\beta$ | 0,05 | 0,10 | 0,20 | 0,30 | 0,50 | 0,80 |
 |---|---|---|---|---|---|---|
-| MRR | 0,9196 | 0,9196 | 0,9204 | **0,9229** | **0,9229** | 0,9189 |
+| MRR | **0,8800** | 0,8783 | 0,8788 | 0,8758 | 0,8651 | 0,8582 |
 
-**Kết quả gây bất ngờ: thay đổi $\beta$ gấp 16 lần (0,05 → 0,80) chỉ làm MRR đổi 0,004 — tức 0,4 %.**
+**Kết quả gây bất ngờ: thay đổi $\beta$ gấp 16 lần (0,05 → 0,80) chỉ làm MRR đổi 0,0218 — tức 2,5 %.** Và giá trị tốt nhất là $\beta = 0{,}05$ chứ không phải $0{,}30$ đang dùng: càng đổ nhiều trọng số vào PageRank thì MRR càng **giảm**.
 
 **Vì sao?** Vì thang đo của hai thành phần lệch nhau ba bậc độ lớn:
 

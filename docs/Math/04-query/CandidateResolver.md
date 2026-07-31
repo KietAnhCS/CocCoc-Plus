@@ -45,7 +45,7 @@ SearchEngineFacade.search()          EvaluationRunner
 
 Ban đầu hai bản giống hệt nhau. Nhưng mỗi lần sửa một bên mà quên bên kia, chúng lệch đi một chút. Và **không có test nào bắt được** — cả hai bản đều chạy đúng, chỉ là chúng làm hai việc hơi khác nhau.
 
-**Hậu quả logic:** báo cáo nói *"hệ thống đạt MRR 0,9229"*. Nhưng con số đó đo **bản sao trong `EvaluationRunner`**, không phải bản mà người dùng gọi. Nếu hai bản lệch nhau, câu khẳng định trong báo cáo **sai** — và không ai biết.
+**Hậu quả logic:** báo cáo nói *"hệ thống đạt MRR 0,8758"*. Nhưng con số đó đo **bản sao trong `EvaluationRunner`**, không phải bản mà người dùng gọi. Nếu hai bản lệch nhau, câu khẳng định trong báo cáo **sai** — và không ai biết.
 
 Đây là dạng lỗi mà một đồ án tốt nghiệp phải tránh bằng mọi giá: **số liệu đo một thứ, sản phẩm là thứ khác.**
 
@@ -257,7 +257,7 @@ So sánh: `PostingListMerger` **không** làm hai việc này dù cũng toàn `s
 
 với $k$ = số term bắt buộc, $c$ = số ứng viên sau tầng 1, $P$ = số cụm từ.
 
-**Chi phối bởi tầng 1** trong mọi trường hợp thực tế. Số đo: thời gian truy vấn trung bình **3,41 ms** (đã làm nóng JVM), trong đó phần lớn là giao posting list và chấm điểm.
+**Chi phối bởi tầng 1** trong mọi trường hợp thực tế. Số đo: thời gian truy vấn trung bình **1,59 ms** (đã làm nóng JVM), trong đó phần lớn là giao posting list và chấm điểm.
 
 ---
 

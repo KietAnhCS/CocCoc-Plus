@@ -1,6 +1,6 @@
 # 10 Design Pattern trong VnSearch
 
-**Phạm vi:** 74 lớp Java (9.286 dòng) + 8 module TypeScript. **233 test xanh.**
+**Phạm vi:** 76 lớp Java (10.485 dòng) + 8 module TypeScript. **280 test xanh.**
 
 Mười mẫu dưới đây đều thoả ba điều kiện: **giải một vấn đề thật đã đo được**, **được dùng trong đường chạy chính** (không phải code chết), và **động cơ được viết trong Javadoc** chứ không chỉ trong tài liệu.
 
@@ -170,7 +170,7 @@ Hai lý do:
 1. **Logarit nén dải động** — PageRank trải trên nhiều bậc độ lớn; $\log$ biến nó thành đại lượng cộng được, và chuẩn hoá về $[0,1]$ làm `weight` trở thành tỷ lệ đóng góp **thật**.
 2. **Phép nhân bất biến với thang đo của scorer cơ sở** — đổi TF-IDF sang BM25 (thang 0,18 so với 12,1) **không cần chỉnh lại trọng số**.
 
-Lý do (2) giải thích luôn nghịch lý trong bảng đánh giá cũ: *"BM25 + PR + title" (0,9089) thua "TF-IDF + PR + title" (0,9229)* — vì bộ trọng số được tinh chỉnh cho thang TF-IDF.
+Lý do (2) từng giải thích một nghịch lý trong bảng đánh giá **cũ**: *"BM25 + PR + title" (0,9089) thua "TF-IDF + PR + title" (0,9229)* — vì bộ trọng số cộng được tinh chỉnh cho thang TF-IDF. Sau khi chuyển sang phép nhân bất biến thang đo, nghịch lý đó **biến mất**: đo lại cho 0,9093 so với 0,8758, tức BM25 thắng đúng như lý thuyết dự đoán.
 
 **Có test chứng minh đúng tính chất đó:**
 

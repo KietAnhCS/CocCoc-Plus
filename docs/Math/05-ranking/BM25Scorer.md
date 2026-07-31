@@ -292,16 +292,16 @@ Từ `docs/EVALUATION.md`, 200 truy vấn known-item trên corpus 5.011 trang:
 
 | Cấu hình | MRR | Success@1 | Success@5 | ms/truy vấn |
 |---|---|---|---|---|
-| TF-IDF thuần | 0,8537 | 78,0 % | 95,0 % | 3,90 |
-| **BM25 thuần** | **0,8989** | **85,0 %** | 96,5 % | 4,08 |
-| TF-IDF + PR + title (đang dùng) | **0,9229** | **88,0 %** | 97,5 % | 3,14 |
-| BM25 + PR + title | 0,9089 | 86,0 % | 97,0 % | 3,21 |
+| TF-IDF thuần | 0,8541 | 78,0 % | 95,0 % | 3,10 |
+| BM25 thuần | 0,8989 | 85,0 % | 96,5 % | 2,20 |
+| TF-IDF + PR + title (đang dùng) | 0,8758 | 81,5 % | 95,5 % | 1,59 |
+| **BM25 + PR + title** | **0,9093** | **85,5 %** | **97,0 %** | 2,01 |
 
 **Hai kết luận, và cái thứ hai đi ngược trực giác:**
 
 1. **Khi tắt hết tín hiệu khác, BM25 thắng rõ ràng:** +0,0452 MRR (+5,3 %), +7 điểm phần trăm Success@1. Đúng như lý thuyết dự đoán.
 
-2. **Khi bật thêm PageRank và title bonus, BM25 lại THUA:** 0,9089 so với 0,9229 của TF-IDF.
+2. **Khi bật thêm PageRank và title bonus, BM25 vẫn thắng:** 0,9093 so với 0,8758 của TF-IDF — và đây chính là chỗ nghịch lý cũ đã **đảo chiều**.
 
 **Vì sao?** Vì công thức kết hợp là **tuyến tính với trọng số cố định**:
 

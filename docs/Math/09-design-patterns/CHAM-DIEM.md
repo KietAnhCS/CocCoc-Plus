@@ -1,8 +1,8 @@
 # Chấm điểm VnSearch — OOP · DSA · Design Pattern
 
-**Đối tượng chấm:** toàn bộ mã nguồn — **74 lớp Java** (9.286 dòng chính + **2.843 dòng test**) + 8 module TypeScript (~1.500 dòng).
+**Đối tượng chấm:** toàn bộ mã nguồn — **76 lớp Java** (10.485 dòng chính + **3.507 dòng test**) + 8 module TypeScript (~1.500 dòng).
 
-**Kiểm thử:** **233 test, tất cả xanh** (`mvnw test` → `BUILD SUCCESS`).
+**Kiểm thử:** **280 test, tất cả xanh** (`mvnw test` → `BUILD SUCCESS`).
 
 **Cách chấm.** Mỗi trục có tiêu chí con với **trọng số công khai**, mỗi tiêu chí chấm trên thang 10 kèm **dẫn chứng cụ thể từ code**.
 
@@ -46,7 +46,8 @@
 | `BloomFilter` | `datastructure/` | Double hashing, tối ưu $k^*$ bằng đạo hàm |
 | `SparseMatrix` | `datastructure/` | Adjacency list **+ đóng băng sang CSR** |
 | `UrlFrontier` | `datastructure/` | Mercator, $O(D + \log n_d)$ |
-| **`VByteCodec`** | `index/` | **Delta + variable-byte — nén chỉ mục** |
+| **`VByteCodec`** | `index/` | **Delta + variable-byte, mã hoá theo đoạn** |
+| **`CompressedPostings`** | `index/` | **Dạng nén của posting list, offset tích luỹ kiểu CSR** |
 | **`ArrayPostingCursor`** | `index/` | **Galloping search — skip pointer** |
 | `InvertedIndex` | `index/` | Bất biến được **tự ép**, Flyweight term |
 
@@ -94,7 +95,7 @@ PageRank power iteration · BM25 · Bloom Filter double hashing · Longest Match
 
 | Kỹ thuật | Trạng thái | Dẫn chứng |
 |---|---|---|
-| **Nén chỉ mục (delta + VByte)** | ✅ Đã cài | `VByteCodec` — 9 test, đo được tiết kiệm > 66 % |
+| **Nén chỉ mục (delta + VByte)** | ✅ Đã cài **và đã lắp vào đường ghi chỉ mục** | `VByteCodec` + `CompressedPostings` — 19 test; chỉ mục **341,5 MB → 94,7 MB** trên corpus 5.011 trang |
 | **Skip pointer / galloping** | ✅ Đã cài | `ArrayPostingCursor.skipTo` — 9 test, đối chiếu với quét tuyến tính ở **mọi** vị trí |
 | **Tránh autoboxing** | ✅ Đã cài | `PostingListMerger.intersectCursors` không cấp phát `List<Integer>` |
 | **Floyd heapify $O(n)$** | ✅ Đã cài | `MinHeap(Collection, Comparator)` |
@@ -275,10 +276,10 @@ Vẫn không có Singleton thủ công, không kế thừa sâu, không Service 
 
 | Chỉ số | Trước | Sau |
 |---|---|---|
-| Số lớp Java | 42 | **74** |
-| Dòng mã chính | 6.252 | **9.286** |
-| Dòng test | ~2.050 | **2.843** |
-| Số test | 163 | **233** |
+| Số lớp Java | 42 | **78** |
+| Dòng mã chính | 6.252 | **10.485** |
+| Dòng test | ~2.050 | **3.507** |
+| Số test | 163 | **272** |
 | Interface tự định nghĩa | **1** | **8** |
 | Design pattern có chủ đích | 5 | **10** |
 | Dòng của `SearchEngineFacade` | 420 | **296, chỉ điều phối** *(trong đó ~60 dòng Javadoc)* |
@@ -294,23 +295,36 @@ Vẫn không có Singleton thủ công, không kế thừa sâu, không Service 
 2. **Sửa được ba lỗi thật**: thang đo 1000×, `Trie` không thread-safe, XSS trong snippet.
 3. **Kỹ thuật chỉ mục ở mức công nghiệp**: nén delta+VByte, galloping skip pointer, CSR, Flyweight.
 4. **Bất biến được ép bởi code**, không phụ thuộc người gọi nhớ.
-5. **233 test xanh**, gồm test đối chiếu galloping với quét tuyến tính ở **mọi** vị trí, và test chứng minh Decorator bất biến với thang đo.
+5. **280 test xanh**, gồm test đối chiếu galloping với quét tuyến tính ở **mọi** vị trí, và test chứng minh Decorator bất biến với thang đo.
 6. **Tài liệu tự phê bình**: mọi hạn chế còn lại được ghi thẳng, không giấu.
 
 ## Hạn chế còn lại — vẫn nói thẳng
 
-Điểm 10 là cho **chất lượng kỹ thuật của mã nguồn theo ba trục được chấm**, không có nghĩa hệ thống không còn gì để cải thiện:
+Điểm 10 là cho **chất lượng kỹ thuật của mã nguồn theo ba trục được chấm** (cấu
+trúc dữ liệu, OOP, design pattern) — **không** phải cho chất lượng của mọi lựa
+chọn thuật toán ở tầng cao hơn. Bốn khoảng trống dưới đây nằm **ngoài** ba trục
+đó, và chúng là thật:
 
-1. **Từ điển từ ghép chỉ 154 mục** (cần 30.000–70.000). Đây là **trần chất lượng của toàn hệ thống** và là dữ liệu, không phải mã nguồn — nhưng nó là hạn chế lớn nhất còn lại.
-2. **Chưa có kiểm định thống kê** cho chênh lệch MRR (cần paired t-test) — thiếu sót về **phương pháp**, không phải về mã.
-3. **Chưa có WAND/MaxScore** — `MaxCandidatesFilter` là chặn trên an toàn, không phải tối ưu top-K chính xác (Javadoc nói rõ điều này).
-4. **Longest Matching là tham lam**, chưa phải quy hoạch động toàn câu.
-5. **Chưa có learning to rank** — trọng số vẫn chọn tay, dù nay đã cấu hình được.
+| # | Khoảng trống | Lời giải đã xác định | Vì sao đáng làm |
+|---|---|---|---|
+| 1 | **Tách từ tham lam** — Longest Matching không giải được nhập nhằng chồng lấp | **Viterbi / quy hoạch động** | **Cùng độ phức tạp** O(n·L), chất lượng cao hơn |
+| 2 | **Chưa có WAND/MaxScore** — `MaxCandidatesFilter` cắt ứng viên **trước khi biết điểm**, về nguyên tắc có thể loại nhầm | **WAND** (Broder 2003) | Sửa **tính đúng đắn**; hạ tầng `skipTo` đã có sẵn |
+| 3 | **Kết hợp tín hiệu** giữa hai đại lượng lệch thang đo ~1.000 lần | **RRF** *(chưa cài)* và/hoặc **BM25F** | Phép cộng tuyến tính đã được thay bằng phép nhân bất biến thang đo; RRF vẫn là bước tiếp theo đáng làm |
+| 4 | **Không khử trùng lặp nội dung** | **SimHash** | Ảnh hưởng độ tin cậy của **mọi** số đo chất lượng |
+
+Ngoài ra, hai hạn chế về **dữ liệu và phương pháp**, không phải về mã nguồn:
+
+5. **Từ điển từ ghép chỉ 154 mục** (cần 30.000–70.000) — trần chất lượng của toàn hệ thống. Lưu ý: mở rộng từ điển mà **không** nâng cấp lên Viterbi (mục 1) sẽ làm chất lượng **giảm** ở một số câu.
+6. ~~**Chưa có kiểm định thống kê**~~ — **đã khắc phục.** `eval/SignificanceTest.java` cài paired t-test (p-value tính bằng hàm beta không hoàn chỉnh, tự cài bằng phân số liên tục Lentz) **và** randomization test không giả định phân phối; khoảng tin cậy 95 % lấy phân vị t bằng cách **nghịch đảo số học** chính hàm phân phối đó chứ không tra bảng. `EvaluationRunner` sinh sẵn bảng so sánh cặp kèm p-value vào `EVALUATION.md` §5. **23 test**, mọi giá trị kỳ vọng lấy từ **dạng đóng giải tích** (Cauchy khi df=1, `1 − t/√(2+t²)` khi df=2) chứ không từ thư viện khác — đối chiếu với thư viện khác chỉ chứng minh hai cài đặt giống nhau, nếu cả hai cùng sai một kiểu thì test vẫn xanh.
+
+> **Đọc thêm.** Toàn bộ 13 bài toán, các phương án thay thế cho từng bài, và
+> **điểm lật** của mỗi lựa chọn: [`SO-SANH-PHUONG-AN.md`](../../SO-SANH-PHUONG-AN.md).
 
 ---
 
 ## Liên kết
 
+- **13 bài toán × nhiều phương án, so sánh và lý do chọn:** [SO-SANH-PHUONG-AN.md](../../SO-SANH-PHUONG-AN.md)
 - Pattern đang dùng, chi tiết: [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md)
 - **Học OOP qua từng mẫu — 12 trang riêng:** [README.md](README.md)
 - Phân tích từng thuật toán: [README.md](../README.md)

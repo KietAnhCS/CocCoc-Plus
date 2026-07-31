@@ -1,3 +1,121 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * Bảng màu ngữ nghĩa. Mỗi biến là bộ ba RGB (không có `rgb()`) để Tailwind
+ * ghép được với `<alpha-value>` — xem tailwind.config.js. Chế độ tối bật
+ * bằng cách gắn class `dark` lên <html> (themeStore.ts).
+ */
+@layer base {
+  :root {
+    --c-chrome: 223 227 235; /* nền thanh tab */
+    --c-surface: 255 255 255; /* nền nội dung / tab đang mở */
+    --c-raised: 241 243 248; /* nền nổi nhẹ: ô nhập, nút hover */
+    --c-line: 219 224 233;
+    --c-ink: 24 26 31;
+    --c-muted: 92 100 114;
+    --c-faint: 140 148 162;
+    --c-brand: 79 70 229;
+    --c-brand-soft: 238 240 255;
+    --c-link: 26 90 219;
+    --c-visited: 105 60 190;
+    --c-success: 16 122 87;
+    --c-warn: 180 83 9;
+    --c-danger: 200 45 55;
+
+    --shine: 255 255 255;
+  }
+
+  .dark {
+    --c-chrome: 17 19 24;
+    --c-surface: 27 30 36;
+    --c-raised: 39 43 51;
+    --c-line: 51 56 65;
+    --c-ink: 232 234 238;
+    --c-muted: 158 165 176;
+    --c-faint: 122 130 142;
+    --c-brand: 129 140 248;
+    --c-brand-soft: 44 46 78;
+    --c-link: 138 180 248;
+    --c-visited: 197 163 245;
+    --c-success: 74 202 152;
+    --c-warn: 240 180 80;
+    --c-danger: 255 130 130;
+
+    --shine: 255 255 255;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-chrome font-sans text-ink antialiased;
+    /* Chrome UI là phần vỏ trình duyệt: không cho bôi đen/kéo chọn lung tung. */
+    user-select: none;
+    overflow: hidden;
+  }
+
+  /* Nội dung đọc được (kết quả tìm kiếm, ô nhập) thì vẫn cho chọn bình thường. */
+  input,
+  textarea,
+  .selectable {
+    user-select: text;
+  }
+
+  ::selection {
+    @apply bg-brand/25;
+  }
+
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer components {
+  /* Nút biểu tượng tròn dùng chung cho toolbar. */
+  .icon-btn {
+    @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted
+           transition-colors duration-150 hover:bg-raised hover:text-ink
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60
+           disabled:pointer-events-none disabled:text-faint/50;
+  }
+
+  /* Ô xám chạy sóng khi đang chờ dữ liệu. */
+  .skeleton {
+    @apply relative overflow-hidden rounded bg-raised;
+  }
+
+  .skeleton::after {
+    @apply absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/50 to-transparent content-[''];
+    transform: translateX(-100%);
+  }
+
+  .dark .skeleton::after {
+    @apply via-white/[0.07];
+  }
+}
+
+/* Thanh cuộn mảnh, hoà vào nền — mặc định của Windows quá dày và chói. */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgb(var(--c-faint) / 0.4);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(var(--c-faint) / 0.7);
+}

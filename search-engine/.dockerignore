@@ -1,0 +1,14 @@
+# Khong gui nhung thu nay vao build context.
+#
+# Quan trong nhat la `data/`: file crawled-multi.json nang 64 MB, gui vao
+# context lam moi lan build cham them vai giay ma khong dung den — corpus that
+# duoc MOUNT luc chay (xem docker-compose.yml), khong phai chep vao anh.
+# Rieng seed-documents.json duoc chua lai vi Dockerfile can COPY no.
+data/*
+!data/seed-documents.json
+
+target/
+.mvn/wrapper/maven-wrapper.jar
+*.class
+Dockerfile
+.dockerignore

@@ -1,0 +1,21 @@
+# Chuan hoa ket thuc dong.
+#
+# Mac dinh: Git tu nhan dien file van ban va chuan hoa ve LF trong kho.
+* text=auto
+
+# Script Windows BAT BUOC phai co ket thuc dong CRLF. Voi LF, cmd.exe phan tich
+# sai va an mat vai ky tu dau moi dong — trieu chung la nhung dong bao loi kieu
+# "'M' is not recognized as an internal or external command" (do "REM" bi cat
+# thanh "M"). Day la loi that da gap khi kiem thu run-frontend.bat.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Script Unix thi nguoc lai: CRLF lam shell bao "bad interpreter".
+*.sh  text eol=lf
+mvnw  text eol=lf
+
+# Khong dung cho file nhi phan.
+*.jar binary
+*.png binary
+*.jpg binary
+*.ico binary

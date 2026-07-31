@@ -78,37 +78,64 @@ public class BM25Scorer implements RelevanceScorer {
 
     @Override
     public double score(Map<String, Integer> queryTermFrequency, int docId, SearchIndex index) {
+        // Mot cong thuc, mot cho — xem ghi chu cung ten o TfIdfScorer.
+        return prepare(queryTermFrequency, index).score(docId);
+    }
+
+    /**
+     * Tinh truoc {@code idf} cua tung term truy van, dung lai cho moi tai lieu.
+     *
+     * <p>{@code idf} chi phu thuoc {@code df} va {@code N} — ca hai co dinh
+     * trong mot truy van — nhung truoc day no duoc tinh lai cho MOI ung vien,
+     * tuc mot {@code Math.log} du thua cho moi cap (term, ung vien).
+     *
+     * <p>Cac term co {@code df = 0} bi loai ngay o buoc chuan bi, nen vong lap
+     * nong khong con phai kiem tra chung.
+     */
+    @Override
+    public DocumentScorer prepare(Map<String, Integer> queryTermFrequency, SearchIndex index) {
         int totalDocs = index.getTotalDocs();
-        if (totalDocs == 0) {
-            return 0.0;
-        }
         double avgDocLength = index.getAverageDocLength();
-        if (avgDocLength <= 0) {
-            // Xay ra khi trang thai dan xuat totalTokens chua duoc tinh lai sau
-            // khi nap chi muc tu file — xem InvertedIndex.recomputeDerivedState.
-            return 0.0;
+        if (totalDocs == 0 || avgDocLength <= 0) {
+            // avgDocLength = 0 xay ra khi trang thai dan xuat totalTokens chua
+            // duoc tinh lai sau khi nap chi muc tu file — xem
+            // InvertedIndex.recomputeDerivedState.
+            return docId -> 0.0;
         }
-        int docLength = index.getDocLength(docId);
 
-        // He so chuan hoa do dai KHONG phu thuoc term, nen tinh MOT lan cho ca
-        // truy van thay vi q lan trong vong lap.
-        double lengthNorm = k1 * (1 - b + b * (docLength / avgDocLength));
-
-        double total = 0.0;
-        for (Map.Entry<String, Integer> entry : queryTermFrequency.entrySet()) {
-            String term = entry.getKey();
+        int size = queryTermFrequency.size();
+        String[] terms = new String[size];
+        double[] idfValues = new double[size];
+        int kept = 0;
+        for (String term : queryTermFrequency.keySet()) {
             int df = index.getDocumentFrequency(term);
             if (df == 0) {
-                continue; // thoat som: tiet kiem mot Math.log (20-40 chu ky CPU)
-            }
-            int termFrequency = index.getTermFrequency(term, docId);
-            if (termFrequency == 0) {
                 continue;
             }
-            double saturated = (termFrequency * (k1 + 1)) / (termFrequency + lengthNorm);
-            total += idf(totalDocs, df) * saturated;
+            terms[kept] = term;
+            idfValues[kept] = idf(totalDocs, df);
+            kept++;
         }
-        return total;
+
+        final int count = kept;
+        if (count == 0) {
+            return docId -> 0.0;
+        }
+
+        return docId -> {
+            // He so chuan hoa do dai khong phu thuoc term nen van tinh MOT lan
+            // cho ca tai lieu, thay vi q lan trong vong lap.
+            double lengthNorm = k1 * (1 - b + b * (index.getDocLength(docId) / avgDocLength));
+            double total = 0.0;
+            for (int i = 0; i < count; i++) {
+                int termFrequency = index.getTermFrequency(terms[i], docId);
+                if (termFrequency == 0) {
+                    continue;
+                }
+                total += idfValues[i] * (termFrequency * (k1 + 1)) / (termFrequency + lengthNorm);
+            }
+            return total;
+        };
     }
 
     @Override

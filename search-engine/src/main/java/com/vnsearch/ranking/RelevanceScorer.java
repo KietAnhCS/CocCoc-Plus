@@ -46,4 +46,43 @@ public interface RelevanceScorer {
      * {@code "BM25(k1=1.2,b=0.75) + PR x0.30 + title x0.10"}.
      */
     String name();
+
+    /**
+     * Ham cham diem da <b>gan san voi mot truy van</b>: chi con nhan docId.
+     *
+     * <p>Ton tai de tach doi hai loai cong viec von bi tron lam mot trong
+     * {@link #score}.
+     */
+    @FunctionalInterface
+    interface DocumentScorer {
+        double score(int docId);
+    }
+
+    /**
+     * Tinh truoc MOT LAN moi thu chi phu thuoc TRUY VAN, tra ve ham cham diem
+     * cho tung tai lieu.
+     *
+     * <p><b>Van de that ma no giai.</b> Chu ky mot truy van la: lay {@code c}
+     * ung vien roi cham diem tung cai. Nhung {@link #score} nhan
+     * {@code queryTermFrequency} o MOI lan goi, nen moi dai luong suy ra tu
+     * truy van bi tinh lai {@code c} lan du chung khong he doi:
+     * <ul>
+     *   <li>{@code TfIdfScorer} tinh lai {@code idf} va trong so truy van —
+     *       hai {@code Math.log10} cho MOI (term, ung vien);</li>
+     *   <li>{@code BM25Scorer} tinh lai {@code idf} — mot {@code Math.log};</li>
+     *   <li>{@code TitleBoostScorer} dung lai ca doi tuong
+     *       {@link QuerySyllables} — hai {@code HashSet} moi, cong voi mot lan
+     *       bo dau cho tung tieng — cho MOI ung vien.</li>
+     * </ul>
+     * Voi 5.000 ung vien va 3 term, do la 30.000 phep logarit va 5.000 doi tap
+     * bam bi vut di ngay sau khi tao. Chuan bi truoc dua chung ve dung mot lan
+     * moi truy van, tuc tu {@code O(c*q)} xuong {@code O(q)}.
+     *
+     * <p>Cai dat mac dinh khong chuan bi gi — dung cho scorer khong co phan
+     * nao tach ra duoc. Cac Decorator boc lai {@code DocumentScorer} cua lop
+     * ben trong, nen ca chuoi chi phai chuan bi mot lan.
+     */
+    default DocumentScorer prepare(Map<String, Integer> queryTermFrequency, SearchIndex index) {
+        return docId -> score(queryTermFrequency, docId, index);
+    }
 }

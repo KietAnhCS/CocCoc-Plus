@@ -250,7 +250,7 @@ if (i > 0 && value < previous) {
 
 Không có cấp phát trung gian nào ngoài bộ đệm kết quả — `writeVInt` ghi thẳng vào `ByteArrayOutputStream`, `readVInt` đóng gói vào `long`.
 
-**Chi phí CPU đổi lấy bộ nhớ:** mỗi lần đọc posting list nén phải giải mã, tức thêm một lượt $O(n)$. Đánh đổi này có lợi khi chỉ mục lớn hơn cache CPU — lúc đó chi phí đọc bộ nhớ áp đảo chi phí giải mã. Với chỉ mục 9,1 MB hiện tại, nén chưa phải nút thắt; nó được cài để **sẵn sàng cho quy mô lớn hơn** và để đo được.
+**Chi phí CPU đổi lấy bộ nhớ:** mỗi lần đọc posting list nén phải giải mã, tức thêm một lượt $O(n)$. Đánh đổi này có lợi khi chỉ mục lớn hơn cache CPU — lúc đó chi phí đọc bộ nhớ áp đảo chi phí giải mã. Đây là lý do nén hiện chỉ áp dụng ở **tầng lưu trữ** (đọc/ghi file, vài lần mỗi vòng đời ứng dụng) chứ chưa áp dụng ở **tầng bộ nhớ** (đường nóng của mỗi truy vấn) — xem mục 9.
 
 ---
 
@@ -303,10 +303,11 @@ VByte là lựa chọn đúng cho dự án này: **tỷ lệ nén tốt, cài đ
 
 ## 9. Hạn chế đã biết
 
-1. **Chưa dùng trong đường chạy chính.** `VByteCodec` được cài đặt, kiểm thử (9 test) và đo, nhưng `InvertedIndex` vẫn giữ posting list dạng `List<Posting>` không nén. Để dùng thật cần một cài đặt `SearchIndex` riêng đọc từ dữ liệu nén — interface đã sẵn sàng cho việc đó.
+1. **Đã dùng ở tầng lưu trữ, chưa dùng ở tầng bộ nhớ.** `CompressedPostings` gọi codec này mỗi lần `IndexPersistence.save`, và chỉ mục trên đĩa giảm từ **341,5 MB xuống 94,7 MB** (corpus 5.011 trang). Nhưng sau khi nạp, `InvertedIndex` vẫn giữ posting list dạng `List<Posting>` với `Integer` boxed — tức **chưa nén trong RAM**. Nén trong RAM tiết kiệm nhiều hơn hẳn nhưng phải giải mã ở **đường nóng** của mỗi truy vấn; đánh đổi đó chưa được đo.
 2. **Chỉ hỗ trợ `int` 32-bit.** Corpus vượt 2,1 tỷ tài liệu sẽ cần `long`.
-3. **Không nén `termFrequency`.** Hiện chỉ nén `docId` và `positions`; tần suất cũng nén được vì phần lớn bằng 1–2.
-4. **Không có block-based skipping.** Chỉ mục thật chia posting list thành khối và lưu skip pointer giữa các khối, để nhảy cóc **mà không phải giải nén** toàn bộ. Hiện `PostingCursor` nhảy cóc trên dữ liệu **chưa nén**.
+3. **~~Không nén `termFrequency`~~ — nay không lưu nó nữa.** `CompressedPostings` khai thác bất biến `termFrequency == |positions|` để **bỏ hẳn** trường này, suy lại từ hiệu hai offset tích luỹ liên tiếp. Không nén gì cả mà vẫn tiết kiệm — cách rẻ nhất để nén một trường là chứng minh nó thừa.
+4. **Không có block-based skipping.** Chỉ mục thật chia posting list thành khối và lưu skip pointer giữa các khối, để nhảy cóc **mà không phải giải nén** toàn bộ. Hiện `PostingCursor` nhảy cóc trên dữ liệu **chưa nén** (dạng trong RAM).
+5. **Overhead base64 +33 %.** Mảng byte được Jackson mã hoá base64 để giữ **một file JSON duy nhất**. Ở dạng nhị phân thuần, chỉ mục còn nhỏ hơn nữa (~71 MB). Đây là đánh đổi có chủ ý: đơn giản hoá định dạng thay vì tối đa hoá tỷ lệ nén.
 
 ---
 

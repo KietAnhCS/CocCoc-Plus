@@ -33,8 +33,8 @@ Lớp này chỉ 46 dòng và **không chứa thuật toán mới nào**. Nó c�
 private static ObjectMapper createMapper() {
     return new ObjectMapper()
             .registerModule(new JavaTimeModule())
-            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
-            .enable(SerializationFeature.INDENT_OUTPUT);
+            .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    // INDENT_OUTPUT đã tắt — xem §3.3
 }
 
 public static void save(InvertedIndex index, String path) throws IOException {
@@ -62,7 +62,7 @@ public static InvertedIndex load(String path) throws IOException {
 Lớp lưu **toàn bộ** `IndexData` trong **một** file JSON:
 
 ```java
-record IndexData(Map<String, List<Posting>> index,
+record IndexData(Map<String, CompressedPostings> index,   // ← đã nén, xem §3.4
                  Map<Integer, WebDocument> documents,
                  Map<Integer, Integer> docLength) {
 }
@@ -70,23 +70,32 @@ record IndexData(Map<String, List<Posting>> index,
 
 `WebDocument` chứa cả `bodyText` đầy đủ — trung bình 6 KB mỗi tài liệu. Kết quả:
 
-| File | Kích thước |
+| File | Kích thước (corpus 5.011 trang) |
 |---|---|
-| `data/index.json` (chỉ mục + tài liệu) | **9,1 MB** |
-| `data/crawled-multi.json` (chỉ tài liệu) | **62 MB** |
+| `data/index.json` — thụt dòng + **không nén** (định dạng cũ) | **341,5 MB** |
+| `data/index.json` — gói + **nén VByte** (đang dùng) | **94,7 MB** |
+| `data/crawled-multi.json` (chỉ tài liệu thô) | **62 MB** |
 
-**Vì sao 9,1 MB nhỏ hơn nhiều so với 62 MB dù chứa nhiều hơn:** vì `index.json` được sinh từ corpus đã cắt bớt, còn `crawled-multi.json` giữ nguyên toàn bộ HTML text và 394.940 chuỗi outlink. Phần `outlinks` chiếm phần lớn 62 MB đó.
+**Vì sao `index.json` vẫn lớn hơn `crawled-multi.json`:** nó chứa **cả hai** —
+toàn văn `WebDocument` **và** posting list của 136.768 term (5,2 triệu cặp
+(term, doc) kèm vị trí). Đây là cái giá của việc gộp mọi thứ vào một file.
 
 **Bảng đánh đổi:**
 
 | Tiêu chí | Một file JSON (dự án chọn) | Nhiều file / định dạng nhị phân |
 |---|---|---|
-| Độ phức tạp code | **46 dòng** | hàng trăm dòng |
-| Đọc được bằng mắt | **có** — mở lên xem được ngay | không |
+| Độ phức tạp code | **~60 dòng** | hàng trăm dòng |
 | Thứ tự nạp lại | **không có vấn đề** — một lần đọc | phải quản lý phụ thuộc |
-| Kích thước | 9,1 MB (JSON có thụt lề) | ~2 MB nếu nén |
-| Thời gian nạp | vài giây | nhanh hơn nhiều |
-| Nạp một phần | **không thể** | được |
+| Kích thước | 94,7 MB | ~71 MB (bỏ overhead base64 +33 %) |
+| Đọc được bằng mắt | phần tài liệu: có; posting list: **không** (base64) | không |
+| Nạp một phần | **không thể** (hiện tại) | được |
+
+**Đánh đổi đã dịch chuyển sau khi nén.** Trước đây lý do mạnh nhất để chọn JSON
+là *"mở lên xem được ngay"*. Nay posting list ở dạng base64 nên lý do đó **chỉ
+còn đúng một nửa** — phần `documents` vẫn đọc được, phần `index` thì không. Lý
+do còn lại vẫn đủ mạnh: **một file, một lần đọc, không phải quản lý thứ tự phụ
+thuộc**. Nói rõ rằng một lập luận đã yếu đi thì trung thực hơn là giữ nguyên
+nó như chưa có gì thay đổi.
 
 Với quy mô đồ án, cột giữa thắng rõ ràng. Javadoc của lớp nói thẳng điều này:
 
@@ -113,11 +122,43 @@ Mặc định Jackson ghi thời gian dưới dạng **số** (epoch seconds). T
 
 Chuỗi ISO dài hơn nhưng **đọc được bằng mắt** — nhất quán với triết lý "chọn JSON để xem được" ở §2. Nó cũng tránh mất độ chính xác nano giây khi số thực bị làm tròn.
 
-### 3.3 `enable(INDENT_OUTPUT)`
+### 3.3 ~~`enable(INDENT_OUTPUT)`~~ — đã tắt, và con số dự đoán đã được kiểm chứng
 
-Thụt lề đẹp. Cái giá là kích thước file tăng khoảng **30–40 %** so với JSON nén một dòng.
+Bản trước bật thụt lề cho đẹp, và trang này từng ghi:
 
-> **Đây là chỗ đáng cân nhắc lại.** Với `index.json` 9,1 MB, thụt lề tốn khoảng 2,5–3,5 MB thuần khoảng trắng. Không ai thực sự đọc một file 9 MB bằng mắt. Cách hợp lý hơn: tắt `INDENT_OUTPUT` cho `index.json` (file máy đọc) và giữ bật cho `pool-to-label.json` (file **người** phải điền tay — xem [PoolBuilder](../07-eval/PoolBuilder.md)).
+> *"Đây là chỗ đáng cân nhắc lại. Thụt lề tốn khoảng 30–40 % kích thước file.
+> Không ai thực sự đọc một file 9 MB bằng mắt."*
+
+**Nay đã tắt, và phép đo xác nhận dự đoán đó gần như chính xác:**
+
+| Định dạng | Kích thước | Chênh |
+|---|---|---|
+| Thụt dòng | 341,5 MB | — |
+| **Gói (đã tắt thụt lề)** | **226,6 MB** | **−33,7 %** |
+
+Dự đoán "30–40 %" → thực đo **33,7 %**. Đây là một ví dụ nhỏ nhưng đáng giá của
+việc **ghi lại dự đoán trước khi đo**: nó biến một nhận xét mơ hồ thành một
+giả thuyết kiểm chứng được.
+
+Nguyên tắc rút ra và nay đã áp dụng nhất quán: **tắt thụt lề cho file máy đọc**
+(`index.json`), **giữ bật cho file người phải điền tay** (`pool-to-label.json`
+— xem [PoolBuilder](../07-eval/PoolBuilder.md)).
+
+### 3.4 Nén posting list trước khi ghi
+
+Thay đổi lớn hơn thụt lề: posting list được nén bằng delta + variable-byte
+trước khi đưa cho Jackson. Chi tiết ba kỹ thuật nén và ví dụ tính tay:
+[CompressedPostings](CompressedPostings.md).
+
+| Định dạng | Kích thước | Chênh |
+|---|---|---|
+| Gói + không nén | 226,6 MB | — |
+| **Gói + nén VByte** | **94,7 MB** | **−58,2 %** |
+
+> **Vì sao phải tách hai phép đo này ra.** Gộp cả hai thay đổi rồi báo một con
+> số (−72,3 %) sẽ **quy nhầm công của việc bỏ thụt lề cho phần nén**. Cùng bài
+> học phương pháp với lỗi JIT warmup ở [`DSA-REPORT §3.2`](../../DSA-REPORT.md):
+> *không bao giờ đổi hai biến cùng lúc rồi báo một tỷ lệ.*
 
 ---
 
@@ -129,7 +170,7 @@ createMapper().writeValue(new File(path), index.exportData());
 
 Mỗi lần `save`/`load` tạo một `ObjectMapper` mới. `ObjectMapper` khá đắt để khởi tạo (nó dựng cache của serializer/deserializer cho từng kiểu).
 
-**Vì sao ở đây không sao:** `save` và `load` được gọi đúng **vài lần trong cả vòng đời ứng dụng** — lúc khởi động, và sau mỗi lần crawl/reindex. Chi phí vài chục mili giây so với vài giây ghi 9,1 MB ra đĩa là không đáng kể.
+**Vì sao ở đây không sao:** `save` và `load` được gọi đúng **vài lần trong cả vòng đời ứng dụng** — lúc khởi động, và sau mỗi lần crawl/reindex. Chi phí vài chục mili giây so với vài giây ghi gần 100 MB ra đĩa là không đáng kể.
 
 **Vì sao vẫn nên biết:** `ObjectMapper` là **thread-safe sau khi cấu hình xong** và được thiết kế để dùng lại. Nếu lớp này được gọi trong vòng lặp nóng (ví dụ serialize từng phản hồi HTTP), tạo mới mỗi lần sẽ là một lỗi hiệu năng nghiêm trọng. Đây là kiến thức đáng có, kể cả khi ở đây không dùng tới.
 
@@ -246,7 +287,7 @@ Tầng 4 là chi tiết đáng khen về trải nghiệm: người vừa clone r
 | `save` | $O(\lvert\text{chỉ mục}\rvert)$ | Jackson stream ra file, không dựng chuỗi trong RAM |
 | `load` | $O(\lvert\text{file}\rvert)$ | **Toàn bộ cây object trong RAM** |
 
-**Điểm cần lưu ý về bộ nhớ khi nạp:** Jackson `readValue` dựng **toàn bộ** `IndexData` trong RAM trước khi `importData` chạy. Với 9,1 MB JSON, cây object Java tương ứng lớn hơn nhiều — mỗi `Integer` trong `positions` là một object 16 byte, mỗi `String` term có overhead ~40 byte. Ước lượng thô: **150–250 MB** heap ở đỉnh.
+**Điểm cần lưu ý về bộ nhớ khi nạp:** Jackson `readValue` dựng **toàn bộ** `IndexData` trong RAM trước khi `importData` chạy. Với gần 100 MB JSON, cây object Java tương ứng lớn hơn nhiều — mỗi `Integer` trong `positions` là một object 16 byte, mỗi `String` term có overhead ~40 byte. Ước lượng thô: **1,5–2,5 GB** heap ở đỉnh — đây là lý do các lệnh đo phải chạy với `MAVEN_OPTS=-Xmx4g`.
 
 Với chỉ mục lớn hơn, phải chuyển sang **streaming API** của Jackson (`JsonParser`) để xử lý từng phần tử một thay vì dựng cả cây.
 
@@ -269,7 +310,7 @@ Với chỉ mục lớn hơn, phải chuyển sang **streaming API** của Jacks
 
 1. **`INDENT_OUTPUT` cho file máy đọc** — lãng phí ~3 MB (xem §3.3).
 2. **Không nén.** JSON gzip lại sẽ nhỏ hơn khoảng 5–8 lần. `GZIPOutputStream` bọc quanh là một dòng code.
-3. **Không nạp từng phần.** Phải đọc cả 9,1 MB kể cả khi chỉ cần thống kê.
+3. **Không nạp từng phần.** Phải đọc cả file kể cả khi chỉ cần thống kê — dù dạng nén *cho phép* nạp theo yêu cầu, đường đọc hiện tại chưa tận dụng.
 4. **Không có phiên bản định dạng.** Nếu `Posting` thêm một trường, file cũ nạp vào sẽ hỏng mà không có thông báo rõ ràng. Thêm một trường `formatVersion` là cách phòng chuẩn.
 5. **Ghi không nguyên tử.** Nếu tiến trình chết giữa lúc `writeValue`, file `index.json` bị cắt cụt và **không nạp lại được**, mà bản cũ cũng đã mất. Cách chuẩn: ghi ra `index.json.tmp` rồi `Files.move(..., ATOMIC_MOVE)`.
 6. **Trùng lặp `createDirectories`** ở ba lớp (xem §5).

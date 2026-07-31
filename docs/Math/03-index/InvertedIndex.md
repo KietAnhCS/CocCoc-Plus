@@ -376,7 +376,7 @@ static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
 
 `record IndexData` và hai phương thức đều **package-private** — chỉ `IndexPersistence` (cùng gói `com.vnsearch.index`) truy cập được. Đây là dùng đúng mức truy cập mặc định của Java để phơi bày cấu trúc nội bộ cho đúng một lớp bạn, thay vì `public` cho cả thế giới.
 
-**Kích thước file:** `data/index.json` = **9,1 MB**. Lưu cả `WebDocument` (chứa `bodyText` đầy đủ) trong cùng file là đánh đổi đơn giản hoá — xem [IndexPersistence.md](IndexPersistence.md).
+**Kích thước file:** `data/index.json` = **94,7 MB** (đã nén delta+VByte; 341,5 MB nếu không nén). Lưu cả `WebDocument` (chứa `bodyText` đầy đủ) trong cùng file là đánh đổi đơn giản hoá — xem [IndexPersistence.md](IndexPersistence.md).
 
 ---
 
@@ -400,7 +400,7 @@ static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
 | Thời gian dựng chỉ mục 5.011 tài liệu | **6,8 – 9,5 giây** |
 | Số term phân biệt | **136.768** (gồm cả bản không dấu) |
 | Độ dài tài liệu trung bình | **1.043,3 token** |
-| Kích thước `data/index.json` | **9,1 MB** |
+| Kích thước `data/index.json` | **94,7 MB** (đã nén; 341,5 MB nếu không) |
 
 ---
 
@@ -429,7 +429,7 @@ static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
 4. ~~**`getAllDocuments()` trả về map nội bộ**~~ ✅ **Đã khắc phục** — nay trả `Collections.unmodifiableMap(documents)`.
 5. ~~**Không nén chỉ mục.**~~ ✅ **Đã cài đặt** — `VByteCodec` làm **delta encoding + variable-byte**: lưu hiệu `docId` giữa hai posting liên tiếp (số nhỏ) rồi mã hoá biến độ dài. Với posting list 1.639 mục, hiệu trung bình khoảng 3 nên chỉ tốn 1 byte thay vì 4 — đo được **tiết kiệm > 66 %**, 9 test. Xem [VByteCodec](VByteCodec.md).
 6. ~~**Không có skip pointer.**~~ ✅ **Đã cài đặt** — `PostingCursor.skipTo` dùng **galloping search**, đưa chi phí về $O(m\log\frac{n}{m})$ thay vì $O(m+n)$ khi $m \ll n$: 4005 bước → **48 bước**. Xem [ArrayPostingCursor](../06-datastructures/ArrayPostingCursor.md) và [09-ITERATOR-CURSOR.md](../09-design-patterns/09-ITERATOR-CURSOR.md).
-7. **Toàn bộ nằm trong RAM.** 9,1 MB với 5.011 tài liệu là ổn, nhưng tỉ lệ tuyến tính: 5 triệu tài liệu sẽ cần ~9 GB. Chỉ mục thật lưu trên đĩa với bộ nhớ đệm. *(Interface `SearchIndex` nay cho phép thêm cài đặt trên đĩa mà không sửa tầng trên — xem điểm 8.)*
+7. **Toàn bộ nằm trong RAM.** Chỉ mục nén trên đĩa là 94,7 MB, nhưng dạng trong RAM lớn hơn nhiều (mỗi `Integer` boxed 16 byte) — ước lượng 1,5–2,5 GB heap ở đỉnh cho 5.011 tài liệu, và tỉ lệ tuyến tính theo quy mô. Chỉ mục thật lưu trên đĩa với bộ nhớ đệm. *(Interface `SearchIndex` nay cho phép thêm cài đặt trên đĩa mà không sửa tầng trên — xem điểm 8.)*
 8. ~~**Không có interface.**~~ ✅ **Đã khắc phục** — nay có interface `SearchIndex`, và 4 lớp dùng nó (`CandidateResolver`, `TfIdfScorer`, `BM25Scorer`, `ResultRanker`) đều nhận kiểu trừu tượng thay vì lớp cụ thể. Nhờ vậy giả lập được trong test và thay được bằng cài đặt nén/trên đĩa. Xem [**01-STRATEGY.md §4.3**](../09-design-patterns/01-STRATEGY.md).
 
 ---

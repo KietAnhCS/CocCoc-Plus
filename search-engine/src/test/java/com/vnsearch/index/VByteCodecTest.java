@@ -2,6 +2,8 @@ package com.vnsearch.index;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -89,5 +91,63 @@ class VByteCodecTest {
         assertEquals(2, VByteCodec.encodedSize(128));
         assertEquals(2, VByteCodec.encodedSize(16_383));
         assertEquals(3, VByteCodec.encodedSize(16_384));
+    }
+
+    // --- encodeSegments / decodeSegments ---
+
+    @Test
+    void segmentsRoundTripPreservesEachSegment() {
+        List<int[]> segments = List.of(
+                new int[]{0, 5, 9},
+                new int[]{3},
+                new int[]{},
+                new int[]{1, 2, 3, 400});
+        byte[] encoded = VByteCodec.encodeSegments(segments);
+        int[][] decoded = VByteCodec.decodeSegments(encoded, new int[]{3, 1, 0, 4});
+
+        assertEquals(4, decoded.length);
+        for (int i = 0; i < segments.size(); i++) {
+            assertArrayEquals(segments.get(i), decoded[i], "doan " + i);
+        }
+    }
+
+    @Test
+    void segmentBoundaryResetsDeltaBase() {
+        // Day chinh la ly do encodeSegments phai ton tai: noi hai doan lai roi
+        // delta hoa MOT lan se cho delta AM tai ranh gioi (100 -> 1).
+        List<int[]> segments = List.of(new int[]{100}, new int[]{1});
+        byte[] encoded = VByteCodec.encodeSegments(segments);
+        int[][] decoded = VByteCodec.decodeSegments(encoded, new int[]{1, 1});
+
+        assertArrayEquals(new int[]{100}, decoded[0]);
+        assertArrayEquals(new int[]{1}, decoded[1], "doan sau phai bat dau lai tu 0");
+    }
+
+    @Test
+    void segmentsRejectUnsortedWithinSegment() {
+        assertThrows(IllegalArgumentException.class,
+                () -> VByteCodec.encodeSegments(List.of(new int[]{5, 3})));
+    }
+
+    @Test
+    void manySegmentsRoundTripOnRandomData() {
+        Random random = new Random(42);
+        List<int[]> segments = new ArrayList<>();
+        int[] counts = new int[200];
+        for (int s = 0; s < counts.length; s++) {
+            int length = random.nextInt(6);
+            int[] segment = new int[length];
+            int value = random.nextInt(10);
+            for (int i = 0; i < length; i++) {
+                value += random.nextInt(50);
+                segment[i] = value;
+            }
+            segments.add(segment);
+            counts[s] = length;
+        }
+        int[][] decoded = VByteCodec.decodeSegments(VByteCodec.encodeSegments(segments), counts);
+        for (int s = 0; s < counts.length; s++) {
+            assertArrayEquals(segments.get(s), decoded[s], "doan " + s);
+        }
     }
 }

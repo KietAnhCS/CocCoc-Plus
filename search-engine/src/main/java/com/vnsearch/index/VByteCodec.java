@@ -2,6 +2,7 @@ package com.vnsearch.index;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Nen danh sach so nguyen tang dan bang <b>delta encoding + variable-byte
@@ -102,6 +103,69 @@ public final class VByteCodec {
             position = (int) (packed >>> 32);
             previous += delta;
             result[i] = previous;
+        }
+        return result;
+    }
+
+    /**
+     * O(tong n) - nen NHIEU danh sach tang dan vao MOT mang byte lien tuc.
+     *
+     * <p><b>Vi sao can ham nay.</b> Danh sach vi tri (positions) cua mot term
+     * duoc luu RIENG cho tung posting. Neu noi tat ca lai roi delta hoa mot
+     * lan, delta se AM tai moi ranh gioi posting (vi tri cua doc sau bat dau
+     * lai tu 0), ma VByte chi ma hoa duoc so khong am. Vi vay moi doan phai
+     * duoc delta hoa DOC LAP — {@code previous} reset ve 0 dau moi doan.
+     *
+     * <p>Do dai tung doan KHONG duoc luu o day; nguoi goi phai giu rieng
+     * (xem {@link CompressedPostings} — no suy ra tu mang offset tich luy,
+     * dung ky thuat {@code rowPtr} cua CSR).
+     *
+     * @param segments cac doan, moi doan phai tang dan va khong am
+     * @return mang byte chua tat ca cac doan noi tiep nhau
+     */
+    public static byte[] encodeSegments(List<int[]> segments) {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        for (int[] segment : segments) {
+            int previous = 0; // ← reset moi doan: day la diem khac encodeSorted
+            for (int i = 0; i < segment.length; i++) {
+                int value = segment[i];
+                if (value < 0) {
+                    throw new IllegalArgumentException("VByte chi ma hoa so khong am, gap: " + value);
+                }
+                if (i > 0 && value < previous) {
+                    throw new IllegalArgumentException(
+                            "Moi doan phai tang dan; vi tri " + i + " co " + value + " < " + previous);
+                }
+                writeVInt(out, value - previous);
+                previous = value;
+            }
+        }
+        return out.toByteArray();
+    }
+
+    /**
+     * O(tong n) - giai nen mang byte do {@link #encodeSegments} tao ra.
+     *
+     * <p>Doc TUAN TU: sau khi doc xong doan {@code i}, con tro byte dung o dau
+     * doan {@code i+1}. Nho vay khong can luu vi tri byte bat dau cua tung
+     * doan — chi can biet SO PHAN TU cua tung doan.
+     *
+     * @param data   mang byte da nen
+     * @param counts so phan tu cua tung doan, theo dung thu tu luc ma hoa
+     */
+    public static int[][] decodeSegments(byte[] data, int[] counts) {
+        int[][] result = new int[counts.length][];
+        int position = 0;
+        for (int s = 0; s < counts.length; s++) {
+            int[] segment = new int[counts[s]];
+            int previous = 0; // ← reset moi doan, doi xung voi encodeSegments
+            for (int i = 0; i < counts[s]; i++) {
+                long packed = readVInt(data, position);
+                previous += (int) (packed & 0xFFFFFFFFL);
+                position = (int) (packed >>> 32);
+                segment[i] = previous;
+            }
+            result[s] = segment;
         }
         return result;
     }

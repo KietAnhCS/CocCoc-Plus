@@ -5,6 +5,7 @@ import com.vnsearch.index.VietnameseTokenizer;
 import java.util.HashSet;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Tap tieng cua truy van, giu CA HAI dang de so khop cho dung — dung cho boi
@@ -44,6 +45,15 @@ import java.util.Set;
  * @param loose tieng cho phep khop long theo dang bo dau
  */
 public record QuerySyllables(Set<String> exact, Set<String> loose) {
+
+    /**
+     * Regex bien dich san — hai mau nay chay cho TUNG TU cua TUNG tieu de va
+     * TUNG tu cua tung snippet, nen de {@code replaceAll}/{@code split} bien
+     * dich lai moi lan la mot khoan phi tra vo ich hang chuc nghin lan moi
+     * truy van.
+     */
+    private static final Pattern PUNCTUATION = Pattern.compile("[^\\p{L}\\p{N}]");
+    private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s+");
 
     /** Tach tap term truy van (co the la tu ghep noi bang "_") thanh cac tieng. */
     public static QuerySyllables from(Set<String> terms) {
@@ -94,7 +104,7 @@ public record QuerySyllables(Set<String> exact, Set<String> loose) {
         if (title == null || title.isBlank() || exact.isEmpty()) {
             return 0.0;
         }
-        String[] words = title.toLowerCase(Locale.ROOT).split("\\s+");
+        String[] words = WHITESPACE_RUN.split(title.toLowerCase(Locale.ROOT));
         int matched = 0;
         for (String word : words) {
             if (matches(stripPunctuation(word))) {
@@ -106,6 +116,6 @@ public record QuerySyllables(Set<String> exact, Set<String> loose) {
 
     /** Bo dau cau, giu chu va so (dung lop Unicode nen khong xoa dau tieng Viet). */
     public static String stripPunctuation(String word) {
-        return word == null ? "" : word.replaceAll("[^\\p{L}\\p{N}]", "");
+        return word == null ? "" : PUNCTUATION.matcher(word).replaceAll("");
     }
 }

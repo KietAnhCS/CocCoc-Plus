@@ -23,6 +23,10 @@ public final class SnippetBuilder {
     /** So tu cua doan trich. */
     public static final int DEFAULT_WINDOW_SIZE = 25;
 
+    /** Bien dich san: chay tren toan bo bodyText (hon 1.000 tu) cua moi ket qua. */
+    private static final java.util.regex.Pattern WHITESPACE_RUN =
+            java.util.regex.Pattern.compile("\\s+");
+
     private final int windowSize;
 
     public SnippetBuilder() {
@@ -46,7 +50,7 @@ public final class SnippetBuilder {
         if (bodyText == null || bodyText.isBlank()) {
             return "";
         }
-        String[] words = bodyText.trim().split("\\s+");
+        String[] words = WHITESPACE_RUN.split(bodyText.trim());
         if (words.length == 0) {
             return "";
         }

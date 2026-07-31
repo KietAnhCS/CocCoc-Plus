@@ -3,37 +3,43 @@ package com.vnsearch.datastructure;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Bloom Filter tu cai dat, dung de kiem tra nhanh mot URL da duoc crawl hay
- * chua ma khong can luu toan bo URL nhu {@code HashSet<String>} (tiet kiem
- * bo nho dang ke voi hang trieu URL, danh doi bang mot ty le loi false
- * positive nho, chap nhan duoc trong bai toan dedupe URL).
+ * Bloom Filter tự cài đặt, dùng để kiểm tra nhanh một URL đã được crawl hay
+ * chưa mà không cần lưu toàn bộ URL như {@code HashSet<String>} (tiết kiệm bộ
+ * nhớ đáng kể với hàng triệu URL, đánh đổi bằng một tỷ lệ lỗi false positive
+ * nhỏ, chấp nhận được trong bài toán khử trùng lặp URL).
  *
- * <p>Bit array tu quan ly bang {@code long[]} va phep dich bit (khong dung
- * {@link java.util.BitSet} co san) de the hien ro co che luu tru bit.
+ * <p>Bit array tự quản lý bằng {@code long[]} và phép dịch bit (không dùng
+ * {@link java.util.BitSet} có sẵn) để thể hiện rõ cơ chế lưu trữ bit.
  *
- * <p>Sinh k ham bam tu 2 ham bam co so bang ky thuat double hashing (Kirsch
+ * <p>Sinh k hàm băm từ 2 hàm băm cơ sở bằng kỹ thuật double hashing (Kirsch
  * &amp; Mitzenmacher): {@code h_i(x) = h1(x) + i * h2(x) (mod m)}, i = 0..k-1.
- * Ky thuat nay chi can tinh 2 ham bam that su, cac ham con lai la to hop
- * tuyen tinh cua chung, van dam bao phan bo du tot cho muc dich Bloom
- * Filter (da duoc chung minh trong bai bao goc nam 2008).
+ * Kỹ thuật này chỉ cần tính 2 hàm băm thật sự, các hàm còn lại là tổ hợp
+ * tuyến tính của chúng, vẫn đảm bảo phân bố đủ tốt cho mục đích Bloom Filter
+ * (đã được chứng minh trong bài báo gốc năm 2008).
  *
- * <p>Constructor tu tinh kich thuoc toi uu theo cong thuc chuan:
+ * <p>Constructor tự tính kích thước tối ưu theo công thức chuẩn:
  * <pre>
- *   m = ceil(-n * ln(p) / (ln 2)^2)   (so bit)
- *   k = round((m / n) * ln 2)          (so ham bam)
+ *   m = ceil(-n * ln(p) / (ln 2)^2)   (số bit)
+ *   k = round((m / n) * ln 2)          (số hàm băm)
  * </pre>
  *
- * <p><b>Quan trong:</b> Bloom Filter co the co FALSE POSITIVE (bao "co the
- * co" nhung thuc te chua tung add) vi nhieu chuoi khac nhau co the cung
- * bat trung mot tap hop bit. Nhung KHONG BAO GIO co FALSE NEGATIVE (da add
- * thi mightContain luon tra ve true), vi add() chi BAT bit (OR), khong bao
- * gio TAT bit — nen mot bit da bat boi phan tu X se van con bat khi kiem
- * tra lai X du co phan tu Y khac lam bat them bit khac.
+ * <p><b>Quan trọng — chiều sai của cấu trúc này.</b> Bloom Filter có thể có
+ * FALSE POSITIVE (báo "có thể có" nhưng thực tế chưa từng add) vì nhiều chuỗi
+ * khác nhau có thể cùng bật trúng một tập hợp bit. Nhưng nó KHÔNG BAO GIỜ có
+ * FALSE NEGATIVE (đã add thì {@code mightContain} luôn trả về true), vì
+ * {@link #add} chỉ BẬT bit (phép OR), không bao giờ TẮT bit — nên một bit đã
+ * bật bởi phần tử X sẽ vẫn còn bật khi kiểm tra lại X, dù có phần tử Y khác
+ * làm bật thêm bit khác.
  *
- * <p>Do phuc tap thoi gian: {@link #add(String)} va
- * {@link #mightContain(String)} deu O(k) (k la hang so nho, thuong &lt; 20).
- * Do phuc tap khong gian: O(m) bit = O(m/64) long, KHONG phu thuoc do dai
- * chuoi da luu (khac voi HashSet phai luu toan bo chuoi).
+ * <p>Đây chính là lý do cấu trúc này dùng được cho bài toán khử trùng lặp URL:
+ * false positive khiến bỏ lỡ vài trang — tiếc nhưng vô hại; false negative sẽ
+ * khiến crawl lại trang cũ và gây <b>vòng lặp vô hạn</b> — và điều đó không
+ * bao giờ xảy ra.
+ *
+ * <p>Độ phức tạp thời gian: {@link #add(String)} và
+ * {@link #mightContain(String)} đều O(k) (k là hằng số nhỏ, thường &lt; 20).
+ * Độ phức tạp không gian: O(m) bit = O(m/64) long, KHÔNG phụ thuộc độ dài
+ * chuỗi đã lưu (khác với HashSet phải lưu toàn bộ chuỗi).
  */
 public class BloomFilter {
 
@@ -43,10 +49,10 @@ public class BloomFilter {
 
     public BloomFilter(int expectedItems, double falsePositiveRate) {
         if (expectedItems <= 0) {
-            throw new IllegalArgumentException("expectedItems phai > 0");
+            throw new IllegalArgumentException("expectedItems phải > 0");
         }
         if (falsePositiveRate <= 0 || falsePositiveRate >= 1) {
-            throw new IllegalArgumentException("falsePositiveRate phai trong (0, 1)");
+            throw new IllegalArgumentException("falsePositiveRate phải trong khoảng (0, 1)");
         }
         double ln2 = Math.log(2);
         int m = (int) Math.ceil(-expectedItems * Math.log(falsePositiveRate) / (ln2 * ln2));
@@ -57,7 +63,7 @@ public class BloomFilter {
         this.bits = new long[(m + 63) / 64];
     }
 
-    /** Chi dung trong test de dung so bit/so ham bam co dinh, khong qua cong thuc. */
+    /** Chỉ dùng trong test để đặt số bit / số hàm băm cố định, không qua công thức. */
     BloomFilter(int numBits, int numHashes, boolean rawConfig) {
         this.numBits = numBits;
         this.numHashes = numHashes;
@@ -72,7 +78,7 @@ public class BloomFilter {
         return numHashes;
     }
 
-    /** O(k) - danh dau mot chuoi da them vao filter. */
+    /** O(k) — đánh dấu một chuỗi đã thêm vào filter. */
     public void add(String item) {
         long h1 = hash1(item);
         long h2 = hash2(item);
@@ -83,9 +89,9 @@ public class BloomFilter {
     }
 
     /**
-     * O(k) - kiem tra chuoi CO THE da duoc them chua. Tra ve false nghia la
-     * CHAC CHAN chua them (khong co false negative). Tra ve true nghia la
-     * "co the da them" (co the la false positive).
+     * O(k) — kiểm tra chuỗi CÓ THỂ đã được thêm chưa. Trả về false nghĩa là
+     * CHẮC CHẮN chưa thêm (không có false negative). Trả về true nghĩa là
+     * "có thể đã thêm" (có thể là false positive).
      */
     public boolean mightContain(String item) {
         long h1 = hash1(item);
@@ -113,8 +119,8 @@ public class BloomFilter {
     }
 
     /**
-     * Ham bam co so thu 1: FNV-1a 64-bit, mot ham bam pho bien vi nhanh va
-     * phan bo tot cho chuoi.
+     * Hàm băm cơ sở thứ 1: FNV-1a 64-bit, một hàm băm phổ biến vì nhanh và
+     * phân bố tốt cho chuỗi.
      */
     private static long hash1(String s) {
         byte[] data = s.getBytes(StandardCharsets.UTF_8);
@@ -127,22 +133,22 @@ public class BloomFilter {
     }
 
     /**
-     * Ham bam co so thu 2: polynomial rolling hash voi mot so nguyen to
-     * khac de dam bao doc lap tuong doi voi hash1.
+     * Hàm băm cơ sở thứ 2: polynomial rolling hash với một số nguyên tố khác
+     * để đảm bảo độc lập tương đối với hash1.
      */
     private static long hash2(String s) {
         long hash = 1125899906842597L;
         for (int i = 0; i < s.length(); i++) {
             hash = 31 * hash + s.charAt(i);
         }
-        // avalanche mix de tranh cac bit thap qua tuong quan voi hash1
+        // trộn avalanche để tránh các bit thấp quá tương quan với hash1
         hash ^= (hash >>> 33);
         hash *= 0xff51afd7ed558ccdL;
         hash ^= (hash >>> 33);
         return hash;
     }
 
-    /** Demo minh hoa nho de chup man hinh lam bao cao. */
+    /** Demo minh hoạ nhỏ để chụp màn hình làm báo cáo. */
     public static void main(String[] args) {
         BloomFilter filter = new BloomFilter(1000, 0.01);
         System.out.println("numBits=" + filter.getNumBits() + " numHashes=" + filter.getNumHashes());
@@ -152,6 +158,6 @@ public class BloomFilter {
 
         System.out.println("mightContain(vnexpress) = " + filter.mightContain("https://vnexpress.net/"));
         System.out.println("mightContain(tuoitre)   = " + filter.mightContain("https://tuoitre.vn/"));
-        System.out.println("mightContain(chua-them) = " + filter.mightContain("https://khong-ton-tai.vn/"));
+        System.out.println("mightContain(chưa thêm) = " + filter.mightContain("https://khong-ton-tai.vn/"));
     }
 }

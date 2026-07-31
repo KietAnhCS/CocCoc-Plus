@@ -10,7 +10,6 @@ export interface SearchResultDto {
   url: string
   snippet: string
   score: number
-  tfidfScore: number
   pageRankScore: number
   crawledAt: string
 }
@@ -21,6 +20,8 @@ export interface SearchResponseDto {
   page: number
   timeTakenMs: number
   results: SearchResultDto[]
+  /** Cac tu khoa backend da tu bo de tim duoc ket qua; rong trong truong hop thuong. */
+  droppedTerms: string[]
 }
 
 export async function search(query: string, page = 1, size = 10): Promise<SearchResponseDto> {

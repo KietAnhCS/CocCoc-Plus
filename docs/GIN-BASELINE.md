@@ -69,19 +69,19 @@ báo cáo sai lệch đáng kể nếu không sửa.
 
 | Tiêu chí | Chỉ mục đảo tự cài | PostgreSQL GIN |
 |---|---|---|
-| MRR | 0.9229 | 0.8330 |
-| Success@1 | 88.0% | 79.5% |
-| Success@10 | 98.0% | 91.0% |
-| Thời gian truy vấn trung bình | 3.41 ms | 1.17 ms |
-| Kích thước chỉ mục | 9.1 MB (JSON) | 15.9 MB |
-| Thời gian dựng chỉ mục | 9.5 giây | (nền, tăng dần) |
+| MRR | 0.8758 | 0.8330 |
+| Success@1 | 81.5% | 79.5% |
+| Success@10 | 97.5% | 91.0% |
+| Thời gian truy vấn trung bình | 1.62 ms | 1.24 ms |
+| Kích thước chỉ mục | n/a | 15.9 MB |
+| Thời gian dựng chỉ mục | 7.4 giây | (nền, tăng dần) |
 | Số term phân biệt | 136768 | (nội bộ) |
 
 ## 3. Nhận xét
 
-**Về chất lượng**, chỉ mục tự cài đạt MRR cao hơn (0.9229 so với 0.8330, hơn 10.8%). Nguyên nhân chính không nằm ở cấu trúc dữ liệu mà ở khâu XỬ LÝ NGÔN NGỮ: chỉ mục tự cài ghép từ ghép tiếng Việt bằng thuật toán Longest Matching, sinh thêm bản không dấu, và loại từ dừng tiếng Việt; trong khi cấu hình `simple` của PostgreSQL chỉ cắt theo khoảng trắng nên "máy tính" bị tách thành hai token rời rạc.
+**Về chất lượng**, chỉ mục tự cài đạt MRR cao hơn (0.8758 so với 0.8330, hơn 5.1%). Nguyên nhân chính không nằm ở cấu trúc dữ liệu mà ở khâu XỬ LÝ NGÔN NGỮ: chỉ mục tự cài ghép từ ghép tiếng Việt bằng thuật toán Longest Matching, sinh thêm bản không dấu, và loại từ dừng tiếng Việt; trong khi cấu hình `simple` của PostgreSQL chỉ cắt theo khoảng trắng nên "máy tính" bị tách thành hai token rời rạc.
 
-**Về tốc độ**, PostgreSQL GIN nhanh hơn (1.17 ms so với 3.41 ms) dù phải qua mạng và tầng SQL — một kết quả đáng chú ý cho thấy chỉ mục tự cài còn nhiều dư địa tối ưu.
+**Về tốc độ**, PostgreSQL GIN nhanh hơn (1.24 ms so với 1.62 ms) dù phải qua mạng và tầng SQL — một kết quả đáng chú ý cho thấy chỉ mục tự cài còn nhiều dư địa tối ưu.
 
 ## 4. Vì sao hai bên không tương đương về chức năng
 

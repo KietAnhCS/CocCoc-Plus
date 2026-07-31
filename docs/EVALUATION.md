@@ -96,9 +96,9 @@ nhau.
 | Số tài liệu | 5011 |
 | Số term phân biệt | 136768 |
 | Độ dài tài liệu trung bình | 1043.3 token |
-| Thời gian dựng chỉ mục | 6.8 giây |
+| Thời gian dựng chỉ mục | 7.4 giây |
 | Số vòng lặp PageRank tới hội tụ | 53 |
-| Thời gian tính PageRank | 0.2 giây |
+| Thời gian tính PageRank | 0.1 giây |
 | Số truy vấn đánh giá | 200 |
 | Số từ khoá mỗi truy vấn | 3 |
 | Seed ngẫu nhiên | 42 |
@@ -117,17 +117,17 @@ nhau.
 
 | Cấu hình xếp hạng | MRR | Success@1 | Success@5 | Success@10 | ms/truy vấn |
 |---|---|---|---|---|---|
-| TF-IDF thuần | 0.8537 | 78.0% | 95.0% | 96.5% | 3.90 |
-| BM25 thuần | 0.8989 | 85.0% | 96.5% | 97.5% | 4.08 |
-| TF-IDF + title | 0.9083 | 86.0% | 97.0% | 98.0% | 3.13 |
-| TF-IDF + PageRank | 0.8625 | 79.0% | 95.5% | 96.5% | 3.06 |
-| **TF-IDF + PR + title (đang dùng)** | **0.9229** | 88.0% | 97.5% | 98.0% | 3.14 |
-| TF-IDF beta=0.05 | 0.9196 | 87.5% | 97.5% | 98.0% | 3.13 |
-| TF-IDF beta=0.10 | 0.9196 | 87.5% | 97.5% | 98.0% | 3.14 |
-| TF-IDF beta=0.20 | 0.9204 | 87.5% | 97.5% | 98.0% | 3.12 |
-| TF-IDF beta=0.50 | 0.9229 | 88.0% | 97.5% | 98.0% | 3.13 |
-| TF-IDF beta=0.80 | 0.9189 | 87.5% | 97.5% | 98.0% | 3.22 |
-| BM25 + PR + title | 0.9089 | 86.0% | 97.0% | 97.5% | 3.21 |
+| TF-IDF thuần | 0.8541 | 78.0% | 95.0% | 96.5% | 3.10 |
+| BM25 thuần | 0.8989 | 85.0% | 96.5% | 97.5% | 2.20 |
+| TF-IDF + title | 0.8715 | 81.0% | 95.5% | 97.0% | 1.97 |
+| TF-IDF + PageRank | 0.8567 | 78.0% | 95.5% | 97.0% | 1.69 |
+| TF-IDF + PR + title (đang dùng) | 0.8758 | 81.5% | 95.5% | 97.5% | 1.59 |
+| TF-IDF beta=0.05 | 0.8800 | 82.0% | 96.0% | 97.0% | 1.98 |
+| TF-IDF beta=0.10 | 0.8783 | 81.5% | 96.0% | 97.0% | 2.24 |
+| TF-IDF beta=0.20 | 0.8788 | 81.5% | 96.0% | 97.5% | 1.66 |
+| TF-IDF beta=0.50 | 0.8651 | 79.5% | 95.5% | 97.5% | 1.67 |
+| TF-IDF beta=0.80 | 0.8582 | 78.0% | 95.5% | 98.0% | 1.63 |
+| **BM25 + PR + title** | **0.9093** | 85.5% | 97.0% | 98.0% | 2.01 |
 
 ## 4. Cách đọc bảng kết quả
 
@@ -165,15 +165,65 @@ title bonus **lớn hơn nhiều lần** đóng góp của PageRank — đó là
 > hình, nên cấu hình chạy trước gánh phần lớn chi phí JIT. Muốn so tốc độ
 > nghiêm túc thì xem `docs/GIN-BASELINE.md`, nơi có làm nóng đúng cách.
 
-## 5. Nhận xét
+## 5. Kiểm định ý nghĩa thống kê
 
-**BM25 với TF-IDF.** BM25 thuần đạt MRR 0.8989 so với 0.8537 của TF-IDF cosine thuần (chênh +5.3%). Kết quả phù hợp với kỳ vọng lý thuyết: cơ chế bão hoà tần suất của BM25 hạn chế được ảnh hưởng của việc lặp từ khoá, còn tham số `b` cho phép điều chỉnh mức phạt tài liệu dài mềm dẻo hơn phép chia cứng cho `sqrt(docLength)` của TF-IDF.
+Bảng ở mục 3 nói *cấu hình nào có MRR cao hơn*. Nó **không** trả lời
+được câu hỏi quan trọng hơn:
 
-**Đóng góp của PageRank.** Cấu hình đang dùng (0.6/0.3/0.1) đạt MRR 0.9229, so với 0.8537 khi tắt hoàn toàn PageRank. PageRank có đóng góp dương.
+> Nếu hai cấu hình thực sự ngang nhau, xác suất quan sát được chênh
+> lệch lớn bằng hoặc hơn thế này — chỉ do ngẫu nhiên của việc chọn
+> đúng 200 truy vấn đó — là bao nhiêu?
 
-**Bộ trọng số tốt nhất.** Trong toàn bộ 11 cấu hình thử nghiệm, tốt nhất là **TF-IDF + PR + title (đang dùng)** với MRR = 0.9229 và Success@1 = 88.0%. Cấu hình đang dùng đã là tốt nhất trong các phương án thử nghiệm.
+Đó là **p-value**. Không có nó, mọi câu "cấu hình A tốt hơn B" đều là
+khẳng định **chưa được chứng minh**.
 
-## 6. Hạn chế của phương pháp
+**Kiểm định theo cặp.** Cả hai cấu hình chạy trên *cùng* tập truy vấn,
+nên ta xét **hiệu từng cặp** `d_i = RR_A(q_i) − RR_B(q_i)` thay vì so
+sánh hai trung bình độc lập. Cách này khử được nguồn biến thiên lớn
+nhất và hoàn toàn không liên quan tới thứ cần đo: *truy vấn này vốn
+dễ, truy vấn kia vốn khó*.
+
+**Hai kiểm định, hai giả định khác nhau.** Paired t-test giả định hiệu
+phân phối xấp xỉ chuẩn — với reciprocal rank (rất lệch, dồn ở 1,0 và
+0) thì đó là giả định đáng hoài nghi. Randomization test **không giả
+định gì** và là kiểm định được khuyến dùng trong ngành truy hồi thông
+tin (Smucker, Allan & Carterette, CIKM 2007). Báo cáo cả hai: khi
+chúng đồng ý, kết luận vững; khi khác nhau, đó là phát hiện đáng nói
+chứ không phải thứ để giấu.
+
+| So sánh (A với B) | ΔMRR | KTC 95 % | p (t-test) | p (hoán vị) | Kết luận |
+|---|---|---|---|---|---|
+| BM25 thuần **vs** TF-IDF thuần | +0.0448 | [+0.0222, +0.0674] | 0,0001 | < 0,0001 | ✅ **có ý nghĩa** |
+| TF-IDF + title **vs** TF-IDF thuần | +0.0174 | [+0.0052, +0.0295] | 0,0052 | 0,0019 | ✅ **có ý nghĩa** |
+| TF-IDF + PageRank **vs** TF-IDF thuần | +0.0026 | [-0.0134, +0.0186] | 0,7508 | 0,7540 | ❌ **chưa kết luận được** |
+| TF-IDF + PR + title (đang dùng) **vs** TF-IDF thuần | +0.0217 | [+0.0068, +0.0366] | 0,0045 | 0,0017 | ✅ **có ý nghĩa** |
+| TF-IDF + PR + title (đang dùng) **vs** BM25 thuần | -0.0231 | [-0.0447, -0.0014] | 0,0370 | 0,0351 | ✅ **có ý nghĩa** |
+| TF-IDF + PR + title (đang dùng) **vs** TF-IDF + title | +0.0043 | [-0.0073, +0.0160] | 0,4622 | 0,5044 | ❌ **chưa kết luận được** |
+
+**Cách đọc bảng.**
+
+- **ΔMRR** là trung bình hiệu theo từng truy vấn, *không* phải hiệu
+  của hai giá trị MRR ở mục 3 — hai số này bằng nhau về mặt đại số,
+  nhưng chỉ cách tính theo cặp mới cho được sai số chuẩn.
+- **KTC 95 %** là khoảng tin cậy của ΔMRR. Nếu khoảng này **chứa 0**
+  thì không loại trừ được khả năng hai cấu hình thực sự ngang nhau —
+  bất kể ΔMRR dương bao nhiêu.
+- **"Chưa kết luận được"** ≠ **"hai cấu hình ngang nhau"**. Nó chỉ có
+  nghĩa là 200 truy vấn chưa đủ để phân biệt. Đây là phân biệt hay bị
+  nói sai nhất khi đọc kết quả kiểm định.
+- p-value được báo dạng `< 0,0001` thay vì `0,0000`: với 100.000 lần
+  hoán vị, sàn phân giải của randomization test là `1/100.001`, nên
+  viết `0,0000` là nói quá điều đo được.
+
+## 6. Nhận xét
+
+**BM25 với TF-IDF.** BM25 thuần đạt MRR 0.8989 so với 0.8541 của TF-IDF cosine thuần (chênh +5.2%). Kết quả phù hợp với kỳ vọng lý thuyết: cơ chế bão hoà tần suất của BM25 hạn chế được ảnh hưởng của việc lặp từ khoá, còn tham số `b` cho phép điều chỉnh mức phạt tài liệu dài mềm dẻo hơn phép chia cứng cho `sqrt(docLength)` của TF-IDF.
+
+**Đóng góp của PageRank.** Cấu hình đang dùng (0.6/0.3/0.1) đạt MRR 0.8758, so với 0.8541 khi tắt hoàn toàn PageRank. PageRank có đóng góp dương.
+
+**Bộ trọng số tốt nhất.** Trong toàn bộ 11 cấu hình thử nghiệm, tốt nhất là **BM25 + PR + title** với MRR = 0.9093 và Success@1 = 85.5%. Cấu hình này tốt hơn cấu hình đang dùng 3.8% về MRR, nên **đề xuất đổi sang bộ trọng số đó** trong `application.properties`.
+
+## 7. Hạn chế của phương pháp
 
 Phải nêu rõ để kết quả được diễn giải đúng. Một báo cáo không nêu hạn chế
 thì không đáng tin, vì mọi phương pháp đo đều có hạn chế.
@@ -197,7 +247,7 @@ thì không đáng tin, vì mọi phương pháp đo đều có hạn chế.
    khi đó mới dùng được nDCG/MAP và mới đánh giá công bằng cho PageRank.
 
 
-## 7. Phân tích thang đo của các thành phần điểm
+## 8. Phân tích thang đo của các thành phần điểm
 
 > **Vì sao phải có mục này.** Mục 3 cho thấy bộ trọng số 0.6/0.3/0.1 đạt
 > MRR cao nhất. Nhưng một bảng số liệu chỉ nói *cấu hình nào tốt hơn*, nó
@@ -211,12 +261,12 @@ thức này chỉ có ý nghĩa nếu ba đại lượng cùng thang đo. Đo tr
 
 | Thành phần | Giá trị trung bình | Giá trị lớn nhất | Sau khi nhân trọng số |
 |---|---|---|---|
-| TF-IDF cosine | 0.177687 | 1.894824 | 0.106612 (alpha=0.6) |
-| PageRank | 0.00035388 | 0.00769142 | 0.00010616 (beta=0.3) |
+| TF-IDF cosine | 0.177937 | 1.894824 | 0.106762 (alpha=0.6) |
+| PageRank | 0.00039826 | 0.00769142 | 0.00011948 (beta=0.3) |
 | Title bonus | trong khoảng [0, 1] | 1.0 | tối đa 0.1 (gamma=0.1) |
 
 **Phát hiện:** phần đóng góp của TF-IDF lớn hơn phần đóng góp của PageRank
-khoảng **1004 lần** sau khi đã nhân trọng số. Nguyên nhân: PageRank là một
+khoảng **894 lần** sau khi đã nhân trọng số. Nguyên nhân: PageRank là một
 phân phối xác suất có tổng bằng 1 trên 5011 tài liệu, nên giá trị điển hình
 chỉ quanh 1/N ≈ 0.000200, trong khi TF-IDF cosine nằm trong khoảng [0,1] với
 giá trị điển hình lớn hơn hàng nghìn lần.

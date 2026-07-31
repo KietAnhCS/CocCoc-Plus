@@ -137,8 +137,13 @@ public class InvertedIndex implements SearchIndex {
      */
     @Override
     public int getTermFrequency(String term, int docId) {
-        int position = binarySearchPosting(getPostings(term), docId);
-        return position < 0 ? 0 : getPostings(term).get(position).termFrequency();
+        // Lấy posting list MỘT lần rồi dùng lại. Trước đây dòng này gọi
+        // getPostings(term) hai lần, tức tra bảng băm hai lần cho cùng một khoá
+        // — mà đây là hàm nóng nhất của cả hệ thống: TF-IDF gọi nó cho MỖI ứng
+        // viên nhân MỖI term của truy vấn.
+        List<Posting> postings = getPostings(term);
+        int position = binarySearchPosting(postings, docId);
+        return position < 0 ? 0 : postings.get(position).termFrequency();
     }
 
     /**
@@ -237,18 +242,54 @@ public class InvertedIndex implements SearchIndex {
         return termDictionary.size();
     }
 
-    /** Dung boi IndexPersistence de luu/nap toan bo trang thai index ra file. */
-    record IndexData(Map<String, List<Posting>> index, Map<Integer, WebDocument> documents,
+    /**
+     * Phiên bản hiện hành của định dạng file chỉ mục.
+     *
+     * <p>Lịch sử: <b>v1</b> ghi posting list thẳng ra JSON, không nén.
+     * <b>v2</b> ghi ở dạng {@link CompressedPostings} (delta + VByte + base64).
+     * Hai định dạng <b>không đọc lẫn nhau được</b>.
+     */
+    public static final int FORMAT_VERSION = 2;
+
+    /**
+     * Dung boi IndexPersistence de luu/nap toan bo trang thai index ra file.
+     *
+     * <p>Posting list duoc luu o dang <b>da nen</b> ({@link CompressedPostings}
+     * — delta + VByte), khong phai dang bo nho. Xem Javadoc cua lop do ve ba
+     * ky thuat nen va ly do khong dung GZIP tong quat.
+     *
+     * <p><b>Vì sao có trường {@code version}.</b> Khi định dạng đổi từ v1 sang
+     * v2, những file chỉ mục cũ còn nằm trên đĩa vẫn được nạp thử, và Jackson
+     * ném ra một {@code MismatchedInputException} nói về kiểu dữ liệu — hoàn
+     * toàn không gợi ý rằng vấn đề thật là "file này thuộc định dạng đời
+     * trước". Một số hiệu phiên bản biến lỗi khó hiểu đó thành một câu thông
+     * báo nói đúng việc phải làm.
+     *
+     * <p>File v1 không có trường này, nên Jackson để {@code version = 0} — và
+     * đó chính là dấu hiệu nhận ra định dạng cũ.
+     */
+    record IndexData(int version, Map<String, CompressedPostings> index,
+                      Map<Integer, WebDocument> documents,
                       Map<Integer, Integer> docLength) {
     }
 
     IndexData exportData() {
-        return new IndexData(index, documents, docLength);
+        Map<String, CompressedPostings> compressed = new LinkedHashMap<>(index.size());
+        for (Map.Entry<String, List<Posting>> entry : index.entrySet()) {
+            compressed.put(entry.getKey(), CompressedPostings.of(entry.getValue()));
+        }
+        return new IndexData(FORMAT_VERSION, compressed, documents, docLength);
     }
 
     static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
         InvertedIndex result = new InvertedIndex(tokenizer);
-        result.index.putAll(data.index());
+        for (Map.Entry<String, CompressedPostings> entry : data.index().entrySet()) {
+            // intern lai khoa: nap tu file khong di qua addDocument, nen neu
+            // khong intern o day thi loi ich Flyweight bi mat sach sau moi lan
+            // khoi dong lai — Jackson tao mot String moi cho MOI khoa.
+            result.index.put(result.termDictionary.intern(entry.getKey()),
+                    entry.getValue().toPostings());
+        }
         result.documents.putAll(data.documents());
         result.docLength.putAll(data.docLength());
         // Nap lai tu file KHONG di qua addDocument, nen moi trang thai dan xuat

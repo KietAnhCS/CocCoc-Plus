@@ -1,6 +1,7 @@
 package com.vnsearch.crawler;
 
-import com.vnsearch.datastructure.UrlFrontier;
+import com.vnsearch.crawler.frontier.CrawlTask;
+import com.vnsearch.crawler.frontier.UrlFrontier;
 import com.vnsearch.model.WebDocument;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
@@ -72,7 +73,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * một <i>nội dung</i> đến từ hai địa chỉ khác nhau. Thiếu mức thứ hai thì
  * các bản sao cùng lọt vào chỉ mục và cùng hiện trong một trang kết quả.
  *
- * <p>Duyệt theo BFS (ưu tiên theo điểm của {@link UrlFrontier}), chia việc
+ * <p>Duyệt theo BFS (thứ tự do {@link UrlFrontier} quyết định), chia việc
  * cho nhiều thread trong một {@link ExecutorService} có số thread cố định.
  *
  * <p><b>Observer:</b> tiến độ được phát qua {@link CrawlListener} thay vì in
@@ -231,7 +232,7 @@ public class CrawlerService {
         int idleChecks = 0;
 
         while (pagesCrawled.get() < config.maxPages()) {
-            UrlFrontier.Task task = frontier.nextUrl(); // URL Frontier
+            CrawlTask task = frontier.nextUrl(); // URL Frontier
             if (task == null) {
                 if (activeWorkers.get() == 0 && ++idleChecks >= idleConfirmations) {
                     break; // thật sự hết việc
@@ -266,7 +267,7 @@ public class CrawlerService {
     }
 
     /** Một lượt đi qua toàn bộ chuỗi khối, cho đúng một URL. */
-    private void processPage(UrlFrontier.Task task, CrawlConfig config) {
+    private void processPage(CrawlTask task, CrawlConfig config) {
         Document html;
         try {
             html = htmlDownloader.download(task.url()); // HTML Downloader -> DNS Resolver

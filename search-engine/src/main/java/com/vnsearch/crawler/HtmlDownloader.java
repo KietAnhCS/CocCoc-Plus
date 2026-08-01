@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p><b>Chính sách thử lại.</b> Tối đa {@link #DEFAULT_MAX_RETRIES}+1 lần,
  * không có exponential backoff. Politeness delay 1 giây của
- * {@link com.vnsearch.datastructure.UrlFrontier} đã tạo một mức giãn tối
+ * {@link com.vnsearch.crawler.frontier.UrlFrontier} đã tạo một mức giãn tối
  * thiểu giữa hai lần chạm cùng một host, nhưng mức giãn đó <i>không</i>
  * tăng theo số lần lỗi — đây là điểm còn đơn giản hoá so với crawler thực tế.
  *

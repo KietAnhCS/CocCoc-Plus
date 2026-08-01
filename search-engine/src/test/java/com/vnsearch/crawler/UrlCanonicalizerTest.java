@@ -74,7 +74,7 @@ class UrlCanonicalizerTest {
 
     @Test
     void frontierTreatsVariantsOfSameUrlAsDuplicate() {
-        com.vnsearch.datastructure.UrlFrontier frontier = new com.vnsearch.datastructure.UrlFrontier();
+        com.vnsearch.crawler.frontier.UrlFrontier frontier = new com.vnsearch.crawler.frontier.UrlFrontier();
         assertEquals(true, frontier.addUrl("https://a.com/tin", 0, 0));
         assertEquals(false, frontier.addUrl("https://a.com/tin/", 0, 0),
                 "Biến thể chỉ khác dấu / phải bị coi là trùng");

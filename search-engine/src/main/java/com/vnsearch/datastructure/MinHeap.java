@@ -44,7 +44,7 @@ import java.util.Objects;
  * Độ phức tạp không gian: O(n) cho n phần tử đang có trong heap.
  *
  * <p><b>Không thread-safe.</b> Người gọi phải tự đồng bộ nếu dùng từ nhiều
- * luồng (ví dụ {@link UrlFrontier} bọc mọi thao tác trong khối
+ * luồng (ví dụ {@code UrlFrontier} của crawler bọc mọi thao tác trong khối
  * {@code synchronized}).
  *
  * @param <T> loại phần tử trong heap

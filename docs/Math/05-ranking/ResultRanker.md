@@ -412,7 +412,7 @@ Hai dấu `...` chỉ thêm khi cửa sổ **thật sự** không ở đầu/cu�
 
 **Dùng lại mảng `isMatch`** đã tính ở §4 — không tính lại phép khớp lần thứ hai.
 
-> **Lưu ý bảo mật:** `words[i]` được chèn thẳng vào chuỗi HTML mà **không thoát ký tự**. Nếu `bodyText` chứa `<script>`, nó sẽ được trả về nguyên vẹn trong JSON và có thể thực thi nếu client render bằng `innerHTML`. `HtmlExtractor` đã loại thẻ `script` khỏi DOM nên nội dung script không lọt vào `bodyText`, nhưng một trang chứa **văn bản** `<script>alert(1)</script>` (ví dụ bài viết về XSS) thì vẫn lọt. Đây là một lỗ hổng XSS phản chiếu tiềm tàng — nên thoát `<`, `>`, `&` trước khi bọc `<mark>`.
+> **Lưu ý bảo mật:** `words[i]` được chèn thẳng vào chuỗi HTML mà **không thoát ký tự**. Nếu `bodyText` chứa `<script>`, nó sẽ được trả về nguyên vẹn trong JSON và có thể thực thi nếu client render bằng `innerHTML`. `ContentParser` đã loại thẻ `script` khỏi DOM nên nội dung script không lọt vào `bodyText`, nhưng một trang chứa **văn bản** `<script>alert(1)</script>` (ví dụ bài viết về XSS) thì vẫn lọt. Đây là một lỗ hổng XSS phản chiếu tiềm tàng — nên thoát `<`, `>`, `&` trước khi bọc `<mark>`.
 
 ---
 

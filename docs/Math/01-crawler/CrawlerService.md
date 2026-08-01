@@ -15,8 +15,45 @@
 > - `CrawlConfig` nay là lớp riêng, **bất biến, dựng bằng Builder**, kiểm tra tính hợp lệ tập trung trong `build()`.
 > - Tiến độ crawl nay phát qua **`CrawlListener`** (Observer) thay vì `System.out.printf` chôn trong worker.
 > - Log dùng **SLF4J** thay `System.out`.
+> - **Mỗi khối trong sơ đồ kiến trúc crawler nay là một lớp riêng.** `CrawlerService` chỉ còn *điều phối* — nó không tự tải, tự lọc, tự lưu nữa. Xem bảng ánh xạ ở §0.
 >
 > Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
+
+---
+
+## 0. Mỗi khối trong sơ đồ là một lớp
+
+Lớp này không tự làm gì; nó nối các khối lại theo đúng sơ đồ kiến trúc crawler kinh điển:
+
+```
+seed URLs -> URL Frontier -> HTML Downloader -> Content Parser -> Content Seen? -(Yes)-> vut
+                  ^                 |                                  |
+                  |                 v                                  v (No)
+                  |           DNS Resolver                      Content Storage
+                  |                                                    |
+                  |                                                    v
+                  |                                             Link Extractor
+                  |                                                    |
+                  |                                                    v
+                  |                                                URL Filter
+                  |                                                    |
+                  +--------------- (chua gap) -------------------  URL Seen? <-> URL Storage
+```
+
+| Khối | Lớp cài đặt |
+|---|---|
+| URL Frontier | [`UrlFrontier`](UrlFrontier.md) |
+| DNS Resolver | `DnsResolver` — cache bằng [`LRUCache`](../06-datastructures/LRUCache.md) tự cài |
+| HTML Downloader | `HtmlDownloader` |
+| Content Parser | [`ContentParser`](ContentParser-LinkExtractor.md) |
+| Content Seen? | [`ContentSeenFilter`](ContentSeenFilter.md) |
+| Content Storage | `ContentStorage` |
+| Link Extractor | [`LinkExtractor`](ContentParser-LinkExtractor.md) |
+| URL Filter | `UrlFilter` (dùng [`RobotsTxtParser`](RobotsTxtParser.md)) |
+| URL Seen? | `UrlSeenFilter` (bọc [`BloomFilter`](BloomFilter.md)) |
+| URL Storage | `UrlStorage` |
+
+**Thứ tự các khối không tuỳ tiện.** `Content Seen?` đứng trước `Link Extractor` nên trang trùng nội dung bị vứt mà không phải bóc liên kết. `URL Filter` đứng trước `URL Seen?` nên các luật rẻ chạy trước phép tra bộ lọc Bloom.
 
 ---
 
@@ -71,34 +108,15 @@ private void workerLoop(CrawlConfig config) {
         }
         idleChecks = 0; // chỉ tích luỹ khi LIÊN TỤC rỗng
 
-        if (task.depth() > config.maxDepth()
-                || !isAllowedDomain(task.url(), config.allowedDomains())
-                || visited.mightContain(task.url())) {
-            continue;
-        }
-        visited.add(task.url());
-
-        if (!robotsTxtParser.isAllowed(USER_AGENT, task.url())) {
+        // URL Filter, mức ĐẮT: có thể phải tải robots.txt qua mạng.
+        // Các luật rẻ đã chạy từ lúc URL được xếp vào hàng đợi.
+        if (!urlFilter.isAllowedByRobots(task.url())) {
             continue;
         }
 
         activeWorkers.incrementAndGet();
         try {
-            WebDocument doc = fetchWithRetry(task.url());
-            if (doc == null) continue;
-
-            doc.setDocId(docIdCounter.getAndIncrement());
-            crawled.put(task.url(), doc);
-            int count = pagesCrawled.incrementAndGet();
-            notifyPageCrawled(new CrawlListener.CrawlEvent(...));   // ← Observer
-            if (task.depth() < config.maxDepth()) {
-                for (String outlink : doc.getOutlinks()) {
-                    if (isAllowedDomain(outlink, config.allowedDomains())
-                            && !visited.mightContain(outlink)) {
-                        frontier.addUrl(outlink, task.depth() + 1, 1);
-                    }
-                }
-            }
+            processPage(task, config);
         } finally {
             activeWorkers.decrementAndGet();
         }
@@ -106,17 +124,60 @@ private void workerLoop(CrawlConfig config) {
 }
 ```
 
+Một lượt đi qua toàn bộ chuỗi khối, cho đúng một URL:
+
+```java
+private void processPage(UrlFrontier.Task task, CrawlConfig config) {
+    Document html;
+    try {
+        html = htmlDownloader.download(task.url());       // HTML Downloader -> DNS Resolver
+    } catch (IOException e) {
+        notifyError(task.url(), e);                       // <- Observer
+        return;
+    }
+
+    WebDocument doc = contentParser.parse(task.url(), html);   // Content Parser
+
+    if (contentSeenFilter.seenBefore(doc.getBodyText())) {     // Content Seen?
+        notifyDuplicateContent(task.url());
+        return;                                                // vut, KHONG boc lien ket
+    }
+
+    doc.setOutlinks(linkExtractor.extract(task.url(), html));  // Link Extractor
+    if (!contentStorage.save(doc)) return;                     // Content Storage
+
+    int count = pagesCrawled.incrementAndGet();
+    doc.setDocId(count - 1);
+    notifyPageCrawled(new CrawlListener.CrawlEvent(...));
+
+    for (String outlink : doc.getOutlinks()) {
+        enqueue(outlink, task.depth() + 1);
+    }
+}
+
+/** Chang URL Filter -> URL Seen? -> URL Frontier. */
+private void enqueue(String url, int depth) {
+    if (!urlFilter.accept(url, depth)) return;            // URL Filter (muc re)
+    if (!urlSeenFilter.markSeenIfNew(url)) return;        // URL Seen? -> URL Storage
+    frontier.addUrl(url, depth, 1);                       // URL Frontier
+}
+```
+
 **Thứ tự các phép lọc rất quan trọng** — xếp từ rẻ tới đắt:
 
-| Thứ tự | Phép lọc | Chi phí |
-|---|---|---|
-| 1 | `depth > maxDepth` | so sánh số nguyên — gần như 0 |
-| 2 | `isAllowedDomain` | phân tích URI + so chuỗi — $O(L)$ |
-| 3 | `visited.mightContain` | 2 lần băm + 7 lần đọc bit — $O(k)$ |
-| 4 | `robotsTxtParser.isAllowed` | tra cache, có thể **fetch mạng** lần đầu |
-| 5 | `fetchWithRetry` | **mạng**, tới 30 giây |
+| Thứ tự | Phép lọc | Ở đâu | Chi phí |
+|---|---|---|---|
+| 1 | `depth > maxDepth` | `UrlFilter.accept` | so sánh số nguyên — gần như 0 |
+| 2 | scheme + host + đuôi tệp | `UrlFilter.accept` | phân tích URI + so chuỗi — $O(L)$ |
+| 3 | `markSeenIfNew` | `UrlSeenFilter` | 2 lần băm + 7 lần đọc bit — $O(k)$ |
+| 4 | `isAllowedByRobots` | `UrlFilter` | tra cache, có thể **fetch mạng** lần đầu |
+| 5 | `download` | `HtmlDownloader` | **mạng**, tới 30 giây |
 
-Đây là nguyên tắc **short-circuit theo chi phí tăng dần**: đặt phép kiểm tra rẻ nhất và loại nhiều nhất lên trước. Java đánh giá `||` theo kiểu ngắn mạch nên chỉ cần điều kiện đầu đúng là ba điều kiện sau không chạy.
+Đây là nguyên tắc **short-circuit theo chi phí tăng dần**: đặt phép kiểm tra rẻ nhất và loại nhiều nhất lên trước.
+
+**Bước 1–3 chạy lúc XẾP HÀNG, bước 4–5 chạy lúc LẤY RA.** Đó là lý do `UrlFilter` có hai phương thức tách rời: `accept` (không chạm mạng, gọi khoảng 90 lần cho mỗi trang tải về) và `isAllowedByRobots` (có thể chạm mạng, gọi đúng một lần cho mỗi trang sắp tải). Gộp làm một sẽ khiến **mỗi liên kết bóc được** đều kéo theo một lần tra robots — vô nghĩa với những liên kết bị loại ngay từ luật rẻ nhất.
+
+**Ghi nhận "đã gặp" cũng xảy ra lúc xếp hàng**, không phải lúc lấy ra. Ghi nhận muộn thì suốt khoảng thời gian URL nằm chờ trong frontier, nó vẫn bị coi là chưa gặp — và một worker khác có thể xếp nó vào lần nữa.
 
 ---
 
@@ -177,9 +238,9 @@ try {
 }
 ```
 
-Nếu `fetchWithRetry` ném ngoại lệ mà không có `finally`, `activeWorkers` sẽ **không bao giờ về 0**, và điều kiện dừng **không bao giờ đúng** — mọi worker kẹt trong vòng lặp ngủ-thử-lại vô hạn cho tới khi hết `maxDurationMinutes`.
+Nếu `processPage` ném ngoại lệ mà không có `finally`, `activeWorkers` sẽ **không bao giờ về 0**, và điều kiện dừng **không bao giờ đúng** — mọi worker kẹt trong vòng lặp ngủ-thử-lại vô hạn cho tới khi hết `maxDurationMinutes`.
 
-Chú ý cả `continue` bên trong khối `try` (dòng `if (doc == null) continue;`) vẫn chạy qua `finally` — đó chính là lý do phải dùng `finally` chứ không đặt `decrementAndGet()` ở cuối khối.
+`processPage` có tới **ba** lối thoát sớm: tải lỗi, trùng nội dung, lưu thất bại. Mỗi lối thoát đó vẫn chạy qua `finally` — đó chính là lý do phải dùng `finally` chứ không đặt `decrementAndGet()` ở cuối khối. Tách `processPage` thành hàm riêng còn làm điều này an toàn hơn: mọi lối thoát nằm gọn trong một hàm, không cách nào lọt ra ngoài khối `try`.
 
 ---
 
@@ -190,15 +251,15 @@ Crawler có **ba** cơ chế dừng độc lập, mỗi cơ chế chặn một k
 | Cơ chế | Chặn kiểu hỏng nào | Code |
 |---|---|---|
 | `maxPages` | Đủ dữ liệu thì dừng | `while (pagesCrawled.get() < config.maxPages)` |
-| `maxDepth` | Lao quá sâu vào một nhánh | `if (task.depth() > config.maxDepth()) continue;` |
+| `maxDepth` | Lao quá sâu vào một nhánh | `UrlFilter.accept()` loại URL có `depth > maxDepth` |
 | `maxDurationMinutes` | Mọi thứ khác hỏng | `latch.await(config.maxDurationMinutes, TimeUnit.MINUTES)` |
 
 ```java
 CountDownLatch latch = new CountDownLatch(config.threadCount);
 ...
-if (!latch.await(config.maxDurationMinutes, TimeUnit.MINUTES)) {
-    System.out.printf("Het tran thoi gian %d phut, dung crawl voi %d trang.%n",
-            config.maxDurationMinutes, pagesCrawled.get());
+if (!latch.await(config.maxDurationMinutes(), TimeUnit.MINUTES)) {
+    log.warn("Het tran thoi gian {} phut, dung crawl voi {} trang.",
+            config.maxDurationMinutes(), pagesCrawled.get());
 }
 pool.shutdownNow();
 ```
@@ -214,23 +275,24 @@ Trần thời gian là **lưới an toàn cuối cùng**: nếu hai cơ chế tr
 ## 5. Retry có giới hạn
 
 ```java
-private static final int TIMEOUT_MS = 10_000;
-private static final int MAX_RETRIES = 2;
+// HtmlDownloader.java - khoi "HTML Downloader" trong so do
+public Document download(String url) throws IOException {
+    dnsResolver.resolveHostOf(url);   // <- hoi DNS TRUOC, khong vao vong thu lai
 
-private WebDocument fetchWithRetry(String url) {
-    for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    IOException lastError = null;
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-            Document document = Jsoup.connect(url)
-                    .userAgent(USER_AGENT).timeout(TIMEOUT_MS).followRedirects(true).get();
-            return htmlExtractor.extract(url, document);
-        } catch (Exception e) {
-            lastError = e;                      // ghi nho, chua bao
+            return Jsoup.connect(url)
+                    .userAgent(USER_AGENT).timeout(timeoutMs).followRedirects(true).get();
+        } catch (IOException e) {
+            lastError = e;            // ghi nho, chua bao
         }
     }
-    notifyError(url, lastError);                // <- Observer: listener tu quyet dinh log the nao
-    return null;
+    throw lastError;                  // <- CrawlerService bat roi phat qua Observer
 }
 ```
+
+**Vì sao hỏi DNS trước khi vào vòng thử lại.** Một tên miền không phân giải được sẽ khiến vòng lặp thử đủ 3 lần, mỗi lần chờ hết timeout 10 giây — **30 giây cho một URL vốn không bao giờ tải được**. Hỏi `DnsResolver` trước tốn vài mili giây (và thường trúng cache) nhưng loại được ca đó ngay lập tức.
 
 **Vấn đề.** Lỗi mạng tạm thời (timeout, connection reset) rất thường xuyên khi crawl hàng nghìn trang. Bỏ luôn trang thì mất dữ liệu; thử lại vô hạn thì một URL chết treo cả worker.
 
@@ -267,15 +329,24 @@ Chi tiết toán học ở [BloomFilter §6](BloomFilter.md).
 | Trạng thái chia sẻ | Kiểu | Vì sao kiểu đó |
 |---|---|---|
 | `frontier` | `UrlFrontier` (`synchronized` nội bộ) | Cần nguyên tử **nhóm** thao tác |
-| `crawled` | `ConcurrentHashMap<String, WebDocument>` | Chỉ cần nguyên tử **từng** `put` |
-| `docIdCounter` | `AtomicInteger` | Cấp docId duy nhất, không trùng |
-| `pagesCrawled` | `AtomicInteger` | Đếm không mất mát |
+| `contentStorage` | `ConcurrentHashMap` bên trong | Chỉ cần nguyên tử **từng** `putIfAbsent` |
+| `contentSeenFilter` | `ConcurrentHashMap.newKeySet()` | `add` là **test-and-set nguyên tử** |
+| `pagesCrawled` | `AtomicInteger` | Đếm không mất mát **và** cấp docId |
 | `activeWorkers` | `AtomicInteger` | Điều kiện dừng |
-| `visited` | `volatile BloomFilter` | Gán lại tham chiếu ở đầu `crawl()` |
+| `urlSeenFilter` | `volatile`, nội bộ `synchronized` | Gán lại đầu `crawl()`; xem bên dưới |
 
-**Vì sao `docIdCounter` phải là `AtomicInteger`:** `getAndIncrement()` là phép **đọc-sửa-ghi nguyên tử**. Nếu dùng `int` thường với `id++`, hai thread có thể cùng đọc giá trị 100, cùng ghi 101, và **hai tài liệu khác nhau nhận cùng docId 100**. Hậu quả xuống tận tầng chỉ mục: posting list sẽ có hai posting cùng docId, phá vỡ bất biến mà binary search dựa vào (xem [InvertedIndex §3](../03-index/InvertedIndex.md)).
+**Vì sao `pagesCrawled` vừa đếm vừa cấp docId.** Trước đây đây là **hai** `AtomicInteger` riêng: `docIdCounter` cấp id *trước* khi lưu, `pagesCrawled` đếm *sau* khi lưu. Mỗi lần lưu thất bại lại đốt một id, và dãy docId thủng lỗ. Dùng chung một bộ đếm, cấp id ngay *sau* khi lưu thành công:
 
-**Vì sao `visited` là `volatile`:** nó được **gán lại** ở đầu `crawl()`. Không có `volatile`, các worker thread có thể vẫn thấy tham chiếu cũ do bộ nhớ đệm CPU. Bản thân các thao tác `add`/`mightContain` thì không được `volatile` bảo vệ — xem hạn chế ở [BloomFilter §11](BloomFilter.md).
+```java
+int count = pagesCrawled.incrementAndGet();
+doc.setDocId(count - 1);
+```
+
+thì docId luôn **đặc** và bằng đúng $0..n-1$. `incrementAndGet()` là phép đọc-sửa-ghi nguyên tử, nên hai thread không thể nhận cùng một giá trị — nếu dùng `int` thường với `id++`, hai tài liệu khác nhau có thể nhận cùng docId, phá vỡ bất biến mà binary search của posting list dựa vào (xem [InvertedIndex §3](../03-index/InvertedIndex.md)).
+
+**Vì sao `UrlSeenFilter` phải `synchronized` chứ không chỉ `volatile`.** `volatile` chỉ bảo đảm các worker thấy **tham chiếu** mới sau khi gán lại ở đầu `crawl()`; nó **không** bảo vệ nội dung bên trong. Mà `BloomFilter.add` thực hiện `bits[i] |= mask` — một phép đọc-sửa-ghi **không** nguyên tử trên `long[]`. Hai worker cùng bật hai bit khác nhau nằm trong *cùng một phần tử mảng* có thể làm mất một phép ghi.
+
+Bit bị mất nghĩa là bộ lọc sinh **false negative**: báo "chưa gặp" cho một URL đã gặp — đúng thứ mà [BloomFilter](BloomFilter.md) khẳng định không bao giờ xảy ra *khi dùng một luồng*. `UrlSeenFilter` bọc mọi truy cập trong khối `synchronized` nên tính chất đó được khôi phục, đồng thời biến "hỏi rồi ghi nhận" thành **một** thao tác nguyên tử.
 
 ---
 
@@ -288,7 +359,6 @@ public static class CrawlConfig {
     public int threadCount = 4;
     public Set<String> allowedDomains = Set.of();
     public int maxDurationMinutes = 60;
-    public int progressEveryN = 1;
 
     public CrawlConfig maxDepth(int v) { this.maxDepth = v; return this; }
     public CrawlConfig maxPages(int v) { this.maxPages = v; return this; }
@@ -304,11 +374,10 @@ CrawlerService.CrawlConfig config = new CrawlerService.CrawlConfig()
         .maxPages(maxPages)
         .threadCount(allowedDomains.size() * 2)
         .allowedDomains(allowedDomains)
-        .maxDurationMinutes(90)
-        .progressEveryN(25);
+        .maxDurationMinutes(90);
 ```
 
-**Vì sao tốt hơn constructor 6 tham số:** `new CrawlConfig(3, 5000, 12, domains, 90, 25)` không đọc được — người đọc phải tra thứ tự tham số. Fluent setter làm mỗi giá trị **tự giải thích tên**.
+**Vì sao tốt hơn constructor 6 tham số:** `new CrawlConfig(3, 5000, 12, domains, 90, "data/seen.txt")` không đọc được — người đọc phải tra thứ tự tham số. Fluent setter làm mỗi giá trị **tự giải thích tên**.
 
 > ✅ **Đã khắc phục.** Bản trích ở trên là `CrawlConfig` **cũ**: trường `public`, sửa được **sau khi** đã dùng, và không kiểm tra hợp lệ ở đâu cả. Bản hiện tại là một object **bất biến hoàn toàn**, dựng qua `CrawlConfig.builder()…build()`, với mọi ràng buộc kiểm tra tập trung trong `build()` và `Set.copyOf` làm bản sao phòng thủ cho `allowedDomains`. 10 test riêng, gồm 2 test cho bản sao phòng thủ.
 >
@@ -372,10 +441,13 @@ với $P$ = số trang, $b$ = số outlink/trang, $D$ = số host.
 
 1. **Điều kiện dừng là heuristic**, không có chứng minh đúng đắn (xem §3.1).
 2. **Không có exponential backoff** khi retry.
-3. **`crawled` khoá theo URL, `docId` cấp theo thứ tự hoàn thành**, nên docId **không** phản ánh thứ tự BFS. Không sai, nhưng khiến `docId` nhỏ không đồng nghĩa với "gần seed".
-4. **Không lọc theo Content-Type.** Một liên kết tới file PDF hay ảnh vẫn được đưa vào frontier và fetch; Jsoup sẽ ném lỗi và tốn tới 30 giây retry vô ích.
-5. **Không xử lý trang lỗi mềm.** Trang 404 trả về HTML "không tìm thấy" với mã 200 vẫn được index như một tài liệu bình thường.
-6. **Log bằng `System.out.printf`** thay vì một logger. Không tắt được, không phân mức, không định tuyến ra file — xem [CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md).
+3. **`docId` cấp theo thứ tự hoàn thành**, nên nó **không** phản ánh thứ tự BFS. Không sai (id vẫn đặc và duy nhất), nhưng `docId` nhỏ không đồng nghĩa với "gần seed".
+4. **Không xử lý trang lỗi mềm.** Trang 404 trả về HTML "không tìm thấy" với mã 200 vẫn được index như một tài liệu bình thường.
+5. **`Content Seen?` chỉ bắt trùng chính xác** — khác một ký tự là lọt lưới. Cần SimHash cho trùng gần đúng, xem [ContentSeenFilter §8](ContentSeenFilter.md).
+6. **`URL Storage` chưa khôi phục được hàng đợi.** Nó lưu bền các URL *đã gặp*, nên phiên sau không tải lại trang cũ — nhưng frontier thì không được lưu, nên "tiếp tục một phiên crawl dang dở" vẫn chưa thật sự làm được.
+7. **Không render JavaScript.** Trang dựng hoàn toàn bằng JS cho ra thân bài rỗng; `ContentSeenFilter.getBlankSkippedCount()` là chỉ báo cho tình trạng này.
+
+**Đã khắc phục so với bản trước:** lọc theo đuôi tệp (`UrlFilter` loại PDF/ảnh/video **trước** khi vào frontier, không còn tốn 30 giây retry vô ích); log bằng SLF4J thay `System.out.printf`; khử trùng lặp nội dung bằng `ContentSeenFilter`.
 
 ---
 
@@ -384,6 +456,6 @@ với $P$ = số trang, $b$ = số outlink/trang, $D$ = số host.
 - Hàng đợi và politeness: [UrlFrontier.md](UrlFrontier.md)
 - Khử trùng lặp: [BloomFilter.md](BloomFilter.md) · [UrlCanonicalizer.md](UrlCanonicalizer.md)
 - Luật crawl: [RobotsTxtParser.md](RobotsTxtParser.md)
-- Trích xuất nội dung: [HtmlExtractor.md](HtmlExtractor.md)
+- Trích xuất nội dung: [ContentParser-LinkExtractor.md](ContentParser-LinkExtractor.md)
 - Bước tiếp theo trong pipeline: [VietnameseTokenizer.md](../02-tokenize/VietnameseTokenizer.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

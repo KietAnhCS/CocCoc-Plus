@@ -58,7 +58,7 @@ Trước đây `CandidateResolver` là phương thức private trong Facade, nê
 
 ---
 
-## 2. Adapter — `HtmlExtractor`, `Stack<T>` (TypeScript)
+## 2. Adapter — bộ ba chạm Jsoup, `Stack<T>` (TypeScript)
 
 **Nhóm:** Structural · **Bài học:** cô lập thư viện ngoài
 
@@ -66,16 +66,18 @@ Trước đây `CandidateResolver` là phương thức private trong Facade, nê
 
 Bọc một API bên ngoài sau interface của **mình**, để phần còn lại của hệ thống không phụ thuộc vào nó.
 
-`HtmlExtractor` là **một trong hai file duy nhất** trong toàn dự án chạm tới Jsoup. Đo được:
+Jsoup chỉ xuất hiện ở **4 file**, và cả 4 đều nằm trong gói `crawler/`: `HtmlDownloader` (tải + phân tích), `ContentParser` (rút nội dung), `LinkExtractor` (rút liên kết), `CrawlerService` (giữ kiểu `Document` để chuyền giữa ba khối trên). Đo được:
 
 | Thư viện ngoài | Số file chạm tới |
 |---|---|
-| Jsoup (phân tích HTML) | **2** |
+| Jsoup (phân tích HTML) | **4**, đều trong `crawler/` |
 | Jackson (JSON) | **3** |
+
+Con số tăng từ 2 lên 4 khi tách `HtmlExtractor` thành ba khối theo sơ đồ kiến trúc crawler. Đây là **đánh đổi có chủ ý**: mỗi khối trong sơ đồ ứng với đúng một lớp, đổi lại đường biên quanh Jsoup rộng thêm hai file. Đường biên vẫn nằm gọn trong một gói duy nhất, nên chi phí đổi thư viện gần như không đổi.
 
 ### Vì sao con số đó quan trọng
 
-Nếu Jsoup xuất hiện ở 30 file, việc đổi sang thư viện khác (hoặc nâng cấp phiên bản có breaking change) là sửa 30 file. Với 2 file, đó là một buổi chiều.
+Nếu Jsoup xuất hiện ở 30 file rải khắp các gói, việc đổi sang thư viện khác (hoặc nâng cấp phiên bản có breaking change) là sửa 30 file. Với 4 file nằm cùng một gói, đó là một buổi chiều.
 
 Đây là **chi phí đổi phụ thuộc** — một chỉ số kiến trúc đo được, và là lập luận tốt trong báo cáo vì nó là **con số**, không phải ý kiến.
 
@@ -234,7 +236,7 @@ Nếu hai lớp tự tạo tokenizer riêng, chúng **có thể** khác nhau, v�
 | Mẫu | Nơi dùng | Bài học OOP cốt lõi |
 |---|---|---|
 | **Facade** | `SearchEngineFacade` | Facade rất dễ thành God Object — phải chỉ điều phối |
-| **Adapter** | `HtmlExtractor`, `Stack<T>` | Cô lập thư viện ngoài; đo bằng "số file chạm tới" |
+| **Adapter** | `HtmlDownloader` + `ContentParser` + `LinkExtractor`, `Stack<T>` | Cô lập thư viện ngoài; đo bằng "số file chạm tới" |
 | **Repository** | `DocumentRepository` | Giấu SQL; khác với Strategy giấu loại nguồn |
 | **Value Object** | 9 `record` | Biết khi nào **không** dùng (`PoolEntry`) |
 | **Cache-Aside** | `LRUCache` trong `search()` | `get` của LRU thực ra là thao tác **ghi** |

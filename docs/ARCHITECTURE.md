@@ -208,39 +208,58 @@ này không còn khả thi, trong khi cơ sở dữ liệu cho phép đọc theo
 
 ### 3.1. Luồng CRAWL — từ web về `WebDocument`
 
+Luồng crawl được cài đúng theo sơ đồ kiến trúc crawler kinh điển, **mỗi khối
+là một lớp**:
+
 ```mermaid
 flowchart TD
     Seed["6 seed URL báo điện tử"] --> Frontier
-    Frontier["UrlFrontier<br/>Map&lt;host, MinHeap&gt;"] -->|"nextUrl(): O(D + log n_d)"| Check
-    Check{"Kiểm tra 4 lớp"} -->|"depth > maxDepth"| Drop[bỏ]
-    Check -->|"không thuộc allowedDomains"| Drop
-    Check -->|"BloomFilter nói đã thăm"| Drop
-    Check -->|"robots.txt cấm"| Drop
-    Check -->|"qua hết"| Fetch["Jsoup fetch<br/>timeout 10s, retry ≤ 2"]
-    Fetch --> Extract["HtmlExtractor<br/>title / meta / body / outlinks"]
-    Extract --> Doc["WebDocument (gán docId tăng dần)"]
-    Doc --> Save["data/crawled-multi.json"]
-    Doc -->|"nếu depth < maxDepth"| Enqueue["addUrl(outlink, depth+1)"]
-    Enqueue --> Frontier
+    Frontier["<b>URL Frontier</b><br/>UrlFrontier: Map&lt;host, MinHeap&gt;"] -->|"nextUrl(): O(D + log n_d)"| Robots
+    Robots{"<b>URL Filter</b> (mức đắt)<br/>robots.txt cho phép?"} -->|"Không"| Drop[bỏ]
+    Robots -->|"Có"| Fetch["<b>HTML Downloader</b><br/>timeout 10s, retry ≤ 2"]
+    Fetch <--> Dns["<b>DNS Resolver</b><br/>LRUCache&lt;host, IP&gt;"]
+    Fetch --> Parse["<b>Content Parser</b><br/>title / meta / body"]
+    Parse --> Seen{"<b>Content Seen?</b><br/>SHA-256 thân bài"}
+    Seen -->|"Đã thấy → bản trùng"| Drop
+    Seen -->|"Chưa thấy"| Store["<b>Content Storage</b><br/>ContentStorage → crawled-multi.json"]
+    Store --> Links["<b>Link Extractor</b><br/>outlink tuyệt đối, đã chuẩn hoá"]
+    Links --> Filter{"<b>URL Filter</b> (mức rẻ)<br/>độ sâu / scheme / domain / đuôi tệp"}
+    Filter -->|"Loại"| Drop
+    Filter -->|"Nhận"| UrlSeen{"<b>URL Seen?</b><br/>BloomFilter"}
+    UrlSeen -->|"Đã gặp"| Drop
+    UrlSeen -->|"Chưa gặp"| Frontier
+    UrlSeen <--> UrlStore[("<b>URL Storage</b><br/>tệp append-only")]
 ```
 
-Bốn lớp lọc trên chạy theo thứ tự **rẻ trước, đắt sau** — đây là một mẫu
-thiết kế đáng nhớ. So sánh số nguyên `depth` rẻ nhất, nên đứng đầu; gọi
-mạng để lấy `robots.txt` đắt nhất, nên đứng cuối. Trích
-`crawler/CrawlerService.java`:
+**Thứ tự các khối không tuỳ tiện.** Hai chỗ đáng chú ý:
+
+- `Content Seen?` đứng **trước** `Link Extractor`, nên trang trùng nội dung bị
+  vứt mà không phải bóc liên kết — liên kết đó đã lấy từ bản gốc rồi.
+- `URL Filter` đứng **trước** `URL Seen?`, nên các luật rẻ chạy trước phép tra
+  bộ lọc Bloom.
+
+Bản thân `URL Filter` cũng tách làm hai mức theo chi phí. Mức rẻ
+(`UrlFilter.accept`) chỉ so sánh số nguyên và phân tích chuỗi, chạy cho **mọi**
+liên kết bóc được — khoảng 90 lần cho mỗi trang tải về. Mức đắt
+(`UrlFilter.isAllowedByRobots`) có thể phải tải `robots.txt` qua mạng, nên chỉ
+chạy ngay trước khi thật sự tải một trang. Trích `crawler/CrawlerService.java`:
 
 ```java
-if (task.depth() > config.maxDepth()
-        || !isAllowedDomain(task.url(), config.allowedDomains())
-        || visited.mightContain(task.url())) {
-    continue;
-}
-visited.add(task.url());
-
-if (!robotsTxtParser.isAllowed(USER_AGENT, task.url())) {
-    continue;
+// Chặng URL Filter -> URL Seen? -> URL Frontier, cho một liên kết vừa bóc được
+private void enqueue(String rawUrl, int depth) {
+    String url = UrlCanonicalizer.canonicalize(rawUrl);
+    if (!urlFilter.accept(url, depth)) {        // URL Filter (mức rẻ)
+        return;
+    }
+    if (!urlSeenFilter.markSeenIfNew(url)) {    // URL Seen? -> URL Storage
+        return;
+    }
+    frontier.addUrl(url, depth, 1);             // URL Frontier
 }
 ```
+
+Ghi nhận "đã gặp" xảy ra lúc **xếp hàng**, không phải lúc lấy ra khỏi hàng đợi:
+ghi nhận muộn thì suốt khoảng thời gian URL nằm chờ, nó vẫn bị coi là chưa gặp.
 
 **Điểm tinh tế về điều kiện dừng.** Frontier rỗng **không** đồng nghĩa với
 hết việc: một worker khác có thể đang fetch một trang và sắp thêm hàng trăm
@@ -264,17 +283,34 @@ idleChecks = 0; // chỉ tích luỹ khi LIÊN TỤC rỗng
 Tức là phải thoả **đồng thời** hai điều kiện — frontier rỗng **và** không
 worker nào đang xử lý — và điều đó phải đúng **3 lần liên tiếp**.
 
-**Hai lớp khử trùng lặp, không phải một.** Nhiều người đọc code nhầm rằng
-chỉ có Bloom Filter. Thực tế có hai lớp với hai vai trò khác nhau:
+**Ba lớp khử trùng lặp, không phải một.** Nhiều người đọc code nhầm rằng chỉ
+có Bloom Filter. Thực tế có ba lớp với ba vai trò khác nhau:
 
 | Lớp | Ở đâu | Trả lời câu hỏi | Có thể sai không |
 |---|---|---|---|
 | `enqueued` (`HashSet<String>`) | `UrlFrontier` | "URL này đã **xếp hàng** chưa?" | Không bao giờ sai |
-| `visited` (`BloomFilter`) | `CrawlerService` | "URL này đã **crawl** chưa?" | Có thể false positive (1%) |
+| `BloomFilter` | `UrlSeenFilter` | "URL này đã **gặp** chưa?" | Có thể false positive (1%) |
+| Tập vân tay SHA-256 | `ContentSeenFilter` | "**Nội dung** này đã lưu chưa?" | Không sai, nhưng chỉ bắt trùng *chính xác* |
 
 Bloom Filter được dùng ở chỗ gọi **rất nhiều lần** (394.940 outlink đều phải
 hỏi) nên tiết kiệm bộ nhớ là ưu tiên; `enqueued` cần chính xác tuyệt đối để
 frontier không phình vì cùng một URL vào nhiều lần.
+
+`ContentSeenFilter` **không** dùng Bloom Filter, dù cùng là bài toán "đã thấy
+chưa". Lý do nằm ở cái giá của false positive: với URL, báo nhầm "đã gặp" chỉ
+làm bỏ lỡ một trang; với nội dung, báo nhầm nghĩa là **vứt hẳn một trang có
+nội dung riêng** khỏi corpus. Số trang trong một phiên crawl (hàng nghìn) nhỏ
+hơn nhiều số URL đã gặp (hàng trăm nghìn), nên lưu vân tay chính xác 64 ký tự
+mỗi trang là chi phí chấp nhận được.
+
+**Một lỗi tương tranh đã sửa cùng đợt này.** `BloomFilter.add` thực hiện
+`bits[i] |= mask` — phép đọc-sửa-ghi không nguyên tử. Khi nhiều worker cùng gọi
+`add`, hai bit khác nhau nằm trong *cùng một phần tử* `long[]` có thể làm mất
+một phép ghi. Bit bị mất nghĩa là bộ lọc sinh **false negative**: báo "chưa
+gặp" cho một URL đã gặp — đúng thứ mà Javadoc của `BloomFilter` khẳng định
+không bao giờ xảy ra *khi dùng một luồng*. `UrlSeenFilter` bọc mọi truy cập
+trong khối `synchronized` nên tính chất đó được khôi phục, đồng thời biến
+"hỏi rồi ghi nhận" thành một thao tác nguyên tử.
 
 ### 3.2. Luồng INDEX — từ `WebDocument` về posting list
 
@@ -733,7 +769,7 @@ vào** gói nào.
 |---|---|---|
 | `datastructure/` | Trie, BloomFilter, LRUCache, MinHeap, SparseMatrix, UrlFrontier | Chỉ Java Collections. **Không** phụ thuộc gói nào khác trong dự án (trừ `UrlFrontier` → `UrlCanonicalizer`) |
 | `index/` | `Tokenizer` + `VietnameseTokenizer`, `SearchIndex` + `InvertedIndex`, `Posting`, `IndexPersistence`, **`VByteCodec`**, **`PostingCursor`** + `ArrayPostingCursor`, **`TermDictionary`** | `model/` |
-| `crawler/` | `CrawlerService`, **`CrawlConfig`** (Builder), **`CrawlListener`** + `ConsoleCrawlListener`, `HtmlExtractor`, `RobotsTxtParser`, `UrlCanonicalizer`, `MultiDomainCrawlRunner` | `datastructure/`, `model/`, Jsoup |
+| `crawler/` | `CrawlerService` (điều phối), **một lớp cho mỗi khối trong sơ đồ**: `DnsResolver`, `HtmlDownloader`, `ContentParser`, `ContentSeenFilter`, `ContentStorage`, `LinkExtractor`, `UrlFilter`, `UrlSeenFilter`, `UrlStorage`; cùng **`CrawlConfig`** (Builder), **`CrawlListener`** + `ConsoleCrawlListener`, `RobotsTxtParser`, `UrlCanonicalizer`, `MultiDomainCrawlRunner` | `datastructure/`, `model/`, Jsoup |
 | `query/` | `QueryParser`, `PostingListMerger`, `CandidateResolver` | `index/`, `query/ast/`, `query/filter/` |
 | `query/ast/` | **`QueryNode`** (`sealed`) + `TermNode`, `PhraseNode`, `AndNode`, `OrNode`, `NotNode` | `index/`, `query/` |
 | `query/filter/` | **`CandidateFilter`** + `DomainFilter`, `MaxCandidatesFilter` | `index/`, `query/`, `model/` |
@@ -788,9 +824,12 @@ tiếp:
    thể tính điểm khác nhau cho từng vùng văn bản.
 5. **Phân trang sâu tốn công tuyến tính.** `topN = page * size` nghĩa là
    trang 100 phải xếp hạng 1.000 kết quả.
-6. **Không có `Content Seen?`** — dự án khử trùng lặp **URL** nhưng không
-   khử trùng lặp **nội dung**. Cùng một bài báo ở ba URL khác nhau sẽ có ba
-   bản trong chỉ mục. Giải pháp chuẩn là SimHash + khoảng cách Hamming.
+6. **`Content Seen?` chỉ bắt trùng *chính xác*.** `ContentSeenFilter` so vân
+   tay SHA-256 của thân bài đã chuẩn hoá, nên gom được cùng một bài nằm ở
+   nhiều URL khác nhau. Nhưng chỉ cần khác một ký tự — một dòng "cập nhật lúc
+   14:05", một banner lọt vào phần thân — là hai vân tay khác nhau và bản
+   trùng lọt lưới. Bắt trùng **gần đúng** cần SimHash + khoảng cách Hamming
+   hoặc MinHash trên tập shingle, chưa cài.
 7. **`nextUrl()` quét tuyến tính qua các host** — $O(D)$. Với 52 host thì
    không sao; web thật có khoảng 200 triệu host thì cần hàng đợi ưu tiên
    theo *thời điểm khả dụng tiếp theo*.

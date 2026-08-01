@@ -242,7 +242,7 @@ $$\text{result}[0] \mathrel{+}= 0{,}5 \cdot x_1 + 0{,}5 \cdot x_1 = 1{,}0 \cdot 
 
 Tên `set` gợi ý "đặt giá trị" nhưng hành vi thật là **"thêm một phần tử"** — một sự không khớp giữa tên và ngữ nghĩa.
 
-**Vì sao trong dự án không gây lỗi.** `PageRankService` chỉ gọi `set` một lần cho mỗi cạnh, và `HtmlExtractor` đã khử trùng outlink bằng `LinkedHashSet`:
+**Vì sao trong dự án không gây lỗi.** `PageRankService` chỉ gọi `set` một lần cho mỗi cạnh, và `LinkExtractor` đã khử trùng outlink bằng `LinkedHashSet`:
 
 ```java
 Set<String> seen = new LinkedHashSet<>();
@@ -368,6 +368,6 @@ Con số 17,3 % của corpus nhỏ cho thấy: ở quy mô đó, ma trận thưa
 ## 10. Liên kết
 
 - Người dùng duy nhất: [PageRankService.md](../05-ranking/PageRankService.md)
-- Nguồn dữ liệu đồ thị: [HtmlExtractor.md](../01-crawler/HtmlExtractor.md)
+- Nguồn dữ liệu đồ thị: [ContentParser-LinkExtractor.md](../01-crawler/ContentParser-LinkExtractor.md)
 - Anh em cấu trúc dữ liệu tự cài: [MinHeap.md](MinHeap.md) · [Trie.md](Trie.md) · [LRUCache.md](LRUCache.md) · [BloomFilter.md](../01-crawler/BloomFilter.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

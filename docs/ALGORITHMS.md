@@ -459,24 +459,26 @@ $O(1)$.
 khi crawl hàng nghìn trang. Bỏ luôn trang thì mất dữ liệu; thử lại vô hạn thì
 một URL chết sẽ treo cả worker.
 
-**Mã thật.** `CrawlerService.fetchWithRetry()`:
+**Mã thật.** `HtmlDownloader.download()` — khối "HTML Downloader" trong sơ đồ
+kiến trúc crawler:
 
 ```java
-private static final int TIMEOUT_MS = 10_000;
-private static final int MAX_RETRIES = 2;
+public static final int DEFAULT_TIMEOUT_MS = 10_000;
+public static final int DEFAULT_MAX_RETRIES = 2;
 
-private WebDocument fetchWithRetry(String url) {
-    for (int attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+public Document download(String url) throws IOException {
+    dnsResolver.resolveHostOf(url);     // <- hoi DNS TRUOC, khong vao vong thu lai
+
+    IOException lastError = null;
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {
         try {
-            Document document = Jsoup.connect(url)
-                    .userAgent(USER_AGENT).timeout(TIMEOUT_MS).followRedirects(true).get();
-            return htmlExtractor.extract(url, document);
-        } catch (Exception e) {
-            lastError = e;                      // ghi nho, chua bao
+            return Jsoup.connect(url)
+                    .userAgent(USER_AGENT).timeout(timeoutMs).followRedirects(true).get();
+        } catch (IOException e) {
+            lastError = e;              // ghi nho, chua bao
         }
     }
-    notifyError(url, lastError);                // <- Observer: listener tu quyet dinh log the nao
-    return null;
+    throw lastError;                    // <- CrawlerService bat roi phat qua Observer
 }
 ```
 

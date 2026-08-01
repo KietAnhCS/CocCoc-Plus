@@ -157,7 +157,7 @@ Nếu chuỗi không phân tích được thành URI hợp lệ (URL méo, ký t
 
 **Vì sao đây là lựa chọn đúng.** Một URL méo vẫn có thể fetch được — trình duyệt và thư viện HTTP rất khoan dung. Nếu chuẩn hoá thất bại mà ta trả về `null` hoặc ném ngoại lệ, ta **chắc chắn** mất trang đó. Trả về nguyên văn thì tệ nhất là mất cơ hội khử trùng lặp — nhẹ hơn nhiều.
 
-Cùng logic với `if (scheme == null || host == null) return withoutFragment;`: URL tương đối như `/tin-tuc` không có host, không chuẩn hoá được, nhưng vẫn giữ lại (thực tế `HtmlExtractor` đã chuyển sang tuyệt đối trước khi gọi, nên nhánh này hiếm khi chạy).
+Cùng logic với `if (scheme == null || host == null) return withoutFragment;`: URL tương đối như `/tin-tuc` không có host, không chuẩn hoá được, nhưng vẫn giữ lại (thực tế `LinkExtractor` đã chuyển sang tuyệt đối trước khi gọi, nên nhánh này hiếm khi chạy).
 
 ---
 
@@ -183,7 +183,7 @@ Nguyên tắc tổng quát:
 
 > **Bất biến nào cần giữ, hãy ép nó tại ranh giới cấu trúc dữ liệu — đừng trông vào việc người gọi nhớ.**
 
-Cùng nguyên tắc đó xuất hiện ở `HtmlExtractor`, nơi chuẩn hoá **cả base lẫn outlink** trước khi so sánh:
+Cùng nguyên tắc đó xuất hiện ở `LinkExtractor`, nơi chuẩn hoá **cả base lẫn outlink** trước khi so sánh:
 
 ```java
 String canonicalBase = UrlCanonicalizer.canonicalize(baseUrl);
@@ -240,6 +240,6 @@ Với 394.940 URL × $L \approx 60$: khoảng $2{,}4 \times 10^7$ thao tác ký 
 
 ## 9. Liên kết
 
-- Nơi được gọi: [UrlFrontier.md](UrlFrontier.md) · [HtmlExtractor.md](HtmlExtractor.md)
+- Nơi được gọi: [UrlFrontier.md](UrlFrontier.md) · [ContentParser-LinkExtractor.md](ContentParser-LinkExtractor.md)
 - Tầng khử trùng lặp thứ hai: [BloomFilter.md](BloomFilter.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

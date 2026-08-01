@@ -17,7 +17,7 @@ CrawlConfig config = CrawlConfig.builder()
         .threadCount(12)
         .allowedDomains(Set.of("vnexpress.net", "tuoitre.vn"))
         .maxDurationMinutes(30)
-        .progressEveryN(50)
+        .urlStoragePath("data/seen-urls.txt")
         .build();          // ← kiểm tra MỌI ràng buộc tại đây, rồi đóng băng
 ```
 
@@ -44,7 +44,7 @@ Trường `public` + setter trả về `this` trông giống Builder nhưng **kh
 | Giá trị sai | Lỗi xuất hiện ở đâu | Thông điệp |
 |---|---|---|
 | `threadCount = 0` | `Executors.newFixedThreadPool(0)` | `IllegalArgumentException` khó hiểu, không nhắc tới `threadCount` |
-| `progressEveryN = 0` | `count % progressEveryN` **giữa vòng lặp worker** | `ArithmeticException: / by zero` ở một chỗ hoàn toàn không liên quan |
+| `maxDurationMinutes = 0` | `latch.await(0, MINUTES)` hết hạn **ngay lập tức** | Không có ngoại lệ nào — phiên crawl kết thúc sau 0 giây với 0 trang |
 | `maxPages = -1` | Không hỏng — crawl **không làm gì** rồi kết thúc | Không có thông điệp nào |
 | `maxDepth = -5` | Không hỏng — kết quả rỗng | Không có thông điệp nào |
 
@@ -62,7 +62,7 @@ public final class CrawlConfig {
     private final int threadCount;
     private final Set<String> allowedDomains;
     private final int maxDurationMinutes;
-    private final int progressEveryN;
+    private final String urlStoragePath;
 
     private CrawlConfig(Builder builder) {          // ← constructor PRIVATE
         this.maxDepth        = builder.maxDepth;
@@ -70,7 +70,7 @@ public final class CrawlConfig {
         this.threadCount     = builder.threadCount;
         this.allowedDomains  = Set.copyOf(builder.allowedDomains);   // bản sao BẤT BIẾN
         this.maxDurationMinutes = builder.maxDurationMinutes;
-        this.progressEveryN  = builder.progressEveryN;
+        this.urlStoragePath  = builder.urlStoragePath;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -93,7 +93,7 @@ public static final class Builder {
     private int threadCount = 4;
     private Set<String> allowedDomains = Set.of();
     private int maxDurationMinutes = 60;
-    private int progressEveryN = 1;
+    private String urlStoragePath = null;    // null = khong luu ben URL
 
     private Builder() { }
 
@@ -111,12 +111,9 @@ public static final class Builder {
         if (threadCount <= 0)
             throw new IllegalArgumentException("threadCount phải > 0, nhận được: " + threadCount);
         if (maxDurationMinutes <= 0)
+            // Bằng 0 thì latch.await(0, MINUTES) hết hạn ngay, phiên crawl kết
+            // thúc sau 0 giây mà KHÔNG có ngoại lệ nào — lỗi im lặng, khó lần.
             throw new IllegalArgumentException("maxDurationMinutes phải > 0, nhận được: " + maxDurationMinutes);
-        if (progressEveryN <= 0) {
-            // Nếu bằng 0 thì "count % progressEveryN" chia cho 0 -> ArithmeticException
-            // ở giữa vòng lặp worker, một chỗ hoàn toàn không liên quan tới nguyên nhân.
-            throw new IllegalArgumentException("progressEveryN phải > 0, nhận được: " + progressEveryN);
-        }
         return new CrawlConfig(this);
     }
 }
@@ -297,7 +294,7 @@ Nhóm thứ ba đáng chú ý: nó test một tính chất **không nhìn thấy
 ## 11. Tự kiểm tra
 
 1. Viết một test chứng minh: nếu bỏ `Set.copyOf`, cấu hình sửa được từ bên ngoài sau khi `build()`.
-2. Nếu `progressEveryN = 0` mà **không** có kiểm tra, `ArithmeticException` xuất hiện ở đâu? Vì sao chỗ đó khó lần ra nguyên nhân?
+2. Nếu `maxDurationMinutes = 0` mà **không** có kiểm tra, phiên crawl kết thúc ngay với 0 trang và **không** ném ngoại lệ nào. Vì sao lỗi im lặng lại khó lần ra hơn một ngoại lệ?
 3. Thêm ràng buộc *"`maxPages` phải >= `threadCount`"*. Vì sao ràng buộc này **không** đặt được trong setter?
 4. Kể ba object khác trong dự án bất biến và nêu lợi ích đa luồng của mỗi cái.
 

@@ -31,7 +31,8 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 | [CrawlerService](01-crawler/CrawlerService.md) | `crawler/CrawlerService.java` | BFS đa luồng, **phát hiện kết thúc phân tán**, $P(\text{nhầm}) \approx 10^{-15}$, ba lớp bảo vệ |
 | [RobotsTxtParser](01-crawler/RobotsTxtParser.md) | `crawler/RobotsTxtParser.java` | **Longest-prefix-match**, máy trạng thái hai cờ, cache 17 phút → 10 giây |
 | [UrlCanonicalizer](01-crawler/UrlCanonicalizer.md) | `crawler/UrlCanonicalizer.java` | **Quan hệ tương đương và dạng chuẩn tắc**, choke point, an toàn vs đầy đủ |
-| [HtmlExtractor](01-crawler/HtmlExtractor.md) | `crawler/HtmlExtractor.java` | Duyệt DOM, sinh 239.691 cạnh đồ thị, vì sao boilerplate làm hỏng $\sqrt{\lvert d\rvert}$ |
+| [ContentParser & LinkExtractor](01-crawler/ContentParser-LinkExtractor.md) | `crawler/ContentParser.java`, `crawler/LinkExtractor.java` | Duyệt DOM, sinh 239.691 cạnh đồ thị, vì sao boilerplate làm hỏng $\sqrt{\lvert d\rvert}$ |
+| [ContentSeenFilter](01-crawler/ContentSeenFilter.md) | `crawler/ContentSeenFilter.java` | **Nghịch lý ngày sinh** cho SHA-256, vì sao KHÔNG dùng Bloom Filter ở đây, quan hệ tương đương khi chuẩn hoá |
 
 ### 2. Tách từ tiếng Việt — [`02-tokenize/`](02-tokenize/)
 
@@ -291,7 +292,7 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 |---|---|
 | `datastructure/` | BloomFilter, LRUCache, MinHeap, SparseMatrix, Trie, UrlFrontier — **6/6** ✅ |
 | `index/` | InvertedIndex, IndexPersistence, VietnameseTokenizer, VByteCodec, CompressedPostings, TermDictionary, ArrayPostingCursor — **7/7** ✅ |
-| `crawler/` | CrawlerService, HtmlExtractor, RobotsTxtParser, UrlCanonicalizer — **4/4** ✅ |
+| `crawler/` | CrawlerService, ContentParser + LinkExtractor, ContentSeenFilter, RobotsTxtParser, UrlCanonicalizer — **5 trang** ✅<br/>Chưa có trang riêng: DnsResolver, HtmlDownloader, ContentStorage, UrlFilter, UrlSeenFilter, UrlStorage — đều được mô tả trong [CrawlerService.md](01-crawler/CrawlerService.md) |
 | `query/` | PostingListMerger, QueryParser, CandidateResolver — **3/3** ✅ |
 | `ranking/` | TfIdfScorer, BM25Scorer, PageRankService, ResultRanker, QuerySyllables — **5/5** ✅ |
 | `eval/` | EvaluationMetrics, KnownItemQueryGenerator, PoolBuilder — **3/3** ✅ |

@@ -755,10 +755,14 @@ cd search-engine
 | `PageRankServiceTest` | 6 | Kiểm chứng bằng **tính chất toán học** |
 | `RobotsTxtParserTest` | 6 | Longest-prefix-match, section riêng thắng `*` |
 | `SparseMatrixTest` | 6 | set/multiply/nnz, biên |
-| `HtmlExtractorTest` | 4 | Trích title/meta/body/outlink |
+| `UrlFilterTest` | 11 | Lọc độ sâu / scheme / domain / đuôi tệp, đếm theo nguyên nhân |
+| `UrlSeenFilterTest` | 10 | Test-and-set nguyên tử, cỡ bộ lọc, lưu bền + nạp lại |
+| `ContentSeenFilterTest` | 8 | Vân tay SHA-256, chuẩn hoá, đồng thời |
+| `LinkExtractorTest` | 5 | URL tuyệt đối, khử trùng, bỏ scheme không phải http |
+| `ContentParserTest` | 4 | Trích title/meta/body, **không** bóc liên kết |
 | `IndexPersistenceTest` | 1 | Lưu rồi nạp lại phải bằng nhau |
 | `VnSearchApplicationTests` | 1 | Spring context khởi động được |
-| **31 lớp** | **280** | |
+| **36 lớp** | **314** | |
 
 Ba lớp in đậm là test của đợt sửa lỗi và tối ưu gần nhất: chúng phủ dạng nén
 posting list, kiểm định thống kê, và cơ chế nới lỏng truy vấn.
@@ -875,7 +879,7 @@ nhớ (6.4), WAND (6.5), và tránh boxing `Integer` ở `docIdsOf`.
 | `CandidateResolver` | Chuỗi `FILTERS` là `static final`, không inject được → không cấu hình được theo request, khó mock trong test | Nhỏ ở quy mô hiện tại |
 | `UrlFrontier.nextUrl` | Ties được phá theo thứ tự nội bộ `HashMap` → thứ tự crawl không tái lập được | Không ảnh hưởng đúng đắn |
 | `RobotsTxtParser` | Bỏ qua wildcard `*` / `$`; khi hai luật cùng độ dài thì luật đầu thắng (chuẩn: `Allow` thắng) | Nhỏ |
-| `CrawlerService.fetchWithRetry` | Retry **không có** exponential backoff | Có thể dồn tải lên server đang gặp sự cố |
+| `HtmlDownloader.download` | Retry **không có** exponential backoff | Có thể dồn tải lên server đang gặp sự cố |
 
 Các hạn chế **kiến trúc** (chỉ mục một tiến trình, reindex toàn phần, không
 có `Content Seen?`…): xem mục 6 của `ARCHITECTURE.md`. Các điểm **vỡ ở quy mô

@@ -312,7 +312,7 @@ for (int idx = 0; idx < n; idx++) {
 | `targetIdx != null` | Bỏ liên kết trỏ **ra ngoài corpus** |
 | `targetIdx != idx` | Bỏ **cạnh tự vòng** |
 
-Phép lọc thứ nhất giải thích con số ở [HtmlExtractor §5](../01-crawler/HtmlExtractor.md): trong 394.940 outlink chỉ có **239.691** (60,7 %) trở thành cạnh.
+Phép lọc thứ nhất giải thích con số ở [ContentParser & LinkExtractor §5](../01-crawler/ContentParser-LinkExtractor.md): trong 394.940 outlink chỉ có **239.691** (60,7 %) trở thành cạnh.
 
 **Đây là một thiên lệch có hệ thống đáng ghi nhận.** Một trang trỏ 100 liên kết trong đó 90 ra ngoài corpus sẽ có $\text{outDeg} = 10$, nên mỗi liên kết còn lại được trọng số $1/10$ thay vì $1/100$ — uy tín của nó được **thổi phồng 10 lần** cho 10 đích còn lại. PageRank ở đây đo trên **đồ thị con** của web, không phải web thật.
 
@@ -505,7 +505,7 @@ $$\frac{\beta \cdot \overline{\text{PR}}}{\alpha \cdot \overline{\text{TF-IDF}}}
 ## 12. Liên kết
 
 - Cấu trúc nền: [SparseMatrix.md](../06-datastructures/SparseMatrix.md)
-- Nguồn dữ liệu đồ thị: [HtmlExtractor.md](../01-crawler/HtmlExtractor.md)
+- Nguồn dữ liệu đồ thị: [ContentParser-LinkExtractor.md](../01-crawler/ContentParser-LinkExtractor.md)
 - Nơi điểm được kết hợp (và vấn đề thang đo): [ResultRanker §6](ResultRanker.md)
 - Kết quả thí nghiệm: `docs/EVALUATION.md`
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

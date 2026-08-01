@@ -27,7 +27,9 @@ phân tích độ phức tạp và **đo đạc thực nghiệm** trên corpus t
 search-engine/
 ├── search-engine/          # Backend: Spring Boot (Java 17, Maven Wrapper)
 │   ├── src/main/java/com/vnsearch/
-│   │   ├── crawler/        # Crawler BFS đa luồng, robots.txt, trích xuất HTML, CrawlConfig (Builder)
+│   │   ├── crawler/        # Crawler BFS đa luồng — mỗi khối trong sơ đồ kiến trúc là một lớp
+│   │   │                   #   (DnsResolver, HtmlDownloader, ContentParser, ContentSeenFilter,
+│   │   │                   #    ContentStorage, LinkExtractor, UrlFilter, UrlSeenFilter, UrlStorage)
 │   │   ├── datastructure/  # Trie, BloomFilter, LRUCache, MinHeap, SparseMatrix, UrlFrontier
 │   │   ├── index/          # Tokenizer, chỉ mục đảo, nén VByte, PostingCursor, TermDictionary
 │   │   ├── query/          # Phân tích truy vấn

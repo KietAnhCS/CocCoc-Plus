@@ -1,7 +1,7 @@
-# HtmlExtractor — từ cây DOM về văn bản và cạnh đồ thị
+# ContentParser & LinkExtractor — từ cây DOM về văn bản và cạnh đồ thị
 
-**File nguồn:** `search-engine/src/main/java/com/vnsearch/crawler/HtmlExtractor.java`
-**Việc nó làm:** Biến một trang HTML thành **hai thứ**: văn bản để lập chỉ mục, và danh sách outlink để dựng đồ thị PageRank.
+**File nguồn:** `crawler/ContentParser.java` và `crawler/LinkExtractor.java`
+**Việc nó làm:** Biến một trang HTML thành **hai thứ**: văn bản để lập chỉ mục (`ContentParser`), và danh sách outlink để dựng đồ thị PageRank (`LinkExtractor`).
 
 > 📖 Chưa quen ký hiệu toán? Đọc [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md) trước.
 
@@ -14,6 +14,18 @@
 Một trang tin tức 200 KB HTML chứa: menu, quảng cáo, script theo dõi, CSS, chân trang, và — đâu đó ở giữa — khoảng 3 KB nội dung thật. Việc của lớp này là lấy đúng 3 KB đó.
 
 Nó cũng là nơi **đồ thị web được sinh ra**: mỗi thẻ `<a href>` trở thành một cạnh, và tập hợp 239.691 cạnh này chính là đầu vào của PageRank.
+
+### Vì sao là HAI lớp chứ không phải một
+
+Trước đây cả hai việc nằm trong một lớp `HtmlExtractor`. Sơ đồ kiến trúc crawler tách chúng thành hai khối — `Content Parser` và `Link Extractor` — và **thứ tự giữa chúng có ý nghĩa**, vì ở giữa còn một khối thứ ba:
+
+```
+Content Parser  ->  Content Seen?  ->  Link Extractor
+                         |
+                         +-- "da thay noi dung nay" -> vut, KHONG boc lien ket
+```
+
+Nếu một trang là bản trùng nội dung, nó bị vứt ngay sau khi phân tích nội dung. Các liên kết của nó đã được lấy từ bản gốc rồi, nên bóc lại là công vô ích. Gộp hai việc vào một lớp khiến công đoạn bóc liên kết **luôn** chạy, kể cả với trang sắp bị vứt — xem [ContentSeenFilter.md](ContentSeenFilter.md).
 
 ---
 
@@ -66,7 +78,7 @@ String combinedText = String.join(" ",
         doc.getBodyText() != null ? doc.getBodyText() : "");
 ```
 
-Vẫn phải kiểm tra `null` ở đó vì tài liệu có thể đến từ JSON đã lưu chứ không phải từ `HtmlExtractor`. Đây là dấu hiệu của một thiết kế đáng cải thiện: nếu `WebDocument` đảm bảo bất biến "các trường văn bản không bao giờ `null`" ngay trong constructor, thì mọi nơi dùng đều bớt được kiểm tra.
+Vẫn phải kiểm tra `null` ở đó vì tài liệu có thể đến từ JSON đã lưu chứ không phải từ `ContentParser`. Đây là dấu hiệu của một thiết kế đáng cải thiện: nếu `WebDocument` đảm bảo bất biến "các trường văn bản không bao giờ `null`" ngay trong constructor, thì mọi nơi dùng đều bớt được kiểm tra.
 
 **Vì sao meta description đáng lấy riêng.** Nó là bản tóm tắt do **con người viết** cho chính trang đó — mật độ thông tin cao hơn hẳn thân bài. Trong `InvertedIndex`, nó được ghép vào cùng văn bản để lập chỉ mục, nghĩa là term xuất hiện ở đó được đếm thêm một lần — một dạng tăng trọng số ngầm định.
 
@@ -84,7 +96,9 @@ private String extractBodyText(Document document) {
 
 ### 3.1 Vì sao phải `clone()`
 
-`remove()` **sửa cây DOM tại chỗ**. Nếu không clone, ta phá huỷ `document` gốc — mà `extractOutlinks` được gọi **sau** và cần đúng cây đó (`<a href>` có thể nằm trong `<nav>` hoặc `<footer>`).
+`remove()` **sửa cây DOM tại chỗ**. Nếu không clone, ta phá huỷ `document` gốc — mà `LinkExtractor` chạy **sau** trên đúng cây đó và cần nó nguyên vẹn (`<a href>` có thể nằm trong `<nav>` hoặc `<footer>`).
+
+Ranh giới trách nhiệm này rõ hơn hẳn khi hai việc nằm ở hai lớp: `ContentParser` nhận `Document` của người khác thì **không được** để lại dấu vết trên đó, vì nó biết sẽ còn lớp khác dùng tiếp.
 
 Đây là nguyên tắc **không sửa tham số đầu vào**: hàm nhận `Document` từ người gọi thì không được để lại tác dụng phụ trên nó. Cái giá là một bản sao cây DOM — với trang 200 KB thì tốn vài trăm KB bộ nhớ tạm, hoàn toàn chấp nhận được.
 
@@ -130,19 +144,21 @@ Chi tiết chèn khoảng trắng quan trọng: nếu nối thẳng, ta được
 ## 4. Trích xuất outlink — nơi đồ thị web sinh ra
 
 ```java
-private List<String> extractOutlinks(String baseUrl, Document document) {
+// LinkExtractor.java - khoi "Link Extractor" trong so do
+public List<String> extract(String baseUrl, Document document) {
     String canonicalBase = UrlCanonicalizer.canonicalize(baseUrl);
     Set<String> seen = new LinkedHashSet<>();
+
     Elements links = document.select("a[href]");
     for (Element link : links) {
         String absUrl = link.absUrl("href");
         if (absUrl == null || absUrl.isBlank()) continue;
-        if (absUrl.startsWith("http://") || absUrl.startsWith("https://")) {
-            String canonical = UrlCanonicalizer.canonicalize(absUrl);
-            // Bo qua anchor link tro ve chinh trang nay (vd href="#section")
-            if (!canonical.equals(canonicalBase)) {
-                seen.add(canonical);
-            }
+        if (!absUrl.startsWith("http://") && !absUrl.startsWith("https://")) continue;
+
+        String canonical = UrlCanonicalizer.canonicalize(absUrl);
+        // Bo qua anchor link tro ve chinh trang nay (vd href="#section")
+        if (!canonical.equals(canonicalBase)) {
+            seen.add(canonical);
         }
     }
     return new ArrayList<>(seen);
@@ -226,6 +242,8 @@ if (targetIdx != null && targetIdx != idx) {    // ← null = ngoài corpus, b�
 
 với $b$ = số liên kết (78,8), $L$ = độ dài URL (~60).
 
+Hai lớp cộng lại vẫn cùng bậc: tách lớp **không** làm tăng độ phức tạp, vì mỗi lớp duyệt cây đúng một lần như trước.
+
 Với trang 200 KB: khoảng $2 \times 10^5 + 78{,}8 \times 60 \approx 2{,}05 \times 10^5$ thao tác — dưới 1 mili giây. So với 38 ms chờ mạng cho chính trang đó, phần trích xuất là **2,6 %** thời gian.
 
 ---
@@ -259,6 +277,7 @@ Với trang 200 KB: khoảng $2 \times 10^5 + 78{,}8 \times 60 \approx 2{,}05 \t
 ## 9. Liên kết
 
 - Người gọi: [CrawlerService.md](CrawlerService.md)
+- Khối đứng giữa hai lớp này: [ContentSeenFilter.md](ContentSeenFilter.md)
 - Chuẩn hoá URL: [UrlCanonicalizer.md](UrlCanonicalizer.md)
 - Nơi dùng `bodyText`: [VietnameseTokenizer.md](../02-tokenize/VietnameseTokenizer.md) · [InvertedIndex.md](../03-index/InvertedIndex.md)
 - Nơi dùng `outlinks`: [PageRankService.md](../05-ranking/PageRankService.md)

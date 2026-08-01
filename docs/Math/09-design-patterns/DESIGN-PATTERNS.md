@@ -23,7 +23,7 @@ Mười mẫu dưới đây đều thoả ba điều kiện: **giải một vấ
 | 9 | **Iterator/Cursor** | `PostingCursor` | Autoboxing **64 KB/lần**; 4005 bước → **48 bước** |
 | 10 | **Flyweight** | `TermDictionary` | **7 triệu** `String` cho 136.768 giá trị |
 
-**Mẫu bổ trợ:** Facade (`SearchEngineFacade`), Adapter (`HtmlExtractor`, `Stack<T>`), Repository (`DocumentRepository`), Value Object (9 `record`), Cache-Aside (`LRUCache`), Producer–Consumer (crawler), DI (constructor injection).
+**Mẫu bổ trợ:** Facade (`SearchEngineFacade`), Adapter (bộ ba chạm Jsoup trong `crawler/`, `Stack<T>`), Repository (`DocumentRepository`), Value Object (9 `record`), Cache-Aside (`LRUCache`), Producer–Consumer (crawler), DI (constructor injection).
 
 ---
 
@@ -404,7 +404,7 @@ crawler.crawl(seeds, cfg);
 cfg.maxPages = -1;        // sửa GIỮA phiên crawl, không ai chặn
 ```
 
-Và không có kiểm tra nào: `threadCount = 0` → `newFixedThreadPool(0)` ném ngoại lệ khó hiểu; `progressEveryN = 0` → `count % 0` ném `ArithmeticException` **ở giữa vòng lặp worker**, một chỗ hoàn toàn không liên quan tới nguyên nhân.
+Và không có kiểm tra nào: `threadCount = 0` → `newFixedThreadPool(0)` ném ngoại lệ khó hiểu **ở giữa phiên crawl**, cách xa chỗ đặt sai cấu hình; `maxDurationMinutes = 0` → `latch.await(0, MINUTES)` hết hạn ngay, phiên crawl kết thúc sau 0 giây với 0 trang mà **không** ném gì cả — lỗi im lặng, loại khó lần nhất.
 
 ```java
 public CrawlConfig build() {
@@ -412,7 +412,6 @@ public CrawlConfig build() {
     if (maxDepth < 0)    throw new IllegalArgumentException("maxDepth phai >= 0, nhan duoc: " + maxDepth);
     if (threadCount <= 0) throw new IllegalArgumentException("threadCount phai > 0, nhan duoc: " + threadCount);
     if (maxDurationMinutes <= 0) throw new IllegalArgumentException(...);
-    if (progressEveryN <= 0) throw new IllegalArgumentException(...);
     return new CrawlConfig(this);
 }
 ```
@@ -519,7 +518,7 @@ positionsByTerm.computeIfAbsent(term, k -> new ArrayList<>()).add(token.position
 | Pattern | Nơi dùng | Ghi chú |
 |---|---|---|
 | **Facade** | `SearchEngineFacade` | Nay **chỉ** điều phối — 6 trách nhiệm đã chuyển đi |
-| **Adapter** | `HtmlExtractor`, `Stack<T>` (TS) | Jsoup chỉ xuất hiện ở **2 file** trong toàn dự án |
+| **Adapter** | `HtmlDownloader` + `ContentParser` + `LinkExtractor`, `Stack<T>` (TS) | Jsoup chỉ xuất hiện ở **4 file**, tất cả trong `crawler/` |
 | **Repository** | `DocumentRepository` | Nay có interface `DocumentStore` bọc ngoài |
 | **Value Object** | 9 `record` | Và biết khi nào **không** dùng record (`PoolEntry` sinh ra để sửa tay) |
 | **Cache-Aside** | `LRUCache` trong `search()` | 34,5 ms → **12,8 ms** |

@@ -107,6 +107,15 @@ public class UrlFrontier {
         // deu phai di qua, nen chuan hoa o day dam bao tap enqueued khong bao
         // gio chua 2 bien the cua cung mot trang.
         String url = com.vnsearch.crawler.UrlCanonicalizer.canonicalize(rawUrl);
+
+        // Phân tích URL MỘT lần, ngoài khối synchronized. Trước đây
+        // computePriority và extractDomain mỗi hàm tự gọi URI.create trên cùng
+        // một chuỗi, tức mỗi URL bị phân tích hai lần; và cả hai lần đều diễn
+        // ra trong lúc đang giữ khoá, chặn các worker khác một cách vô ích.
+        String host = hostOf(url);
+        String domain = host != null ? host : url;
+        double priority = computePriority(host, depth, knownBacklinks);
+
         synchronized (lock) {
             if (enqueued.contains(url)) {
                 return false;
@@ -115,8 +124,6 @@ public class UrlFrontier {
                 droppedDueToCapacity++;
                 return false;
             }
-            double priority = computePriority(url, depth, knownBacklinks);
-            String domain = extractDomain(url);
             byDomain.computeIfAbsent(domain,
                             d -> new MinHeap<>((a, b) -> Double.compare(-a.priority(), -b.priority())))
                     .insert(new FrontierEntry(url, depth, priority));
@@ -126,31 +133,23 @@ public class UrlFrontier {
         }
     }
 
-    private double computePriority(String url, int depth, int knownBacklinks) {
+    /** @param host host đã rút sẵn, {@code null} nếu URL không phân tích được */
+    private static double computePriority(String host, int depth, int knownBacklinks) {
         double score = 0;
         score -= depth * 2.0; // càng sâu càng ít ưu tiên
         score += Math.min(knownBacklinks, 50) * 0.5; // nhiều backlink -> ưu tiên hơn
-        if (isVnDomain(url)) {
+        if (host != null && host.endsWith(".vn")) {
             score += 5.0; // ưu tiên domain .vn theo yêu cầu đề bài
         }
         return score;
     }
 
-    private boolean isVnDomain(String url) {
+    /** Host của URL, hoặc {@code null} nếu chuỗi không phân tích được thành URI. */
+    private static String hostOf(String url) {
         try {
-            String host = URI.create(url).getHost();
-            return host != null && host.endsWith(".vn");
+            return URI.create(url).getHost();
         } catch (Exception e) {
-            return false;
-        }
-    }
-
-    private String extractDomain(String url) {
-        try {
-            String host = URI.create(url).getHost();
-            return host != null ? host : url;
-        } catch (Exception e) {
-            return url;
+            return null;
         }
     }
 

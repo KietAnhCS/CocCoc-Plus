@@ -404,14 +404,4 @@ public class CrawlerService {
     public ContentSeenFilter getContentSeenFilter() {
         return contentSeenFilter;
     }
-
-    /** Ghi corpus ra file JSON — uy quyen cho {@link ContentStorage}. */
-    public static void saveToJson(List<WebDocument> documents, String path) throws IOException {
-        ContentStorage.saveToJson(documents, path);
-    }
-
-    /** Doc corpus tu file JSON — uy quyen cho {@link ContentStorage}. */
-    public static List<WebDocument> loadFromJson(String path) throws IOException {
-        return ContentStorage.loadFromJson(path);
-    }
 }

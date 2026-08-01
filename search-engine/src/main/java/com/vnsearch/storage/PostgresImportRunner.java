@@ -1,6 +1,6 @@
 package com.vnsearch.storage;
 
-import com.vnsearch.crawler.CrawlerService;
+import com.vnsearch.crawler.ContentStorage;
 import com.vnsearch.model.WebDocument;
 
 import java.util.List;
@@ -20,7 +20,7 @@ public class PostgresImportRunner {
         String corpusPath = args.length > 0 ? args[0] : "data/crawled-multi.json";
 
         System.out.println("Doc corpus tu " + corpusPath + " ...");
-        List<WebDocument> docs = CrawlerService.loadFromJson(corpusPath);
+        List<WebDocument> docs = ContentStorage.loadFromJson(corpusPath);
         long outlinkCount = docs.stream().mapToInt(d -> d.getOutlinks().size()).sum();
         System.out.printf("  %d tai lieu, %d lien ket%n", docs.size(), outlinkCount);
 

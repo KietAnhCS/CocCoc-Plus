@@ -1,6 +1,6 @@
 package com.vnsearch.storage;
 
-import com.vnsearch.crawler.CrawlerService;
+import com.vnsearch.crawler.ContentStorage;
 import com.vnsearch.model.WebDocument;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ public final class JsonDocumentStore implements DocumentStore {
 
     @Override
     public List<WebDocument> loadAll() throws IOException {
-        return CrawlerService.loadFromJson(path);
+        return ContentStorage.loadFromJson(path);
     }
 
     @Override

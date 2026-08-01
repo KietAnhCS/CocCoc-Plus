@@ -1,6 +1,6 @@
 package com.vnsearch.eval;
 
-import com.vnsearch.crawler.CrawlerService;
+import com.vnsearch.crawler.ContentStorage;
 import com.vnsearch.index.InvertedIndex;
 import com.vnsearch.model.WebDocument;
 import com.vnsearch.ranking.BM25Scorer;
@@ -64,7 +64,7 @@ public class QrelsEvaluationRunner {
         String corpusPath = args.length > 1 ? args[1] : "data/crawled-multi.json";
 
         System.out.println("Nap corpus " + corpusPath + " ...");
-        List<WebDocument> docs = CrawlerService.loadFromJson(corpusPath);
+        List<WebDocument> docs = ContentStorage.loadFromJson(corpusPath);
         InvertedIndex index = buildIndex(docs);
         Map<Integer, Double> pageRank =
                 new PageRankService().computePageRank(index.getAllDocuments()).scores();

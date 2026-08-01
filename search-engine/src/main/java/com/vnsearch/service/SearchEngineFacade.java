@@ -1,6 +1,6 @@
 package com.vnsearch.service;
 
-import com.vnsearch.crawler.CrawlerService;
+import com.vnsearch.crawler.ContentStorage;
 import com.vnsearch.datastructure.LRUCache;
 import com.vnsearch.index.IndexPersistence;
 import com.vnsearch.index.InvertedIndex;
@@ -253,7 +253,7 @@ public class SearchEngineFacade {
         return crawlJobManager.start(seedUrls, maxDepth, maxPages, docs -> {
             try {
                 lastCrawledDocuments = docs;
-                CrawlerService.saveToJson(docs, crawledDataPath);
+                ContentStorage.saveToJson(docs, crawledDataPath);
                 index = indexBuilder.build(docs);
                 IndexPersistence.save((InvertedIndex) index, indexDataPath);
                 refreshDerivedState();
@@ -270,7 +270,7 @@ public class SearchEngineFacade {
     public void reindex() throws IOException {
         List<WebDocument> docs = lastCrawledDocuments;
         if (docs.isEmpty() && Files.exists(Path.of(crawledDataPath))) {
-            docs = CrawlerService.loadFromJson(crawledDataPath);
+            docs = ContentStorage.loadFromJson(crawledDataPath);
             lastCrawledDocuments = docs;
         }
         index = indexBuilder.build(docs);

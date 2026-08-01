@@ -1,6 +1,6 @@
 package com.vnsearch.eval;
 
-import com.vnsearch.crawler.CrawlerService;
+import com.vnsearch.crawler.ContentStorage;
 import com.vnsearch.index.InvertedIndex;
 import com.vnsearch.model.WebDocument;
 import com.vnsearch.ranking.BM25Scorer;
@@ -51,7 +51,7 @@ public class EvaluationRunner {
         String reportPath = args.length > 2 ? args[2] : "../docs/EVALUATION.md";
 
         System.out.println("Nap corpus tu " + corpusPath + " ...");
-        List<WebDocument> docs = CrawlerService.loadFromJson(corpusPath);
+        List<WebDocument> docs = ContentStorage.loadFromJson(corpusPath);
         System.out.println("  " + docs.size() + " tai lieu");
 
         System.out.println("Dung chi muc dao ...");

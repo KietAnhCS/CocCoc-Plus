@@ -78,7 +78,7 @@ public class MultiDomainCrawlRunner {
         List<WebDocument> docs = crawler.crawl(DEFAULT_SEEDS, config);
         long elapsedMs = System.currentTimeMillis() - start;
 
-        CrawlerService.saveToJson(docs, outputPath);
+        ContentStorage.saveToJson(docs, outputPath);
         printStatistics(docs, elapsedMs, outputPath, allowedDomains);
     }
 

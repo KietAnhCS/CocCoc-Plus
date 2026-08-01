@@ -1,254 +1,234 @@
-# UrlFrontier — hàng đợi ưu tiên tách theo host (mô hình Mercator)
+# UrlFrontier — hàng đợi hai tầng (mô hình Mercator đầy đủ)
 
-**File nguồn:** `search-engine/src/main/java/com/vnsearch/datastructure/UrlFrontier.java`
+**File nguồn:** `search-engine/src/main/java/com/vnsearch/crawler/frontier/` — 9 lớp, xem bảng ở §0
 **Việc nó làm:** Quyết định **crawl URL nào tiếp theo**, vừa theo độ ưu tiên vừa tôn trọng giới hạn 1 request/giây cho mỗi host.
 
 > 📖 Chưa quen ký hiệu toán? Đọc [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md) trước.
+
+> ### 🔄 Đã cập nhật: từ một tầng lên hai tầng
+>
+> Bản trước dùng **một** cấu trúc duy nhất — `Map<host, MinHeap>` sắp theo điểm
+> ưu tiên — tức gộp cả hai tầng của sơ đồ Mercator làm một. Bản này tách đúng
+> như sơ đồ: **tầng trước** xếp theo ưu tiên, **tầng sau** gom theo host.
+> Ba thứ thay đổi kèm theo:
+>
+> - Ưu tiên là **mức số nguyên** (chỉ số hàng đợi) thay cho **điểm `double`**.
+> - Bộ chọn hàng đợi trước là **ngẫu nhiên có trọng số**, nên mức thấp không bị bỏ đói.
+> - `nextUrl` không còn quét mọi host: chi phí từ $O(D)$ xuống $O(\log n)$.
+>
+> Lớp cũng chuyển từ gói `datastructure/` sang `crawler/frontier/` — nó là một
+> khối kiến trúc của crawler, không phải cấu trúc dữ liệu dùng chung.
 
 ---
 
 ## 📌 Hiểu trong 30 giây
 
-Frontier là "danh sách việc cần làm" của crawler. Nó phải giải **hai bài toán cùng lúc**, và chính sự xung đột giữa hai bài toán này là toàn bộ nội dung thú vị của lớp:
+Frontier là "danh sách việc cần làm" của crawler. Nó phải giải **hai bài toán cùng lúc**, và chính sự xung đột giữa chúng là toàn bộ nội dung thú vị của lớp:
 
 1. **Chọn URL tốt nhất** — trang nào quan trọng hơn thì crawl trước.
 2. **Không được spam host** — mỗi host tối đa 1 request/giây.
 
 Riêng lẻ thì mỗi bài toán đều dễ: bài 1 dùng heap, bài 2 dùng một bảng `host → thời điểm truy cập cuối`. Ghép lại thì **hỏng**: URL ưu tiên cao nhất rất có thể thuộc host vừa mới truy cập, nên không dùng được — mà heap chỉ cho ta lấy phần tử đỉnh.
 
-Bản đầu tiên của dự án dùng **một heap toàn cục** và đã thực sự **đứng hình** khi crawl 5.000 trang. Lời giải là mô hình **Mercator**: thay một heap bằng `Map<host, MinHeap>`.
+Lời giải của Mercator (Heydon & Najork, 1999) là **không ghép**: dùng hai tầng hàng đợi, mỗi tầng lo đúng một bài toán và không biết gì về bài toán kia.
 
 ---
 
-## 1. Điểm ưu tiên — công thức và ba quyết định đằng sau nó
+## 0. Mỗi khối trong sơ đồ là một lớp
+
+```
+input URLs
+    |
+    v
+Prioritizer  --->  f1 f2 ... fn  --->  Front queue selector
+                   (theo muc uu tien)          |
+                                               v  output URLs
+                                       Back queue router  <->  Mapping Table
+                                               |
+                                               v
+                                       b1 b2 ... bn  (moi hang doi MOT host)
+                                               |
+                                               v
+                                       Back queue selector  --->  worker threads
+```
+
+| Khối trong sơ đồ | Lớp |
+|---|---|
+| Prioritizer | `Prioritizer` (giao diện) + `DefaultPrioritizer` |
+| f1..fn | `FrontQueues` |
+| Front queue selector | `FrontQueueSelector` + `WeightedRandomSelector` / `StrictPrioritySelector` |
+| Back queue router | `BackQueues.refillFrom` |
+| Mapping Table | `BackQueues.hostToQueue` |
+| b1..bn | `BackQueues.queues` + `boundHost` |
+| Back queue selector | `BackQueues.poll` + min-heap `ready` |
+| — (ghép tất cả) | `UrlFrontier` — **Facade** |
+
+Mỗi trục dễ thay đổi đều là một giao diện: `Prioritizer` (xếp hạng thế nào) và `FrontQueueSelector` (phục vụ mức nào trước). Đó là **Strategy pattern**, và nó cho phép kiểm thử từng chính sách một mình.
+
+---
+
+## 1. Prioritizer — ưu tiên là MỨC, không phải điểm
 
 ```java
-private double computePriority(String url, int depth, int knownBacklinks) {
-    double score = 0;
-    score -= depth * 2.0;                          // càng sâu càng ít ưu tiên
-    score += Math.min(knownBacklinks, 50) * 0.5;   // nhiều backlink -> ưu tiên hơn
-    if (isVnDomain(url)) {
-        score += 5.0;                              // ưu tiên domain .vn theo yêu cầu đề bài
-    }
-    return score;
+public int levelOf(String url, String host, int depth, int knownBacklinks) {
+    int level = depth;
+    if (host != null && host.endsWith(".vn")) level--;
+    if (knownBacklinks >= BACKLINK_BOOST_THRESHOLD) level--;
+    return Math.max(0, Math.min(level, levels - 1));
 }
 ```
 
-Viết thành công thức:
+Quy ước: **0 là cao nhất**, `levels - 1` là thấp nhất. Với 5 mức:
 
-$$\text{priority}(u) \;=\; -2\,\text{depth}(u) \;+\; 0{,}5 \cdot \min\bigl(\text{backlinks}(u),\, 50\bigr) \;+\; 5 \cdot \mathbb{1}\bigl[u \in \texttt{.vn}\bigr]$$
-
-**Bảng giá trị với các trường hợp thật:**
-
-| URL | depth | backlinks | .vn | priority |
+| URL | depth | backlinks | .vn | mức |
 |---|---|---|---|---|
-| `https://vnexpress.net/` (seed) | 0 | 10 | không | $0 + 5 + 0 = \mathbf{5{,}0}$ |
-| `https://tuoitre.vn/` (seed) | 0 | 10 | **có** | $0 + 5 + 5 = \mathbf{10{,}0}$ |
-| Bài viết depth 1 | 1 | 1 | có | $-2 + 0{,}5 + 5 = \mathbf{3{,}5}$ |
-| Bài viết depth 3 | 3 | 1 | có | $-6 + 0{,}5 + 5 = \mathbf{-0{,}5}$ |
-| Trang cực nóng, depth 2 | 2 | 5000 | không | $-4 + 25 + 0 = \mathbf{21{,}0}$ |
+| `https://vnexpress.net/` (seed) | 0 | 10 | không | **0** |
+| `https://tuoitre.vn/` (seed) | 0 | 10 | có | **0** |
+| Bài viết depth 1, `.vn` | 1 | 1 | có | **0** |
+| Bài viết depth 3, `.vn` | 3 | 1 | có | **2** |
+| Trang rất nóng, depth 2 | 2 | 5000 | không | **1** |
+| Bất kỳ trang nào depth ≥ 6 | 6+ | 0 | không | **4** |
 
-Ba chi tiết đáng chú ý trong công thức này:
+### 1.1 Vì sao bỏ công thức điểm số
 
-### 1.1 `min(backlinks, 50)` — chặn trên bắt buộc phải có
+Bản trước tính $-2\,\text{depth} + 0{,}5\min(\text{backlinks}, 50) + 5\cdot\mathbb{1}[\texttt{.vn}]$. Ba hằng số đó phải giải thích riêng, và tệ hơn — **chúng cho phép một tín hiệu lấn át hoàn toàn tín hiệu khác**:
 
-Không có nó, dòng cuối bảng trên sẽ là $-4 + 2500 = 2496$, áp đảo hoàn toàn mọi tín hiệu khác. Hàng đợi ưu tiên khi đó **thoái hoá thành "chỉ xét backlink"** và crawler không còn giống BFS nữa.
+$$0{,}5 \times 50 = 25 \text{ điểm} \;\equiv\; 12{,}5 \text{ lớp độ sâu}$$
 
-Chặn ở 50 nghĩa là: đóng góp tối đa của backlink là $25$ điểm, tương đương **12,5 lớp độ sâu**. Vẫn đủ mạnh để một trang rất quan trọng ở sâu được kéo lên, nhưng không đủ để phá vỡ trật tự theo lớp.
+nghĩa là một trang sâu 12 lớp có đủ backlink sẽ **vượt lên trên cả seed**. Bản cũ phải thêm `min(backlinks, 50)` chỉ để chặn hậu quả đó lại.
 
-### 1.2 Hệ số $-2$ cho độ sâu lớn hơn hệ số $0{,}5$ cho backlink
+Đếm theo bậc thì giới hạn nằm ngay trong định nghĩa: mỗi tín hiệu phụ đáng đúng **một bậc**, nên chúng không bao giờ lật ngược thứ tự theo độ sâu quá 2 bậc. Không cần hằng số chặn, không cần hằng số trọng số.
 
-Nghĩa là **giảm một lớp độ sâu quan trọng hơn có thêm 4 backlink**:
+### 1.2 Vì sao mức lại là chỉ số hàng đợi
 
-$$2 \text{ điểm (1 lớp)} \;=\; 0{,}5 \times 4 \text{ backlink}$$
+Đây là điểm mấu chốt của cả thiết kế. Khi ưu tiên là **khoá so sánh** trong một heap, chính sách phục vụ bị khoá cứng vào cấu trúc: heap luôn trả về cực trị, không có cách nào bảo nó "thỉnh thoảng lấy phần tử tệ hơn".
 
-Đây chính là điều làm thuật toán vẫn *giống BFS* thay vì biến thành thuần greedy theo backlink. BFS quan trọng vì các trang gần seed thường là trang chủ và trang chuyên mục — những trang quan trọng nhất của một site.
-
-### 1.3 `+5` cho `.vn` là yêu cầu đề bài, không phải nguyên lý IR
-
-Nói rõ điều này trong báo cáo là chuyện phải làm: đây là một **thiên lệch có chủ ý** vì dự án xây máy tìm kiếm tiếng Việt, không phải một tín hiệu chất lượng phổ quát.
-
-> **Hạn chế của công thức:** `knownBacklinks` được truyền vào cứng bằng `1` cho mọi outlink (`frontier.addUrl(outlink, task.depth() + 1, 1)`), và `10` cho seed. Nghĩa là **thành phần backlink hiện đang là hằng số**, không mang thông tin gì. Muốn nó có tác dụng thật, phải đếm số lần một URL được trỏ tới trong quá trình crawl — nhưng URL đã vào `enqueued` thì `addUrl` trả về `false` ngay, nên thông tin đó bị mất. Đây là một khoảng cách thật giữa thiết kế và cài đặt, đáng ghi trong phần hạn chế của đồ án.
+Khi ưu tiên là **chỉ số hàng đợi**, chính sách phục vụ tách hẳn ra thành một tham số — chính là `FrontQueueSelector` ở §2.
 
 ---
 
-## 2. Biến min-heap thành max-heap — kỹ thuật phủ định
+## 2. Front queue selector — đánh đổi giữa ưu tiên và bỏ đói
 
-`MinHeap` luôn trả về phần tử **nhỏ nhất**, nhưng ta cần phần tử **ưu tiên cao nhất**. Không cần viết lại cấu trúc:
+Tầng trước là $n$ hàng đợi **FIFO thuần**, mỗi hàng một mức. Câu hỏi còn lại: lấy từ hàng nào?
 
-```java
-byDomain.computeIfAbsent(domain,
-        d -> new MinHeap<>((a, b) -> Double.compare(-a.priority(), -b.priority())))
-    .insert(new FrontierEntry(url, depth, priority));
-```
+**Chính sách tất định** (`StrictPrioritySelector`) — luôn lấy mức cao nhất còn URL. Đây là hành vi của bản cũ, và nó **bỏ đói** mức thấp: mỗi trang crawl được lại sinh khoảng 90 liên kết mới, phần lớn nông, nên mức 0 gần như không bao giờ cạn và mức 4 không bao giờ tới lượt.
 
-**Vì sao đúng.** Phép phủ định **đảo ngược thứ tự** trên số thực:
+**Chính sách ngẫu nhiên có trọng số** (`WeightedRandomSelector`, mặc định) — mức $i$ có trọng số $2^{\,n-1-i}$:
 
-$$a > b \iff -a < -b$$
+$$P(\text{chọn mức } i) = \frac{2^{\,n-1-i}}{\sum_{j \in \text{còn hàng}} 2^{\,n-1-j}}$$
 
-nên phần tử có `priority` lớn nhất có `−priority` nhỏ nhất, và vẫn là phần tử `extractMin()` trả về đầu tiên. Kỹ thuật này biến một min-heap thành "max-heap theo tiêu chí X" mà không viết thêm dòng cấu trúc nào.
+Với 5 mức đều còn URL, tổng trọng số là $16+8+4+2+1 = 31$:
 
-> ⚠️ **Bẫy cần biết:** cách này chỉ an toàn với `double`/`Comparator`. Với `int`, phủ định `Integer.MIN_VALUE` bị **tràn** về chính nó ($-(-2^{31}) = -2^{31}$ vì $2^{31}$ không biểu diễn được), làm hỏng thứ tự. Ở đây dùng `Double.compare` nên không dính, nhưng đó là lý do cách viết an toàn hơn là **đảo thứ tự tham số**: `Double.compare(b.priority(), a.priority())`.
+| Mức | 0 | 1 | 2 | 3 | 4 |
+|---|---|---|---|---|---|
+| Xác suất | 51,6 % | 25,8 % | 12,9 % | 6,5 % | **3,2 %** |
 
----
+Mức cao vẫn nhận hơn một nửa số lượt, nhưng mức thấp nhất nhận $1/31$ — **bỏ đói là không thể**. Đó là tính chất mà không cấu trúc heap nào cho được.
 
-## 3. Bài toán trung tâm: một heap toàn cục thì hỏng thế nào
+> **Chi tiết cài đặt đáng chú ý:** trọng số chỉ cộng trên các hàng đợi **còn hàng**. Nếu tính cả hàng rỗng, phần trọng số của chúng thành "lượt trống" và bộ chọn phải bốc lại — với 4 trên 5 hàng rỗng thì kỳ vọng số lần bốc tăng vọt. Chuẩn hoá lại cho ra đúng một lần bốc.
 
-**Thiết kế đầu tiên (đã bỏ):** một `MinHeap` duy nhất chứa toàn bộ frontier.
-
-Khi lấy URL, phải:
-
-```
-lấy phần tử đỉnh
-nếu host của nó đang trong thời gian hoãn:
-    gác nó sang danh sách tạm
-    lấy phần tử tiếp theo
-    ... lặp lại
-cuối cùng: nhét toàn bộ danh sách tạm trở lại heap
-```
-
-**Trường hợp xấu nhất** — *mọi* URL đang chờ đều thuộc các host vừa được truy cập — phải rút **cạn** cả heap rồi nhét lại toàn bộ:
-
-$$\text{Chi phí mỗi lần lấy MỘT URL} = \underbrace{n \log n}_{\text{rút cạn}} + \underbrace{n \log n}_{\text{nhét lại}} = O(n \log n)$$
-
-**Vì sao lỗi này không lộ ra ở quy mô nhỏ.** Với $n = 150$ URL, $n\log n \approx 1085$ phép so sánh — chưa tới một phần nghìn giây, hoàn toàn không quan sát được.
-
-Nhưng frontier **tăng nhanh hơn số trang crawl rất nhiều**. Mỗi trang tin tức sinh trung bình **78,8 outlink**, nên:
-
-$$n \approx 78{,}8 \times P$$
-
-| Số trang crawl $P$ | Frontier $n$ | $n \log_2 n$ |
-|---|---|---|
-| 150 | ~11 800 | ~160 000 |
-| 1 000 | ~78 800 | ~1,3 triệu |
-| **5 000** | **~394 000** | **~7,3 triệu** |
-
-7,3 triệu phép so sánh **cho mỗi URL lấy ra**, nhân với 5.000 lần lấy → hơn **36 tỉ** phép so sánh chỉ để lập lịch. Crawler thực tế **đứng hình**.
-
-**Bài học tổng quát:** một lỗi hiệu năng $O(n\log n)$ với $n$ tăng tuyến tính theo số vòng lặp cho ra tổng $O(n^2 \log n)$ — và loại lỗi này **chỉ lộ ra khi tăng quy mô**, đúng lúc muộn nhất.
+Hạt giống của `Random` cố định, nên phiên crawl vẫn **lặp lại được** — điều kiện cần để so sánh hai lần thí nghiệm.
 
 ---
 
-## 4. Lời giải Mercator — tách hàng đợi theo host
+## 3. Vì sao một heap toàn cục thì hỏng
 
-Thay một heap toàn cục bằng `Map<host, MinHeap>` — mỗi host một hàng đợi riêng. Đây chính là mô hình "back queue theo host" của crawler **Mercator** (Heydon & Najork, 1999).
+Đây là lập luận thúc đẩy toàn bộ tầng sau, và nó vẫn đúng nguyên vẹn.
+
+**Thiết kế ngây thơ:** một heap duy nhất chứa cả frontier, sắp theo ưu tiên. Khi lấy URL, phần tử đỉnh rất có thể thuộc host đang trong thời gian hoãn. Khi đó phải rút nó ra, gác sang một danh sách tạm, rút tiếp phần tử sau…
+
+**Trường hợp xấu nhất** — mọi URL đang chờ đều thuộc các host vừa được truy cập — phải rút **cạn** cả heap rồi nhét lại toàn bộ:
+
+$$\underbrace{n \cdot O(\log n)}_{\text{rút cạn}} \;+\; \underbrace{n \cdot O(\log n)}_{\text{nhét lại}} \;=\; O(n \log n) \quad \textbf{cho MỖI URL lấy ra}$$
+
+Ở quy mô vài trăm URL không thấy được. Nhưng mỗi trang tin sinh hơn 90 outlink, nên crawl 10.000 trang đẩy $n$ lên hàng trăm nghìn — và crawler thực tế đứng hình.
+
+**Gốc rễ:** heap chỉ cho phép truy cập **cực trị**, trong khi bài toán cần "phần tử tốt nhất **thoả một điều kiện**". Không cấu trúc một-chiều nào làm được cả hai.
+
+---
+
+## 4. Tầng sau — mỗi hàng đợi đúng một host
+
+Bất biến cốt lõi: **hàng đợi sau thứ $i$ chỉ chứa URL của đúng một host.** Nhờ nó, "chờ 1 giây giữa hai lần chạm cùng máy chủ" trở thành "chờ 1 giây giữa hai lần lấy từ cùng hàng đợi" — kiểm tra được tại chỗ, không tra cứu gì thêm.
+
+### 4.1 Nạp theo yêu cầu, không định tuyến ngay
+
+Số hàng đợi sau là **cố định** (mặc định 128), số host thì không — một phiên crawl 6 tờ báo chạm tới **49 host** vì các subdomain. Nếu định tuyến ngay lúc `addUrl`, host vượt quá số hàng đợi sẽ không có chỗ đi.
+
+Lời giải Mercator: hàng đợi sau được **nạp lại khi cạn**, kéo từ tầng trước cho tới khi gặp một host chưa có chủ. Host thừa nằm yên ở tầng trước — **tầng trước chính là vùng đệm**.
+
+```
+REFILL-FROM(front):
+    lặp khi front còn URL:
+        slot ← một hàng đợi sau đang rỗng
+        nếu không có slot: dừng                  # mọi hàng đợi đều đang có việc
+        lặp:
+            task ← front.poll()
+            nếu task = null: dừng hẳn            # tầng trước cạn
+            owner ← MappingTable[task.host]
+            nếu owner ≠ null và owner ≠ slot:
+                đẩy task vào hàng đợi owner      # host đã có chủ
+                tiếp
+            gán host cho slot; đẩy task vào slot; thoát vòng trong
+```
+
+URL kéo lên mà host đã có chủ thì đi thẳng vào hàng đợi của chủ đó, **không bị trả ngược** về tầng trước — nên không có URL nào lặp vòng.
+
+### 4.2 Min-heap dùng đúng chiều tự nhiên
+
+Bản cũ phải **đảo dấu** để biến min-heap thành max-heap (`Double.compare(-a, -b)`). Ở đây `MinHeap` được dùng cho đúng thứ nó sinh ra: chọn **thời điểm khả dụng sớm nhất**.
 
 ```java
-private final Map<String, MinHeap<FrontierEntry>> byDomain = new HashMap<>();
-private final Map<String, Long> lastAccessTime = new HashMap<>();
-private final Set<String> enqueued = new HashSet<>();
+this.ready = new MinHeap<>((a, b) -> {
+    int byTime = Long.compare(availableAt[a], availableAt[b]);
+    return byTime != 0 ? byTime : Integer.compare(a, b);
+});
 ```
 
-**Mã giả của `nextUrl()`:**
+Nếu phần tử nhỏ nhất chưa tới giờ thì **chắc chắn** không hàng đợi nào tới giờ — nên chỉ cần nhìn đỉnh heap, không phải quét. Đó là chỗ $O(D)$ biến thành $O(\log n)$.
 
-```
-NEXT-URL():
-    lặp mãi:
-        nếu tổng số URL = 0: trả về null            # thật sự rỗng
-        bestHost ← null; bestPriority ← −∞
-        for mỗi (host, heap) trong byDomain:
-            nếu heap rỗng: xoá khỏi map; tiếp
-            nếu now − lastAccess[host] < DELAY: tiếp   # đang hoãn
-            nếu heap.peek().priority > bestPriority:
-                bestPriority ← heap.peek().priority; bestHost ← host
-        nếu bestHost ≠ null:
-            lastAccess[bestHost] ← now
-            trả về byDomain[bestHost].extractMin()
-        ngủ 50ms NGOÀI khối đồng bộ rồi thử lại        # mọi host đang hoãn
-```
+Khoá phụ theo chỉ số hàng đợi làm thứ tự **tất định**: hai hàng đợi cùng thời điểm khả dụng sẽ được phục vụ theo thứ tự host được phát hiện, thay vì theo thứ tự tuỳ ý mà heap tình cờ sắp.
 
-**Mã thật:**
+> **Bất biến giữ cho heap không hỏng:** `availableAt[i]` chỉ được sửa khi `i` đang **ở ngoài** heap. Sửa khoá của một phần tử đang nằm trong heap sẽ phá thứ tự một cách âm thầm — heap không có cách nào phát hiện.
+
+### 4.3 Không huỷ liên kết host khi hàng đợi cạn
+
+Hàng đợi cạn vẫn **giữ nguyên** host và `availableAt`, chỉ rời heap và vào danh sách chờ nạp. Huỷ liên kết ngay sẽ làm mất đồng hồ lịch sự của host đó, và một URL mới của chính host ấy có thể được tải lại tức thì.
+
+Đây cũng là cách Mapping Table được chặn kích thước: tối đa đúng `queueCount` mục, vì mỗi lần một slot đổi host thì host cũ bị gỡ khỏi bảng.
+
+> **Rò rỉ đã sửa.** Bản trước dùng `Map<domain, thời điểm truy cập>` **lớn dần theo mọi host từng gặp và không bao giờ co lại** — `it.remove()` chỉ dọn `byDomain`, không dọn `lastAccessTime`. Với 49 host thì vô hại; crawl rộng hàng chục nghìn host thì đó là rò rỉ thật.
+
+### 4.4 Xoá lười cho danh sách hàng đợi rỗng
+
+Một hàng đợi rỗng có thể được nạp lại **gián tiếp** — khi URL của chính host nó đang giữ chảy về từ tầng trước. Đi tìm nó trong danh sách chờ để xoá tốn $O(n)$. Thay vào đó nó được để lại và **lọc bằng cờ `empty[]`** lúc lấy ra:
 
 ```java
-Iterator<Map.Entry<String, MinHeap<FrontierEntry>>> it = byDomain.entrySet().iterator();
-while (it.hasNext()) {
-    Map.Entry<String, MinHeap<FrontierEntry>> entry = it.next();
-    MinHeap<FrontierEntry> heap = entry.getValue();
-    if (heap.isEmpty()) {
-        it.remove(); // dọn hàng đợi rỗng để vòng quét sau khỏi phải xét lại
-        continue;
+private int nextFreeSlot() {
+    while (!freeSlots.isEmpty()) {
+        int slot = freeSlots.peekFirst();
+        if (empty[slot]) return slot;
+        freeSlots.pollFirst();          // mục cũ, bỏ đi
     }
-    Long last = lastAccessTime.get(entry.getKey());
-    if (last != null && now - last < POLITENESS_DELAY_MS) {
-        continue; // domain này đang trong thời gian hoãn
-    }
-    double priority = heap.peek().priority();
-    if (priority > bestPriority) {
-        bestPriority = priority;
-        bestDomain = entry.getKey();
-    }
+    return -1;
 }
 ```
 
-**Vì sao rẻ hơn hẳn.** Ta chỉ **quét qua các host** (số host $D$ nhỏ), và chỉ gọi `extractMin` **đúng một lần** trên đúng một heap:
-
-| Thiết kế | Chi phí mỗi `nextUrl()` |
-|---|---|
-| Một heap toàn cục | $O(n \log n)$ — phụ thuộc **tổng** kích thước frontier |
-| **Tách theo host** | $\mathbf{O(D + \log n_d)}$ — **không** phụ thuộc tổng kích thước |
-
-Với $D = 52$ và $n_d \approx 7600$: $52 + 13 = \mathbf{65}$ thao tác thay vì 7,3 triệu. Nhanh hơn **112 000 lần**.
-
-**Điểm sâu hơn:** không chỉ là hằng số nhỏ hơn, mà là **độ phức tạp không còn phụ thuộc $n$**. Frontier có phình lên 10 triệu URL thì `nextUrl()` vẫn tốn đúng ngần ấy. Đó là khác biệt về **chất**, không phải về **lượng**.
-
-### 4.1 Hai chi tiết cài đặt đáng học
-
-**(a) `it.remove()` cho heap rỗng.** Không dọn thì các host đã cạn URL vẫn bị quét lại ở mọi lần gọi `nextUrl()`. Vì $D$ trong công thức $O(D + \log n_d)$ là **số mục trong map**, không phải số host còn việc, nên $D$ chỉ tăng chứ không bao giờ giảm trong suốt phiên crawl — biến hằng số nhỏ thành hằng số lớn dần.
-
-Dùng `Iterator.remove()` chứ không phải `map.remove()` là bắt buộc: sửa map trong lúc đang duyệt bằng `for-each` sẽ ném `ConcurrentModificationException`.
-
-**(b) Ngủ *ngoài* khối `synchronized`:**
-
-```java
-        }   // ← đóng khối synchronized ở đây
-        // Mọi domain đều đang bị hoãn -> ngủ NGOÀI khối synchronized để
-        // không giữ khoá, tránh chặn các thread đang muốn addUrl.
-        try {
-            Thread.sleep(50);
-        } catch (InterruptedException ie) { ... }
-```
-
-Nếu `Thread.sleep(50)` nằm **trong** khối đồng bộ, thread đang ngủ vẫn **giữ khoá** và chặn mọi thread khác đang muốn `addUrl`. Với 12 worker thread và mỗi lần ngủ 50ms, đó là một điểm nghẽn nghiêm trọng: một tối ưu biến thành một nút cổ chai.
-
-Đây là quy tắc chung đáng nhớ: **không bao giờ ngủ, chờ I/O, hay gọi hàm chậm khi đang giữ khoá.**
+Mỗi mục bị bỏ đúng một lần nên tổng chi phí vẫn là $O(1)$ khấu hao. Cùng kỹ thuật "xoá lười" mà các hàng đợi ưu tiên hay dùng khi không hỗ trợ `decrease-key`.
 
 ---
 
-## 5. Politeness — ràng buộc đặt trần cứng lên thông lượng
+## 5. Politeness — ràng buộc ngoài đặt trần cứng lên thông lượng
 
-```java
-public static final long POLITENESS_DELAY_MS = 1000L;
-```
+Mỗi host tối đa 1 request/giây, nên với $H$ host **đang hoạt động**:
 
-Politeness không phải một chi tiết lễ nghi mà là một **ràng buộc toán học** đặt trần lên thông lượng:
+$$\text{thông lượng tối đa} = \frac{H}{1 \text{ giây}} \text{ trang/giây}$$
 
-$$\text{thông lượng tối đa (trang/giây)} \;\le\; \frac{\text{số host được crawl đồng thời}}{\text{POLITENESS\_DELAY (giây)}} \;=\; D$$
+Đây là **trần cứng**, không thuật toán nào vượt qua được — thêm thread cũng vô ích. Muốn crawl nhanh hơn thì chỉ có một cách: **crawl nhiều host hơn**.
 
-**Chứng minh.** Mỗi host cho tối đa 1 request/giây. Có $D$ host độc lập ⇒ tối đa $D$ request/giây trên toàn hệ thống. ∎
+Số hàng đợi sau chính là chặn trên của $H$. Mặc định 128 cho trần 128 trang/giây, cao hơn hẳn mức mà mạng và số worker cho phép, nên nó không phải nút thắt. Đo thực tế trên 6 tờ báo (49 host): **26,6 trang/giây**.
 
-**Kiểm chứng bằng số đo thật:**
-
-| Đại lượng | Giá trị |
-|---|---|
-| Số host phân biệt $D$ | **52** |
-| Trần lý thuyết | 52 trang/giây |
-| **Thực đo** | **26,2 trang/giây** (5.011 trang trong 3,2 phút) |
-| Hiệu suất so với trần | **50,4 %** |
-
-Hụt 50% so với trần là bình thường: không phải lúc nào cả 52 host cũng có URL sẵn sàng, và độ trễ mạng thật khiến một số fetch mất hơn 1 giây.
-
-**Hệ quả quan trọng nhất, và nó đi ngược trực giác:** muốn crawl 400 trang/giây thì phải có ít nhất **400 host** được crawl song song — **không phải** mua máy nhanh hơn, không phải thêm thread, không phải tối ưu code. Nút thắt nằm ở **cấu trúc bài toán**, không ở tài nguyên.
-
-`MultiDomainCrawlRunner` áp dụng trực tiếp suy luận này khi chọn số thread:
-
-```java
-// Politeness delay 1s/domain nghia la thong luong toi da = so domain
-// (trang/giay). Dung so thread gap doi so domain de thread khong phai
-// la nut that co, phan con lai da bi politeness khong che.
-.threadCount(allowedDomains.size() * 2)
-```
-
-Hệ số 2 là để thread không phải là nút thắt (một thread đang chờ mạng thì thread kia vẫn làm việc được), nhưng không cần nhiều hơn vì politeness đã khống chế.
+Đây cũng là lý do `MultiDomainCrawlRunner` đặt `threadCount = 2 × số domain`: thread không được là nút thắt, phần còn lại đã bị politeness khống chế.
 
 ---
 
@@ -258,71 +238,53 @@ Hệ số 2 là để thread không phải là nút thắt (một thread đang c
 public static final int DEFAULT_MAX_SIZE = 500_000;
 ```
 
-Vì mỗi trang sinh ~78,8 outlink, một phiên crawl 10.000 trang có thể đẩy vào frontier hơn **một triệu URL**. Với độ dài URL trung bình 60 ký tự, riêng chuỗi đã là:
+Mỗi trang sinh hơn 90 outlink, nên crawl 10.000 trang có thể đẩy vào frontier hơn một triệu URL (vài trăm MB chuỗi). Chặn trên này giới hạn số URL đang chờ; khi đầy, URL mới bị bỏ và `droppedDueToCapacity` đếm lại.
 
-$$10^6 \times (60 \times 2 \text{ byte} + 40 \text{ byte overhead}) \approx \mathbf{160\ MB}$$
-
-chưa kể `enqueued` `HashSet` lưu **bản sao** của cùng những chuỗi đó (thực ra là cùng tham chiếu, nhưng bảng băm vẫn tốn ~32 byte/mục).
-
-```java
-if (totalSize >= maxSize) {
-    droppedDueToCapacity++;
-    return false;
-}
-```
-
-**Đánh đổi có chủ ý:** crawler ưu tiên theo bề rộng nên các URL bị bỏ hầu hết là URL độ sâu lớn, vốn có điểm ưu tiên thấp nhất. Biến đếm `droppedDueToCapacity` được giữ lại để báo cáo, tức là hệ thống **biết** mình đã bỏ bao nhiêu — khác hẳn với việc âm thầm mất dữ liệu.
-
-> **Hạn chế:** khi frontier đầy, URL mới bị bỏ **bất kể độ ưu tiên**. Cách đúng hơn là so sánh với phần tử ưu tiên thấp nhất và thay thế nếu URL mới tốt hơn — nhưng min-heap sắp theo `−priority` không cho tra phần tử ưu tiên **thấp** nhất trong $O(1)$; cần một **double-ended priority queue** (min-max heap). Với quy mô đồ án, chặn cứng là đánh đổi hợp lý.
+Đây là đánh đổi có chủ ý: crawler ưu tiên theo bề rộng nên URL bị bỏ hầu hết là URL độ sâu lớn, vốn nằm ở mức ưu tiên thấp nhất. **Đếm số bị bỏ** quan trọng không kém việc bỏ — không có con số đó thì không biết chặn trên có đang cắn vào kết quả hay không.
 
 ---
 
 ## 7. Chuẩn hoá tại điểm vào duy nhất
 
 ```java
-public boolean addUrl(String rawUrl, int depth, int knownBacklinks) {
-    // Chuan hoa ngay tai cua vao: day la choke point duy nhat ma moi URL
-    // deu phai di qua, nen chuan hoa o day dam bao tap enqueued khong bao
-    // gio chua 2 bien the cua cung mot trang.
-    String url = com.vnsearch.crawler.UrlCanonicalizer.canonicalize(rawUrl);
-    ...
-}
+String url = UrlCanonicalizer.canonicalize(rawUrl);
 ```
 
-Đặt phép chuẩn hoá tại **một** điểm vào duy nhất (thay vì rải ở mọi nơi gọi) là một mẫu thiết kế đáng ghi nhớ: nó biến *"phải nhớ chuẩn hoá"* thành *"không thể quên chuẩn hoá"*.
+`addUrl` là **choke point**: mọi URL đều phải đi qua đây. Chuẩn hoá tại đúng một chỗ biến "phải nhớ chuẩn hoá" thành "không thể quên" — xem [UrlCanonicalizer §5](UrlCanonicalizer.md).
 
-Chi tiết đầy đủ ở [UrlCanonicalizer.md](UrlCanonicalizer.md).
+Host cũng được rút **một lần** tại đây rồi đi theo `CrawlTask`. Bản trước phân tích URI hai lần cho mỗi URL (`computePriority` và `extractDomain` mỗi hàm tự gọi `URI.create`), và cả hai lần đều diễn ra **trong lúc đang giữ khoá**.
 
 ---
 
-## 8. Đồng bộ hoá — mô hình khoá của lớp
+## 8. Đồng bộ hoá — một khoá cho cả hai tầng
 
-Toàn bộ trạng thái nội bộ được bảo vệ bằng một khoá duy nhất:
+`FrontQueues` và `BackQueues` đều **không** tự đồng bộ; `UrlFrontier` bọc mọi thao tác trong một khối `synchronized` duy nhất.
+
+**Một khoá chung là cố ý.** `nextUrl` phải nạp lại tầng sau rồi mới lấy — hai tầng đổi trạng thái **cùng nhau**. Hai khoá riêng chỉ tạo thêm cơ hội cho tình trạng đua mà không tăng thông lượng thực, vì thân khoá không có thao tác vào/ra nào.
+
+**Không bao giờ ngủ khi đang giữ khoá.** Khi mọi host đều đang hoãn, luồng ngủ **ngoài** khối đồng bộ:
 
 ```java
-private final Object lock = new Object();
+    }   // <- đóng khối synchronized ở đây
+    Thread.sleep(sleepMs);
 ```
 
-**Vì sao một khoá thô cho cả bốn cấu trúc** (`byDomain`, `lastAccessTime`, `enqueued`, `totalSize`) thay vì `ConcurrentHashMap`:
+Nếu ngủ bên trong, thread đang ngủ vẫn giữ khoá và chặn mọi thread khác đang muốn `addUrl` — với 12 worker, một tối ưu biến thành nút cổ chai.
 
-Vì các thao tác cần **tính nguyên tử đa cấu trúc**. Ví dụ `addUrl` phải làm 4 việc **như một**: kiểm tra `enqueued`, kiểm tra `totalSize`, `insert` vào heap, `add` vào `enqueued`. Nếu mỗi cấu trúc tự thread-safe riêng thì hai thread vẫn có thể cùng vượt qua kiểm tra `enqueued.contains(url)` rồi cùng chèn — sinh ra URL trùng.
-
-`ConcurrentHashMap` cho ta an toàn **từng thao tác**, còn `synchronized` cho ta an toàn **cả nhóm thao tác**. Ở đây cần cái thứ hai.
-
-**Cái giá:** mọi worker thread tranh nhau một khoá. Đo thực tế không thấy vấn đề vì mỗi worker chỉ gọi `nextUrl()` khoảng 1 lần/giây (do politeness) trong khi phần trong khoá chạy hết vài microgiây — độ tranh chấp cực thấp.
+Bản này còn ngủ **đúng tới thời điểm hàng đợi sớm nhất khả dụng** thay vì thăm dò 50ms cố định, với trần 50ms để vẫn thấy URL mới do worker khác thêm vào.
 
 ---
 
 ## 9. Tổng hợp độ phức tạp
 
-| Thao tác | Thời gian | Ghi chú |
+| Thao tác | Bản một tầng | **Bản hai tầng** |
 |---|---|---|
-| `addUrl` | **$O(\log n_d)$** | + $O(L)$ chuẩn hoá URL, + $O(1)$ tra `enqueued` |
-| `nextUrl` | **$O(D + \log n_d)$** | Có thể **chặn** (ngủ 50ms) nếu mọi host đang hoãn |
-| `size`, `isEmpty`, `domainCount` | $O(1)$ | Đều trong `synchronized` |
-| Bộ nhớ | $O(n)$ | Chặn trên 500.000 URL |
+| `addUrl` | $O(\log n_d)$ | **$O(1)$** |
+| `nextUrl` | $O(D + \log n_d)$ — quét mọi host | **$O(\log n)$** — $n$ = số hàng đợi sau |
+| `size`, `domainCount` | $O(1)$ | $O(1)$ |
+| Bộ nhớ Mapping Table | $O(\text{mọi host từng gặp})$ — rò rỉ | **$O(n)$** |
 
-Với $D = 52$, $n_d \approx 7600$: `nextUrl` ≈ **65 thao tác**.
+Điểm đáng chú ý: chi phí lấy URL **không còn phụ thuộc số host đã gặp**, mà chỉ phụ thuộc số hàng đợi sau — một hằng số cấu hình. Với $n = 128$: $\log_2 128 = 7$ thao tác.
 
 ---
 
@@ -330,26 +292,28 @@ Với $D = 52$, $n_d \approx 7600$: `nextUrl` ≈ **65 thao tác**.
 
 | Chủ đề | Ở đâu |
 |---|---|
-| **Hàng đợi ưu tiên (binary heap)** | `MinHeap<FrontierEntry>` mỗi host |
-| **Phân hoạch cấu trúc dữ liệu** | một heap → `Map<host, heap>`, đổi $O(n\log n)$ thành $O(D + \log n_d)$ |
-| **Đảo chiều comparator** | min-heap dùng như max-heap qua `−priority` |
-| **Bảng băm** | `enqueued` chống trùng, `lastAccessTime` cho politeness |
-| **BFS có trọng số** | hàm ưu tiên tuyến tính giữ trật tự theo lớp |
-| **Chặn trên có kiểm soát** | `DEFAULT_MAX_SIZE` + đếm số bị bỏ |
-| **Đồng bộ hoá đa cấu trúc** | một khoá thô cho nguyên tử nhóm thao tác |
+| **Hàng đợi ưu tiên (binary heap)** | `MinHeap` chọn hàng đợi khả dụng sớm nhất |
+| **Phân tầng cấu trúc dữ liệu** | hai tầng, mỗi tầng một ràng buộc |
+| **Hàng đợi FIFO nhiều mức** | tầng trước, ưu tiên = chỉ số hàng đợi |
+| **Chọn ngẫu nhiên có trọng số** | chống bỏ đói, $P \propto 2^{\,n-1-i}$ |
+| **Xoá lười** | danh sách hàng đợi rỗng, $O(1)$ khấu hao |
+| **Bảng băm chặn kích thước** | Mapping Table ≤ số hàng đợi sau |
+| **Bất biến quanh khoá heap** | chỉ sửa `availableAt` khi phần tử ở ngoài heap |
+| **Strategy** | `Prioritizer`, `FrontQueueSelector` |
+| **Facade** | `UrlFrontier` ghép 4 thành phần |
+| **Đồng bộ hoá đa cấu trúc** | một khoá cho nguyên tử nhóm thao tác |
 | **Không giữ khoá khi ngủ** | `Thread.sleep` ngoài `synchronized` |
-| **Dọn rác cấu trúc phụ trợ** | `it.remove()` cho heap rỗng |
-| **Ràng buộc ngoài đặt trần thuật toán** | politeness ⇒ thông lượng $\le D$ |
+| **Ràng buộc ngoài đặt trần thuật toán** | politeness ⇒ thông lượng $\le H$ |
 
 ---
 
 ## 11. Hạn chế đã biết
 
-1. **`knownBacklinks` chưa hoạt động thật** (xem §1.3) — thành phần thứ hai của công thức ưu tiên hiện là hằng số.
-2. **Thứ tự không tái lập được.** Khi hai host cùng ưu tiên bằng nhau, phép so sánh `priority > bestPriority` (dấu `>` chặt) khiến host được quét trước thắng — mà thứ tự quét là thứ tự nội bộ của `HashMap`, không xác định trước. Không sai, nhưng làm việc tái lập một phiên crawl khó hơn. Dùng `LinkedHashMap` sẽ khắc phục.
-3. **Không bền vững qua lần khởi động.** Frontier nằm hoàn toàn trong RAM; crawler dừng giữa chừng là mất sạch. Crawler thật lưu frontier ra đĩa.
-4. **Politeness cố định 1 giây**, không đọc `Crawl-delay` từ robots.txt (parser có bỏ qua trường này — xem [RobotsTxtParser](RobotsTxtParser.md)).
-5. **Vòng lặp bận có ngủ.** `nextUrl` ngủ 50ms rồi thử lại thay vì dùng `wait`/`notify`. Đơn giản hơn nhưng lãng phí một chút CPU và thêm độ trễ tối đa 50ms.
+1. **`knownBacklinks` chưa hoạt động thật.** Crawler truyền hằng số 1 cho mọi outlink, nên tín hiệu thứ hai của prioritizer hiện không phân biệt được gì. Muốn dùng thật phải đếm số lần một URL được trỏ tới trước khi crawl nó.
+2. **Không bền vững qua lần khởi động.** Frontier nằm hoàn toàn trong RAM; crawler dừng giữa chừng là mất sạch. `UrlStorage` lưu được các URL *đã gặp* nhưng **không** lưu hàng đợi, nên "tiếp tục một phiên dang dở" vẫn chưa làm được.
+3. **Politeness cố định 1 giây**, không đọc `Crawl-delay` từ robots.txt (parser có bỏ qua trường này — xem [RobotsTxtParser](RobotsTxtParser.md)).
+4. **Hàng đợi tái sử dụng thừa hưởng đồng hồ cũ.** Một slot vừa phục vụ host $A$ rồi đổi sang host $B$ sẽ bắt $B$ chờ nốt phần còn lại của delay. Chờ thừa thì vô hại, chờ thiếu mới vi phạm politeness — nên đây là hướng làm tròn an toàn, nhưng nó có làm giảm thông lượng chút ít khi số host vượt số hàng đợi.
+5. **Vòng lặp bận có ngủ.** `nextUrl` ngủ rồi thử lại thay vì `wait`/`notify`. Đơn giản hơn nhưng thêm độ trễ tối đa 50ms.
 
 ---
 
@@ -358,5 +322,5 @@ Với $D = 52$, $n_d \approx 7600$: `nextUrl` ≈ **65 thao tác**.
 - Cấu trúc nền: [MinHeap.md](../06-datastructures/MinHeap.md)
 - Người dùng: [CrawlerService.md](CrawlerService.md)
 - Chuẩn hoá tại cửa vào: [UrlCanonicalizer.md](UrlCanonicalizer.md)
-- Khử trùng lặp ở tầng khác: [BloomFilter.md](BloomFilter.md)
+- Khử trùng lặp ở tầng khác: [BloomFilter.md](BloomFilter.md) · [ContentSeenFilter.md](ContentSeenFilter.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

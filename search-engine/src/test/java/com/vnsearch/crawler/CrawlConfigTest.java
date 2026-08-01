@@ -7,6 +7,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -30,7 +31,7 @@ class CrawlConfigTest {
                 .threadCount(12)
                 .allowedDomains(Set.of("vnexpress.net"))
                 .maxDurationMinutes(90)
-                .progressEveryN(25)
+                .urlStoragePath("data/seen-urls.txt")
                 .build();
 
         assertEquals(5, config.maxDepth());
@@ -38,7 +39,15 @@ class CrawlConfigTest {
         assertEquals(12, config.threadCount());
         assertEquals(Set.of("vnexpress.net"), config.allowedDomains());
         assertEquals(90, config.maxDurationMinutes());
-        assertEquals(25, config.progressEveryN());
+        assertEquals("data/seen-urls.txt", config.urlStoragePath());
+    }
+
+    /** Mac dinh KHONG luu ben URL — chuoi rong cung phai quy ve null, khong tao file rong. */
+    @Test
+    void urlStorageIsOffByDefaultAndBlankPathMeansOff() {
+        assertNull(CrawlConfig.builder().build().urlStoragePath());
+        assertNull(CrawlConfig.builder().urlStoragePath("   ").build().urlStoragePath());
+        assertNull(CrawlConfig.builder().urlStoragePath(null).build().urlStoragePath());
     }
 
     @Test
@@ -83,13 +92,6 @@ class CrawlConfigTest {
         // bat o day thi loi hien ngay tai cho sai.
         assertThrows(IllegalArgumentException.class,
                 () -> CrawlConfig.builder().threadCount(0).build());
-    }
-
-    @Test
-    void validationRejectsZeroProgressEveryN() {
-        // count % 0 -> ArithmeticException o giua vong lap worker.
-        assertThrows(IllegalArgumentException.class,
-                () -> CrawlConfig.builder().progressEveryN(0).build());
     }
 
     @Test

@@ -14,8 +14,8 @@ import java.util.Set;
  * </pre>
  * Va khong co kiem tra tinh hop le o dau ca: {@code maxPages = -1},
  * {@code threadCount = 0}, {@code maxDepth = -5} deu duoc chap nhan, roi hong
- * o mot cho khac hoan toan (chia cho 0 khi tinh {@code count % progressEveryN},
- * hoac {@code newFixedThreadPool(0)} nem ngoai le kho hieu).
+ * o mot cho khac hoan toan — {@code newFixedThreadPool(0)} nem ngoai le kho
+ * hieu o giua phien crawl, cach xa cho dat sai cau hinh.
  *
  * <p><b>Ban nay.</b> Doi tuong bat bien, dung qua {@link Builder}, va MOI
  * kiem tra tinh hop le nam trong {@link Builder#build()} — mot cho duy nhat.
@@ -31,7 +31,7 @@ public final class CrawlConfig {
     private final int threadCount;
     private final Set<String> allowedDomains;
     private final int maxDurationMinutes;
-    private final int progressEveryN;
+    private final String urlStoragePath;
 
     private CrawlConfig(Builder builder) {
         this.maxDepth = builder.maxDepth;
@@ -39,7 +39,7 @@ public final class CrawlConfig {
         this.threadCount = builder.threadCount;
         this.allowedDomains = Set.copyOf(builder.allowedDomains); // ban sao BAT BIEN
         this.maxDurationMinutes = builder.maxDurationMinutes;
-        this.progressEveryN = builder.progressEveryN;
+        this.urlStoragePath = builder.urlStoragePath;
     }
 
     public static Builder builder() {
@@ -67,8 +67,12 @@ public final class CrawlConfig {
         return maxDurationMinutes;
     }
 
-    public int progressEveryN() {
-        return progressEveryN;
+    /**
+     * Duong dan file luu ben danh sach URL da gap (khoi "URL Storage" trong
+     * so do kien truc); {@code null} nghia la KHONG luu ben.
+     */
+    public String urlStoragePath() {
+        return urlStoragePath;
     }
 
     @Override
@@ -86,7 +90,7 @@ public final class CrawlConfig {
         private int threadCount = 4;
         private Set<String> allowedDomains = Set.of();
         private int maxDurationMinutes = 60;
-        private int progressEveryN = 1;
+        private String urlStoragePath = null;
 
         private Builder() {
         }
@@ -116,9 +120,13 @@ public final class CrawlConfig {
             return this;
         }
 
-        /** Chi in log tien do moi N trang — tranh spam console khi crawl hang nghin trang. */
-        public Builder progressEveryN(int value) {
-            this.progressEveryN = value;
+        /**
+         * Bat luu ben danh sach URL da gap vao file (khoi "URL Storage").
+         * Mac dinh {@code null} — khong luu, vi voi phien crawl vai tram trang
+         * de thu nghiem thi chi phi ghi dia khong dang.
+         */
+        public Builder urlStoragePath(String value) {
+            this.urlStoragePath = value == null || value.isBlank() ? null : value;
             return this;
         }
 
@@ -140,12 +148,6 @@ public final class CrawlConfig {
             if (maxDurationMinutes <= 0) {
                 throw new IllegalArgumentException(
                         "maxDurationMinutes phai > 0, nhan duoc: " + maxDurationMinutes);
-            }
-            if (progressEveryN <= 0) {
-                // Neu bang 0 thi "count % progressEveryN" chia cho 0 -> ArithmeticException
-                // o giua vong lap worker, mot cho hoan toan khong lien quan toi nguyen nhan.
-                throw new IllegalArgumentException(
-                        "progressEveryN phai > 0, nhan duoc: " + progressEveryN);
             }
             return new CrawlConfig(this);
         }

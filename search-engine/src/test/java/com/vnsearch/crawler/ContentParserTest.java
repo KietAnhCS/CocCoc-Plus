@@ -7,14 +7,15 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-class HtmlExtractorTest {
+class ContentParserTest {
 
-    private final HtmlExtractor extractor = new HtmlExtractor();
+    private final ContentParser parser = new ContentParser();
 
     @Test
-    void extractsTitleDescriptionBodyAndLinks() {
+    void extractsTitleDescriptionAndBody() {
         String html = """
                 <html>
                 <head>
@@ -26,31 +27,26 @@ class HtmlExtractorTest {
                 <body>
                     <nav>Menu</nav>
                     <p>Noi dung chinh cua trang.</p>
-                    <a href="/tin-tuc">Tin tuc</a>
-                    <a href="https://khac.vn/bai-viet">Bai viet khac</a>
-                    <a href="#section">Muc luc</a>
                     <footer>Ban quyen</footer>
                 </body>
                 </html>
                 """;
         Document doc = Jsoup.parse(html, "https://vnsearch.example/");
-        WebDocument webDoc = extractor.extract("https://vnsearch.example/", doc);
+        WebDocument webDoc = parser.parse("https://vnsearch.example/", doc);
 
+        assertEquals("https://vnsearch.example/", webDoc.getUrl());
         assertEquals("Trang chu VnSearch", webDoc.getTitle());
         assertEquals("Cong cu tim kiem tu xay", webDoc.getMetaDescription());
         assertTrue(webDoc.getBodyText().contains("Noi dung chinh cua trang."));
         assertFalse(webDoc.getBodyText().contains("var x"), "Khong duoc chua noi dung script");
         assertFalse(webDoc.getBodyText().contains("color: red"), "Khong duoc chua noi dung style");
-
-        assertTrue(webDoc.getOutlinks().contains("https://vnsearch.example/tin-tuc"));
-        assertTrue(webDoc.getOutlinks().contains("https://khac.vn/bai-viet"));
-        assertEquals(2, webDoc.getOutlinks().size(), "Link chi co fragment (#section) khong tinh la outlink rieng");
+        assertNotNull(webDoc.getCrawledAt());
     }
 
     @Test
     void missingMetaDescriptionFallsBackToEmptyString() {
         Document doc = Jsoup.parse("<html><head><title>T</title></head><body>Noi dung</body></html>");
-        WebDocument webDoc = extractor.extract("https://a.vn/", doc);
+        WebDocument webDoc = parser.parse("https://a.vn/", doc);
         assertEquals("", webDoc.getMetaDescription());
     }
 
@@ -59,17 +55,20 @@ class HtmlExtractorTest {
         String html = "<html><head><title>T</title>"
                 + "<meta property=\"og:description\" content=\"Mo ta OG\"></head><body>x</body></html>";
         Document doc = Jsoup.parse(html);
-        WebDocument webDoc = extractor.extract("https://a.vn/", doc);
+        WebDocument webDoc = parser.parse("https://a.vn/", doc);
         assertEquals("Mo ta OG", webDoc.getMetaDescription());
     }
 
+    /**
+     * Bao ve ranh gioi trach nhiem giua Content Parser va Link Extractor:
+     * so do dat khoi Content Seen? o GIUA hai khoi nay, nen parser khong
+     * duoc phep boc lien ket truoc.
+     */
     @Test
-    void duplicateLinksAreDeduplicated() {
-        String html = "<html><body>"
-                + "<a href=\"/x\">1</a><a href=\"/x\">2</a><a href=\"/x#top\">3</a>"
-                + "</body></html>";
+    void parserDoesNotExtractLinks() {
+        String html = "<html><body><a href=\"/tin-tuc\">Tin tuc</a></body></html>";
         Document doc = Jsoup.parse(html, "https://a.vn/");
-        WebDocument webDoc = extractor.extract("https://a.vn/", doc);
-        assertEquals(1, webDoc.getOutlinks().size());
+        WebDocument webDoc = parser.parse("https://a.vn/", doc);
+        assertTrue(webDoc.getOutlinks().isEmpty(), "Content Parser khong duoc boc lien ket");
     }
 }

@@ -97,7 +97,7 @@ public class SparseMatrix {
      * <p><b>Lưu ý về ngữ nghĩa:</b> đây là phép THÊM, không phải phép GÁN ĐÈ.
      * Gọi hai lần cùng một (row, col) sẽ tạo HAI mục, và {@link #multiply}
      * cộng cả hai. Người gọi ({@code PageRankService}) đảm bảo không trùng nhờ
-     * {@code HtmlExtractor} đã khử trùng outlink bằng {@code LinkedHashSet}.
+     * {@code LinkExtractor} đã khử trùng outlink bằng {@code LinkedHashSet}.
      *
      * @throws IllegalStateException nếu ma trận đã bị đông cứng
      */

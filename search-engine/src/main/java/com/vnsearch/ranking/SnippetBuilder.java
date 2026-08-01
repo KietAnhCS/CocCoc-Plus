@@ -118,7 +118,7 @@ public final class SnippetBuilder {
     /**
      * Thoat ky tu HTML truoc khi ghep vao chuoi co the.
      *
-     * <p>Truoc day noi dung tai lieu duoc chen THANG vao chuoi HTML. HtmlExtractor
+     * <p>Truoc day noi dung tai lieu duoc chen THANG vao chuoi HTML. ContentParser
      * da loai the {@code <script>} khoi DOM nen ma script khong lot vao
      * {@code bodyText}, nhung mot bai viet co VAN BAN
      * {@code <script>alert(1)</script>} (vi du bai ve XSS) thi van lot — va

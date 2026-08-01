@@ -38,6 +38,16 @@ public final class ConsoleCrawlListener implements CrawlListener {
         log.warn("Khong the fetch {}: {}", url, error.getMessage());
     }
 
+    /**
+     * O muc DEBUG chu khong phai WARN: vut trang trung noi dung la crawler
+     * lam DUNG viec cua no, khong phai su co. In o muc warn se lam nhieu log
+     * vi tren bao dien tu ty le trung khong he nho.
+     */
+    @Override
+    public void onDuplicateContent(String url) {
+        log.debug("Trung noi dung, bo qua: {}", url);
+    }
+
     @Override
     public void onFinished(int totalPages, long elapsedMs) {
         double seconds = elapsedMs / 1000.0;

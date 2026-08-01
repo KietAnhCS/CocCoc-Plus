@@ -30,6 +30,17 @@ public interface CrawlListener {
     default void onError(String url, Exception error) {
     }
 
+    /**
+     * Mot trang bi vut vi TRUNG NOI DUNG voi mot trang da luu — nhanh "Yes"
+     * cua khoi {@code Content Seen?} trong so do kien truc.
+     *
+     * <p>Tach rieng khoi {@link #onError}: day khong phai loi ma la crawler
+     * lam dung viec cua no. Nhung van dang theo doi, vi ty le trung cao bat
+     * thuong la dau hieu bay nhen (spider trap) hoac chuan hoa URL con thieu.
+     */
+    default void onDuplicateContent(String url) {
+    }
+
     /** Phien crawl ket thuc (du vi ly do gi: du trang, het viec, hay het gio). */
     default void onFinished(int totalPages, long elapsedMs) {
     }

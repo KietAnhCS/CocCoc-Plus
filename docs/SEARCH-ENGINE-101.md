@@ -181,7 +181,7 @@ cao nhất trong số các host đã hết hoãn; (b) thread-safe cho nhiều wo
 *Gợi ý:* hai bẫy nằm ở chỗ **dọn heap rỗng** khỏi map (không dọn thì `D` chỉ
 tăng) và **ngủ ngoài khối `synchronized`** (ngủ trong khối thì thread đang ngủ
 giữ khoá và chặn mọi `addUrl`). Tham khảo:
-`datastructure/UrlFrontier.java`, test: `UrlFrontierTest` (11 test, có test 8
+`crawler/frontier/UrlFrontier.java`, test: `UrlFrontierTest` (14 test, có test 8
 thread).
 
 ### 2.4. Khử trùng lặp URL — Bloom Filter

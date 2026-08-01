@@ -45,7 +45,7 @@
 | `LRUCache<K,V>` | `datastructure/` | HashMap + DLL + sentinel, $O(1)$ |
 | `BloomFilter` | `datastructure/` | Double hashing, tối ưu $k^*$ bằng đạo hàm |
 | `SparseMatrix` | `datastructure/` | Adjacency list **+ đóng băng sang CSR** |
-| `UrlFrontier` | `datastructure/` | Mercator, $O(D + \log n_d)$ |
+| `UrlFrontier` | `crawler/frontier/` | Mercator hai tầng, $O(\log n)$ |
 | **`VByteCodec`** | `index/` | **Delta + variable-byte, mã hoá theo đoạn** |
 | **`CompressedPostings`** | `index/` | **Dạng nén của posting list, offset tích luỹ kiểu CSR** |
 | **`ArrayPostingCursor`** | `index/` | **Galloping search — skip pointer** |

@@ -38,7 +38,7 @@ thử được độc lập trong vài chục milli-giây.
 | **Bloom Filter** | `BloomFilter.java` | Khử trùng lặp URL khi crawl | `add` / `mightContain` O(k), k = số hàm băm (hằng số, thực tế 7) | O(m) bit — **không** phụ thuộc độ dài chuỗi |
 | **LRU Cache** | `LRUCache.java` | Cache `SearchResponse` | `get` / `put` **O(1)** · `size` / `containsKey` O(1) | O(capacity) = 200 mục |
 | **Min-Heap** | `MinHeap.java` | Lấy top-K điểm cao nhất | `insert` / `extractMin` O(log n) · `peek` O(1) · `topK` **O(n log k)** | O(n) |
-| **Url Frontier** | `UrlFrontier.java` | Hàng đợi URL có ưu tiên + politeness | `addUrl` O(log n_d) · **`nextUrl` O(D + log n_d)** · `size` / `domainCount` O(1) | O(n), chặn trên 500.000 URL |
+| **Url Frontier** | `crawler/frontier/` (9 lớp) | Hàng đợi hai tầng: ưu tiên + politeness | **`addUrl` O(1)** · **`nextUrl` O(log n)** · `size` / `domainCount` O(1) | O(n), chặn trên 500.000 URL |
 | **Sparse Matrix** | `SparseMatrix.java` | Ma trận liên kết web cho PageRank | `set` O(1) amortised · `multiply` **O(nnz)** · `nnz()` O(n + nnz) | O(nnz) |
 
 ### 1.2. Chỉ mục và truy vấn (`index/`, `query/`)
@@ -735,7 +735,10 @@ cd search-engine
 | `HeapifyAndFreezeTest` | 12 | Floyd heapify $O(n)$, đóng băng `SparseMatrix` sang CSR |
 | `TrieTest` | 12 | Prefix search, tách khoá/hiển thị, top-k theo frequency, **thread-safe** |
 | `BM25ScorerTest` | 11 | Kiểm chứng **tính chất** phân biệt BM25 với TF-IDF |
-| `UrlFrontierTest` | 11 | Ưu tiên, politeness, **đồng thời với 8 thread** |
+| `UrlFrontierTest` | 14 | Ưu tiên, politeness, **đồng thời với 8 thread** |
+| `BackQueuesTest` | 8 | Một host một hàng đợi, nạp lại khi cạn, Mapping Table bị chặn |
+| `FrontQueuesTest` | 7 | FIFO trong mức, **chống bỏ đói**, lặp lại được theo hạt giống |
+| `DefaultPrioritizerTest` | 8 | Mức ưu tiên, kẹp biên, tín hiệu phụ chỉ nâng một bậc |
 | `CrawlConfigTest` | 10 | Giá trị mặc định, kiểm tra hợp lệ, **2 test bản sao phòng thủ** |
 | `UrlCanonicalizerTest` | 10 | Từng phép chuẩn hoá, và những phép **không** được làm |
 | `PostingCursorTest` | 9 | Galloping đối chiếu quét tuyến tính ở **mọi** vị trí |
@@ -762,7 +765,7 @@ cd search-engine
 | `ContentParserTest` | 4 | Trích title/meta/body, **không** bóc liên kết |
 | `IndexPersistenceTest` | 1 | Lưu rồi nạp lại phải bằng nhau |
 | `VnSearchApplicationTests` | 1 | Spring context khởi động được |
-| **36 lớp** | **314** | |
+| **40 lớp** | **340** | |
 
 Ba lớp in đậm là test của đợt sửa lỗi và tối ưu gần nhất: chúng phủ dạng nén
 posting list, kiểm định thống kê, và cơ chế nới lỏng truy vấn.
@@ -877,7 +880,7 @@ nhớ (6.4), WAND (6.5), và tránh boxing `Integer` ở `docIdsOf`.
 |---|---|---|
 | `PostingListMerger` | `docIdsOf` tạo `List<Integer>` mới → boxing 250.000 `Integer` mỗi phép giao lớn | Trung bình; dùng `int[]` sẽ nhanh hơn đáng kể |
 | `CandidateResolver` | Chuỗi `FILTERS` là `static final`, không inject được → không cấu hình được theo request, khó mock trong test | Nhỏ ở quy mô hiện tại |
-| `UrlFrontier.nextUrl` | Ties được phá theo thứ tự nội bộ `HashMap` → thứ tự crawl không tái lập được | Không ảnh hưởng đúng đắn |
+| `UrlFrontier.nextUrl` | Hàng đợi tái sử dụng thừa hưởng đồng hồ lịch sự của host trước | Chờ thừa, không bao giờ chờ thiếu |
 | `RobotsTxtParser` | Bỏ qua wildcard `*` / `$`; khi hai luật cùng độ dài thì luật đầu thắng (chuẩn: `Allow` thắng) | Nhỏ |
 | `HtmlDownloader.download` | Retry **không có** exponential backoff | Có thể dồn tải lên server đang gặp sự cố |
 
@@ -904,7 +907,7 @@ cd search-engine
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.datastructure.LRUCache
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.datastructure.Trie
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.datastructure.SparseMatrix
-./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.datastructure.UrlFrontier
+./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.crawler.frontier.UrlFrontier
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.index.VietnameseTokenizer
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.index.InvertedIndex
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.query.PostingListMerger

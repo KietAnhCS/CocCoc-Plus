@@ -66,28 +66,30 @@ BFS-CO-UU-TIEN(seeds, maxDepth, maxPages):
                     frontier.addUrl(outlink, task.depth + 1)
 ```
 
-**Mã thật.** `crawler/CrawlerService.java` — công thức điểm ưu tiên nằm ở
-`datastructure/UrlFrontier.computePriority()`:
+**Mã thật.** `crawler/CrawlerService.java` — mức ưu tiên do
+`crawler/frontier/DefaultPrioritizer.levelOf()` quyết định:
 
 ```java
-private double computePriority(String url, int depth, int knownBacklinks) {
-    double score = 0;
-    score -= depth * 2.0;                          // càng sâu càng ít ưu tiên
-    score += Math.min(knownBacklinks, 50) * 0.5;   // nhiều backlink → ưu tiên hơn
-    if (isVnDomain(url)) {
-        score += 5.0;                              // ưu tiên domain .vn theo yêu cầu đề bài
-    }
-    return score;
+public int levelOf(String url, String host, int depth, int knownBacklinks) {
+    int level = depth;                                    // cang sau cang thap uu tien
+    if (host != null && host.endsWith(".vn")) level--;    // uu tien domain .vn
+    if (knownBacklinks >= BACKLINK_BOOST_THRESHOLD) level--;
+    return Math.max(0, Math.min(level, levels - 1));      // 0 = cao nhat
 }
 ```
 
-Viết thành công thức:
+Viết thành công thức, với $L$ là số mức:
 
 $$
-\mathrm{priority}(u) \;=\; -2\,\mathrm{depth}(u)
-\;+\; 0{,}5 \cdot \min\bigl(\mathrm{backlinks}(u),\, 50\bigr)
-\;+\; 5 \cdot \mathbb{1}\bigl[u \in \texttt{.vn}\bigr]
+\mathrm{level}(u) \;=\; \mathrm{clamp}\Bigl(
+\mathrm{depth}(u)
+\;-\; \mathbb{1}\bigl[u \in \texttt{.vn}\bigr]
+\;-\; \mathbb{1}\bigl[\mathrm{backlinks}(u) \ge 5\bigr]
+,\; 0,\; L-1\Bigr)
 $$
+
+Mức chính là **chỉ số hàng đợi trước**, nên chính sách phục vụ tách hẳn khỏi
+cấu trúc lưu trữ — xem [UrlFrontier §1.2](Math/01-crawler/UrlFrontier.md).
 
 Ba chi tiết đáng chú ý trong công thức này:
 
@@ -164,7 +166,9 @@ NEXT-URL():
         ngủ 50ms NGOÀI khối đồng bộ rồi thử lại        # mọi host đang hoãn
 ```
 
-**Mã thật.** `datastructure/UrlFrontier.nextUrl()`:
+**Mã thật.** Bản dưới đây là thiết kế **cũ** (một tầng, quét mọi host). Bản
+hiện tại tách hai tầng và chọn hàng đợi bằng min-heap theo thời điểm khả dụng —
+xem [UrlFrontier §4](Math/01-crawler/UrlFrontier.md):
 
 ```java
 Iterator<Map.Entry<String, MinHeap<FrontierEntry>>> it = byDomain.entrySet().iterator();

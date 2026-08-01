@@ -27,7 +27,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
 | [BloomFilter](01-crawler/BloomFilter.md) | `datastructure/BloomFilter.java` | **Suy dẫn $p \approx (1-e^{-kn/m})^k$**, tối ưu $k^*=(m/n)\ln 2$ bằng đạo hàm, double hashing Kirsch–Mitzenmacher, 1,1 MB vs 108 MB |
-| [UrlFrontier](01-crawler/UrlFrontier.md) | `datastructure/UrlFrontier.java` | **Mô hình Mercator**, $O(n\log n) \to O(D + \log n_d)$, trần thông lượng $=D$, đảo comparator |
+| [UrlFrontier](01-crawler/UrlFrontier.md) | `crawler/frontier/` (9 lớp) | **Mercator hai tầng**, chống bỏ đói bằng chọn ngẫu nhiên có trọng số, $O(D) \to O(\log n)$, trần thông lượng $=H$ |
 | [CrawlerService](01-crawler/CrawlerService.md) | `crawler/CrawlerService.java` | BFS đa luồng, **phát hiện kết thúc phân tán**, $P(\text{nhầm}) \approx 10^{-15}$, ba lớp bảo vệ |
 | [RobotsTxtParser](01-crawler/RobotsTxtParser.md) | `crawler/RobotsTxtParser.java` | **Longest-prefix-match**, máy trạng thái hai cờ, cache 17 phút → 10 giây |
 | [UrlCanonicalizer](01-crawler/UrlCanonicalizer.md) | `crawler/UrlCanonicalizer.java` | **Quan hệ tương đương và dạng chuẩn tắc**, choke point, an toàn vs đầy đủ |
@@ -162,7 +162,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 
 | Kỹ thuật | Hiệu quả đo được | Tài liệu |
 |---|---|---|
-| **Tách hàng đợi theo host** | $O(n\log n) \to O(D+\log n_d)$ — **112 000×** | [UrlFrontier](01-crawler/UrlFrontier.md) |
+| **Hàng đợi hai tầng theo host** | $O(n\log n) \to O(\log n)$ | [UrlFrontier](01-crawler/UrlFrontier.md) |
 | **Ma trận thưa** | 191,5 MB → 3,7 MB — **52×** | [SparseMatrix](06-datastructures/SparseMatrix.md) |
 | **Bloom Filter thay HashSet** | 108 MB → 1,1 MB — **95×** | [BloomFilter](01-crawler/BloomFilter.md) |
 | **Delta + VByte nén chỉ mục** | 341,5 MB → **94,7 MB** — nhỏ **3,60 lần** | [CompressedPostings](03-index/CompressedPostings.md) |
@@ -197,7 +197,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 | **`AtomicInteger` cho bộ đếm** | [CrawlerService §7](01-crawler/CrawlerService.md) |
 | **`volatile` cho tham chiếu gán lại** | [CrawlerService §7](01-crawler/CrawlerService.md) |
 | **`synchronized` cho nguyên tử đa cấu trúc** | [UrlFrontier §8](01-crawler/UrlFrontier.md) |
-| **Không giữ khoá khi ngủ** | [UrlFrontier §4.1](01-crawler/UrlFrontier.md) |
+| **Không giữ khoá khi ngủ** | [UrlFrontier §8](01-crawler/UrlFrontier.md) |
 | **Khoá đọc–ghi, và bẫy "`get` thực ra là ghi"** | [LRUCache §3](06-datastructures/LRUCache.md) |
 | **Phát hiện kết thúc phân tán** | [CrawlerService §3](01-crawler/CrawlerService.md) |
 | **`CountDownLatch` + `await` có thời hạn** | [CrawlerService §4](01-crawler/CrawlerService.md) |
@@ -246,8 +246,8 @@ Phân tích đầy đủ kèm mã thật: [**DESIGN-PATTERNS.md**](09-design-pat
 | $\lvert A\cap B\rvert \le \min(\lvert A\rvert,\lvert B\rvert)$ | Cơ sở shortest-first | [PostingListMerger](04-query/PostingListMerger.md) |
 | $\text{cha}(i)=\lfloor\frac{i-1}{2}\rfloor$, con $=2i+1, 2i+2$ | Heap trải phẳng | [MinHeap](06-datastructures/MinHeap.md) |
 | $h = \lfloor\log_2 n\rfloor$ | Chiều cao heap | [MinHeap](06-datastructures/MinHeap.md) |
-| $\text{priority} = -2\,\text{depth} + 0{,}5\min(bl,50) + 5\cdot\mathbb{1}[\texttt{.vn}]$ | Ưu tiên crawl | [UrlFrontier](01-crawler/UrlFrontier.md) |
-| thông lượng $\le D$ | Trần politeness | [UrlFrontier](01-crawler/UrlFrontier.md) |
+| $\text{level} = \text{clamp}(\text{depth} - \mathbb{1}[\texttt{.vn}] - \mathbb{1}[bl \ge 5])$ | Mức ưu tiên crawl | [UrlFrontier](01-crawler/UrlFrontier.md) |
+| thông lượng $\le H$ (số host hoạt động) | Trần politeness | [UrlFrontier](01-crawler/UrlFrontier.md) |
 | $\alpha r + \beta p + \gamma t$ | Kết hợp điểm (**có vấn đề thang đo**) | [ResultRanker §6](05-ranking/ResultRanker.md) |
 | $DCG@k = \sum\frac{2^{\text{rel}_i}-1}{\log_2(i+1)}$ | nDCG | [EvaluationMetrics](07-eval/EvaluationMetrics.md) |
 | $F_1 = \frac{2PR}{P+R}$ | Trung bình điều hoà | [EvaluationMetrics](07-eval/EvaluationMetrics.md) |
@@ -290,7 +290,7 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 
 | Gói | File có trang riêng |
 |---|---|
-| `datastructure/` | BloomFilter, LRUCache, MinHeap, SparseMatrix, Trie, UrlFrontier — **6/6** ✅ |
+| `datastructure/` | BloomFilter, LRUCache, MinHeap, SparseMatrix, Trie — **5/5** ✅ |
 | `index/` | InvertedIndex, IndexPersistence, VietnameseTokenizer, VByteCodec, CompressedPostings, TermDictionary, ArrayPostingCursor — **7/7** ✅ |
 | `crawler/` | CrawlerService, ContentParser + LinkExtractor, ContentSeenFilter, RobotsTxtParser, UrlCanonicalizer — **5 trang** ✅<br/>Chưa có trang riêng: DnsResolver, HtmlDownloader, ContentStorage, UrlFilter, UrlSeenFilter, UrlStorage — đều được mô tả trong [CrawlerService.md](01-crawler/CrawlerService.md) |
 | `query/` | PostingListMerger, QueryParser, CandidateResolver — **3/3** ✅ |

@@ -30,7 +30,8 @@ search-engine/
 │   │   ├── crawler/        # Crawler BFS đa luồng — mỗi khối trong sơ đồ kiến trúc là một lớp
 │   │   │                   #   (DnsResolver, HtmlDownloader, ContentParser, ContentSeenFilter,
 │   │   │                   #    ContentStorage, LinkExtractor, UrlFilter, UrlSeenFilter, UrlStorage)
-│   │   ├── datastructure/  # Trie, BloomFilter, LRUCache, MinHeap, SparseMatrix, UrlFrontier
+│   │   │   └── frontier/  #   URL Frontier hai tầng: Prioritizer, FrontQueues, BackQueues
+│   │   ├── datastructure/  # Trie, BloomFilter, LRUCache, MinHeap, SparseMatrix
 │   │   ├── index/          # Tokenizer, chỉ mục đảo, nén VByte, PostingCursor, TermDictionary
 │   │   ├── query/          # Phân tích truy vấn
 │   │   │   ├── ast/        #   Cây biểu thức AND/OR/NOT (Composite)

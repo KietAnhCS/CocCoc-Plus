@@ -134,7 +134,7 @@ public MinHeap(Comparator<T> comparator) {
 }
 ```
 
-Nhờ đó `UrlFrontier` biến min-heap thành max-heap bằng cách phủ định (xem [UrlFrontier §2](../01-crawler/UrlFrontier.md)):
+Kỹ thuật phủ định biến min-heap thành max-heap (thiết kế **cũ** của `UrlFrontier`; bản hiện tại dùng min-heap đúng chiều tự nhiên — xem [UrlFrontier §4.2](../01-crawler/UrlFrontier.md)):
 
 ```java
 new MinHeap<>((a, b) -> Double.compare(-a.priority(), -b.priority()))
@@ -396,7 +396,7 @@ Heap thắng vì nó **chỉ duy trì đúng lượng thứ tự cần thiết**
 
 | Nơi dùng | Vai trò | Comparator |
 |---|---|---|
-| [`UrlFrontier`](../01-crawler/UrlFrontier.md) | Chọn URL ưu tiên cao nhất mỗi host | `(a,b) -> Double.compare(-a.priority(), -b.priority())` — **đảo dấu** thành max-heap |
+| [`BackQueues`](../01-crawler/UrlFrontier.md) | Chọn hàng đợi khả dụng **sớm nhất** | `Long.compare(availableAt[a], availableAt[b])` — dùng đúng chiều min |
 | [`ResultRanker`](../05-ranking/ResultRanker.md) | Top-10 trong ~500 ứng viên | `Comparator.comparingDouble(ScoredCandidate::finalScore)` qua `topK` |
 
 Hai cách dùng khác hẳn nhau — một dùng heap như hàng đợi ưu tiên dài hạn, một dùng như bộ lọc top-K tạm thời — trên **cùng một cấu trúc**. Đó là dấu hiệu của một trừu tượng tốt.
@@ -424,7 +424,7 @@ Hai cách dùng khác hẳn nhau — một dùng heap như hàng đợi ưu tiê
 ## 9. Hạn chế đã biết
 
 1. **Dùng `swap` thay vì tối ưu "hole"** — tốn gấp 3 số phép gán (§3.1).
-2. **Không có `decreaseKey`.** `UrlFrontier` không thể cập nhật độ ưu tiên của một URL đã trong hàng đợi khi phát hiện thêm backlink — đây chính là lý do `knownBacklinks` không hoạt động thật (xem [UrlFrontier §1.3](../01-crawler/UrlFrontier.md)). Muốn có `decreaseKey` $O(\log n)$ cần thêm `Map<T, Integer>` tra vị trí và cập nhật nó trong mọi `swap`.
+2. **Không có `decreaseKey`.** `UrlFrontier` không thể cập nhật độ ưu tiên của một URL đã trong hàng đợi khi phát hiện thêm backlink — đây chính là lý do `knownBacklinks` không hoạt động thật (xem [UrlFrontier §11](../01-crawler/UrlFrontier.md)). Muốn có `decreaseKey` $O(\log n)$ cần thêm `Map<T, Integer>` tra vị trí và cập nhật nó trong mọi `swap`.
 3. **Không có `remove(item)` tuỳ ý** — chỉ lấy được min.
 4. **Không có `heapify`.** Dựng heap từ $n$ phần tử có sẵn bằng cách `insert` $n$ lần là $O(n\log n)$; thuật toán Floyd (`siftDown` từ $\lfloor n/2\rfloor$ về 0) làm được trong **$O(n)$**. Dự án luôn thêm dần từng phần tử nên chưa cần, nhưng đây là một thiếu sót đáng nói của một cấu trúc heap "đầy đủ".
 5. **`extractMin` gọi `heap.remove(heap.size()-1)`** — trên `ArrayList` đây là $O(1)$ (xoá phần tử cuối), nên không sao. Nhưng nó tạo một tham chiếu tạm `last` và một lần `set(0, last)` — có thể gộp lại.

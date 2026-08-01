@@ -71,7 +71,7 @@ flowchart LR
         Idx["SearchIndex (interface)<br/>← InvertedIndex TRONG BỘ NHỚ"]
         Fact["ScorerFactory<br/>(Factory + Decorator)"]
         Rank["RelevanceScorer: TfIdf / BM25<br/>+ PageRankBoost / TitleBoost<br/>PageRankService / ResultRanker"]
-        DS[("Trie / BloomFilter / MinHeap<br/>UrlFrontier / SparseMatrix<br/>VByteCodec / PostingCursor / TermDictionary")]
+        DS[("Trie / BloomFilter / MinHeap<br/>LRUCache / SparseMatrix<br/>VByteCodec / PostingCursor / TermDictionary")]
     end
 
     subgraph Eval["Bộ đánh giá chất lượng (eval/)"]
@@ -214,7 +214,7 @@ là một lớp**:
 ```mermaid
 flowchart TD
     Seed["6 seed URL báo điện tử"] --> Frontier
-    Frontier["<b>URL Frontier</b><br/>UrlFrontier: Map&lt;host, MinHeap&gt;"] -->|"nextUrl(): O(D + log n_d)"| Robots
+    Frontier["<b>URL Frontier</b><br/>2 tầng: f1..fn theo ưu tiên<br/>b1..bn mỗi hàng một host"] -->|"nextUrl(): O(log n)"| Robots
     Robots{"<b>URL Filter</b> (mức đắt)<br/>robots.txt cho phép?"} -->|"Không"| Drop[bỏ]
     Robots -->|"Có"| Fetch["<b>HTML Downloader</b><br/>timeout 10s, retry ≤ 2"]
     Fetch <--> Dns["<b>DNS Resolver</b><br/>LRUCache&lt;host, IP&gt;"]
@@ -767,8 +767,9 @@ vào** gói nào.
 
 | Gói | Trách nhiệm | Phụ thuộc vào |
 |---|---|---|
-| `datastructure/` | Trie, BloomFilter, LRUCache, MinHeap, SparseMatrix, UrlFrontier | Chỉ Java Collections. **Không** phụ thuộc gói nào khác trong dự án (trừ `UrlFrontier` → `UrlCanonicalizer`) |
+| `datastructure/` | Trie, BloomFilter, LRUCache, MinHeap, SparseMatrix | Chỉ Java Collections. **Không** phụ thuộc gói nào khác trong dự án |
 | `index/` | `Tokenizer` + `VietnameseTokenizer`, `SearchIndex` + `InvertedIndex`, `Posting`, `IndexPersistence`, **`VByteCodec`**, **`PostingCursor`** + `ArrayPostingCursor`, **`TermDictionary`** | `model/` |
+| `crawler/frontier/` | **URL Frontier hai tầng**: `UrlFrontier` (Facade), `Prioritizer` + `DefaultPrioritizer`, `FrontQueues`, `FrontQueueSelector` + `WeightedRandomSelector` / `StrictPrioritySelector`, `BackQueues`, `CrawlTask` | `datastructure/` (MinHeap), `crawler/` (UrlCanonicalizer) |
 | `crawler/` | `CrawlerService` (điều phối), **một lớp cho mỗi khối trong sơ đồ**: `DnsResolver`, `HtmlDownloader`, `ContentParser`, `ContentSeenFilter`, `ContentStorage`, `LinkExtractor`, `UrlFilter`, `UrlSeenFilter`, `UrlStorage`; cùng **`CrawlConfig`** (Builder), **`CrawlListener`** + `ConsoleCrawlListener`, `RobotsTxtParser`, `UrlCanonicalizer`, `MultiDomainCrawlRunner` | `datastructure/`, `model/`, Jsoup |
 | `query/` | `QueryParser`, `PostingListMerger`, `CandidateResolver` | `index/`, `query/ast/`, `query/filter/` |
 | `query/ast/` | **`QueryNode`** (`sealed`) + `TermNode`, `PhraseNode`, `AndNode`, `OrNode`, `NotNode` | `index/`, `query/` |

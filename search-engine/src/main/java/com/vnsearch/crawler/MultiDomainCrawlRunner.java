@@ -79,7 +79,48 @@ public class MultiDomainCrawlRunner {
         long elapsedMs = System.currentTimeMillis() - start;
 
         ContentStorage.saveToJson(docs, outputPath);
+        printBlockStatistics(crawler);
         printStatistics(docs, elapsedMs, outputPath, allowedDomains);
+    }
+
+    /**
+     * Số liệu của từng khối trong sơ đồ kiến trúc crawler — đưa thẳng vào
+     * báo cáo để chứng minh mỗi khối thật sự có việc để làm.
+     */
+    private static void printBlockStatistics(CrawlerService crawler) {
+        System.out.println();
+        System.out.println("=== THONG KE THEO TUNG KHOI ===");
+
+        DnsResolver dns = crawler.getDnsResolver();
+        System.out.printf("DNS Resolver   : %d host trong cache, ty le trung %.1f%%, %d host chet bi loai som%n",
+                dns.getCachedHostCount(), dns.hitRate() * 100, dns.getResolveFailures());
+
+        HtmlDownloader downloader = crawler.getHtmlDownloader();
+        System.out.printf("HTML Downloader: tai %d trang, %d lan thu lai, %d that bai%n",
+                downloader.getDownloadedCount(), downloader.getRetryCount(),
+                downloader.getFailedCount());
+
+        ContentSeenFilter contentSeen = crawler.getContentSeenFilter();
+        System.out.printf("Content Seen?  : %d noi dung phan biet, VUT %d ban trung, %d trang than bai rong%n",
+                contentSeen.size(), contentSeen.getDuplicateCount(), contentSeen.getBlankSkippedCount());
+
+        UrlFilter filter = crawler.getUrlFilter();
+        System.out.printf("URL Filter     : nhan %d, loai %d%n",
+                filter.getAcceptedCount(), filter.getTotalRejectedCount());
+        System.out.printf("                 (domain %d | duoi tep %d | do sau %d | scheme %d | robots %d)%n",
+                filter.getRejectedByDomainCount(), filter.getRejectedByExtensionCount(),
+                filter.getRejectedByDepthCount(), filter.getRejectedBySchemeCount(),
+                filter.getRejectedByRobotsCount());
+
+        UrlSeenFilter urlSeen = crawler.getUrlSeenFilter();
+        System.out.printf("URL Seen?      : %d URL phan biet, bo loc %d bit (%.1f KB), %d ham bam%n",
+                urlSeen.getSeenCount(), urlSeen.getNumBits(),
+                urlSeen.getNumBits() / 8192.0, urlSeen.getNumHashes());
+
+        UrlStorage urlStorage = urlSeen.getUrlStorage();
+        System.out.printf("URL Storage    : %s%n", urlStorage.isEnabled()
+                ? urlStorage.getWrittenCount() + " URL da ghi vao " + urlStorage.getPath()
+                : "tat (dung CrawlConfig.urlStoragePath de bat)");
     }
 
     private static void printStatistics(List<WebDocument> docs, long elapsedMs,
@@ -144,12 +185,9 @@ public class MultiDomainCrawlRunner {
         }
     }
 
+    /** Dùng lại phép rút host của {@link DnsResolver}, chỉ thêm nhãn cho ca không đọc được. */
     private static String hostOf(String url) {
-        try {
-            String host = URI.create(url).getHost();
-            return host != null ? host : "(khong ro)";
-        } catch (Exception e) {
-            return "(khong ro)";
-        }
+        String host = DnsResolver.hostOf(url);
+        return host != null ? host : "(khong ro)";
     }
 }

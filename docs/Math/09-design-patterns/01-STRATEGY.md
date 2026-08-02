@@ -250,6 +250,6 @@ Nếu code có `if (scorer instanceof BM25Scorer)` thì Strategy đã thất b�
 
 ## Liên kết
 
-- Tổng quan 10 pattern: [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md)
+- Tổng quan 10 pattern: [README.md](README.md)
 - Mẫu tiếp theo (Factory chọn Strategy nào): [02-FACTORY.md](02-FACTORY.md)
 - Toán học của hai scorer: [TfIdfScorer](../05-ranking/TfIdfScorer.md) · [BM25Scorer](../05-ranking/BM25Scorer.md)

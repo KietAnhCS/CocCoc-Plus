@@ -10,7 +10,9 @@ Tài liệu này quét **toàn bộ mã nguồn** của dự án và tổng hợ
 - **Chủ đề DSA** mà đoạn code đó thể hiện
 - **Hạn chế đã biết**, nói thẳng
 
-**30 tài liệu** phân tích mã nguồn, chia theo 8 nhóm, cộng **15 tài liệu** về design pattern, OOP và chấm điểm ở nhóm 9.
+**36 tài liệu** phân tích mã nguồn, chia theo 7 nhóm, cộng **15 tài liệu** về design pattern, OOP và chấm điểm ở nhóm 9.
+
+> 🗺️ **Mỗi nhóm đều mở đầu bằng một SƠ ĐỒ TƯ DUY** — vẽ ra mối liên hệ giữa các file của cả tầng đó thành hình, kèm bảng tra nhanh từng file và bảng *"xoá file này thì hỏng gì"*. **Đọc sơ đồ tư duy của nhóm trước, rồi mới vào các trang đi sâu.** Mọi sơ đồ đều có sẵn bản chữ (ASCII) bấm mở được, phòng khi trình xem không hiển thị Mermaid.
 
 > 📖 **Đọc [00 — Từ điển ký hiệu toán](00-KY-HIEU-TOAN.md) trước tiên** nếu chưa quen ký hiệu.
 
@@ -20,12 +22,13 @@ Tài liệu này quét **toàn bộ mã nguồn** của dự án và tổng hợ
 
 ### 0. Từ điển ký hiệu — [`00-KY-HIEU-TOAN.md`](00-KY-HIEU-TOAN.md)
 
-Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn còn lại đều được giải thích ở đây, bằng tiếng Việt thường, kèm ví dụ số lấy từ chính corpus 5.011 trang.
+Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn còn lại đều được giải thích ở đây, bằng tiếng Việt thường, kèm ví dụ số lấy từ chính corpus 5.011 trang.
 
 ### 1. Thu thập dữ liệu — [`01-crawler/`](01-crawler/)
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
+| 🗺️ [**Sơ đồ tư duy — toàn tầng crawler**](01-crawler/00-SO-DO-TU-DUY.md) | cả 25 file `crawler/` | **Bắt đầu từ đây.** Mối liên hệ giữa các file vẽ ra thành hình: bản đồ 5 nhóm, đồ thị phụ thuộc, vòng đời một URL qua 8 cửa, frontier hai tầng chạy tay từng bước, bảng "xoá file này thì hỏng gì" |
 | [BloomFilter](01-crawler/BloomFilter.md) | `datastructure/BloomFilter.java` | **Suy dẫn $p \approx (1-e^{-kn/m})^k$**, tối ưu $k^*=(m/n)\ln 2$ bằng đạo hàm, double hashing Kirsch–Mitzenmacher, 1,1 MB vs 108 MB |
 | [UrlFrontier](01-crawler/UrlFrontier.md) | `crawler/frontier/` (9 lớp) | **Mercator hai tầng**, chống bỏ đói bằng chọn ngẫu nhiên có trọng số, $O(D) \to O(\log n)$, trần thông lượng $=H$ |
 | [CrawlerService](01-crawler/CrawlerService.md) | `crawler/CrawlerService.java` | BFS đa luồng, **phát hiện kết thúc phân tán**, $P(\text{nhầm}) \approx 10^{-15}$, ba lớp bảo vệ |
@@ -34,16 +37,14 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 | [ContentParser & LinkExtractor](01-crawler/ContentParser-LinkExtractor.md) | `crawler/ContentParser.java`, `crawler/LinkExtractor.java` | Duyệt DOM, sinh 239.691 cạnh đồ thị, vì sao boilerplate làm hỏng $\sqrt{\lvert d\rvert}$ |
 | [ContentSeenFilter](01-crawler/ContentSeenFilter.md) | `crawler/ContentSeenFilter.java` | **Nghịch lý ngày sinh** cho SHA-256, vì sao KHÔNG dùng Bloom Filter ở đây, quan hệ tương đương khi chuẩn hoá |
 
-### 2. Tách từ tiếng Việt — [`02-tokenize/`](02-tokenize/)
+### 3. Tách từ & lập chỉ mục — [`03-index/`](03-index/)
+
+> Nhóm `02-tokenize/` cũ đã được **gộp vào đây**: `VietnameseTokenizer.java` vốn nằm trong package `index/`, nên tài liệu về nó thuộc về nhóm này. Vì vậy mục lục không có số 2.
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
-| [VietnameseTokenizer](02-tokenize/VietnameseTokenizer.md) | `index/VietnameseTokenizer.java` | **Longest Matching**, NFC/NFD Unicode, bẫy chữ `đ`, hai biến đếm độc lập |
-
-### 3. Lập chỉ mục — [`03-index/`](03-index/)
-
-| Tài liệu | File nguồn | Nội dung chính |
-|---|---|---|
+| 🗺️ [**Sơ đồ tư duy — toàn tầng chỉ mục**](03-index/00-SO-DO-TU-DUY.md) | cả 11 file `index/` | **Bắt đầu từ đây.** Hai đường đi của dữ liệu, hình dạng thật của chỉ mục trong bộ nhớ, một bất biến mở khoá bốn kỹ thuật, ba tầng ý tưởng nén, galloping search vẽ ra |
+| [VietnameseTokenizer](03-index/VietnameseTokenizer.md) | `index/VietnameseTokenizer.java` | **Longest Matching**, NFC/NFD Unicode, bẫy chữ `đ`, hai biến đếm độc lập |
 | [InvertedIndex](03-index/InvertedIndex.md) | `index/InvertedIndex.java` | **Bất biến quan trọng nhất dự án**, binary search, chỉ mục kép có/không dấu, `>>>` chống tràn |
 | [IndexPersistence](03-index/IndexPersistence.md) | `index/IndexPersistence.java` | Trạng thái dẫn xuất phải cập nhật ở **mọi** đường vào, chuỗi dự phòng 4 tầng |
 | [**VByteCodec**](03-index/VByteCodec.md) | `index/VByteCodec.java` | **Delta + variable-byte**, mã hoá theo đoạn, thao tác bit, đóng gói 2 giá trị vào một `long` |
@@ -54,6 +55,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
+| 🗺️ [**Sơ đồ tư duy — toàn tầng truy vấn**](04-query/00-SO-DO-TU-DUY.md) | cả 12 file `query/` | **Bắt đầu từ đây.** Cây biểu thức Composite, ranh giới Composite ↔ Chain, two-pointer vs HashSet, `relaxAndRetry` |
 | [PostingListMerger](04-query/PostingListMerger.md) | `query/PostingListMerger.java` | **Two-pointer + chứng minh bất biến vòng lặp**, shortest-first, 10,0 ms vs 27,0 ms |
 | [QueryParser](04-query/QueryParser.md) | `query/QueryParser.java` | **Bất biến "cùng một tokenizer"**, regex giữ phần ngoài ngoặc kép |
 | [CandidateResolver](04-query/CandidateResolver.md) | `query/CandidateResolver.java` | **Filter-and-refine**, phần tử hấp thụ $\emptyset$, bài học "một cài đặt duy nhất" |
@@ -62,6 +64,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
+| 🗺️ [**Sơ đồ tư duy — toàn tầng xếp hạng**](05-ranking/00-SO-DO-TU-DUY.md) | cả 10 file `ranking/` | **Bắt đầu từ đây.** Chuỗi Decorator lắp ghép, **lỗi thang đo 1000×**, tín hiệu nào thật sự mạnh, cửa sổ trượt |
 | [TfIdfScorer](05-ranking/TfIdfScorer.md) | `ranking/TfIdfScorer.java` | **Mô hình không gian vector**, cosine, idf = self-information, phân tích sai số $\sqrt{\lvert d\rvert}$ |
 | [BM25Scorer](05-ranking/BM25Scorer.md) | `ranking/BM25Scorer.java` | **Hàm bão hoà có tiệm cận $k_1+1$**, điểm nửa bão hoà, IDF Robertson–Sparck Jones |
 | [PageRankService](05-ranking/PageRankService.md) | `ranking/PageRankService.java` | **Chuỗi Markov, Perron–Frobenius, chứng minh $\sum\text{PR}=1$**, hội tụ $C\,d^{\,k}$, 53 vòng |
@@ -72,6 +75,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
+| 🗺️ [**Sơ đồ tư duy — toàn bộ cấu trúc tự cài**](06-datastructures/00-SO-DO-TU-DUY.md) | cả 6 cấu trúc | **Bắt đầu từ đây.** Cấu trúc nào dùng ở tầng nào, bảng **"vì sao không dùng thư viện có sẵn"**, cấu trúc nào được tái sử dụng |
 | [MinHeap](06-datastructures/MinHeap.md) | `datastructure/MinHeap.java` | **Chứng minh công thức chỉ số**, siftUp/siftDown, **top-K streaming $O(n\log k)$** |
 | [Trie](06-datastructures/Trie.md) | `datastructure/Trie.java` | $O(L)$ **không phụ thuộc $M$**, tách khoá tra cứu khỏi chuỗi hiển thị, DFS quay lui |
 | [LRUCache](06-datastructures/LRUCache.md) | `datastructure/LRUCache.java` | HashMap + DLL, **sentinel xoá mọi nhánh `if`**, vì sao `get` phải khoá **ghi** |
@@ -82,6 +86,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
+| 🗺️ [**Sơ đồ tư duy — toàn tầng đánh giá**](07-eval/00-SO-DO-TU-DUY.md) | cả 7 file `eval/` | **Bắt đầu từ đây.** Lấy đâu ra "đáp án đúng", hai phương pháp bù nhau, **vì sao một bảng số chưa đủ để nói A tốt hơn B** |
 | [EvaluationMetrics](07-eval/EvaluationMetrics.md) | `eval/EvaluationMetrics.java` | **P/R/F1/AP/MAP/nDCG/MRR** — công thức, ví dụ tính tay, vì sao trung bình điều hoà |
 | [KnownItemQueryGenerator](07-eval/KnownItemQueryGenerator.md) | `eval/KnownItemQueryGenerator.java` | **Lật ngược bài toán**, bẫy $\text{df}=1$, cửa sổ df, tính tái lập |
 | [PoolBuilder](07-eval/PoolBuilder.md) | `eval/PoolBuilder.java` | **TREC pooling**, giảm 150.330 → ~900 lượt phán xét (167×) |
@@ -97,8 +102,8 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 
 | Tài liệu | Nội dung chính |
 |---|---|
+| 🗺️ [**Sơ đồ tư duy — toàn bộ design pattern**](09-design-patterns/00-SO-DO-TU-DUY.md) | **Bắt đầu từ đây.** 10 mẫu chia theo nhóm GoF, mẫu nào ở tầng nào, bộ ba Strategy → Factory → Decorator, ba mẫu sửa lỗi **đo được bằng số** |
 | [**README**](09-design-patterns/README.md) | Chỉ mục loạt bài học OOP, lộ trình đọc, tra cứu ngược theo khái niệm |
-| [**DESIGN-PATTERNS**](09-design-patterns/DESIGN-PATTERNS.md) | **10 mẫu thiết kế** — mỗi mẫu giải một vấn đề đo được, kèm mã thật và số liệu |
 | [**CHAM-DIEM**](09-design-patterns/CHAM-DIEM.md) | **Chấm điểm OOP · DSA · Design Pattern** — tiêu chí có trọng số công khai, dẫn chứng từ code |
 
 **Loạt 12 trang học OOP — mỗi mẫu một trang:**
@@ -150,7 +155,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 | **Two-pointer merge** | $O(m+n)$ tuyệt đối | [PostingListMerger](04-query/PostingListMerger.md) |
 | **Top-K streaming** | $O(n\log k)$, bộ nhớ $O(k)$ | [MinHeap](06-datastructures/MinHeap.md) |
 | **Cửa sổ trượt** | $O(n)$ thay vì $O(n\cdot w)$ | [ResultRanker](05-ranking/ResultRanker.md) |
-| **Longest Matching (tham lam)** | $O(n)$ | [VietnameseTokenizer](02-tokenize/VietnameseTokenizer.md) |
+| **Longest Matching (tham lam)** | $O(n)$ | [VietnameseTokenizer](03-index/VietnameseTokenizer.md) |
 | **Power iteration** | $O(\text{iter}\cdot(\text{nnz}+N))$ | [PageRankService](05-ranking/PageRankService.md) |
 | **Longest-prefix-match** | $O(R\cdot L)$ | [RobotsTxtParser](01-crawler/RobotsTxtParser.md) |
 | **DFS có quay lui** | $O(m)$ | [Trie](06-datastructures/Trie.md) |
@@ -202,7 +207,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 | **Phát hiện kết thúc phân tán** | [CrawlerService §3](01-crawler/CrawlerService.md) |
 | **`CountDownLatch` + `await` có thời hạn** | [CrawlerService §4](01-crawler/CrawlerService.md) |
 | **`ConcurrentHashMap` cho cache theo domain** | [RobotsTxtParser §2.2](01-crawler/RobotsTxtParser.md) |
-| **Object bất biến chia sẻ an toàn** | [DESIGN-PATTERNS §3](09-design-patterns/DESIGN-PATTERNS.md) |
+| **Object bất biến chia sẻ an toàn** | [Decorator](09-design-patterns/03-DECORATOR.md) |
 
 ---
 
@@ -223,7 +228,7 @@ Mọi ký hiệu lạ xuất hiện trong 29 tài liệu phân tích mã nguồn
 
 **Bổ trợ:** Facade · Adapter · Repository · Value Object (9 `record`) · Cache-Aside · Producer–Consumer · DI.
 
-Phân tích đầy đủ kèm mã thật: [**DESIGN-PATTERNS.md**](09-design-patterns/DESIGN-PATTERNS.md)
+Phân tích đầy đủ kèm mã thật: [**loạt 12 trang design pattern**](09-design-patterns/README.md)
 
 ---
 
@@ -304,7 +309,7 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 
 **Nếu bạn muốn hiểu toàn bộ đường đi của dữ liệu**, đọc theo thứ tự:
 
-[CrawlerService](01-crawler/CrawlerService.md) → [VietnameseTokenizer](02-tokenize/VietnameseTokenizer.md) → [InvertedIndex](03-index/InvertedIndex.md) → [QueryParser](04-query/QueryParser.md) → [PostingListMerger](04-query/PostingListMerger.md) → [TfIdfScorer](05-ranking/TfIdfScorer.md) → [ResultRanker](05-ranking/ResultRanker.md)
+[CrawlerService](01-crawler/CrawlerService.md) → [VietnameseTokenizer](03-index/VietnameseTokenizer.md) → [InvertedIndex](03-index/InvertedIndex.md) → [QueryParser](04-query/QueryParser.md) → [PostingListMerger](04-query/PostingListMerger.md) → [TfIdfScorer](05-ranking/TfIdfScorer.md) → [ResultRanker](05-ranking/ResultRanker.md)
 
 **Nếu bạn ôn thi DSA**, năm tài liệu đặc nhất:
 
@@ -316,7 +321,7 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 
 **Nếu bạn viết báo cáo đồ án**, bắt đầu từ:
 
-[CHAM-DIEM](09-design-patterns/CHAM-DIEM.md) → [DESIGN-PATTERNS](09-design-patterns/DESIGN-PATTERNS.md) → [loạt 12 trang học OOP](09-design-patterns/README.md)
+[CHAM-DIEM](09-design-patterns/CHAM-DIEM.md) → [loạt 12 trang học OOP](09-design-patterns/README.md)
 
 **Nếu bạn muốn hiểu OOP qua chính dự án này**, đọc [09-design-patterns/README.md](09-design-patterns/README.md) — mỗi design pattern một trang, kèm mã thật, lỗi mà nó sửa, và câu hỏi bảo vệ.
 
@@ -334,9 +339,7 @@ Chi tiết: [CHAM-DIEM §Hạn chế còn lại](09-design-patterns/CHAM-DIEM.md
 
 | Tài liệu | Khác gì với thư mục `Math/` này |
 |---|---|
-| `SEARCH-ENGINE-101.md` | Giáo trình lý thuyết IR **nói chung**, kèm bài tập tự code |
 | `ARCHITECTURE.md` | Ba tầng hệ thống, sơ đồ thành phần, luồng xử lý |
-| `ALGORITHMS.md` | Từng thuật toán theo **thứ tự pipeline**, mã giả + mã thật |
 | `DSA-REPORT.md` | Bảng Big-O tổng hợp và **số đo** |
 | `EVALUATION.md` | Kết quả đánh giá chất lượng *(sinh tự động)* |
 | `GIN-BASELINE.md` | Đối chứng với PostgreSQL GIN *(sinh tự động)* |

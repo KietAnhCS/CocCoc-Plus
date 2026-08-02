@@ -325,6 +325,6 @@ Ngoài ra, hai hạn chế về **dữ liệu và phương pháp**, không phả
 ## Liên kết
 
 - **13 bài toán × nhiều phương án, so sánh và lý do chọn:** [SO-SANH-PHUONG-AN.md](../../SO-SANH-PHUONG-AN.md)
-- Pattern đang dùng, chi tiết: [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md)
+- Pattern đang dùng, chi tiết: [README.md](README.md)
 - **Học OOP qua từng mẫu — 12 trang riêng:** [README.md](README.md)
 - Phân tích từng thuật toán: [README.md](../README.md)

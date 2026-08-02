@@ -255,6 +255,6 @@ Bộ nhớ tổng: $O\!\left(\sum_{t \in V} L_t\right)$ — tổng ký tự củ
 ## 12. Liên kết
 
 - Nơi dùng nó: [InvertedIndex §3](InvertedIndex.md)
-- Nguồn sinh ra các chuỗi tạm: [VietnameseTokenizer](../02-tokenize/VietnameseTokenizer.md)
+- Nguồn sinh ra các chuỗi tạm: [VietnameseTokenizer](VietnameseTokenizer.md)
 - Mẫu thiết kế và bài học OOP: [10-FLYWEIGHT.md](../09-design-patterns/10-FLYWEIGHT.md)
 - Mục lục: [../README.md](../README.md)

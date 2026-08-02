@@ -6,8 +6,8 @@
 > phương án đang dùng được chọn** — hoặc thừa nhận thẳng khi nó **chưa phải**
 > phương án tốt nhất.
 >
-> **Tài liệu liên quan:** `ALGORITHMS.md` (cách cài đặt phương án đã chọn),
-> `DSA-REPORT.md` (số đo và Big-O), `SEARCH-ENGINE-101.md` (lý thuyết nền).
+> **Tài liệu liên quan:** `docs/Math/` (cách cài đặt phương án đã chọn),
+> `DSA-REPORT.md` (số đo và Big-O), `docs/Math/` (lý thuyết nền).
 
 ---
 
@@ -1076,8 +1076,8 @@ tự lộ.
 
 ## Tài liệu liên quan
 
-- Cách cài đặt phương án đã chọn: [`ALGORITHMS.md`](ALGORITHMS.md)
+- Cách cài đặt phương án đã chọn: [`Math/`](Math/README.md)
 - Số đo và bảng Big-O đầy đủ: [`DSA-REPORT.md`](DSA-REPORT.md)
-- Lý thuyết nền: [`SEARCH-ENGINE-101.md`](SEARCH-ENGINE-101.md)
+- Lý thuyết nền: [`Math/`](Math/README.md)
 - Kiến trúc và quyết định thiết kế: [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - Kết quả đánh giá chất lượng: [`EVALUATION.md`](EVALUATION.md)

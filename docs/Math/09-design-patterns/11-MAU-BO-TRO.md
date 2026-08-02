@@ -249,4 +249,4 @@ Nếu hai lớp tự tạo tokenizer riêng, chúng **có thể** khác nhau, v�
 
 - Mẫu trước: [10-FLYWEIGHT.md](10-FLYWEIGHT.md)
 - Chỉ mục toàn bộ: [README.md](README.md)
-- Tổng quan 10 pattern chủ đích: [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md)
+- Tổng quan 10 pattern chủ đích: [README.md](README.md)

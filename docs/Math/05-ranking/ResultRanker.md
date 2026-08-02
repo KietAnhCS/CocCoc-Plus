@@ -469,6 +469,6 @@ Hai dấu `...` chỉ thêm khi cửa sổ **thật sự** không ở đầu/cu�
 - Nguồn điểm uy tín: [PageRankService.md](PageRankService.md)
 - Cấu trúc top-K: [MinHeap.md](../06-datastructures/MinHeap.md)
 - Nguồn ứng viên: [CandidateResolver.md](../04-query/CandidateResolver.md)
-- Phép bỏ dấu: [VietnameseTokenizer §4](../02-tokenize/VietnameseTokenizer.md)
+- Phép bỏ dấu: [VietnameseTokenizer §4](../03-index/VietnameseTokenizer.md)
 - Kết quả thí nghiệm: `docs/EVALUATION.md`
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

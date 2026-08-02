@@ -436,7 +436,7 @@ static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
 
 ## 11. Liên kết
 
-- Đầu vào: [VietnameseTokenizer.md](../02-tokenize/VietnameseTokenizer.md)
+- Đầu vào: [VietnameseTokenizer.md](VietnameseTokenizer.md)
 - Lưu/nạp: [IndexPersistence.md](IndexPersistence.md)
 - Hai thứ mà bất biến §4 mở khoá: [PostingListMerger.md](../04-query/PostingListMerger.md) · [TfIdfScorer.md](../05-ranking/TfIdfScorer.md)
 - Đối chứng bên ngoài: `docs/GIN-BASELINE.md`

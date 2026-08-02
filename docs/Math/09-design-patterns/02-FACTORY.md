@@ -228,4 +228,4 @@ Dựng lại chuỗi Decorator ba tầng cho mỗi truy vấn là lãng phí thu
 
 - Mẫu trước (Factory tạo ra cái gì): [01-STRATEGY.md](01-STRATEGY.md)
 - Mẫu tiếp theo (Factory lắp ghép chúng thế nào): [03-DECORATOR.md](03-DECORATOR.md)
-- Tổng quan 10 pattern: [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md)
+- Tổng quan 10 pattern: [README.md](README.md)

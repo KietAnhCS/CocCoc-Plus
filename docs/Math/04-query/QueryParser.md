@@ -45,7 +45,7 @@ public QueryParser(Tokenizer tokenizer) {
 
 **Vì sao đây là điều quan trọng nhất của lớp.**
 
-Lúc index, `máy tính` được ghép thành token `máy_tính` (xem [VietnameseTokenizer §2](../02-tokenize/VietnameseTokenizer.md)). Khoá trong `HashMap` chỉ mục là chuỗi `"máy_tính"`.
+Lúc index, `máy tính` được ghép thành token `máy_tính` (xem [VietnameseTokenizer §2](../03-index/VietnameseTokenizer.md)). Khoá trong `HashMap` chỉ mục là chuỗi `"máy_tính"`.
 
 Nếu lúc truy vấn ta tách khác đi và cho ra hai token `máy` + `tính`, thì:
 
@@ -299,7 +299,7 @@ private static final Pattern PHRASE_PATTERN = Pattern.compile("\"([^\"]*)\"");
 
 ## 9. Liên kết
 
-- Tokenizer phải dùng chung: [VietnameseTokenizer.md](../02-tokenize/VietnameseTokenizer.md)
+- Tokenizer phải dùng chung: [VietnameseTokenizer.md](../03-index/VietnameseTokenizer.md)
 - Người tiêu thụ `ParsedQuery`: [CandidateResolver.md](CandidateResolver.md)
 - Nơi `phrases` được kiểm tra: [PostingListMerger §5](PostingListMerger.md)
 - Cây biểu thức truy vấn (Composite): [04-COMPOSITE.md](../09-design-patterns/04-COMPOSITE.md)

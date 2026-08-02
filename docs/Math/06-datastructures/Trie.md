@@ -347,7 +347,7 @@ Gọi trong `insert` (cả `key` lẫn `display`), `search`, `startsWith`, `getS
 
 Với Trie, sai lệch này nghiêm trọng hơn với `HashMap`: NFC tạo **một** cạnh, NFD tạo **ba** cạnh. Hai đường đi hoàn toàn khác nhau trong cây, và cụm gõ kiểu này không bao giờ tìm ra cụm gõ kiểu kia.
 
-Chi tiết về NFC/NFD ở [VietnameseTokenizer §3](../02-tokenize/VietnameseTokenizer.md).
+Chi tiết về NFC/NFD ở [VietnameseTokenizer §3](../03-index/VietnameseTokenizer.md).
 
 > **Một điểm chưa nhất quán:** `Trie.normalize` chỉ NFC, **không** `toLowerCase`. Còn `VietnameseTokenizer.normalizeForLookup` làm cả hai. Việc hạ chữ thường được đẩy sang người gọi (`SearchEngineFacade.suggest` gọi `prefix.trim().toLowerCase()`). Hoạt động được, nhưng lại là một bất biến phụ thuộc người gọi nhớ — cùng loại vấn đề với [InvertedIndex §4.2](../03-index/InvertedIndex.md).
 
@@ -400,7 +400,7 @@ for (int i = 0; i < tokens.size(); i++) {
 }
 ```
 
-Nguồn (2) là cách khéo để bù cho từ điển từ ghép chỉ có 154 mục (xem [VietnameseTokenizer §9](../02-tokenize/VietnameseTokenizer.md)): dù `bóng đá` không có trong từ điển, cặp token liên tiếp `bóng` + `đá` vẫn được ghi nhận và trở thành gợi ý.
+Nguồn (2) là cách khéo để bù cho từ điển từ ghép chỉ có 154 mục (xem [VietnameseTokenizer §9](../03-index/VietnameseTokenizer.md)): dù `bóng đá` không có trong từ điển, cặp token liên tiếp `bóng` + `đá` vẫn được ghi nhận và trở thành gợi ý.
 
 **Hai bộ lọc thêm:**
 
@@ -475,7 +475,7 @@ Chỉ ghi lại truy vấn **có kết quả** (`!candidates.isEmpty()`) — tr�
 ## 12. Liên kết
 
 - Dùng để lấy top-K: [MinHeap.md](MinHeap.md)
-- Nguồn dữ liệu và phép bỏ dấu: [VietnameseTokenizer.md](../02-tokenize/VietnameseTokenizer.md)
+- Nguồn dữ liệu và phép bỏ dấu: [VietnameseTokenizer.md](../03-index/VietnameseTokenizer.md)
 - Bản cài đặt song song bằng TypeScript: [BookmarkTrie.md](../08-frontend/BookmarkTrie.md)
 - Người gọi: `service/SearchEngineFacade.java` · `controller/SuggestController.java`
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

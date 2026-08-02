@@ -257,4 +257,4 @@ Mỗi lần gọi tốn $O(L)$ để băm. Đánh đổi: chi phí CPU băm ↔ 
 - Mẫu trước: [09-ITERATOR-CURSOR.md](09-ITERATOR-CURSOR.md)
 - Các mẫu bổ trợ: [11-MAU-BO-TRO.md](11-MAU-BO-TRO.md)
 - Cấu trúc chỉ mục dùng nó: [InvertedIndex](../03-index/InvertedIndex.md)
-- Tokenizer sinh ra các chuỗi tạm: [VietnameseTokenizer](../02-tokenize/VietnameseTokenizer.md)
+- Tokenizer sinh ra các chuỗi tạm: [VietnameseTokenizer](../03-index/VietnameseTokenizer.md)

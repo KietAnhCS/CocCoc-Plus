@@ -279,6 +279,6 @@ Với trang 200 KB: khoảng $2 \times 10^5 + 78{,}8 \times 60 \approx 2{,}05 \t
 - Người gọi: [CrawlerService.md](CrawlerService.md)
 - Khối đứng giữa hai lớp này: [ContentSeenFilter.md](ContentSeenFilter.md)
 - Chuẩn hoá URL: [UrlCanonicalizer.md](UrlCanonicalizer.md)
-- Nơi dùng `bodyText`: [VietnameseTokenizer.md](../02-tokenize/VietnameseTokenizer.md) · [InvertedIndex.md](../03-index/InvertedIndex.md)
+- Nơi dùng `bodyText`: [VietnameseTokenizer.md](../03-index/VietnameseTokenizer.md) · [InvertedIndex.md](../03-index/InvertedIndex.md)
 - Nơi dùng `outlinks`: [PageRankService.md](../05-ranking/PageRankService.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

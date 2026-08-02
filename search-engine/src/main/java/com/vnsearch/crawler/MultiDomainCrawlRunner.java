@@ -75,8 +75,11 @@ public class MultiDomainCrawlRunner {
         CrawlerService crawler = new CrawlerService()
                 .addListener(new ConsoleCrawlListener(25)); // Observer
         long start = System.currentTimeMillis();
+
         List<WebDocument> docs = crawler.crawl(DEFAULT_SEEDS, config);
+        
         long elapsedMs = System.currentTimeMillis() - start;
+
 
         ContentStorage.saveToJson(docs, outputPath);
         printBlockStatistics(crawler);

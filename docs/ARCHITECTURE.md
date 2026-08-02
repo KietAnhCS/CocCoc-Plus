@@ -1,6 +1,6 @@
 # Kiến trúc hệ thống VnSearch
 
-> **Tài liệu này dành cho ai?** Người đã đọc `SEARCH-ENGINE-101.md` (hiểu
+> **Tài liệu này dành cho ai?** Người đã đọc `docs/Math/` (hiểu
 > *tại sao* cần chỉ mục đảo, TF-IDF, PageRank) và giờ muốn biết *các mảnh
 > đó được ghép lại thành một sản phẩm chạy được như thế nào*.
 >
@@ -473,7 +473,7 @@ Hai lỗi của bản đầu, cả hai đều được ghi lại trong Javadoc c
    ai gõ hết.
 2. **Chèn từng tiếng lẻ** → gợi ý ra `cong`, `the`, `kinh`. Trong tiếng
    Việt, **tiếng lẻ phần lớn không phải từ** — đây chính là vấn đề ngôn ngữ
-   học đã nói ở mục 3 của `SEARCH-ENGINE-101.md`, quay lại lần thứ hai ở một
+   học đã nói ở mục 3 của `docs/Math/`, quay lại lần thứ hai ở một
    chỗ hoàn toàn khác.
 
 Còn một lỗi thứ ba, dạng khác: `SuggestionService.rebuild()` ban đầu chỉ `insert`
@@ -860,7 +860,7 @@ Ghi lại để đối chiếu với các bản tài liệu cũ:
 | Kết hợp tín hiệu sai thang đo 1000× | Decorator, nhân + log thay vì cộng |
 
 Phân tích đầy đủ hơn về những điểm vỡ ở quy mô lớn: mục 13 của
-`SEARCH-ENGINE-101.md`. Số liệu đo và Big-O: `DSA-REPORT.md`. Từng mẫu thiết
+`docs/Math/`. Số liệu đo và Big-O: `DSA-REPORT.md`. Từng mẫu thiết
 kế và lỗi mà nó sửa: [`Math/09-design-patterns/`](Math/09-design-patterns/README.md).
 
 ---
@@ -869,8 +869,8 @@ kế và lỗi mà nó sửa: [`Math/09-design-patterns/`](Math/09-design-patter
 
 | Tài liệu | Nội dung |
 |---|---|
-| [`SEARCH-ENGINE-101.md`](SEARCH-ENGINE-101.md) | **Nên đọc trước** — toàn bộ lý thuyết, kèm ví dụ tính tay |
-| [`ALGORITHMS.md`](ALGORITHMS.md) | Từng thuật toán theo thứ tự pipeline, kèm mã giả |
+| [`Math/`](Math/README.md) | **Nên đọc trước** — toàn bộ lý thuyết, kèm ví dụ tính tay |
+| [`Math/`](Math/README.md) | Từng thuật toán theo thứ tự pipeline, kèm mã giả |
 | [`Math/`](Math/README.md) | **Một trang cho mỗi file nguồn** — công thức, chứng minh, ví dụ tính tay |
 | [`Math/09-design-patterns/`](Math/09-design-patterns/README.md) | **12 trang học OOP** — mỗi design pattern một trang |
 | [`DSA-REPORT.md`](DSA-REPORT.md) | Big-O và số liệu đo thực nghiệm |

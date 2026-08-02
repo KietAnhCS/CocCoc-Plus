@@ -227,6 +227,6 @@ Trả lời được năm câu này thì bạn đã nắm phần nền:
 
 ## Liên kết
 
-- Tổng quan 10 pattern kèm số đo: [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md)
+- Tổng quan 10 pattern kèm số đo: [README.md](README.md)
 - Chấm điểm theo tiêu chí có trọng số: [CHAM-DIEM.md](CHAM-DIEM.md)
 - Mục lục toàn bộ tài liệu toán/thuật toán: [../README.md](../README.md)

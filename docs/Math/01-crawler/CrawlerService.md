@@ -457,5 +457,5 @@ với $P$ = số trang, $b$ = số outlink/trang, $D$ = số host.
 - Khử trùng lặp: [BloomFilter.md](BloomFilter.md) · [UrlCanonicalizer.md](UrlCanonicalizer.md)
 - Luật crawl: [RobotsTxtParser.md](RobotsTxtParser.md)
 - Trích xuất nội dung: [ContentParser-LinkExtractor.md](ContentParser-LinkExtractor.md)
-- Bước tiếp theo trong pipeline: [VietnameseTokenizer.md](../02-tokenize/VietnameseTokenizer.md)
+- Bước tiếp theo trong pipeline: [VietnameseTokenizer.md](../03-index/VietnameseTokenizer.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

@@ -5,7 +5,7 @@ Thư mục này có **hai loại tài liệu**:
 | Loại | File | Dùng khi nào |
 |---|---|---|
 | **Học OOP** — mỗi pattern một trang | `00`…`11` | Muốn **hiểu** pattern, chuẩn bị bảo vệ |
-| **Tổng quan & chấm điểm** | `DESIGN-PATTERNS.md`, `CHAM-DIEM.md` | Muốn **tra nhanh** hoặc viết báo cáo |
+| **Tổng quan & chấm điểm** | `CHAM-DIEM.md` | Muốn **tra nhanh** hoặc viết báo cáo |
 
 ---
 
@@ -45,7 +45,7 @@ Bắt đầu từ trang 00 nếu bạn muốn hiểu nền tảng trước.
 
 [03 Decorator](03-DECORATOR.md) (sửa lỗi thang đo 1000×) · [01 Strategy](01-STRATEGY.md) (lập luận khoa học) · [04 Composite](04-COMPOSITE.md) + [05 Chain](05-CHAIN-OF-RESPONSIBILITY.md) (ranh giới giữa hai mẫu — câu hỏi khó nhất)
 
-**Nếu bạn muốn tra nhanh số liệu** → [DESIGN-PATTERNS.md](DESIGN-PATTERNS.md)
+**Nếu bạn muốn tra nhanh số liệu** → bảng tổng hợp ngay đầu trang này
 
 **Nếu bạn viết phần tự đánh giá trong báo cáo** → [CHAM-DIEM.md](CHAM-DIEM.md)
 

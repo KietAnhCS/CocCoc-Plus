@@ -246,6 +246,6 @@ Bộ nhớ: $O(q)$ với $q$ = số tiếng phân biệt trong truy vấn — th
 
 - Người dùng thứ nhất — bôi sáng: `ranking/SnippetBuilder.java`
 - Người dùng thứ hai — chấm điểm: [03-DECORATOR.md §5](../09-design-patterns/03-DECORATOR.md)
-- Phép bỏ dấu và bẫy chữ `đ`: [VietnameseTokenizer](../02-tokenize/VietnameseTokenizer.md)
+- Phép bỏ dấu và bẫy chữ `đ`: [VietnameseTokenizer](../03-index/VietnameseTokenizer.md)
 - Chỉ mục kép có dấu / không dấu: [InvertedIndex](../03-index/InvertedIndex.md)
 - Mục lục: [../README.md](../README.md)

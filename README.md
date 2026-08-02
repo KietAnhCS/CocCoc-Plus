@@ -58,9 +58,9 @@ tạp*. Đọc theo thứ tự trong bảng.
 
 | # | Tài liệu | Nội dung | Nên đọc khi |
 |---|---|---|---|
-| 1 | [**docs/SEARCH-ENGINE-101.md**](docs/SEARCH-ENGINE-101.md) | **Bắt đầu từ đây** — giáo trình đầy đủ về lý thuyết máy tìm kiếm, 13 chương, kèm ví dụ tính tay và bài tập "tự code thử" | Muốn **hiểu và tự code lại** |
+| 1 | [**docs/Math/**](docs/Math/README.md) | **Bắt đầu từ đây** — giáo trình đầy đủ về lý thuyết máy tìm kiếm, 13 chương, kèm ví dụ tính tay và bài tập "tự code thử" | Muốn **hiểu và tự code lại** |
 | 2 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Ba tầng hệ thống, sơ đồ thành phần, 4 luồng xử lý, quyết định thiết kế kèm phương án thay thế | Muốn biết các mảnh **ghép lại** thế nào |
-| 3 | [docs/ALGORITHMS.md](docs/ALGORITHMS.md) | Từng thuật toán theo thứ tự pipeline, mỗi mục có mã giả + trích mã Java thật | Đang **đọc code** và cần tra cứu |
+| 3 | [docs/Math/README.md](docs/Math/README.md) | Từng thuật toán theo thứ tự pipeline, mỗi mục có mã giả + trích mã Java thật | Đang **đọc code** và cần tra cứu |
 | 3b | [**docs/SO-SANH-PHUONG-AN.md**](docs/SO-SANH-PHUONG-AN.md) | **13 bài toán, mỗi bài nhiều thuật toán giải được** — bảng so sánh, lý do chọn, và **điểm lật** (khi nào kết luận đảo chiều) | Bị hỏi **"sao không dùng cách khác?"** |
 | 4 | [**docs/Math/**](docs/Math/README.md) | **Một trang cho mỗi file nguồn** — công thức đầy đủ, chứng minh, ví dụ tính tay, độ phức tạp, hạn chế | Cần **đào sâu** một thành phần |
 | 5 | [**docs/Math/09-design-patterns/**](docs/Math/09-design-patterns/README.md) | **12 trang học OOP** — mỗi design pattern một trang, kèm lỗi thật mà nó sửa và câu hỏi bảo vệ | Học **OOP**, chuẩn bị **bảo vệ** |

@@ -9,7 +9,7 @@
 > **số đo**, không được là suy đoán. Mục 3 ghi lại hai lỗi hiệu năng mà **chỉ
 > có đo mới phát hiện được** — đó là phần đáng đọc nhất.
 >
-> **Tài liệu liên quan:** `SEARCH-ENGINE-101.md` (lý thuyết), `ALGORITHMS.md`
+> **Tài liệu liên quan:** `docs/Math/` (lý thuyết), `docs/Math/`
 > (từng thuật toán kèm mã), `ARCHITECTURE.md` (kiến trúc),
 > `EVALUATION.md` + `GIN-BASELINE.md` (kết quả đánh giá, sinh tự động).
 
@@ -173,7 +173,7 @@ quả giao ~250.000 phần tử, trung bình 5 lần chạy:
    $O(m+n)$ của two-pointer là $O(m+n)$ **tuyệt đối**, không có hằng số ẩn.
 2. **Tận dụng trực tiếp tính chất "đã sắp xếp"** vốn có của posting list —
    một bất biến được đảm bảo *miễn phí* lúc dựng chỉ mục (xem mục 3.2 của
-   `ALGORITHMS.md`).
+   `docs/Math/`).
 3. **Không cần cấp phát cấu trúc trung gian** nào.
 
 **Cột nào là so sánh công bằng?** Cột thứ **3**. Trong hệ thống thật, posting
@@ -886,7 +886,7 @@ nhớ (6.4), WAND (6.5), và tránh boxing `Integer` ở `docIdsOf`.
 
 Các hạn chế **kiến trúc** (chỉ mục một tiến trình, reindex toàn phần, không
 có `Content Seen?`…): xem mục 6 của `ARCHITECTURE.md`. Các điểm **vỡ ở quy mô
-1 tỷ trang**: xem mục 13 của `SEARCH-ENGINE-101.md`.
+1 tỷ trang**: xem mục 13 của `docs/Math/`.
 
 ---
 

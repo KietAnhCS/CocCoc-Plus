@@ -419,6 +419,101 @@ Worker                                                          Kết quả
 
 > **Vì sao cửa số 6 (robots) lại nằm sau cửa số 4 (xếp hàng)?** Vì nó là luật duy nhất **chạm mạng**. Mỗi trang sinh ~79 liên kết; nếu kiểm tra robots ngay lúc bóc link, ta sẽ tra robots cho cả những link bị loại ngay ở cửa số 2. Nên `UrlFilter` cố tình có **hai** phương thức công khai chứ không phải một.
 
+### 4.1 Phóng to mũi tên `seed URLs → URL Frontier`
+
+Trong sơ đồ kiến trúc gốc, `URL Frontier` có **hai** mũi tên đi vào, và chúng đi qua những file hoàn toàn khác nhau:
+
+| Mũi tên | Chạy khi nào | Bao nhiêu lần | Luồng nào |
+|---|---|---|---|
+| `seed URLs → URL Frontier` | **một lần**, lúc mở phiên crawl | bằng số seed (6) | luồng gọi `crawl()`, chưa có worker nào |
+| `URL Seen? → URL Frontier` | trong suốt phiên crawl | ~79 lần mỗi trang tải về | mọi worker thread |
+
+Phần dưới đây phóng to **mũi tên thứ nhất** — mọi thứ xảy ra **trước** khi `UrlFrontier.addUrl` được gọi lần đầu tiên.
+
+```mermaid
+
+flowchart TD
+    SEED["MultiDomainCrawlRunner.DEFAULT_SEEDS<br/>hoặc CrawlJobManager.start(seedUrls)<br/>ra: List&lt;String&gt; URL thô"]
+    CFG["CrawlConfig.builder()...build()<br/>ra: cấu hình BẤT BIẾN<br/>maxDepth, maxPages, allowedDomains"]
+    CRAWL["CrawlerService.crawl(seedUrls, config)<br/>dựng lại 3 khối phụ thuộc cấu hình"]
+
+    STO["UrlStorage.file(path)<br/>hoặc UrlStorage.disabled()"]
+    NEWF["new UrlFilter(allowedDomains, maxDepth)"]
+    NEWS["UrlSeenFilter.forMaxPages(maxPages, urlStorage)<br/>→ new BloomFilter(n, 0.01)"]
+    REPLAY["urlSeenFilter.replayFromStorage()<br/>→ UrlStorage.replay(consumer)<br/>→ bloomFilter.add từng dòng cũ"]
+
+    SEEDFN["CrawlerService.seed(seedUrls)<br/>lặp từng seed một"]
+    CAN["UrlCanonicalizer.canonicalize(seed)<br/>bỏ fragment, hạ chữ thường scheme+host,<br/>bỏ cổng mặc định, bỏ dấu / cuối"]
+    ACC["UrlFilter.accept(url, 0)<br/>độ sâu → scheme → domain → đuôi tệp"]
+    MARK["UrlSeenFilter.markSeenIfNew(url)<br/>synchronized: mightContain → add<br/>→ UrlStorage.append(url)"]
+    ADD["UrlFrontier.addUrl(url, 0, 10)<br/>CỬA VÀO FRONTIER"]
+    DROP["log.warn — seed bị loại, bỏ qua"]
+
+    SEED --> CRAWL
+    CFG --> CRAWL
+    CRAWL --> STO
+    CRAWL --> NEWF
+    STO --> NEWS
+    NEWS --> REPLAY
+    REPLAY --> SEEDFN
+    NEWF --> SEEDFN
+    SEEDFN --> CAN
+    CAN --> ACC
+    ACC -- "false" --> DROP
+    ACC -- "true" --> MARK
+    MARK --> ADD
+```
+
+<details>
+<summary><b>Xem bản chữ (ASCII)</b></summary>
+
+```
+MultiDomainCrawlRunner.DEFAULT_SEEDS ──┐
+CrawlJobManager.start(seedUrls) ───────┤  List<String> URL thô
+CrawlConfig.builder()...build() ───────┘  cấu hình bất biến
+                    │
+                    ▼
+   CrawlerService.crawl(seedUrls, config)
+                    │
+                    ├─► UrlStorage.file(path) | disabled()
+                    ├─► new UrlFilter(allowedDomains, maxDepth)
+                    ├─► UrlSeenFilter.forMaxPages(maxPages, urlStorage) ─► new BloomFilter(n, 0.01)
+                    ├─► urlSeenFilter.replayFromStorage() ─► UrlStorage.replay ─► bloomFilter.add
+                    │
+                    ▼
+   CrawlerService.seed(seedUrls)          với MỖI seed:
+                    │
+                    ├─1─► UrlCanonicalizer.canonicalize(seed)  ──► String url chuẩn
+                    ├─2─► UrlFilter.accept(url, 0)             ──► false ⇒ log.warn, BỎ QUA
+                    ├─3─► UrlSeenFilter.markSeenIfNew(url)     ──► ghi Bloom + UrlStorage.append
+                    │                                              (kết quả trả về bị CỐ Ý bỏ qua)
+                    └─4─► UrlFrontier.addUrl(url, 0, 10)       ──► true nếu vào được hàng đợi
+```
+
+</details>
+
+#### Bảng: hàm nào cho ra kết quả gì để hàm sau dùng
+
+| # | Hàm | File | Nhận vào | Trả ra / để lại | Ai dùng kết quả đó |
+|---|---|---|---|---|---|
+| 0 | `DEFAULT_SEEDS` / `start(...)` | `MultiDomainCrawlRunner`, `CrawlJobManager` | — | `List<String>` URL thô | `CrawlerService.crawl` |
+| 0 | `Builder.build()` | `CrawlConfig` | tham số dòng lệnh | cấu hình bất biến, đã kiểm tra | `crawl` dùng `maxDepth`, `maxPages`, `allowedDomains` |
+| 1 | `crawl(seeds, config)` | `CrawlerService` | 2 cái trên | dựng `urlStorage`, `urlFilter`, `urlSeenFilter` | chính `seed()` ngay sau đó |
+| 2 | `replayFromStorage()` | `UrlSeenFilter` → `UrlStorage.replay` | file `.txt` phiên trước | số URL đã nạp; **Bloom đã đầy lại** | `markSeenIfNew` của phiên này |
+| 3 | `canonicalize(seed)` | `UrlCanonicalizer` | `"https://VNExpress.net/"` | `"https://vnexpress.net"` | cả ba bước 4-5-6 đều nhận **chuỗi này** |
+| 4 | `accept(url, 0)` | `UrlFilter` | url chuẩn + `depth = 0` | `boolean` + tăng bộ đếm loại | `seed()` — `false` thì `continue` |
+| 5 | `markSeenIfNew(url)` | `UrlSeenFilter` | url chuẩn | `boolean` (**bị bỏ qua**) + ghi Bloom + `UrlStorage.append` | các lần `enqueue` sau này, và phiên crawl sau |
+| 6 | `addUrl(url, 0, 10)` | `UrlFrontier` | url chuẩn, `depth = 0`, `knownBacklinks = 10` | `boolean` — đã vào frontier | `nextUrl()` của worker |
+
+#### Bốn chi tiết chỉ đúng ở chặng seed
+
+1. **Seed cố ý bỏ qua kết quả của `markSeenIfNew`.** Ở `enqueue()` thì `false` nghĩa là dừng, nhưng ở `seed()` giá trị trả về không được xét — chỉ gọi để **ghi nhận**. Lý do: khi tiếp tục một phiên crawl cũ, `replayFromStorage()` vừa nạp lại chính các seed đó vào Bloom, nên nếu tôn trọng kết quả thì frontier rỗng ngay từ đầu và phiên crawl kết thúc mà không làm gì.
+2. **`depth = 0` và `knownBacklinks = 10`.** Hằng `SEED_BACKLINK_SCORE = 10` trong `CrawlerService`, so với `1` mà mọi outlink nhận được. Hai con số này đi thẳng vào `DefaultPrioritizer.levelOf`, nên seed luôn nằm ở mức ưu tiên cao nhất — điều cần thiết vì frontier phải có việc để làm trước khi worker đầu tiên gọi `nextUrl()`.
+3. **`canonicalize` chạy hai lần cho mỗi seed** — một lần trong `seed()`, một lần nữa bên trong `addUrl`. Không phải lỗi: phép chuẩn hoá là **idempotent**. `addUrl` cần nó vì đó là choke point duy nhất mà mọi URL (seed lẫn outlink) đều đi qua; còn `seed()` cũng cần nó vì `UrlFilter.accept` phải nhận chuỗi **đã chuẩn hoá** thì mới rút host đúng.
+4. **`robots.txt` KHÔNG được hỏi ở đây.** `seed()` chỉ gọi `accept` (luật rẻ, không chạm mạng). `isAllowedByRobots` chờ tới `workerLoop`, sau khi URL đã ra khỏi frontier — nên một seed bị `robots.txt` cấm vẫn vào được hàng đợi rồi mới bị loại.
+
+> **Không có mặt ở chặng này:** `HtmlDownloader`, `DnsResolver`, `ContentParser`, `ContentSeenFilter`, `ContentStorage`, `LinkExtractor`, `RobotsTxtParser`. Toàn bộ nửa phải của sơ đồ kiến trúc chỉ bắt đầu chạy sau khi worker đầu tiên lấy được một `CrawlTask` ra khỏi frontier.
+
 ---
 
 ## 5. Đi sâu nhóm 2 — Frontier hai tầng

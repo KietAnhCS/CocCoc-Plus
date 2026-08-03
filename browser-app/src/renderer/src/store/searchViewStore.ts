@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 /**
- * Trang thai nho, chia se giua AddressBar (PHASE 8) va SearchHomePage/
+ * Trang thai nho, chia se giua AddressBar (PHASE 8) va NewTabPage/
  * SearchResultList (PHASE 9): khi nguoi dung go MOT TU KHOA (khong phai
  * URL) vao dia chi, ta luu lai truy van o day va dieu huong tab ve
  * HOME_URL de chrome view tu render SearchResultList thay vi co gang tai

@@ -24,6 +24,12 @@
     --c-warn: 180 83 9;
     --c-danger: 200 45 55;
 
+    /* Nền ô địa chỉ và nền thanh dấu trang: tách riêng khỏi --c-raised vì hai
+       thanh này phải chìm hơn thanh công cụ một bậc, không dùng chung tông
+       với nút hover. */
+    --c-omni: 241 243 248;
+    --c-bookmarks: 232 236 243;
+
     --shine: 255 255 255;
   }
 
@@ -42,6 +48,9 @@
     --c-success: 74 202 152;
     --c-warn: 240 180 80;
     --c-danger: 255 130 130;
+
+    --c-omni: 42 42 42;
+    --c-bookmarks: 20 22 27;
 
     --shine: 255 255 255;
   }
@@ -82,6 +91,26 @@
            transition-colors duration-150 hover:bg-raised hover:text-ink
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60
            disabled:pointer-events-none disabled:text-faint/50;
+  }
+
+  /* Một hàng trong menu thả xuống: biểu tượng trái - tên - phím tắt phải. */
+  .menu-row {
+    @apply flex w-full items-center gap-3 rounded-lg px-2.5 py-[7px] text-left text-[13px]
+           text-ink transition-colors duration-100 hover:bg-raised
+           focus-visible:outline-none focus-visible:bg-raised
+           disabled:pointer-events-none disabled:text-faint/60;
+  }
+
+  /* Đường kẻ mờ chia nhóm chức năng trong menu. */
+  .menu-sep {
+    @apply my-1 h-px bg-line;
+  }
+
+  /* Nút biểu tượng của cột dọc bên phải. */
+  .rail-btn {
+    @apply flex h-9 w-9 items-center justify-center rounded-xl text-muted
+           transition-colors duration-150 hover:bg-raised hover:text-ink
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60;
   }
 
   /* Ô xám chạy sóng khi đang chờ dữ liệu. */

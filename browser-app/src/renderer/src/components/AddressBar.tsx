@@ -4,7 +4,7 @@ import { useBookmarkStore } from '../store/bookmarkStore'
 import { useSearchViewStore } from '../store/searchViewStore'
 import AutocompleteDropdown from './AutocompleteDropdown'
 import { suggest } from '../lib/searchApi'
-import { CloseIcon, GlobeIcon, LockIcon, SearchIcon, StarIcon } from './icons'
+import { CloseIcon, GlobeIcon, LockIcon, StarIcon, VnSearchMark } from './icons'
 
 /** Nhận diện một chuỗi gõ vào là URL (có dấu chấm TLD, không khoảng trắng) hay từ khoá tìm kiếm. */
 function looksLikeUrl(text: string): boolean {
@@ -110,15 +110,18 @@ function AddressBar(): JSX.Element {
     <form onSubmit={handleSubmit} className="relative flex min-w-0 flex-1 items-center gap-1.5">
       <div
         className={
-          'flex h-9 min-w-0 flex-1 items-center gap-2 rounded-full border px-3 transition-all duration-200 ' +
+          'flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-full border px-3.5 transition-all duration-200 ' +
           (focused
-            ? 'border-brand/45 bg-surface shadow-omni ring-4 ring-brand/10'
-            : 'border-transparent bg-raised hover:bg-raised/70')
+            ? 'border-brand/45 bg-omni shadow-omni ring-4 ring-brand/10'
+            : 'border-transparent bg-omni hover:brightness-110')
         }
       >
-        <span className="shrink-0 text-faint">
+        {/* Ở trạng thái mặc định (chưa mở trang nào) hiện dấu hiệu nhận dạng
+            của trình duyệt; khi đang xem một trang thật thì nhường chỗ cho
+            chỉ báo an toàn, đúng thứ tự ưu tiên của một thanh địa chỉ. */}
+        <span className="flex shrink-0 items-center">
           {searchMode ? (
-            <SearchIcon className="h-[17px] w-[17px]" />
+            <VnSearchMark className="h-[18px] w-[18px] text-muted" />
           ) : isSecure ? (
             <LockIcon className="h-[15px] w-[15px] text-success" />
           ) : (
@@ -145,7 +148,7 @@ function AddressBar(): JSX.Element {
             setHighlighted(-1)
           }}
           className="min-w-0 flex-1 bg-transparent text-[13.5px] text-ink placeholder:text-faint focus:outline-none"
-          placeholder="Tìm trên VnSearch hoặc nhập địa chỉ"
+          placeholder="Tìm kiếm hoặc nhập địa chỉ web"
           spellCheck={false}
           aria-label="Ô địa chỉ và tìm kiếm"
         />

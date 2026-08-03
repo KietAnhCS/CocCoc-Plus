@@ -11,6 +11,8 @@ module.exports = {
         chrome: 'rgb(var(--c-chrome) / <alpha-value>)',
         surface: 'rgb(var(--c-surface) / <alpha-value>)',
         raised: 'rgb(var(--c-raised) / <alpha-value>)',
+        omni: 'rgb(var(--c-omni) / <alpha-value>)',
+        bookmarks: 'rgb(var(--c-bookmarks) / <alpha-value>)',
         line: 'rgb(var(--c-line) / <alpha-value>)',
         ink: 'rgb(var(--c-ink) / <alpha-value>)',
         muted: 'rgb(var(--c-muted) / <alpha-value>)',

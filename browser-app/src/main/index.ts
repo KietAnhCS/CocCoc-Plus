@@ -22,8 +22,9 @@ function createWindow(): void {
     show: false,
     frame: false,
     autoHideMenuBar: true,
-    // Cùng tông với nền thanh tab (--c-chrome) để không loé trắng lúc mở.
-    backgroundColor: '#dfe3eb'
+    // Cùng tông với nền thanh tab ở chế độ tối (--c-chrome) để không loé
+    // trắng lúc mở — vỏ mặc định chạy nền tối, xem store/themeStore.ts.
+    backgroundColor: '#111318'
   })
 
   const tabManager = new TabManager(mainWindow)

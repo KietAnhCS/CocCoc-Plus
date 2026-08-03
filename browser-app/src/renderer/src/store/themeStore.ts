@@ -4,13 +4,17 @@ export type Theme = 'light' | 'dark'
 
 const STORAGE_KEY = 'vnsearch.theme'
 
-/** Đọc lựa chọn đã lưu; chưa có thì theo cài đặt sáng/tối của hệ điều hành. */
+/**
+ * Đọc lựa chọn đã lưu; chưa có thì dùng nền tối.
+ *
+ * Cố tình KHÔNG theo cài đặt của hệ điều hành: vỏ trình duyệt được thiết kế
+ * theo tông tối (thanh địa chỉ chìm, cột biểu tượng bên phải, trang chủ có
+ * ảnh nền lớn) nên nền sáng chỉ là phương án phụ. Người dùng vẫn đổi được
+ * bằng nút trong menu, và lựa chọn đó được nhớ lại.
+ */
 function initialTheme(): Theme {
   const saved = localStorage.getItem(STORAGE_KEY)
-  if (saved === 'light' || saved === 'dark') {
-    return saved
-  }
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  return saved === 'light' ? 'light' : 'dark'
 }
 
 /** Bảng màu đổi bằng class `dark` trên <html> — xem index.css. */

@@ -16,6 +16,13 @@ const browserApi = {
   goBack: (id: string): Promise<void> => ipcRenderer.invoke('browser:goBack', id),
   goForward: (id: string): Promise<void> => ipcRenderer.invoke('browser:goForward', id),
   reload: (id: string): Promise<void> => ipcRenderer.invoke('browser:reload', id),
+  /** Bề ngang bảng bên đang mở (0 = đóng) — trang ngoài co lại nhường chỗ. */
+  setPanelWidth: (px: number): Promise<void> => ipcRenderer.invoke('browser:setPanelWidth', px),
+  /** Bật khi vỏ mở menu/hộp thoại đổ dài quá vùng thanh công cụ. */
+  setOverlay: (active: boolean): Promise<void> => ipcRenderer.invoke('browser:setOverlay', active),
+  setZoom: (id: string, factor: number): Promise<void> =>
+    ipcRenderer.invoke('browser:setZoom', id, factor),
+  print: (id: string): Promise<void> => ipcRenderer.invoke('browser:print', id),
   onTabUpdate: (callback: (payload: unknown) => void): void => {
     ipcRenderer.on('browser:tabUpdate', (_event, payload) => callback(payload))
   },
@@ -34,6 +41,7 @@ const windowApi = {
   toggleMaximize: (): Promise<boolean> => ipcRenderer.invoke('window:toggleMaximize'),
   close: (): Promise<void> => ipcRenderer.invoke('window:close'),
   isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:isMaximized'),
+  toggleFullScreen: (): Promise<boolean> => ipcRenderer.invoke('window:toggleFullScreen'),
   dragStart: (): void => ipcRenderer.send('window:dragStart'),
   dragEnd: (): void => ipcRenderer.send('window:dragEnd'),
   onMaximizeChanged: (callback: (maximized: boolean) => void): void => {

@@ -199,6 +199,254 @@ export function SpinnerIcon(props: IconProps): JSX.Element {
   )
 }
 
+/* --- Thanh công cụ: cụm bên phải ô địa chỉ --- */
+
+/** Mảnh ghép — lối vào danh sách tiện ích mở rộng. */
+export function PuzzleIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M10 4.5a1.8 1.8 0 0 1 3.6 0V6h2.7a1 1 0 0 1 1 1v2.7h1.2a1.8 1.8 0 0 1 0 3.6h-1.2V16a1 1 0 0 1-1 1h-2.7v1.2a1.8 1.8 0 0 1-3.6 0V17H7.3a1 1 0 0 1-1-1v-2.7H5.1a1.8 1.8 0 0 1 0-3.6h1.2V7a1 1 0 0 1 1-1H10z" />
+    </Icon>
+  )
+}
+
+/** Tia lấp lánh của nút "Hỏi AI": một ngôi sao lớn kèm một ngôi sao nhỏ. */
+export function SparkleIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M11 3.5 12.7 8 17 9.7 12.7 11.4 11 15.8 9.3 11.4 5 9.7 9.3 8z" />
+      <path d="M17.6 14.6 18.4 16.6 20.4 17.4 18.4 18.2 17.6 20.2 16.8 18.2 14.8 17.4 16.8 16.6z" />
+    </Icon>
+  )
+}
+
+/** Chia đôi màn hình: một khung chia làm hai cột. */
+export function SplitScreenIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="5" width="17" height="14" rx="2.2" />
+      <path d="M12 5v14" />
+    </Icon>
+  )
+}
+
+/** Mũi tên xuống khay — danh sách tải xuống. */
+export function DownloadIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 4v10m0 0 4-4m-4 4-4-4" />
+      <path d="M4.5 16.5v1.8a1.7 1.7 0 0 0 1.7 1.7h11.6a1.7 1.7 0 0 0 1.7-1.7v-1.8" />
+    </Icon>
+  )
+}
+
+/** Ba gạch ngang — nút mở menu chính. */
+export function MenuIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M4 7h16M4 12h16M4 17h16" />
+    </Icon>
+  )
+}
+
+/** Lưới 3x3 — nút "ứng dụng" đầu thanh dấu trang. */
+export function GridAppsIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon fill="currentColor" stroke="none" {...props}>
+      <circle cx="6" cy="6" r="1.6" />
+      <circle cx="12" cy="6" r="1.6" />
+      <circle cx="18" cy="6" r="1.6" />
+      <circle cx="6" cy="12" r="1.6" />
+      <circle cx="12" cy="12" r="1.6" />
+      <circle cx="18" cy="12" r="1.6" />
+      <circle cx="6" cy="18" r="1.6" />
+      <circle cx="12" cy="18" r="1.6" />
+      <circle cx="18" cy="18" r="1.6" />
+    </Icon>
+  )
+}
+
+/** ">>" — mở phần dấu trang bị tràn khỏi thanh. */
+export function ChevronsRightIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="m7 6 6 6-6 6M14 6l6 6-6 6" />
+    </Icon>
+  )
+}
+
+export function ChevronDownIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="m6 9.5 6 6 6-6" />
+    </Icon>
+  )
+}
+
+/** Thư mục — nhóm dấu trang. */
+export function FolderIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M3.5 7.2a1.7 1.7 0 0 1 1.7-1.7h3.4l1.8 2.2h8a1.7 1.7 0 0 1 1.7 1.7v8.4a1.7 1.7 0 0 1-1.7 1.7H5.2a1.7 1.7 0 0 1-1.7-1.7z" />
+    </Icon>
+  )
+}
+
+/* --- Trang chủ --- */
+
+/** Micrô — tìm kiếm bằng giọng nói. */
+export function MicIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <rect x="9.2" y="3" width="5.6" height="10.5" rx="2.8" />
+      <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3" />
+    </Icon>
+  )
+}
+
+/** Mặt trời sau đám mây — overlay thời tiết ban ngày. */
+export function SunCloudIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="8.5" cy="8" r="3.2" />
+      <path d="M8.5 2v1.4M8.5 12.6V14M2.5 8h1.4M13.1 8h1.4M4.3 3.8l1 1M12.7 3.8l-1 1" />
+      <path d="M11 19.5h6.8a3.2 3.2 0 0 0 .2-6.4 4.4 4.4 0 0 0-8.4-.6A3.3 3.3 0 0 0 10 19.4z" />
+    </Icon>
+  )
+}
+
+/** Trăng sau đám mây — overlay thời tiết ban đêm. */
+export function MoonCloudIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M14.6 9.4A5.2 5.2 0 0 1 8.3 3a5.4 5.4 0 1 0 6.3 6.4Z" />
+      <path d="M11 20h6.8a3.2 3.2 0 0 0 .2-6.4 4.4 4.4 0 0 0-8.4-.6A3.3 3.3 0 0 0 10 19.9z" />
+    </Icon>
+  )
+}
+
+/* --- Cột biểu tượng bên phải và menu --- */
+
+/** Ghim — giữ bảng bên luôn mở. */
+export function PinIcon({ filled, ...props }: IconProps & { filled?: boolean }): JSX.Element {
+  return (
+    <Icon fill={filled ? 'currentColor' : 'none'} {...props}>
+      <path d="M9 3.5h6l-.8 5.2 3 3.1v1.4H15V21l-1.5-1.5L12 21v-7.8H6.8v-1.4l3-3.1z" />
+    </Icon>
+  )
+}
+
+/** Chữ "A" kèm gạch chân — nút dịch trang. */
+export function TranslateIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M4 17.5 8.8 6l4.8 11.5M5.8 14h6" />
+      <path d="M14.5 9.5h5.8M17.4 9.5v-2M19.8 9.5c-.4 4.2-2.6 7-5.3 8.5M15.6 13.2c.9 2 2.4 3.7 4.7 4.8" />
+    </Icon>
+  )
+}
+
+/** Bánh răng — cài đặt. */
+export function SettingsIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="3.1" />
+      <path d="M12 2.8l1.5 2.3 2.7-.5.5 2.7 2.3 1.5-1.4 2.4 1.4 2.4-2.3 1.5-.5 2.7-2.7-.5L12 21.2l-1.5-2.3-2.7.5-.5-2.7-2.3-1.5L6.4 12 5 9.6l2.3-1.5.5-2.7 2.7.5z" />
+    </Icon>
+  )
+}
+
+/** Cửa sổ mới. */
+export function WindowIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <rect x="3.5" y="5" width="17" height="14" rx="2.2" />
+      <path d="M3.5 9h17" />
+    </Icon>
+  )
+}
+
+/** Mũ + kính — cửa sổ ẩn danh. */
+export function IncognitoIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M5 11.5 6.9 5.8A1.8 1.8 0 0 1 8.6 4.5h6.8a1.8 1.8 0 0 1 1.7 1.3L19 11.5M3 11.5h18" />
+      <circle cx="7.4" cy="16" r="2.9" />
+      <circle cx="16.6" cy="16" r="2.9" />
+      <path d="M10.3 15.4a3 3 0 0 1 3.4 0" />
+    </Icon>
+  )
+}
+
+/** Máy in. */
+export function PrintIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M7 8.5V4h10v4.5" />
+      <path d="M6.5 18.5H5a1.5 1.5 0 0 1-1.5-1.5v-5A1.5 1.5 0 0 1 5 10.5h14a1.5 1.5 0 0 1 1.5 1.5v5a1.5 1.5 0 0 1-1.5 1.5h-1.5" />
+      <rect x="7" y="15" width="10" height="5.5" rx="1" />
+    </Icon>
+  )
+}
+
+/** Dấu trừ / dấu cộng của hàng thu phóng. */
+export function MinusIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M5 12h14" />
+    </Icon>
+  )
+}
+
+/** Bốn góc mở ra — toàn màn hình. */
+export function FullscreenIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" />
+    </Icon>
+  )
+}
+
+/** Dấu hỏi trong vòng tròn — trợ giúp. */
+export function HelpIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M9.6 9.6a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.9.8-.9 1.4v.4M12 16.8v.2" />
+    </Icon>
+  )
+}
+
+/** Mũi tên ra khỏi cửa — thoát. */
+export function ExitIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M14.5 4.5H18a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5h-3.5" />
+      <path d="M10 15.5 13.5 12 10 8.5M13.5 12h-9" />
+    </Icon>
+  )
+}
+
+/** Máy tính xách tay — mục "Các thiết bị của bạn". */
+export function DeviceIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <rect x="4.5" y="5" width="15" height="10" rx="1.6" />
+      <path d="M2.5 18.5h19" />
+    </Icon>
+  )
+}
+
+/** Thùng rác — xoá dữ liệu duyệt web. */
+export function TrashIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M4.5 6.5h15M9.5 6.5V4.8a1.3 1.3 0 0 1 1.3-1.3h2.4a1.3 1.3 0 0 1 1.3 1.3v1.7" />
+      <path d="M6.5 6.5 7.4 19a1.5 1.5 0 0 0 1.5 1.4h6.2a1.5 1.5 0 0 0 1.5-1.4l.9-12.5" />
+    </Icon>
+  )
+}
+
 /* --- Nút điều khiển cửa sổ: vẽ theo đúng hình dạng của Windows 11 --- */
 
 export function WinMinimizeIcon(props: IconProps): JSX.Element {

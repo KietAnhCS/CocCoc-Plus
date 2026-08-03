@@ -19,6 +19,11 @@ export function registerWindowControls(window: BrowserWindow): void {
   ipcMain.handle('window:toggleMaximize', () => maximizer.toggle())
   ipcMain.handle('window:close', () => window.close())
   ipcMain.handle('window:isMaximized', () => maximizer.isMaximized())
+  ipcMain.handle('window:toggleFullScreen', () => {
+    const next = !window.isFullScreen()
+    window.setFullScreen(next)
+    return next
+  })
 
   registerManualDrag(window, maximizer)
 }

@@ -3,15 +3,23 @@ import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 
 /**
- * Chiều cao (px) vùng TabBar + AddressBar ở renderer: 40px thanh tab + 48px
- * thanh công cụ (kể cả đường kẻ dưới). PHẢI khớp với App.tsx. Các
- * WebContentsView của tab (trang ngoài) được đặt bên dưới vùng này để không
- * che mất thanh công cụ, giống cách Chrome/Cốc Cốc bố trí.
+ * Chiều cao (px) phần vỏ nằm trên vùng nội dung ở renderer: 40px thanh tab +
+ * 48px thanh công cụ + 34px thanh dấu trang (kể cả đường kẻ dưới). PHẢI khớp
+ * với App.tsx. Các WebContentsView của tab (trang ngoài) được đặt bên dưới
+ * vùng này để không che mất thanh công cụ, giống cách Chrome/Cốc Cốc bố trí.
  */
-const CHROME_HEIGHT = 88
+const CHROME_HEIGHT = 122
+
+/**
+ * Bề ngang (px) cột biểu tượng dọc sát mép phải (SideRail.tsx). Trang ngoài
+ * bị thu hẹp đúng chừng này để cột luôn nhìn thấy — nếu để trang tràn hết bề
+ * ngang thì WebContentsView (nằm TRÊN chromeView) sẽ đè mất cột.
+ * PHẢI khớp với SIDE_RAIL_WIDTH bên renderer (components/SideRail.tsx).
+ */
+const SIDE_RAIL_WIDTH = 48
 
 /** URL noi bo dai dien cho "trang chu tim kiem" - khong tao WebContentsView rieng,
- *  chrome view (chinh la React app) tu ve SearchHomePage/SearchResultList. */
+ *  chrome view (chinh la React app) tu ve NewTabPage/SearchResultList. */
 export const HOME_URL = 'vnsearch://home'
 
 /**
@@ -60,13 +68,13 @@ interface TabEntry {
  * (deprecated) hay BrowserView (dang bi loai bo dan).
  *
  * Kien truc: mot "chromeView" duy nhat (tai renderer React app - TabBar,
- * AddressBar, SearchHomePage/SearchResultList) phu kin toan bo cua so va
+ * AddressBar, NewTabPage/SearchResultList) phu kin toan bo cua so va
  * luon hien thi. Khi mot tab dieu huong sang URL thuc (khac HOME_URL), mot
  * WebContentsView RIENG duoc tao va chong len phia tren chromeView, chi
  * phu vung noi dung ben duoi CHROME_HEIGHT — nho vay thanh tab/dia chi cua
  * chromeView van luon nhin thay duoc du tab dang hien trang ngoai hay
  * trang home. Khi tab quay ve HOME_URL, WebContentsView rieng bi go bo va
- * chromeView (dang render san SearchHomePage cho tab do qua state React)
+ * chromeView (dang render san NewTabPage cho tab do qua state React)
  * lo ra tro lai.
  */
 export class TabManager {
@@ -75,6 +83,10 @@ export class TabManager {
   private readonly tabs = new Map<string, TabEntry>()
   private activeTabId: string | null = null
   private nextTabId = 1
+  /** Bề ngang bảng bên đang mở (0 = đóng). Trang ngoài co lại nhường chỗ. */
+  private panelWidth = 0
+  /** Đang mở một lớp phủ của vỏ (menu, hộp thoại) -> tạm gỡ trang ngoài xuống. */
+  private overlay = false
 
   constructor(window: BrowserWindow) {
     this.window = window
@@ -115,7 +127,60 @@ export class TabManager {
 
   private layoutTabView(view: WebContentsView): void {
     const { width, height } = this.window.getContentBounds()
-    view.setBounds({ x: 0, y: CHROME_HEIGHT, width, height: Math.max(0, height - CHROME_HEIGHT) })
+    const rightInset = SIDE_RAIL_WIDTH + this.panelWidth
+    view.setBounds({
+      x: 0,
+      y: CHROME_HEIGHT,
+      width: Math.max(0, width - rightInset),
+      height: Math.max(0, height - CHROME_HEIGHT)
+    })
+  }
+
+  /**
+   * Bảng bên NEO (dock) chứ không phủ lên trang: trang ngoài co lại đúng bề
+   * ngang bảng. Phủ lên thì vô nghĩa, vì WebContentsView của trang luôn nằm
+   * TRÊN chromeView nên bảng vẽ ở chromeView sẽ bị che hoàn toàn.
+   */
+  setPanelWidth(px: number): void {
+    const next = Math.max(0, Math.round(px))
+    if (next === this.panelWidth) {
+      return
+    }
+    this.panelWidth = next
+    this.layoutAll()
+  }
+
+  /**
+   * Menu và hộp thoại của vỏ đổ dài xuống quá CHROME_HEIGHT, mà chromeView
+   * lại nằm DƯỚI trang ngoài nên phần đổ xuống đó sẽ bị trang che mất. Cách
+   * duy nhất gọn gàng: trong lúc lớp phủ mở thì gỡ tạm trang ngoài khỏi cây
+   * view (webContents vẫn sống, trang không tải lại — y như switchTab vẫn
+   * làm), rồi gắn lại khi đóng.
+   */
+  setOverlay(active: boolean): void {
+    if (this.overlay === active) {
+      return
+    }
+    this.overlay = active
+
+    const entry = this.activeTabId ? this.tabs.get(this.activeTabId) : undefined
+    if (!entry?.view) {
+      return
+    }
+    if (active) {
+      this.window.contentView.removeChildView(entry.view)
+    } else {
+      this.window.contentView.addChildView(entry.view)
+      this.layoutTabView(entry.view)
+    }
+  }
+
+  /** Thu phóng trang ngoài. Trang chủ nội bộ do chromeView vẽ nên không đổi. */
+  setZoom(id: string, factor: number): void {
+    const wc = this.tabs.get(id)?.view?.webContents
+    if (wc) {
+      wc.setZoomFactor(factor)
+    }
   }
 
   private layoutAll(): void {
@@ -190,7 +255,7 @@ export class TabManager {
     }
 
     this.activeTabId = id
-    if (entry.view) {
+    if (entry.view && !this.overlay) {
       this.window.contentView.addChildView(entry.view)
       this.layoutTabView(entry.view)
     }
@@ -223,7 +288,7 @@ export class TabManager {
 
     if (!entry.view) {
       entry.view = this.createExternalView(id)
-      if (this.activeTabId === id) {
+      if (this.activeTabId === id && !this.overlay) {
         this.window.contentView.addChildView(entry.view)
         this.layoutTabView(entry.view)
       }
@@ -247,6 +312,11 @@ export class TabManager {
 
   reload(id: string): void {
     this.tabs.get(id)?.view?.webContents.reload()
+  }
+
+  /** Mở hộp thoại in của hệ điều hành cho trang ngoài đang mở. */
+  print(id: string): void {
+    this.tabs.get(id)?.view?.webContents.print()
   }
 
   private createExternalView(id: string): WebContentsView {

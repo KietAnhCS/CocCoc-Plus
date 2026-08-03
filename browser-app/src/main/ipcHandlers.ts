@@ -19,4 +19,14 @@ export function registerIpcHandlers(tabManager: TabManager): void {
   ipcMain.handle('browser:goBack', (_event, id: string) => tabManager.goBack(id))
   ipcMain.handle('browser:goForward', (_event, id: string) => tabManager.goForward(id))
   ipcMain.handle('browser:reload', (_event, id: string) => tabManager.reload(id))
+
+  // Vỏ trình duyệt báo xuống mỗi khi bảng bên mở/đóng hoặc một lớp phủ bật
+  // lên, để main process bố trí lại WebContentsView của trang ngoài — xem
+  // giải thích trong tabManager.setPanelWidth/setOverlay.
+  ipcMain.handle('browser:setPanelWidth', (_event, px: number) => tabManager.setPanelWidth(px))
+  ipcMain.handle('browser:setOverlay', (_event, active: boolean) => tabManager.setOverlay(active))
+  ipcMain.handle('browser:setZoom', (_event, id: string, factor: number) =>
+    tabManager.setZoom(id, factor)
+  )
+  ipcMain.handle('browser:print', (_event, id: string) => tabManager.print(id))
 }

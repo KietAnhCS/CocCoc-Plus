@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { BookmarkTrie } from '../lib/BookmarkTrie'
+import { SEED_SITES } from '../lib/seedSites'
 
 /**
  * Zustand store luu bookmark dang cay thu muc (folder long nhau -> cau
@@ -74,7 +75,19 @@ interface BookmarkState {
 export const useBookmarkStore = create<BookmarkState>()(
   persist(
     (set, get) => ({
-      root: { id: 'root', title: 'Bookmarks', children: [] },
+      // Lần chạy đầu, thanh dấu trang được mồi sẵn bằng chính sáu trang seed
+      // của bộ crawl — thanh trống trơn không nói lên được gì. `persist` sẽ
+      // ghi đè giá trị này ngay khi người dùng có dữ liệu đã lưu, nên các
+      // thay đổi về sau (kể cả xoá hết) đều được giữ nguyên.
+      root: {
+        id: 'root',
+        title: 'Bookmarks',
+        children: SEED_SITES.map((site) => ({
+          id: `seed-${site.url}`,
+          title: site.name,
+          url: site.url
+        }))
+      },
 
       addBookmark: (parentId, title, url) => {
         set((state) => {

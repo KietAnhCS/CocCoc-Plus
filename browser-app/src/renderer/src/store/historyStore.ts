@@ -37,6 +37,10 @@ interface HistoryState {
   canGoBack: (tabId: string) => boolean
   canGoForward: (tabId: string) => boolean
   removeTab: (tabId: string) => void
+  /** Các URL vừa ghé qua, mới nhất trước — dùng cho mục "Nhật ký" trong menu. */
+  recentUrls: (limit: number) => string[]
+  /** Xoá nhật ký duyệt web nhưng GIỮ trang hiện tại của từng tab. */
+  clearAll: () => void
 }
 
 function newTabHistory(initialUrl: string): TabHistory {
@@ -124,6 +128,38 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
       const rest = { ...state.histories }
       delete rest[tabId]
       return { histories: rest }
+    })
+  },
+
+  /**
+   * Gộp lịch sử của mọi tab thành một danh sách phẳng. Trong mỗi tab, đáy
+   * backStack là trang cũ nhất nên phải đảo ngược lại; giữa các tab thì chỉ
+   * cần loại trùng URL và cắt bớt, vì Stack không lưu mốc thời gian.
+   */
+  recentUrls: (limit) => {
+    const seen = new Set<string>()
+    const out: string[] = []
+
+    for (const history of Object.values(get().histories)) {
+      for (const url of [history.currentUrl, ...history.backStack.toArray().reverse()]) {
+        if (!seen.has(url)) {
+          seen.add(url)
+          out.push(url)
+        }
+      }
+    }
+    return out.slice(0, limit)
+  },
+
+  clearAll: () => {
+    set((state) => {
+      const cleared: Record<string, TabHistory> = {}
+      for (const [tabId, history] of Object.entries(state.histories)) {
+        // Tab vẫn đang hiển thị một trang, nên currentUrl phải giữ nguyên;
+        // chỉ hai chồng back/forward bị dọn, khiến nút quay lại mờ đi.
+        cleared[tabId] = newTabHistory(history.currentUrl)
+      }
+      return { histories: cleared }
     })
   }
 }))

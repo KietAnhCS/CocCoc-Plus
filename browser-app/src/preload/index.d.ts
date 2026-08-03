@@ -9,6 +9,10 @@ interface BrowserApi {
   goBack: (id: string) => Promise<void>
   goForward: (id: string) => Promise<void>
   reload: (id: string) => Promise<void>
+  setPanelWidth: (px: number) => Promise<void>
+  setOverlay: (active: boolean) => Promise<void>
+  setZoom: (id: string, factor: number) => Promise<void>
+  print: (id: string) => Promise<void>
   onTabUpdate: (callback: (payload: unknown) => void) => void
   onShortcut: (callback: (name: string) => void) => void
 }
@@ -18,6 +22,7 @@ interface WindowApi {
   toggleMaximize: () => Promise<boolean>
   close: () => Promise<void>
   isMaximized: () => Promise<boolean>
+  toggleFullScreen: () => Promise<boolean>
   dragStart: () => void
   dragEnd: () => void
   onMaximizeChanged: (callback: (maximized: boolean) => void) => void

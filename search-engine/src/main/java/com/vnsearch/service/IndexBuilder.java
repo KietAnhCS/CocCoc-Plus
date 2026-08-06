@@ -38,12 +38,24 @@ public class IndexBuilder {
      * <p>Luon tao chi muc moi thay vi cap nhat chi muc cu: {@code addDocument}
      * khong idempotent (goi hai lan cung docId se tao posting trung), va viec
      * dung lai chi ton 6,8-9,5 giay nen khong dang danh doi tinh dung dan.
+     *
+     * <p><b>docId duoc CAP LAI thanh 0..n-1 tai day</b>, khong tin dung so co
+     * san trong tai lieu. Ly do: docId la danh tinh cua tai lieu TRONG mot chi
+     * muc cu the — chi so vao posting list — chu khong phai thuoc tinh cua
+     * trang web. Corpus di vao day den tu ben ngoai (tep JSON cua phien crawl
+     * truoc, bang PostgreSQL, tham chi tep nguoi dung tu ghep) nen khong co gi
+     * bao dam no danh so duy nhat. Truoc day mot corpus co hai tai lieu trung
+     * docId lam {@code addDocument} nem ngoai le ngay trong {@code @PostConstruct},
+     * va ung dung KHONG khoi dong duoc — mot tep du lieu khong hoan hao khong
+     * duoc phep gay ra hau qua do.
      */
     public InvertedIndex build(List<WebDocument> documents) {
         InvertedIndex index = new InvertedIndex(tokenizer);
         List<WebDocument> sorted = new ArrayList<>(documents);
         sorted.sort(Comparator.comparingInt(WebDocument::getDocId)); // TIEN DE bat buoc
+        int nextDocId = 0;
         for (WebDocument doc : sorted) {
+            doc.setDocId(nextDocId++); // CAP LAI danh tinh — xem Javadoc ham
             index.addDocument(doc);
         }
         return index;

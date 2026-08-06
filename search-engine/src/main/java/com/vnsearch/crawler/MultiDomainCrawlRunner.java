@@ -4,6 +4,8 @@ import com.vnsearch.model.WebDocument;
 
 import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -28,7 +30,21 @@ import java.util.Set;
  *   mvnw exec:java -Dexec.mainClass=com.vnsearch.crawler.MultiDomainCrawlRunner \
  *        -Dexec.args="5000 3 data/crawled-multi.json"
  * </pre>
- * Tham số: {@code [maxPages] [maxDepth] [outputPath]} (đều có mặc định).
+ * Tham số: {@code [maxPages] [maxDepth] [outputPath] [--fresh]} (đều có mặc định).
+ *
+ * <p><b>Công crawl không bị phí, nhờ ba cơ chế:</b>
+ * <ul>
+ *   <li><b>Nối tiếp mặc định.</b> Nếu {@code outputPath} đã tồn tại, corpus cũ
+ *       được nạp lại, các trang trong đó không bị tải lại, và phiên mới đi tiếp
+ *       từ liên kết của chúng. Chạy lệnh này ba lần với {@code maxPages=2000}
+ *       cho corpus khoảng 6.000 trang, chứ không phải 2.000 trang ba lần.
+ *       Dùng {@code --fresh} để bỏ corpus cũ và bắt đầu lại.</li>
+ *   <li><b>Ghi điểm kiểm tra mỗi 250 trang</b> ({@link CheckpointCrawlListener}),
+ *       nên Ctrl+C hay mất điện chỉ mất phần crawl kể từ điểm gần nhất chứ
+ *       không mất cả phiên.</li>
+ *   <li><b>Ghi nguyên tử</b> ({@link ContentStorage#saveToJson}), nên một lần
+ *       ghi bị cắt ngang không phá hỏng corpus đang có.</li>
+ * </ul>
  */
 public class MultiDomainCrawlRunner {
 
@@ -39,12 +55,27 @@ public class MultiDomainCrawlRunner {
             "https://dantri.com.vn/",
             "https://thanhnien.vn/",
             "https://vietnamnet.vn/",
-            "https://nhandan.vn/");
+            "https://nhandan.vn/",
+            "https://hanoimoi.vn/",
+            "https://baochinhphu.vn/");
 
     public static void main(String[] args) throws IOException {
         int maxPages = args.length > 0 ? Integer.parseInt(args[0]) : 5000;
         int maxDepth = args.length > 1 ? Integer.parseInt(args[1]) : 3;
         String outputPath = args.length > 2 ? args[2] : "data/crawled-multi.json";
+        boolean fresh = args.length > 3 && args[3].equalsIgnoreCase("--fresh");
+
+        // NỐI TIẾP là mặc định khi tệp đầu ra đã có. Mặc định cũ — ghi đè —
+        // biến mỗi lần chạy lại thành một lần vứt bỏ toàn bộ phiên trước, kể cả
+        // khi người chạy chỉ muốn thêm vài trăm trang. Ai thật sự muốn bắt đầu
+        // lại từ đầu thì nói rõ bằng --fresh; nhầm lẫn theo chiều đó sửa được,
+        // còn nhầm lẫn theo chiều kia thì corpus đã mất rồi.
+        List<WebDocument> previous = List.of();
+        if (!fresh && Files.exists(Path.of(outputPath))) {
+            previous = ContentStorage.loadFromJson(outputPath);
+            System.out.printf("Noi tiep corpus san co: %d tai lieu tu %s%n",
+                    previous.size(), outputPath);
+        }
 
         Set<String> allowedDomains = new LinkedHashSet<>();
         for (String seed : DEFAULT_SEEDS) {
@@ -72,12 +103,26 @@ public class MultiDomainCrawlRunner {
                 .maxDurationMinutes(90)
                 .build();
 
-        CrawlerService crawler = new CrawlerService()
-                .addListener(new ConsoleCrawlListener(25)); // Observer
+        // HAI listener cùng lúc — đúng thứ Observer pattern sinh ra để làm.
+        // Thanh tiến trình trả lời "còn bao lâu nữa" cho người đang ngồi nhìn;
+        // log trả lời "chuyện gì đã xảy ra" cho người đọc lại sau phiên crawl.
+        // Ở chế độ thanh tiến trình, ConsoleCrawlListener chỉ ghi mỗi 200 trang
+        // để không cắt ngang dòng đang vẽ (chi tiết ở ProgressBarCrawlListener).
+        // Điểm kiểm tra mỗi 250 trang: đủ thưa để chi phí ghi không đáng kể so
+        // với thời gian tải, đủ dày để một lần crash chỉ mất chưa tới mười giây
+        // công crawl ở tốc độ thực tế ~30 trang/giây.
+        // Khai báo tách khỏi chuỗi addListener: điểm kiểm tra cần tham chiếu tới
+        // chính crawler để lấy bản chụp corpus, mà biến chưa gán xong thì chưa
+        // dùng được trong biểu thức khởi tạo của nó.
+        CrawlerService crawler = new CrawlerService();
+        crawler.addListener(new ProgressBarCrawlListener(25))
+                .addListener(new ConsoleCrawlListener(200))
+                .addListener(new CheckpointCrawlListener(
+                        crawler::snapshotDocuments, outputPath, 250));
         long start = System.currentTimeMillis();
 
-        List<WebDocument> docs = crawler.crawl(DEFAULT_SEEDS, config);
-        
+        List<WebDocument> docs = crawler.crawl(DEFAULT_SEEDS, config, previous);
+
         long elapsedMs = System.currentTimeMillis() - start;
 
 

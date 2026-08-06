@@ -7,8 +7,10 @@ import com.vnsearch.model.WebDocument;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,7 +57,21 @@ public class ContentStorage {
         return new ArrayList<>(byUrl.values());
     }
 
-    /** Ghi danh sách tài liệu ra file JSON (Jackson), tạo thư mục cha nếu chưa có. */
+    /**
+     * Ghi danh sách tài liệu ra file JSON (Jackson), tạo thư mục cha nếu chưa có.
+     *
+     * <p><b>Ghi qua tệp tạm rồi đổi tên, chứ không ghi thẳng.</b> Corpus thật
+     * nặng vài chục MB nên việc ghi kéo dài cả giây. Ghi đè trực tiếp thì trong
+     * suốt khoảng đó tệp đích ở trạng thái dở dang, và một lần Ctrl+C hay mất
+     * điện đúng lúc sẽ để lại một tệp JSON cụt — mất luôn corpus CŨ vốn đang
+     * hoàn chỉnh, đổi lấy corpus mới cũng hỏng. Đổi tên là thao tác nguyên tử ở
+     * mức hệ tệp: tệp đích hoặc còn nguyên bản cũ, hoặc đã là bản mới đầy đủ,
+     * không có trạng thái ở giữa.
+     *
+     * <p>Chi tiết này quan trọng hơn hẳn khi có ghi điểm kiểm tra định kỳ
+     * ({@link CheckpointCrawlListener}): số lần ghi đè tăng từ một lần lên hàng
+     * chục lần mỗi phiên, nên xác suất bị cắt ngang cũng tăng theo.
+     */
     public static void saveToJson(List<WebDocument> documents, String path) throws IOException {
         Path filePath = Path.of(path);
         if (filePath.getParent() != null) {
@@ -65,7 +81,18 @@ public class ContentStorage {
                 .registerModule(new JavaTimeModule())
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .enable(SerializationFeature.INDENT_OUTPUT);
-        mapper.writeValue(new File(path), documents);
+
+        Path temp = filePath.resolveSibling(filePath.getFileName() + ".tmp");
+        mapper.writeValue(temp.toFile(), documents);
+        try {
+            Files.move(temp, filePath, StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            // Vài hệ tệp (thường là ổ mạng) không hỗ trợ đổi tên nguyên tử.
+            // Đổi tên thường vẫn tốt hơn nhiều so với ghi đè trực tiếp: cửa sổ
+            // nguy hiểm rút từ cả giây xuống còn một thao tác siêu dữ liệu.
+            Files.move(temp, filePath, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     public static List<WebDocument> loadFromJson(String path) throws IOException {

@@ -111,6 +111,17 @@ public class CrawlerService {
      */
     private final AtomicInteger pagesCrawled = new AtomicInteger(0);
 
+    /**
+     * Số tài liệu nạp lại từ phiên trước — <b>mốc bắt đầu của docId phiên này</b>.
+     *
+     * <p>Cần một biến riêng vì {@link #pagesCrawled} còn là điều kiện dừng
+     * ({@code < maxPages}): cộng luôn corpus cũ vào đó thì một phiên nối tiếp
+     * với corpus 5.000 trang và {@code maxPages=5000} sẽ dừng ngay khi chưa
+     * tải trang nào. Thiếu mốc này thì phiên nối tiếp cấp lại docId {@code 0,
+     * 1, 2...} vốn đã thuộc về tài liệu cũ, và tệp ghi ra chứa docId trùng.
+     */
+    private volatile int restoredDocCount = 0;
+
     /** Số worker đang THỰC SỰ xử lý một trang — dùng để biết khi nào thật sự hết việc. */
     private final AtomicInteger activeWorkers = new AtomicInteger(0);
 
@@ -131,6 +142,30 @@ public class CrawlerService {
 
     /** Chạy một phiên crawl BFS đầy đủ, trả về danh sách WebDocument đã crawl được. */
     public List<WebDocument> crawl(List<String> seedUrls, CrawlConfig config) {
+        return crawl(seedUrls, config, List.of());
+    }
+
+    /**
+     * Chạy một phiên crawl NỐI TIẾP corpus đã có: giữ nguyên tài liệu cũ, không
+     * tải lại chúng, và đi tiếp từ những liên kết mà chúng trỏ tới.
+     *
+     * <p><b>Vì sao nối tiếp qua corpus chứ không qua {@link UrlStorage}.</b>
+     * {@code UrlStorage} ghi mọi URL <b>được xếp hàng</b> — bao gồm hàng chục
+     * nghìn URL còn nằm trong frontier lúc phiên crawl dừng, những URL chưa hề
+     * được tải. Nạp lại tệp đó sẽ đánh dấu tất cả là "đã gặp", và
+     * {@link #enqueue} loại thẳng chúng, nên chúng KHÔNG BAO GIỜ được crawl
+     * nữa. Nói cách khác, dùng URL Storage để tiếp tục phiên crawl sẽ khoá
+     * vĩnh viễn phần lớn không gian tìm kiếm còn lại.
+     *
+     * <p>Corpus không có khiếm khuyết đó: mỗi tài liệu trong đó là một trang
+     * THẬT SỰ đã tải. Đánh dấu đúng những URL này là đã gặp thì chặn đúng cái
+     * cần chặn. Còn frontier thì không cần lưu bền chút nào — nó tái tạo được
+     * từ {@code outlinks} của chính các tài liệu cũ, thứ đã nằm sẵn trong tệp.
+     *
+     * @param previousDocuments corpus từ phiên trước; rỗng nghĩa là crawl mới
+     */
+    public List<WebDocument> crawl(List<String> seedUrls, CrawlConfig config,
+                                    List<WebDocument> previousDocuments) {
         long start = System.currentTimeMillis();
 
         // Biến cục bộ, không phải trường: kho URL chỉ sống trong đúng một phiên
@@ -148,6 +183,7 @@ public class CrawlerService {
                         replayed, config.urlStoragePath());
             }
 
+            restore(previousDocuments);
             seed(seedUrls);
             runWorkers(config);
         } finally {
@@ -159,6 +195,69 @@ public class CrawlerService {
         long elapsed = System.currentTimeMillis() - start;
         notifyFinished(pagesCrawled.get(), elapsed);
         return contentStorage.all();
+    }
+
+    /**
+     * Đưa corpus của phiên trước trở lại đúng ba khối cần biết về nó, rồi tái
+     * tạo frontier từ các liên kết của nó.
+     *
+     * <p>Ba khối, ba lý do khác nhau — thiếu bất kỳ khối nào cũng hỏng theo một
+     * kiểu riêng:
+     * <ul>
+     *   <li>{@link ContentStorage}: giữ lại nội dung cũ, để tệp ghi ra ở cuối
+     *       phiên là corpus TỔNG chứ không phải chỉ phần mới. Thiếu bước này
+     *       thì phiên "nối tiếp" thực chất ghi đè và xoá sạch phiên trước.</li>
+     *   <li>{@link UrlSeenFilter}: chặn tải lại những trang đã có.</li>
+     *   <li>{@link ContentSeenFilter}: giữ vân tay nội dung cũ, nếu không thì
+     *       một trang cũ xuất hiện lại dưới URL khác sẽ được lưu thành bản sao
+     *       thứ hai — đúng thứ khối này sinh ra để ngăn.</li>
+     * </ul>
+     *
+     * <p><b>Độ sâu đặt lại về 1 cho mọi liên kết cũ.</b> {@code WebDocument}
+     * không lưu độ sâu BFS, và cũng không nên lưu: độ sâu là thuộc tính của
+     * ĐƯỜNG ĐI trong một phiên crawl cụ thể, không phải của trang. Hệ quả cần
+     * biết: mỗi lần chạy nối tiếp, {@code maxDepth} được tính lại từ corpus cũ
+     * xem như tầng nền, nên corpus lan rộng thêm {@code maxDepth} tầng nữa sau
+     * mỗi phiên. Đó là hành vi mong muốn khi mục đích là mở rộng corpus dần.
+     */
+    private void restore(List<WebDocument> previousDocuments) {
+        if (previousDocuments == null || previousDocuments.isEmpty()) {
+            return;
+        }
+        int restored = 0;
+        for (WebDocument doc : previousDocuments) {
+            if (doc == null || doc.getUrl() == null || doc.getUrl().isBlank()) {
+                continue;
+            }
+            if (!contentStorage.save(doc)) {
+                continue; // hai bản ghi cùng URL trong tệp cũ: giữ bản đầu
+            }
+            // Đánh số lại corpus cũ thành 0..restored-1 thay vì tin vào docId
+            // trong tệp: tệp có thể do một phiên chạy bằng bản mã cũ ghi ra và
+            // chứa docId trùng. Đánh lại ở đây thì dãy docId của corpus TỔNG
+            // (cũ + mới) luôn đặc và duy nhất, bất kể tệp vào ra sao.
+            doc.setDocId(restored++);
+            urlSeenFilter.markSeenIfNew(doc.getUrl());
+            contentSeenFilter.seenBefore(doc.getBodyText());
+        }
+        restoredDocCount = restored;
+
+        // Xếp hàng SAU khi đã đánh dấu toàn bộ URL cũ là đã gặp. Làm xen kẽ thì
+        // một liên kết trỏ tới trang cũ chưa kịp đánh dấu sẽ lọt vào frontier và
+        // bị tải lại — đúng thứ việc nối tiếp phải tránh.
+        int queued = 0;
+        for (WebDocument doc : previousDocuments) {
+            if (doc == null || doc.getOutlinks() == null) {
+                continue;
+            }
+            for (String outlink : doc.getOutlinks()) {
+                if (enqueue(outlink, 1)) {
+                    queued++;
+                }
+            }
+        }
+        log.info("Nối tiếp corpus cũ: giữ {} tài liệu, dựng lại frontier với {} URL chờ.",
+                restored, queued);
     }
 
     /**
@@ -293,7 +392,9 @@ public class CrawlerService {
         }
 
         int count = pagesCrawled.incrementAndGet();
-        doc.setDocId(count - 1); // đặc, không thủng lỗ vì cấp SAU khi lưu thành công
+        // Đặc, không thủng lỗ vì cấp SAU khi lưu thành công; cộng mốc corpus cũ
+        // để phiên nối tiếp không cấp lại docId đã dùng.
+        doc.setDocId(restoredDocCount + count - 1);
         notifyPageCrawled(new CrawlListener.CrawlEvent(
                 count, config.maxPages(), task.url(), task.depth(),
                 doc.getOutlinks().size(), frontier.size(), frontier.domainCount()));
@@ -319,15 +420,18 @@ public class CrawlerService {
      * liên kết đi ra từ {@link LinkExtractor}, seed đi qua {@link #seed}. Gọi
      * thêm một lần nữa chỉ lặp lại đúng kết quả cũ — phép chuẩn hoá là
      * idempotent nên không sai, chỉ thừa.
+     *
+     * @return {@code true} nếu URL thật sự được xếp vào frontier
      */
-    private void enqueue(String url, int depth) {
+    private boolean enqueue(String url, int depth) {
         if (!urlFilter.accept(url, depth)) { // URL Filter
-            return;
+            return false;
         }
         if (!urlSeenFilter.markSeenIfNew(url)) { // URL Seen? -> URL Storage
-            return;
+            return false;
         }
         frontier.addUrl(url, depth, 1); // URL Frontier
+        return true;
     }
 
     private void notifyPageCrawled(CrawlListener.CrawlEvent event) {
@@ -400,6 +504,16 @@ public class CrawlerService {
 
     public UrlSeenFilter getUrlSeenFilter() {
         return urlSeenFilter;
+    }
+
+    /**
+     * Bản chụp corpus tại thời điểm gọi — nguồn dữ liệu cho
+     * {@link CheckpointCrawlListener}. Gọi được an toàn giữa lúc crawl đang
+     * chạy: {@link ContentStorage#all()} trả về bản sao, nên luồng ghi không
+     * duyệt trên cấu trúc mà các worker đang sửa.
+     */
+    public List<WebDocument> snapshotDocuments() {
+        return contentStorage.all();
     }
 
     public ContentSeenFilter getContentSeenFilter() {

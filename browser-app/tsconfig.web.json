@@ -8,9 +8,9 @@
   ],
   "compilerOptions": {
     "composite": true,
-    "baseUrl": ".",
+    "jsx": "react-jsx",
     "paths": {
-      "@renderer/*": ["src/renderer/src/*"]
+      "@renderer/*": ["./src/renderer/src/*"]
     }
   }
 }

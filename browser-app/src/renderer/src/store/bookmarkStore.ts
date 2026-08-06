@@ -3,24 +3,20 @@ import { persist } from 'zustand/middleware'
 import { BookmarkTrie } from '../lib/BookmarkTrie'
 import { SEED_SITES } from '../lib/seedSites'
 
-/**
- * Zustand store luu bookmark dang cay thu muc (folder long nhau -> cau
- * truc Tree). Moi node co the la THU MUC (co children, khong co url) hoac
- * BOOKMARK LA (co url, khong co children).
- *
- * Tim kiem bookmark theo tien to tieu de dung {@link BookmarkTrie} tu cai
- * dat rieng ben TypeScript. Trie duoc XAY LAI moi lan goi searchByPrefix
- * (khong luu thuong truc trong Zustand state, vi Trie khong the serialize
- * JSON de persist) — chap nhan O(tong so bookmark) moi lan tim vi so
- * luong bookmark trong thuc te (hang chuc/hang tram) rat nho, doi lai don
- * gian hoa dang ke viec dong bo Trie voi cay khi them/xoa.
- */
-
 export interface BookmarkNode {
   id: string
   title: string
   url?: string
   children?: BookmarkNode[]
+}
+
+interface BookmarkState {
+  root: BookmarkNode
+  addFolder: (parentId: string, name: string) => void
+  removeNode: (id: string) => void
+  toggleBookmark: (url: string, title: string) => void
+  isBookmarked: (url: string) => boolean
+  searchByPrefix: (prefix: string) => BookmarkNode[]
 }
 
 function createId(): string {
@@ -44,41 +40,31 @@ function removeNodeById(node: BookmarkNode, id: string): boolean {
   if (!node.children) {
     return false
   }
-  const idx = node.children.findIndex((c) => c.id === id)
-  if (idx >= 0) {
-    node.children.splice(idx, 1)
+  const index = node.children.findIndex((child) => child.id === id)
+  if (index >= 0) {
+    node.children.splice(index, 1)
     return true
   }
   return node.children.some((child) => removeNodeById(child, id))
 }
 
-function collectAllBookmarks(node: BookmarkNode, out: BookmarkNode[]): void {
-  if (node.url) {
-    out.push(node)
+export function collectBookmarks(node: BookmarkNode): BookmarkNode[] {
+  const leaves: BookmarkNode[] = []
+  const walk = (current: BookmarkNode): void => {
+    if (current.url) {
+      leaves.push(current)
+    }
+    for (const child of current.children ?? []) {
+      walk(child)
+    }
   }
-  for (const child of node.children ?? []) {
-    collectAllBookmarks(child, out)
-  }
-}
-
-interface BookmarkState {
-  root: BookmarkNode
-  addBookmark: (parentId: string, title: string, url: string) => void
-  addFolder: (parentId: string, name: string) => void
-  removeNode: (id: string) => void
-  /** Bật/tắt bookmark cho một URL — dùng cho nút ★ và phím tắt Ctrl+D. */
-  toggleBookmark: (title: string, url: string) => void
-  isBookmarked: (url: string) => boolean
-  searchByPrefix: (prefix: string) => BookmarkNode[]
+  walk(node)
+  return leaves
 }
 
 export const useBookmarkStore = create<BookmarkState>()(
   persist(
     (set, get) => ({
-      // Lần chạy đầu, thanh dấu trang được mồi sẵn bằng chính sáu trang seed
-      // của bộ crawl — thanh trống trơn không nói lên được gì. `persist` sẽ
-      // ghi đè giá trị này ngay khi người dùng có dữ liệu đã lưu, nên các
-      // thay đổi về sau (kể cả xoá hết) đều được giữ nguyên.
       root: {
         id: 'root',
         title: 'Bookmarks',
@@ -87,16 +73,6 @@ export const useBookmarkStore = create<BookmarkState>()(
           title: site.name,
           url: site.url
         }))
-      },
-
-      addBookmark: (parentId, title, url) => {
-        set((state) => {
-          const root = structuredClone(state.root)
-          const parent = findNode(root, parentId) ?? root
-          parent.children = parent.children ?? []
-          parent.children.push({ id: createId(), title, url })
-          return { root }
-        })
       },
 
       addFolder: (parentId, name) => {
@@ -117,12 +93,10 @@ export const useBookmarkStore = create<BookmarkState>()(
         })
       },
 
-      toggleBookmark: (title, url) => {
+      toggleBookmark: (url, title) => {
         set((state) => {
           const root = structuredClone(state.root)
-          const all: BookmarkNode[] = []
-          collectAllBookmarks(root, all)
-          const existing = all.find((b) => b.url === url)
+          const existing = collectBookmarks(root).find((bookmark) => bookmark.url === url)
           if (existing) {
             removeNodeById(root, existing.id)
           } else {
@@ -133,24 +107,18 @@ export const useBookmarkStore = create<BookmarkState>()(
         })
       },
 
-      isBookmarked: (url) => {
-        const all: BookmarkNode[] = []
-        collectAllBookmarks(get().root, all)
-        return all.some((b) => b.url === url)
-      },
+      isBookmarked: (url) => collectBookmarks(get().root).some((bookmark) => bookmark.url === url),
 
       searchByPrefix: (prefix) => {
-        const all: BookmarkNode[] = []
-        collectAllBookmarks(get().root, all)
-
+        const bookmarks = collectBookmarks(get().root)
         const trie = new BookmarkTrie()
-        for (const bookmark of all) {
+        for (const bookmark of bookmarks) {
           for (const word of bookmark.title.split(/\s+/)) {
             trie.insert(word, bookmark.id)
           }
         }
         const matchedIds = new Set(trie.searchByPrefix(prefix))
-        return all.filter((b) => matchedIds.has(b.id))
+        return bookmarks.filter((bookmark) => matchedIds.has(bookmark.id))
       }
     }),
     { name: 'vnsearch-bookmarks' }

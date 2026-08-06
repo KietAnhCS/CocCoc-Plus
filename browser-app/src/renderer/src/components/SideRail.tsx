@@ -1,6 +1,8 @@
+import type { JSX } from 'react'
 import { useSidePanelStore, type RailItem } from '../store/sidePanelStore'
 import { useThemeStore } from '../store/themeStore'
-import { AppTile, findApp } from '../lib/apps'
+import { findApp } from '../lib/apps'
+import AppTile from './AppTile'
 import { siteGradient, siteInitial, hostOf } from '../lib/site'
 import {
   ClockIcon,
@@ -12,14 +14,6 @@ import {
   TranslateIcon
 } from './icons'
 
-/**
- * Cột biểu tượng dọc sát mép phải. Bấm một ô thì mở bảng bên tương ứng
- * (SidePanel), bấm lần nữa thì đóng.
- *
- * Bề ngang cột (48px) được main process trừ ra khỏi bề ngang trang ngoài để
- * cột không bị WebContentsView đè lên — xem SIDE_RAIL_WIDTH ở cả
- * store/sidePanelStore.ts lẫn main/tabManager.ts.
- */
 function SideRail(): JSX.Element {
   const items = useSidePanelStore((s) => s.items)
   const open = useSidePanelStore((s) => s.open)
@@ -38,9 +32,7 @@ function SideRail(): JSX.Element {
     >
       <button
         onClick={() => togglePanel('add-site')}
-        className={
-          'rail-btn ' + (open === 'add-site' ? 'bg-raised text-ink' : '')
-        }
+        className={'rail-btn ' + (open === 'add-site' ? 'bg-raised text-ink' : '')}
         aria-label="Thêm trang web vào thanh bên"
         title="Thêm trang web vào thanh bên"
       >
@@ -55,13 +47,14 @@ function SideRail(): JSX.Element {
             key={item.id}
             item={item}
             active={open === 'app' && activeItemId === item.id}
-            onOpen={() => (open === 'app' && activeItemId === item.id ? closePanel() : openApp(item.id))}
+            onOpen={() =>
+              open === 'app' && activeItemId === item.id ? closePanel() : openApp(item.id)
+            }
             onRemove={() => removeItem(item.id)}
           />
         ))}
       </div>
 
-      {/* Nhóm cuối cột: dịch trang, nhật ký, giao diện, cài đặt. */}
       <div className="mt-1 flex flex-col items-center gap-1 border-t border-line pt-2">
         <button className="rail-btn" aria-label="Dịch trang" title="Dịch trang này">
           <TranslateIcon className="h-[18px] w-[18px]" />
@@ -101,15 +94,9 @@ interface RailAppButtonProps {
   onRemove: () => void
 }
 
-/**
- * Một ô trên cột. Ô có thể là ứng dụng dựng sẵn (lấy hình từ lib/apps.tsx)
- * hoặc trang người dùng tự dán URL — trang tự thêm không có logo nên dùng
- * "favicon giả" như phần còn lại của ứng dụng (lib/site.ts).
- */
 function RailAppButton({ item, active, onOpen, onRemove }: RailAppButtonProps): JSX.Element | null {
   const app = item.url ? undefined : findApp(item.id)
   if (!app && !item.url) {
-    // Danh mục đổi mà localStorage còn giữ id cũ -> bỏ qua ô đó.
     return null
   }
 
@@ -139,7 +126,6 @@ function RailAppButton({ item, active, onOpen, onRemove }: RailAppButtonProps): 
         )}
       </button>
 
-      {/* Vạch sáng bên trái báo ô đang mở — kiểu chỉ báo của thanh bên Cốc Cốc. */}
       {active && (
         <span className="pointer-events-none absolute -left-2 top-1/2 h-4 w-[3px] -translate-y-1/2 rounded-full bg-brand" />
       )}

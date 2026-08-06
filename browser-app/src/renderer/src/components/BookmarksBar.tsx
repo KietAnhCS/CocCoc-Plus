@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useMemo, useRef, useState, type JSX } from 'react'
 import Popover from './Popover'
 import { useBookmarkStore, type BookmarkNode } from '../store/bookmarkStore'
 import { useSidePanelStore } from '../store/sidePanelStore'
@@ -6,23 +6,14 @@ import { useTabStore } from '../store/tabStore'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
 import { ChevronsRightIcon, FolderIcon, GridAppsIcon, StarIcon } from './icons'
 
-/** Chừa sẵn chỗ cho nút ">>" khi tính xem bao nhiêu dấu trang lọt vào thanh. */
 const OVERFLOW_BUTTON_WIDTH = 34
 
-/**
- * Thanh dấu trang, nằm ngay dưới thanh công cụ và chìm hơn một bậc.
- *
- * Số mục hiển thị được tính theo bề ngang thật: một hàng bản sao vô hình
- * (`measure`) giữ đủ MỌI mục để đo, còn hàng nhìn thấy chỉ vẽ những mục lọt
- * vào. Phải đo trên bản sao chứ không đo trực tiếp hàng đang hiện, vì cắt
- * bớt mục sẽ làm phép đo lần sau sai đi và hai bên giằng nhau vô tận.
- */
 function BookmarksBar(): JSX.Element {
   const root = useBookmarkStore((s) => s.root)
   const openPanel = useSidePanelStore((s) => s.openPanel)
   const panelOpen = useSidePanelStore((s) => s.open)
 
-  const nodes = root.children ?? []
+  const nodes = useMemo(() => root.children ?? [], [root])
   const [visibleCount, setVisibleCount] = useState(nodes.length)
   const [overflowOpen, setOverflowOpen] = useState(false)
 
@@ -50,7 +41,6 @@ function BookmarksBar(): JSX.Element {
         fit++
       }
 
-      // Còn mục bị cắt thì nút ">>" cũng chiếm chỗ -> có thể phải bỏ thêm một mục.
       if (fit < children.length) {
         let usedWithButton = OVERFLOW_BUTTON_WIDTH
         fit = 0
@@ -88,7 +78,6 @@ function BookmarksBar(): JSX.Element {
 
       <div className="mx-0.5 h-4 w-px shrink-0 bg-line" />
 
-      {/* Hàng nhìn thấy. `relative` để hàng đo vô hình bám vào đây. */}
       <div ref={trackRef} className="relative flex min-w-0 flex-1 items-center overflow-hidden">
         {nodes.length === 0 ? (
           <span className="truncate pl-1 text-[12px] text-faint">
@@ -98,7 +87,6 @@ function BookmarksBar(): JSX.Element {
           visible.map((node) => <BookmarkChip key={node.id} node={node} />)
         )}
 
-        {/* Bản sao dùng để đo: nằm ngoài luồng bố cục nên không đẩy gì cả. */}
         <div
           ref={measureRef}
           aria-hidden="true"
@@ -117,7 +105,8 @@ function BookmarksBar(): JSX.Element {
             className={
               'flex h-7 w-7 items-center justify-center rounded-lg text-muted transition-colors ' +
               'hover:bg-raised hover:text-ink focus-visible:outline-none focus-visible:ring-2 ' +
-              'focus-visible:ring-brand/60 ' + (overflowOpen ? 'bg-raised text-ink' : '')
+              'focus-visible:ring-brand/60 ' +
+              (overflowOpen ? 'bg-raised text-ink' : '')
             }
             aria-label={`Xem thêm ${hidden.length} dấu trang`}
             title={`Còn ${hidden.length} dấu trang nữa`}
@@ -157,11 +146,13 @@ function BookmarksBar(): JSX.Element {
   )
 }
 
-/**
- * Một mục trên thanh. `measuring` chỉ dùng cho bản sao vô hình — bản sao
- * không được bắt chuột và không cần trạng thái rê chuột.
- */
-function BookmarkChip({ node, measuring }: { node: BookmarkNode; measuring?: boolean }): JSX.Element {
+function BookmarkChip({
+  node,
+  measuring
+}: {
+  node: BookmarkNode
+  measuring?: boolean
+}): JSX.Element {
   const navigate = useTabStore((s) => s.navigate)
   const [folderOpen, setFolderOpen] = useState(false)
   const isFolder = !node.url
@@ -216,7 +207,6 @@ function BookmarkChip({ node, measuring }: { node: BookmarkNode; measuring?: boo
   )
 }
 
-/** Một hàng trong bảng thả xuống (phần tràn hoặc nội dung thư mục). */
 function BookmarkRow({ node, onDone }: { node: BookmarkNode; onDone: () => void }): JSX.Element {
   const navigate = useTabStore((s) => s.navigate)
   const isFolder = !node.url

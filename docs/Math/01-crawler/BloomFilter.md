@@ -327,7 +327,181 @@ Muốn xoá được phải dùng **Counting Bloom Filter**: thay mỗi bit bằ
 
 ---
 
-## 11. Liên kết
+## 11. Ví dụ tính tay đầy đủ — bài toán "ném phi tiêu vào tường"
+
+Toàn bộ §3–§7 ở trên là công thức. Mục này chạy **một vòng khép kín** bằng số thật: từ tham số thiết kế → kích thước bộ lọc → chỉ số bit của hai URL cụ thể → kiểm chứng ngược lại tỉ lệ báo nhầm.
+
+**Hình dung:** mảng bit là một **bức tường** gồm $m$ ô, ban đầu tất cả đều tối. Mỗi URL được thêm vào sẽ **ném $k$ phi tiêu** vào tường, ô nào trúng thì sáng lên. Báo nhầm (false positive) xảy ra khi một URL **chưa từng thêm** ném $k$ phi tiêu mà **cả $k$ ô** đều đã sáng sẵn do người khác ném.
+
+> **Đề bài.** Crawler VNSearch dự kiến thu thập $n = 5000$ URL, chấp nhận tỉ lệ báo nhầm $p = 0{,}01$ (1%).
+> Hãy xác định kích thước bộ lọc, mô phỏng việc ném phi tiêu cho hai URL cụ thể, rồi kiểm chứng lại tỉ lệ báo nhầm thực tế.
+
+### 11.1 Bước 1 — Tường cần bao nhiêu ô?
+
+Số ô trên tường chính là số bit $m$, lấy từ công thức §4:
+
+$$m = \left\lceil \frac{-n \ln p}{(\ln 2)^2} \right\rceil$$
+
+Thay số, với $\ln 0{,}01 = -4{,}60517$ và $(\ln 2)^2 = (0{,}69315)^2 = 0{,}48045$:
+
+$$m = \left\lceil \frac{-5000 \times (-4{,}60517)}{0{,}48045} \right\rceil = \left\lceil \frac{23\,025{,}85}{0{,}48045} \right\rceil = \lceil 47\,925{,}3 \rceil = \mathbf{47\,926}$$
+
+Tường có **47 926 ô**.
+
+### 11.2 Bước 2 — Mỗi URL ném mấy phi tiêu?
+
+$$k = \operatorname{round}\!\left(\frac{m}{n}\ln 2\right) = \operatorname{round}\!\left(\frac{47\,926}{5000} \times 0{,}69315\right) = \operatorname{round}(9{,}5852 \times 0{,}69315) = \operatorname{round}(6{,}6440) = \mathbf{7}$$
+
+Mỗi URL ném **7 phi tiêu**. Tổng số phi tiêu ném ra khi crawl xong:
+
+$$T = k \cdot n = 7 \times 5000 = 35\,000$$
+
+### 11.3 Bước 3 — Tường nặng bao nhiêu?
+
+Mỗi ô nhớ `long` chứa 64 ô tường (đúng như `bits[index/64]` ở §7.1a):
+
+$$\left\lceil \frac{m}{64} \right\rceil = \left\lceil \frac{47\,926}{64} \right\rceil = \lceil 748{,}84 \rceil = 749 \text{ ô nhớ}$$
+
+$$S = 749 \times 8 \text{ byte} = 5992 \text{ byte} \approx \mathbf{5{,}85\ KB}$$
+
+So với việc lưu nguyên văn 5000 URL (mỗi URL kèm chi phí đối tượng khoảng 150 byte):
+
+$$S_{\text{HashSet}} \approx 5000 \times 150 = 750\,000 \text{ byte} \approx 732 \text{ KB}
+\qquad\Longrightarrow\qquad
+\frac{S_{\text{HashSet}}}{S_{\text{Bloom}}} = \frac{732}{5{,}85} \approx \mathbf{125}\text{ lần}$$
+
+### 11.4 Bước 4 — Ném phi tiêu cho URL thứ nhất
+
+Gọi $x = $ `https://vnexpress.net/`. Hai "máy xay" (`hash1` FNV-1a và `hash2` polynomial + avalanche, §7.1c) cho ra:
+
+$$a(x) = 3\,142\,857\,193, \qquad b(x) = 1\,618\,033\,988$$
+
+Hai con số này vượt xa 47 926 ô, nên phải kéo về khoảng hợp lệ bằng phép chia lấy dư:
+
+$$a(x) \bmod m = 3\,142\,857\,193 - 47\,926 \times 65\,577 = 3\,142\,857\,193 - 3\,142\,843\,302 = 13\,891$$
+
+$$b(x) \bmod m = 1\,618\,033\,988 - 47\,926 \times 33\,761 = 1\,618\,033\,988 - 1\,618\,029\,686 = 4\,302$$
+
+Áp công thức double hashing $h_i(x) = (a(x) + i \cdot b(x)) \bmod m$ (§7). Vì $b(x) \equiv 4302$, mỗi phi tiêu chỉ đơn giản **nhảy thêm 4302 ô** so với phi tiêu trước:
+
+| $i$ | Phép tính | $h_i$ |
+|---|---|---|
+| 0 | — | **13 891** |
+| 1 | $13\,891 + 4302$ | **18 193** |
+| 2 | $18\,193 + 4302$ | **22 495** |
+| 3 | $22\,495 + 4302$ | **26 797** |
+| 4 | $26\,797 + 4302$ | **31 099** |
+| 5 | $31\,099 + 4302$ | **35 401** |
+| 6 | $35\,401 + 4302$ | **39 703** |
+
+Bảy ô này được đánh dấu:
+
+$$B_{13891} = B_{18193} = B_{22495} = B_{26797} = B_{31099} = B_{35401} = B_{39703} = 1$$
+
+### 11.5 Bước 5 — URL thứ hai, và hiện tượng cuộn vòng
+
+Gọi $y = $ `https://tuoitre.vn/`, với $a(y) \equiv 41\,208$ và $b(y) \equiv 9517 \pmod m$. Bước nhảy lần này lớn hơn nên sẽ **chạm mép tường**:
+
+| $i$ | Phép tính | $h_i$ |
+|---|---|---|
+| 0 | — | **41 208** |
+| 1 | $41\,208 + 9517 = 50\,725 \to 50\,725 - 47\,926$ | **2 799** ← cuộn vòng |
+| 2 | $2799 + 9517$ | **12 316** |
+| 3 | $12\,316 + 9517$ | **21 833** |
+| 4 | $21\,833 + 9517$ | **31 350** |
+| 5 | $31\,350 + 9517$ | **40 867** |
+| 6 | $40\,867 + 9517 = 50\,384 \to 50\,384 - 47\,926$ | **2 458** ← cuộn vòng |
+
+Ở $h_1$ và $h_6$, phi tiêu bay **vượt mép phải** của tường và cuộn vòng về mép trái. Đó chính xác là việc phép $\bmod\ m$ đang làm — nó biến tường phẳng thành một **vòng tròn khép kín**. Đây cũng là lý do §7.1b bắt buộc dùng `Math.floorMod`: nếu tổng bị tràn `long` thành số âm, `%` sẽ cuộn vòng **ra ngoài** tường thay vì vào trong.
+
+### 11.6 Bước 6 — Đếm ô trống sau khi ném hết 35 000 phi tiêu
+
+Xét một ô bất kỳ, chẳng hạn ô số 13 891. Mỗi phi tiêu **trượt** nó với xác suất (bước 1 của §3):
+
+$$1 - \frac{1}{m} = 1 - \frac{1}{47\,926} = 0{,}99997913$$
+
+Để ô đó **còn trống**, cả 35 000 phi tiêu đều phải trượt (bước 2–3 của §3):
+
+$$\Pr[B_j = 0] = \left(1 - \frac{1}{47\,926}\right)^{35\,000} \approx e^{-35\,000/47\,926} = e^{-0{,}73028} = 0{,}4818$$
+
+Vậy sau khi crawl xong, **48,18%** số ô còn trống, tức đã bật:
+
+$$q = \Pr[B_j = 1] = 1 - 0{,}4818 = \mathbf{0{,}5182}$$
+
+Số ô sáng đèn trên tường:
+
+$$0{,}5182 \times 47\,926 \approx 24\,835 \text{ bit}$$
+
+Con số **51,82%** này rất sát **50%** — đúng như §4 dự đoán tại $k$ tối ưu. Nó lệch một chút vì $k$ thật sự tối ưu là $6{,}644$, đã bị **làm tròn lên 7**.
+
+### 11.7 Bước 7 — Xác suất báo nhầm
+
+Đưa vào URL $z = $ `https://khong-ton-tai.vn/`, chưa từng được thêm. Nó cũng ném 7 phi tiêu. Filter báo nhầm **chỉ khi cả bảy ô** nó trúng đều đã sáng sẵn:
+
+$$p = q^k = (0{,}5182)^7$$
+
+Tính từng bước bằng bình phương liên tiếp:
+
+$$(0{,}5182)^2 = 0{,}26853$$
+$$(0{,}5182)^4 = (0{,}26853)^2 = 0{,}07211$$
+$$(0{,}5182)^7 = (0{,}5182)^4 \times (0{,}5182)^2 \times 0{,}5182 = 0{,}07211 \times 0{,}26853 \times 0{,}5182 = 0{,}010034$$
+
+$$\boxed{\;p \approx 1{,}003\%\;}$$
+
+**Khớp với yêu cầu $p = 1\%$ ban đầu — vòng tính toán đã khép kín.** Sai lệch 0,003% đến từ đúng hai lần làm tròn: $m$ làm tròn **lên**, và $k$ làm tròn từ 6,644 **lên** 7.
+
+**Ý nghĩa thực tế:** nếu crawler gặp 200 000 URL mới trong quá trình chạy, số trang bị bỏ sót oan là
+
+$$200\,000 \times 0{,}010034 \approx 2007 \text{ trang}$$
+
+Mất 2007 trang trong 200 000 — chấp nhận được. Đổi lại, số lần crawl lặp vô hạn là **0**, vì false negative không tồn tại (§2).
+
+### 11.8 Bước 8 — Chuyện gì xảy ra nếu crawl vượt dự kiến?
+
+Giả sử thực tế crawl tới $n' = 15\,000$ URL nhưng tường **vẫn chỉ có 47 926 ô**. Số phi tiêu tăng gấp ba:
+
+$$T' = 7 \times 15\,000 = 105\,000$$
+$$\Pr[B_j = 0] = e^{-105\,000/47\,926} = e^{-2{,}19082} = 0{,}1118$$
+$$q' = 1 - 0{,}1118 = 0{,}8882$$
+$$p' = (0{,}8882)^7 = 0{,}436 \qquad\Longrightarrow\qquad \boxed{\;p' \approx 43{,}6\%\;}$$
+
+Từ **1% vọt lên 43,6%** — gần một nửa số URL mới bị bỏ sót oan. Tường đã gần kín, phi tiêu ném đâu cũng trúng chỗ đã có.
+
+Đây là **điểm yếu chí mạng** của Bloom Filter và là câu hỏi phản biện dễ gặp nhất: bộ lọc **không tự nở ra**. Ước lượng $n$ sai thì tỉ lệ lỗi phình theo hàm mũ, và không có cách nào sửa ngoài việc cấp phát tường mới rồi thêm lại toàn bộ URL từ đầu (hoặc dùng Scalable Bloom Filter, §10.1). Đây chính là lý do §6 nhân hệ số **200** vào `maxPages` thay vì tin vào con số trang sẽ lưu.
+
+### 11.9 Bảng tổng kết
+
+| Đại lượng | Công thức | Kết quả |
+|---|---|---|
+| Số bit | $m = \lceil -n \ln p / (\ln 2)^2 \rceil$ | **47 926** |
+| Số hàm băm | $k = \operatorname{round}\left((m/n)\ln 2\right)$ | **7** |
+| Bộ nhớ | $\lceil m/64 \rceil \times 8$ byte | **5,85 KB** |
+| Chỉ số bit của $x$ | $h_i = (a + i\,b) \bmod m$ | 13891, 18193, … , 39703 |
+| Tỉ lệ bit bật | $q = 1 - e^{-kn/m}$ | **51,82%** |
+| Tỉ lệ báo nhầm | $p = q^k$ | **1,003%** |
+| Nếu $n$ tăng gấp 3 | $p' = (1 - e^{-kn'/m})^k$ | **43,6%** |
+
+### 11.10 Tự kiểm tra
+
+Làm lại đúng 8 bước trên với $n = 20\,000$ và $p = 0{,}001$. Đáp số để đối chiếu:
+
+<details>
+<summary>Bấm để xem đáp án</summary>
+
+- $m = \lceil -20\,000 \times (-6{,}90776) / 0{,}48045 \rceil = \lceil 287\,552 \rceil = 287\,552$ bit
+- $k = \operatorname{round}\left((287\,552/20\,000) \times 0{,}69315\right) = \operatorname{round}(9{,}966) = 10$
+- $T = 10 \times 20\,000 = 200\,000$ phi tiêu
+- Bộ nhớ $= \lceil 287\,552/64 \rceil \times 8 = 4493 \times 8 = 35\,944$ byte $\approx 35{,}1$ KB
+- $q = 1 - e^{-200\,000/287\,552} = 1 - e^{-0{,}69553} = 1 - 0{,}49881 = 0{,}50119$
+- $p = (0{,}50119)^{10} = 0{,}0010000 \approx 0{,}100\%$ ✓ khớp mục tiêu 0,1%
+
+Nhận xét: ở đây $k^*= 9{,}966$ gần số nguyên hơn nhiều so với 6,644 ở bài trên, nên $q$ sát 50% hơn (**50,12%** so với 51,82%) và $p$ gần như trùng khít mục tiêu (0,100% so với 1,003%). Càng làm tròn $k$ ít, kết quả thực tế càng bám sát thiết kế.
+
+</details>
+
+---
+
+## 12. Liên kết
 
 - Người dùng chính: [CrawlerService.md](CrawlerService.md)
 - Cùng vấn đề khử trùng lặp, tầng khác: [UrlCanonicalizer.md](UrlCanonicalizer.md)

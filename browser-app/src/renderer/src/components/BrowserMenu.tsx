@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
+import { useShallow } from 'zustand/shallow'
 import Popover from './Popover'
 import { useTabStore, HOME_URL } from '../store/tabStore'
 import { useHistoryStore } from '../store/historyStore'
 import { useSidePanelStore } from '../store/sidePanelStore'
-import { useZoomStore } from '../store/zoomStore'
+import { useZoomStore, zoomFactorOf } from '../store/zoomStore'
 import { ACCOUNT } from '../lib/account'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
 import {
@@ -33,12 +34,6 @@ interface BrowserMenuProps {
   onClose: () => void
 }
 
-/**
- * Menu chính của trình duyệt. Các mục chưa có phần xử lý thật (cửa sổ mới,
- * cửa sổ ẩn danh, tìm trong trang…) được để ở trạng thái TẮT kèm chú thích
- * trong `title`, thay vì bấm vào rồi không xảy ra gì — mục xám còn nói thật
- * về khả năng của ứng dụng.
- */
 function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
   const newTab = useTabStore((s) => s.newTab)
   const activeTabId = useTabStore((s) => s.activeTabId)
@@ -49,7 +44,6 @@ function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
   const activeTab = tabs.find((t) => t.id === activeTabId)
   const onExternalPage = !!activeTab && activeTab.url !== HOME_URL
 
-  /** Chạy một lệnh rồi đóng menu — hầu hết các mục đều theo nếp này. */
   function run(action: () => void): void {
     action()
     onClose()
@@ -61,7 +55,12 @@ function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
 
       <div className="menu-sep" />
 
-      <MenuItem icon={<VnSearchMark className="h-4 w-4" />} label="Thẻ mới" shortcut="Ctrl+T" onClick={() => run(() => newTab())} />
+      <MenuItem
+        icon={<VnSearchMark className="h-4 w-4" />}
+        label="Thẻ mới"
+        shortcut="Ctrl+T"
+        onClick={() => run(() => newTab())}
+      />
       <MenuItem
         icon={<WindowIcon className="h-[17px] w-[17px]" />}
         label="Cửa sổ mới"
@@ -159,8 +158,6 @@ function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
   )
 }
 
-/* --- Các hàng --- */
-
 interface MenuItemProps {
   icon: JSX.Element
   label: string
@@ -180,7 +177,6 @@ function MenuItem({ icon, label, shortcut, onClick, disabled, title }: MenuItemP
   )
 }
 
-/** Hàng tài khoản: avatar, tên, trạng thái, và mũi tên gợi ý có menu con. */
 function AccountRow(): JSX.Element {
   return (
     <button className="menu-row py-2" title={ACCOUNT.email}>
@@ -199,15 +195,12 @@ function AccountRow(): JSX.Element {
   )
 }
 
-/**
- * Hàng "Thu phóng": hai nút -/+ kẹp mức phần trăm, bấm vào phần trăm thì về
- * 100%, nút cuối bật/tắt toàn màn hình.
- */
 function ZoomRow({ onClose, enabled }: { onClose: () => void; enabled: boolean }): JSX.Element {
-  const factor = useZoomStore((s) => s.factor)
-  const zoomIn = useZoomStore((s) => s.zoomIn)
-  const zoomOut = useZoomStore((s) => s.zoomOut)
-  const reset = useZoomStore((s) => s.reset)
+  const activeTabId = useTabStore((state) => state.activeTabId)
+  const factor = useZoomStore((state) => zoomFactorOf(state.factors, activeTabId))
+  const zoomIn = useZoomStore((state) => state.zoomIn)
+  const zoomOut = useZoomStore((state) => state.zoomOut)
+  const reset = useZoomStore((state) => state.reset)
 
   const button =
     'flex h-7 w-7 items-center justify-center rounded-full text-muted transition-colors ' +
@@ -252,25 +245,14 @@ function ZoomRow({ onClose, enabled }: { onClose: () => void; enabled: boolean }
   )
 }
 
-/**
- * Mục "Nhật ký": rê chuột vào thì mở panel con bên TRÁI (menu đã sát mép
- * phải cửa sổ nên không còn chỗ bên phải).
- *
- * Panel con đóng trễ 180 ms sau khi con trỏ rời đi, nếu không thì đoạn hở
- * giữa hàng menu và panel sẽ làm panel chớp tắt mỗi lần người dùng đưa chuột
- * sang.
- */
 function HistoryItem({ onClose }: { onClose: () => void }): JSX.Element {
   const [open, setOpen] = useState(false)
   const timer = useRef<number | undefined>(undefined)
 
-  const recentUrls = useHistoryStore((s) => s.recentUrls)
-  const histories = useHistoryStore((s) => s.histories)
-  const navigate = useTabStore((s) => s.navigate)
-
-  // Đọc `histories` để danh sách vẽ lại khi lịch sử đổi; giá trị không dùng trực tiếp.
-  void histories
-  const recent = recentUrls(8).filter((url) => url !== HOME_URL)
+  const navigate = useTabStore((state) => state.navigate)
+  const recent = useHistoryStore(
+    useShallow((state) => state.recentUrls(8).filter((url) => url !== HOME_URL))
+  )
 
   useEffect(() => () => window.clearTimeout(timer.current), [])
 
@@ -306,7 +288,9 @@ function HistoryItem({ onClose }: { onClose: () => void }): JSX.Element {
           </p>
 
           {recent.length === 0 ? (
-            <p className="px-2.5 pb-2 text-[12px] text-faint">Chưa ghé trang nào trong phiên này.</p>
+            <p className="px-2.5 pb-2 text-[12px] text-faint">
+              Chưa ghé trang nào trong phiên này.
+            </p>
           ) : (
             recent.map((url) => (
               <button

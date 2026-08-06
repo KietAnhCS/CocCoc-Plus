@@ -1,25 +1,15 @@
-import { useEffect } from 'react'
+import { useEffect, type JSX, type ReactNode } from 'react'
 import { useOverlayStore } from '../store/overlayStore'
 
 interface PopoverProps {
   open: boolean
   onClose: () => void
-  /** Neo mép phải (mặc định) hay mép trái của nút bấm. */
   align?: 'left' | 'right'
   width?: number
-  children: React.ReactNode
-  /** Nhãn cho trình đọc màn hình. */
+  children: ReactNode
   label?: string
 }
 
-/**
- * Bảng nhỏ thả xuống từ một nút trên thanh công cụ. Nút bọc ngoài PHẢI có
- * `position: relative` vì bảng định vị tuyệt đối theo nút đó.
- *
- * Mở bảng cũng đồng thời "giữ chỗ" ở overlayStore để main process tạm gỡ
- * trang ngoài xuống — nếu không, phần bảng đổ xuống dưới thanh công cụ sẽ
- * bị trang ngoài che mất (xem chú thích trong store/overlayStore.ts).
- */
 function Popover({
   open,
   onClose,
@@ -28,8 +18,8 @@ function Popover({
   children,
   label
 }: PopoverProps): JSX.Element | null {
-  const acquire = useOverlayStore((s) => s.acquire)
-  const release = useOverlayStore((s) => s.release)
+  const acquire = useOverlayStore((state) => state.acquire)
+  const release = useOverlayStore((state) => state.release)
 
   useEffect(() => {
     if (!open) {
@@ -37,9 +27,9 @@ function Popover({
     }
     acquire()
 
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') {
+        event.stopPropagation()
         onClose()
       }
     }
@@ -57,7 +47,6 @@ function Popover({
 
   return (
     <>
-      {/* Lớp bắt cú bấm ra ngoài. Trong suốt, phủ kín cửa sổ. */}
       <div className="fixed inset-0 z-40" onMouseDown={onClose} aria-hidden="true" />
 
       <div

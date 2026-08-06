@@ -3,10 +3,6 @@ import { persist } from 'zustand/middleware'
 import { SEED_SITES } from '../lib/seedSites'
 import { normalizeUrl } from './sidePanelStore'
 
-/**
- * Hàng lối tắt trên trang chủ. Khởi tạo bằng sáu trang seed của bộ crawl —
- * xem lib/seedSites.ts — rồi người dùng tự thêm/bớt, `persist` nhớ lại.
- */
 export interface Shortcut {
   id: string
   name: string
@@ -28,10 +24,9 @@ export const useShortcutStore = create<ShortcutState>()(
         url: site.url
       })),
 
-      /** Trả về false nếu URL không dùng được hoặc đã có sẵn — người gọi báo lỗi. */
       add: (name, url) => {
         const normalized = normalizeUrl(url)
-        if (!normalized || get().shortcuts.some((s) => s.url === normalized)) {
+        if (!normalized || get().shortcuts.some((shortcut) => shortcut.url === normalized)) {
           return false
         }
         const host = new URL(normalized).hostname.replace(/^www\./, '')
@@ -44,7 +39,8 @@ export const useShortcutStore = create<ShortcutState>()(
         return true
       },
 
-      remove: (id) => set((state) => ({ shortcuts: state.shortcuts.filter((s) => s.id !== id) }))
+      remove: (id) =>
+        set((state) => ({ shortcuts: state.shortcuts.filter((shortcut) => shortcut.id !== id) }))
     }),
     { name: 'vnsearch-shortcuts' }
   )

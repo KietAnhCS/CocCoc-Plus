@@ -1,9 +1,5 @@
-/**
- * Ham goi REST API cua backend search-engine (http://localhost:8080).
- * Xem hop dong day du o docs/api-examples.http.
- */
-
-const BASE_URL = 'http://localhost:8080'
+const API_BASE = 'http://localhost:8080'
+const REQUEST_TIMEOUT_MS = 8000
 
 export interface SearchResultDto {
   title: string
@@ -16,36 +12,75 @@ export interface SearchResultDto {
 
 export interface SearchResponseDto {
   query: string
+  results: SearchResultDto[]
   totalResults: number
   page: number
+  pageSize: number
   timeTakenMs: number
-  results: SearchResultDto[]
-  /** Cac tu khoa backend da tu bo de tim duoc ket qua; rong trong truong hop thuong. */
   droppedTerms: string[]
 }
 
-export async function search(query: string, page = 1, size = 10): Promise<SearchResponseDto> {
-  const url = new URL(`${BASE_URL}/api/search`)
-  url.searchParams.set('q', query)
-  url.searchParams.set('page', String(page))
-  url.searchParams.set('size', String(size))
-
-  const response = await fetch(url.toString())
-  if (!response.ok) {
-    throw new Error(`Tim kiem that bai (HTTP ${response.status})`)
+async function getJson<T>(path: string, params: Record<string, string | number>): Promise<T> {
+  const url = new URL(path, API_BASE)
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, String(value))
   }
-  return response.json()
+
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
+  })
+
+  if (!response.ok) {
+    throw new Error(`${response.status} ${response.statusText}`)
+  }
+  return (await response.json()) as T
 }
 
-export async function suggest(prefix: string, limit = 10): Promise<string[]> {
-  const url = new URL(`${BASE_URL}/api/suggest`)
-  url.searchParams.set('prefix', prefix)
-  url.searchParams.set('limit', String(limit))
+function normalizeResult(raw: Partial<SearchResultDto>): SearchResultDto {
+  return {
+    title: raw.title ?? raw.url ?? '',
+    url: raw.url ?? '',
+    snippet: raw.snippet ?? '',
+    score: raw.score ?? 0,
+    pageRankScore: raw.pageRankScore ?? 0,
+    crawledAt: raw.crawledAt ?? ''
+  }
+}
 
-  const response = await fetch(url.toString())
-  if (!response.ok) {
+export async function search(query: string, page = 1, pageSize = 10): Promise<SearchResponseDto> {
+  const raw = await getJson<Partial<SearchResponseDto>>('/api/search', {
+    q: query,
+    page,
+    size: pageSize
+  })
+
+  const results = (raw.results ?? []).map(normalizeResult)
+
+  return {
+    query: raw.query ?? query,
+    results,
+    totalResults: raw.totalResults ?? results.length,
+    page: raw.page ?? page,
+    pageSize: raw.pageSize ?? pageSize,
+    timeTakenMs: raw.timeTakenMs ?? 0,
+    droppedTerms: raw.droppedTerms ?? []
+  }
+}
+
+export async function suggest(query: string, limit = 8): Promise<string[]> {
+  const trimmed = query.trim()
+  if (!trimmed) {
     return []
   }
-  const data = (await response.json()) as { suggestions?: string[] }
-  return data.suggestions ?? []
+
+  try {
+    const raw = await getJson<unknown>('/api/suggest', { q: trimmed, limit })
+    const list = Array.isArray(raw) ? raw : ((raw as { suggestions?: unknown })?.suggestions ?? [])
+    return Array.isArray(list)
+      ? list.filter((item): item is string => typeof item === 'string')
+      : []
+  } catch {
+    return []
+  }
 }

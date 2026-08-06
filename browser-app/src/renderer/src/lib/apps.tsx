@@ -1,29 +1,14 @@
-/**
- * Danh mục ứng dụng của cột bên phải (SideRail) và bảng "Thêm trang web vào
- * thanh bên" (SidePanel). Hai chỗ dùng CHUNG danh sách này để tên, màu và
- * hình vẽ không bao giờ lệch nhau.
- *
- * Hình vẽ là SVG nội tuyến chứ không tải logo thật: CSP của renderer là
- * `default-src 'self'` (xem index.html) nên mọi ảnh từ máy chủ ngoài đều bị
- * chặn — cùng lý do với "favicon giả" ở lib/site.ts. Đây là hình PHỎNG THEO
- * cho đủ nhận diện ở cỡ 20px, không phải logo chính thức của các hãng.
- */
+import type { JSX } from 'react'
 
 export interface SideApp {
   id: string
   name: string
   url: string
-  /** Nền viên tròn. */
   color: string
-  /** Nội dung SVG, vẽ trong khung 24x24, tô bằng `currentColor`. */
   glyph: JSX.Element
-  /** Màu nét trên nền; mặc định trắng. Nền sáng (Snapchat) cần nét tối. */
   ink?: string
 }
 
-/* --- Hình vẽ --- */
-
-/** Chữ cái đặt giữa khung 24x24 — dùng cho các logo vốn là chữ (f, Z). */
 function letter(text: string, size = 16): JSX.Element {
   return (
     <text
@@ -47,7 +32,6 @@ const messengerGlyph = (
       d="M12 2.6c-5.3 0-9.4 3.9-9.4 9.1 0 2.9 1.3 5.5 3.4 7.2v3.5l3.2-1.8c.9.2 1.8.4 2.8.4 5.3 0 9.4-3.9 9.4-9.1S17.3 2.6 12 2.6z"
       fill="currentColor"
     />
-    {/* Tia chớp khoét ngược lại bằng màu nền viên tròn. */}
     <path d="m6.4 14.9 4.9-5.2 2.5 2.6 3.8-2.6-4.9 5.2-2.5-2.6z" fill="#0084FF" />
   </>
 )
@@ -151,8 +135,6 @@ const snapchatGlyph = (
   />
 )
 
-/* --- Danh sách ứng dụng --- */
-
 const MESSENGER: SideApp = {
   id: 'messenger',
   name: 'Messenger',
@@ -250,41 +232,14 @@ const SNAPCHAT: SideApp = {
   glyph: snapchatGlyph
 }
 
-/** Sáu ứng dụng ghim sẵn ở cột dọc bên phải. */
-export const RAIL_APPS: SideApp[] = [
-  MESSENGER,
-  ZALO,
-  GAME,
-  YOUTUBE,
-  FACEBOOK,
-  GOOGLE_TRANSLATE
-]
+export const RAIL_APPS: SideApp[] = [MESSENGER, ZALO, GAME, YOUTUBE, FACEBOOK, GOOGLE_TRANSLATE]
 
-/** Các nhóm hiện trong bảng "Thêm trang web vào thanh bên". */
 export const APP_GROUPS: { label: string; apps: SideApp[] }[] = [
   { label: 'Trò chuyện', apps: [ZALO, MESSENGER, TELEGRAM, WHATSAPP] },
   { label: 'Giải trí', apps: [CHATGPT, GEMINI, DISCORD, SNAPCHAT] }
 ]
 
-/** Tra một ứng dụng theo id — dùng khi khôi phục danh sách đã ghim từ localStorage. */
 export function findApp(id: string): SideApp | undefined {
-  const all = [...RAIL_APPS, ...APP_GROUPS.flatMap((g) => g.apps)]
-  return all.find((a) => a.id === id)
-}
-
-/**
- * Viên tròn chứa hình vẽ. Cùng một thành phần dùng cho cột bên phải (cỡ 30px)
- * lẫn lưới trong bảng (cỡ 44px), nên kích thước truyền từ ngoài vào.
- */
-export function AppTile({ app, size = 32 }: { app: SideApp; size?: number }): JSX.Element {
-  return (
-    <span
-      className="flex shrink-0 items-center justify-center rounded-full"
-      style={{ background: app.color, color: app.ink ?? '#fff', width: size, height: size }}
-    >
-      <svg viewBox="0 0 24 24" style={{ width: size * 0.62, height: size * 0.62 }} aria-hidden="true">
-        {app.glyph}
-      </svg>
-    </span>
-  )
+  const all = [...RAIL_APPS, ...APP_GROUPS.flatMap((group) => group.apps)]
+  return all.find((app) => app.id === id)
 }

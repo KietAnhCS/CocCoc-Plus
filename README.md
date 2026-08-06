@@ -15,7 +15,7 @@ phân tích độ phức tạp và **đo đạc thực nghiệm** trên corpus t
 | Chỉ mục | 136.768 term phân biệt, 1.043 token/tài liệu |
 | Đồ thị liên kết | 239.691 cạnh (42.002 cạnh chéo domain), độ thưa 0,95% |
 | Kiểm thử | **280 test**, tất cả xanh |
-| Mã nguồn | **76 lớp Java / 10.485 dòng** (backend) + **3.507 dòng test** + ~1.500 dòng TypeScript (frontend) |
+| Mã nguồn | **76 lớp Java / 10.485 dòng** (backend) + **3.507 dòng test** + **5.688 dòng TypeScript / 42 file** (frontend) |
 | Trừu tượng hoá | **8 interface** tự định nghĩa, **10 design pattern** có chủ đích |
 | Chất lượng tìm kiếm | MRR **0,8758**, Success@1 **81,5%** (cấu hình đang dùng); tốt nhất là BM25+PR+title với MRR **0,9093** |
 | Tốc độ truy vấn | **~1,6 ms**/truy vấn — 1,59 ms (EvaluationRunner) / 1,62 ms (GinBaselineRunner); trước tối ưu: 3,84 ms |
@@ -64,6 +64,7 @@ tạp*. Đọc theo thứ tự trong bảng.
 | 3b | [**docs/SO-SANH-PHUONG-AN.md**](docs/SO-SANH-PHUONG-AN.md) | **13 bài toán, mỗi bài nhiều thuật toán giải được** — bảng so sánh, lý do chọn, và **điểm lật** (khi nào kết luận đảo chiều) | Bị hỏi **"sao không dùng cách khác?"** |
 | 4 | [**docs/Math/**](docs/Math/README.md) | **Một trang cho mỗi file nguồn** — công thức đầy đủ, chứng minh, ví dụ tính tay, độ phức tạp, hạn chế | Cần **đào sâu** một thành phần |
 | 5 | [**docs/Math/09-design-patterns/**](docs/Math/09-design-patterns/README.md) | **12 trang học OOP** — mỗi design pattern một trang, kèm lỗi thật mà nó sửa và câu hỏi bảo vệ | Học **OOP**, chuẩn bị **bảo vệ** |
+| 5b | [**docs/FRONTEND.md**](docs/FRONTEND.md) | **Trình duyệt (Electron + React)** — kiến trúc 3 tiến trình, hợp đồng IPC, 5 luồng xử lý, **12 công thức hướng dẫn sửa code**, và **đánh giá kiến trúc theo chuẩn doanh nghiệp** | Làm việc với **frontend** |
 | 6 | [docs/DSA-REPORT.md](docs/DSA-REPORT.md) | Bảng Big-O đầy đủ, lý do chọn từng cấu trúc kèm **số đo**, 3 lỗi hiệu năng phát hiện nhờ đo đạc | Viết **báo cáo đồ án** |
 | 7 | [docs/EVALUATION.md](docs/EVALUATION.md) | **Đánh giá chất lượng tìm kiếm** — known-item search, 11 cấu hình ablation, phân tích thang đo *(sinh tự động)* | Cần **chứng minh** chất lượng |
 | 8 | [docs/GIN-BASELINE.md](docs/GIN-BASELINE.md) | **Đối chứng với PostgreSQL GIN** — baseline bên ngoài, có làm nóng JVM đúng cách *(sinh tự động)* | Cần một **mốc so sánh** |

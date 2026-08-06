@@ -1,60 +1,87 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss' source(none);
+@source '..';
 
-/*
- * Bảng màu ngữ nghĩa. Mỗi biến là bộ ba RGB (không có `rgb()`) để Tailwind
- * ghép được với `<alpha-value>` — xem tailwind.config.js. Chế độ tối bật
- * bằng cách gắn class `dark` lên <html> (themeStore.ts).
- */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-chrome: rgb(223 227 235);
+  --color-surface: rgb(255 255 255);
+  --color-raised: rgb(241 243 248);
+  --color-line: rgb(219 224 233);
+  --color-ink: rgb(24 26 31);
+  --color-muted: rgb(92 100 114);
+  --color-faint: rgb(140 148 162);
+  --color-brand: rgb(79 70 229);
+  --color-brand-soft: rgb(238 240 255);
+  --color-link: rgb(26 90 219);
+  --color-visited: rgb(105 60 190);
+  --color-success: rgb(16 122 87);
+  --color-warn: rgb(180 83 9);
+  --color-danger: rgb(200 45 55);
+  --color-omni: rgb(241 243 248);
+  --color-bookmarks: rgb(232 236 243);
+
+  --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  --shadow-tab: 0 1px 3px rgb(0 0 0 / 0.12);
+  --shadow-omni: 0 1px 6px rgb(0 0 0 / 0.1);
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.18), 0 2px 8px rgb(0 0 0 / 0.08);
+  --shadow-card: 0 8px 24px rgb(0 0 0 / 0.12);
+
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
+  --animate-fade-up: fade-up 0.28s ease-out both;
+  --animate-scale-in: scale-in 0.14s ease-out;
+
+  @keyframes shimmer {
+    100% {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes scale-in {
+    from {
+      opacity: 0;
+      transform: scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+.dark {
+  --color-chrome: rgb(17 19 24);
+  --color-surface: rgb(27 30 36);
+  --color-raised: rgb(39 43 51);
+  --color-line: rgb(51 56 65);
+  --color-ink: rgb(232 234 238);
+  --color-muted: rgb(158 165 176);
+  --color-faint: rgb(122 130 142);
+  --color-brand: rgb(129 140 248);
+  --color-brand-soft: rgb(44 46 78);
+  --color-link: rgb(138 180 248);
+  --color-visited: rgb(197 163 245);
+  --color-success: rgb(74 202 152);
+  --color-warn: rgb(240 180 80);
+  --color-danger: rgb(255 130 130);
+  --color-omni: rgb(42 46 55);
+  --color-bookmarks: rgb(20 22 27);
+}
+
 @layer base {
-  :root {
-    --c-chrome: 223 227 235; /* nền thanh tab */
-    --c-surface: 255 255 255; /* nền nội dung / tab đang mở */
-    --c-raised: 241 243 248; /* nền nổi nhẹ: ô nhập, nút hover */
-    --c-line: 219 224 233;
-    --c-ink: 24 26 31;
-    --c-muted: 92 100 114;
-    --c-faint: 140 148 162;
-    --c-brand: 79 70 229;
-    --c-brand-soft: 238 240 255;
-    --c-link: 26 90 219;
-    --c-visited: 105 60 190;
-    --c-success: 16 122 87;
-    --c-warn: 180 83 9;
-    --c-danger: 200 45 55;
-
-    /* Nền ô địa chỉ và nền thanh dấu trang: tách riêng khỏi --c-raised vì hai
-       thanh này phải chìm hơn thanh công cụ một bậc, không dùng chung tông
-       với nút hover. */
-    --c-omni: 241 243 248;
-    --c-bookmarks: 232 236 243;
-
-    --shine: 255 255 255;
-  }
-
-  .dark {
-    --c-chrome: 17 19 24;
-    --c-surface: 27 30 36;
-    --c-raised: 39 43 51;
-    --c-line: 51 56 65;
-    --c-ink: 232 234 238;
-    --c-muted: 158 165 176;
-    --c-faint: 122 130 142;
-    --c-brand: 129 140 248;
-    --c-brand-soft: 44 46 78;
-    --c-link: 138 180 248;
-    --c-visited: 197 163 245;
-    --c-success: 74 202 152;
-    --c-warn: 240 180 80;
-    --c-danger: 255 130 130;
-
-    --c-omni: 42 42 42;
-    --c-bookmarks: 20 22 27;
-
-    --shine: 255 255 255;
-  }
-
   html,
   body,
   #root {
@@ -63,12 +90,10 @@
 
   body {
     @apply bg-chrome font-sans text-ink antialiased;
-    /* Chrome UI là phần vỏ trình duyệt: không cho bôi đen/kéo chọn lung tung. */
-    user-select: none;
     overflow: hidden;
+    user-select: none;
   }
 
-  /* Nội dung đọc được (kết quả tìm kiếm, ô nhập) thì vẫn cho chọn bình thường. */
   input,
   textarea,
   .selectable {
@@ -85,7 +110,6 @@
 }
 
 @layer components {
-  /* Nút biểu tượng tròn dùng chung cho toolbar. */
   .icon-btn {
     @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted
            transition-colors duration-150 hover:bg-raised hover:text-ink
@@ -93,33 +117,30 @@
            disabled:pointer-events-none disabled:text-faint/50;
   }
 
-  /* Một hàng trong menu thả xuống: biểu tượng trái - tên - phím tắt phải. */
   .menu-row {
     @apply flex w-full items-center gap-3 rounded-lg px-2.5 py-[7px] text-left text-[13px]
            text-ink transition-colors duration-100 hover:bg-raised
-           focus-visible:outline-none focus-visible:bg-raised
+           focus-visible:bg-raised focus-visible:outline-none
            disabled:pointer-events-none disabled:text-faint/60;
   }
 
-  /* Đường kẻ mờ chia nhóm chức năng trong menu. */
   .menu-sep {
     @apply my-1 h-px bg-line;
   }
 
-  /* Nút biểu tượng của cột dọc bên phải. */
   .rail-btn {
     @apply flex h-9 w-9 items-center justify-center rounded-xl text-muted
            transition-colors duration-150 hover:bg-raised hover:text-ink
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60;
   }
 
-  /* Ô xám chạy sóng khi đang chờ dữ liệu. */
   .skeleton {
     @apply relative overflow-hidden rounded bg-raised;
   }
 
   .skeleton::after {
-    @apply absolute inset-0 animate-shimmer bg-gradient-to-r from-transparent via-white/50 to-transparent content-[''];
+    @apply absolute inset-0 animate-shimmer bg-linear-to-r from-transparent via-white/50
+           to-transparent content-[''];
     transform: translateX(-100%);
   }
 
@@ -128,7 +149,6 @@
   }
 }
 
-/* Thanh cuộn mảnh, hoà vào nền — mặc định của Windows quá dày và chói. */
 ::-webkit-scrollbar {
   width: 12px;
   height: 12px;
@@ -139,12 +159,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgb(var(--c-faint) / 0.4);
+  background-color: color-mix(in srgb, var(--color-faint) 40%, transparent);
   border: 3px solid transparent;
   background-clip: content-box;
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(var(--c-faint) / 0.7);
+  background-color: color-mix(in srgb, var(--color-faint) 70%, transparent);
 }

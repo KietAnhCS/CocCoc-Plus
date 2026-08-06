@@ -1,53 +1,51 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import type { TabsSnapshot } from '../main/tabManager'
 
-/**
- * contextBridge that ket noi voi ipcHandlers.ts o main process qua
- * ipcRenderer.invoke. contextIsolation=true / nodeIntegration=false duoc
- * giu nguyen (yeu cau bao mat co dinh cua do an) - renderer khong bao gio
- * co truy cap truc tiep vao Node.js/Electron API, chi qua cac ham nay.
- */
 const browserApi = {
-  listTabs: (): Promise<unknown[]> => ipcRenderer.invoke('browser:listTabs'),
-  newTab: (url: string): Promise<string> => ipcRenderer.invoke('browser:newTab', url),
+  listTabs: (): Promise<TabsSnapshot> => ipcRenderer.invoke('browser:listTabs'),
+  newTab: (url?: string): Promise<string> => ipcRenderer.invoke('browser:newTab', url),
   closeTab: (id: string): Promise<void> => ipcRenderer.invoke('browser:closeTab', id),
   switchTab: (id: string): Promise<void> => ipcRenderer.invoke('browser:switchTab', id),
-  navigate: (id: string, url: string): Promise<void> => ipcRenderer.invoke('browser:navigate', id, url),
-  goBack: (id: string): Promise<void> => ipcRenderer.invoke('browser:goBack', id),
-  goForward: (id: string): Promise<void> => ipcRenderer.invoke('browser:goForward', id),
+  navigate: (id: string, url: string): Promise<void> =>
+    ipcRenderer.invoke('browser:navigate', id, url),
   reload: (id: string): Promise<void> => ipcRenderer.invoke('browser:reload', id),
-  /** Bề ngang bảng bên đang mở (0 = đóng) — trang ngoài co lại nhường chỗ. */
-  setPanelWidth: (px: number): Promise<void> => ipcRenderer.invoke('browser:setPanelWidth', px),
-  /** Bật khi vỏ mở menu/hộp thoại đổ dài quá vùng thanh công cụ. */
-  setOverlay: (active: boolean): Promise<void> => ipcRenderer.invoke('browser:setOverlay', active),
+  print: (id: string): Promise<void> => ipcRenderer.invoke('browser:print', id),
   setZoom: (id: string, factor: number): Promise<void> =>
     ipcRenderer.invoke('browser:setZoom', id, factor),
-  print: (id: string): Promise<void> => ipcRenderer.invoke('browser:print', id),
-  onTabUpdate: (callback: (payload: unknown) => void): void => {
-    ipcRenderer.on('browser:tabUpdate', (_event, payload) => callback(payload))
+
+  setPanelWidth: (px: number): void => ipcRenderer.send('browser:setPanelWidth', px),
+  setOverlay: (active: boolean): void => ipcRenderer.send('browser:setOverlay', active),
+
+  onTabsChanged: (callback: (snapshot: TabsSnapshot) => void): (() => void) => {
+    const listener = (_e: unknown, snapshot: TabsSnapshot): void => callback(snapshot)
+    ipcRenderer.on('browser:tabs', listener)
+    return () => ipcRenderer.removeListener('browser:tabs', listener)
   },
-  /** Phím tắt bấm khi con trỏ đang ở một trang ngoài, do main process chuyển tiếp. */
-  onShortcut: (callback: (name: string) => void): void => {
-    ipcRenderer.on('browser:shortcut', (_event, name: string) => callback(name))
+  onShortcut: (callback: (name: string) => void): (() => void) => {
+    const listener = (_e: unknown, name: string): void => callback(name)
+    ipcRenderer.on('browser:shortcut', listener)
+    return () => ipcRenderer.removeListener('browser:shortcut', listener)
   }
 }
 
-/**
- * Điều khiển cửa sổ frameless: ba nút thu nhỏ/phóng to/đóng nằm ngay trên
- * thanh tab, và thao tác kéo cửa sổ đi (xem main/windowControls.ts).
- */
 const windowApi = {
-  minimize: (): Promise<void> => ipcRenderer.invoke('window:minimize'),
-  toggleMaximize: (): Promise<boolean> => ipcRenderer.invoke('window:toggleMaximize'),
-  close: (): Promise<void> => ipcRenderer.invoke('window:close'),
-  isMaximized: (): Promise<boolean> => ipcRenderer.invoke('window:isMaximized'),
-  toggleFullScreen: (): Promise<boolean> => ipcRenderer.invoke('window:toggleFullScreen'),
-  dragStart: (): void => ipcRenderer.send('window:dragStart'),
-  dragEnd: (): void => ipcRenderer.send('window:dragEnd'),
-  onMaximizeChanged: (callback: (maximized: boolean) => void): void => {
-    ipcRenderer.on('window:maximizeChanged', (_event, maximized: boolean) => callback(maximized))
+  minimize: (): void => ipcRenderer.send('win:minimize'),
+  close: (): void => ipcRenderer.send('win:close'),
+  toggleFullScreen: (): void => ipcRenderer.send('win:toggleFullScreen'),
+  dragStart: (): void => ipcRenderer.send('win:dragStart'),
+  dragEnd: (): void => ipcRenderer.send('win:dragEnd'),
+  isMaximized: (): Promise<boolean> => ipcRenderer.invoke('win:isMaximized'),
+  toggleMaximize: (): Promise<boolean> => ipcRenderer.invoke('win:toggleMaximize'),
+  onMaximizeChanged: (callback: (maximized: boolean) => void): (() => void) => {
+    const listener = (_e: unknown, maximized: boolean): void => callback(maximized)
+    ipcRenderer.on('win:maximizeChanged', listener)
+    return () => ipcRenderer.removeListener('win:maximizeChanged', listener)
   }
 }
+
+export type BrowserApi = typeof browserApi
+export type WindowApi = typeof windowApi
 
 if (process.contextIsolated) {
   try {
@@ -58,10 +56,8 @@ if (process.contextIsolated) {
     console.error(error)
   }
 } else {
-  // @ts-ignore (define in dts)
-  window.electron = electronAPI
-  // @ts-ignore (define in dts)
-  window.browser = browserApi
-  // @ts-ignore (define in dts)
-  window.win = windowApi
+  const globals = window as unknown as Record<string, unknown>
+  globals.electron = electronAPI
+  globals.browser = browserApi
+  globals.win = windowApi
 }

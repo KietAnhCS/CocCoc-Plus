@@ -1,5 +1,6 @@
 node_modules
 dist
 out
-.env
-*.log
+.DS_Store
+.eslintcache
+*.log*

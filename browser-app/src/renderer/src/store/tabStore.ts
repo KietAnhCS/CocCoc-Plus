@@ -11,14 +11,9 @@ export interface TabInfo {
   loading: boolean
 }
 
-/** Khop voi TabState gui tu main process (main/tabManager.ts) qua browser:tabUpdate. */
-interface TabUpdatePayload {
-  id: string
-  url: string
-  title: string
-  loading: boolean
-  canGoBack: boolean
-  canGoForward: boolean
+interface TabsSnapshot {
+  tabs: TabInfo[]
+  activeTabId: string | null
 }
 
 interface TabStoreState {
@@ -48,56 +43,45 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
     }
     set({ initialized: true })
 
-    const applyTabUpdate = (tab: TabUpdatePayload): void => {
+    const applySnapshot = ({ tabs, activeTabId }: TabsSnapshot): void => {
       const history = useHistoryStore.getState()
-      history.ensureTab(tab.id, tab.url)
-      history.recordNavigation(tab.id, tab.url)
+      const liveIds = new Set(tabs.map((tab) => tab.id))
 
-      set((state) => {
-        const idx = state.tabs.findIndex((t) => t.id === tab.id)
-        const info: TabInfo = { id: tab.id, url: tab.url, title: tab.title, loading: tab.loading }
-        const tabs =
-          idx >= 0 ? state.tabs.map((t, i) => (i === idx ? info : t)) : [...state.tabs, info]
-        return { tabs, activeTabId: state.activeTabId ?? tab.id }
-      })
+      for (const tab of tabs) {
+        history.ensureTab(tab.id, tab.url)
+        history.recordNavigation(tab.id, tab.url)
+      }
+      for (const id of history.trackedTabIds()) {
+        if (!liveIds.has(id)) {
+          history.removeTab(id)
+        }
+      }
+
+      set({ tabs, activeTabId })
     }
 
-    window.browser.onTabUpdate((payload) => applyTabUpdate(payload as TabUpdatePayload))
-
-    // Tab dau tien (trang home) duoc TabManager tao TRONG constructor, tuc
-    // la truoc khi dong ipcRenderer.on o tren kip dang ky - nen goi push
-    // dau tien qua browser:tabUpdate bi mat (send khong hang doi). Vi vay
-    // PHAI chu dong keo (pull) danh sach tab hien tai ngay sau khi mount.
-    window.browser.listTabs().then((tabs) => {
-      for (const tab of tabs as TabUpdatePayload[]) {
-        applyTabUpdate(tab)
-      }
-    })
+    window.browser.onTabsChanged(applySnapshot)
+    window.browser.listTabs().then(applySnapshot)
   },
 
   newTab: async (url) => {
-    useSearchViewStore.getState().setQuery(null)
-    const id = await window.browser.newTab(url ?? HOME_URL)
-    set({ activeTabId: id })
+    useSearchViewStore.getState().clear()
+    await window.browser.newTab(url ?? HOME_URL)
   },
 
   closeTab: async (id) => {
     await window.browser.closeTab(id)
-    useHistoryStore.getState().removeTab(id)
-    set((state) => ({ tabs: state.tabs.filter((t) => t.id !== id) }))
   },
 
   switchTab: async (id) => {
     await window.browser.switchTab(id)
-    set({ activeTabId: id })
   },
 
   navigate: async (url) => {
     const { activeTabId } = get()
-    if (!activeTabId) {
-      return
+    if (activeTabId) {
+      await window.browser.navigate(activeTabId, url)
     }
-    await window.browser.navigate(activeTabId, url)
   },
 
   goBack: async () => {
@@ -105,9 +89,9 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
     if (!activeTabId) {
       return
     }
-    const prevUrl = useHistoryStore.getState().goBack(activeTabId)
-    if (prevUrl !== undefined) {
-      await window.browser.navigate(activeTabId, prevUrl)
+    const previousUrl = useHistoryStore.getState().goBack(activeTabId)
+    if (previousUrl !== undefined) {
+      await window.browser.navigate(activeTabId, previousUrl)
     }
   },
 

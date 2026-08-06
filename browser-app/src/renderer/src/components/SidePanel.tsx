@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, type FormEvent, type JSX } from 'react'
 import {
   useSidePanelStore,
   normalizeUrl,
@@ -6,12 +6,12 @@ import {
   type PanelKind
 } from '../store/sidePanelStore'
 import { useTabStore } from '../store/tabStore'
-import { useBookmarkStore, type BookmarkNode } from '../store/bookmarkStore'
-import { APP_GROUPS, AppTile, findApp } from '../lib/apps'
+import { useBookmarkStore, collectBookmarks } from '../store/bookmarkStore'
+import { APP_GROUPS, findApp } from '../lib/apps'
+import AppTile from './AppTile'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
 import { CloseIcon, DownloadIcon, PinIcon, SparkleIcon } from './icons'
 
-/** Tiêu đề hiện trên đầu bảng, theo loại nội dung đang mở. */
 const TITLES: Record<PanelKind, string> = {
   'add-site': 'Thêm trang web vào thanh bên',
   ai: 'Hỏi AI',
@@ -20,14 +20,6 @@ const TITLES: Record<PanelKind, string> = {
   app: 'Ứng dụng'
 }
 
-/**
- * Bảng trượt ra từ mép phải, neo cạnh cột biểu tượng.
- *
- * Bảng KHÔNG phủ lên trang: App.tsx báo bề ngang xuống main process để trang
- * ngoài co lại đúng chừng ấy (xem tabManager.setPanelWidth). Nhờ vậy vẫn đọc
- * được trang trong lúc thao tác trên bảng — cũng là cách thanh bên của Cốc
- * Cốc và Edge hoạt động.
- */
 function SidePanel(): JSX.Element | null {
   const open = useSidePanelStore((s) => s.open)
   const pinned = useSidePanelStore((s) => s.pinned)
@@ -73,18 +65,15 @@ function SidePanel(): JSX.Element | null {
   )
 }
 
-/** Ô nhập URL + lưới ứng dụng gợi ý, chia theo nhóm có nhãn. */
 function AddSiteBody(): JSX.Element {
   const [url, setUrl] = useState('')
   const items = useSidePanelStore((s) => s.items)
   const addSite = useSidePanelStore((s) => s.addSite)
   const addApp = useSidePanelStore((s) => s.addApp)
 
-  // Nút "Thêm" chỉ bật khi chuỗi đang gõ thật sự dùng được làm địa chỉ —
-  // rẻ hơn nhiều so với để người dùng bấm rồi mới báo lỗi.
   const valid = normalizeUrl(url) !== null
 
-  function submit(e: React.FormEvent): void {
+  function submit(e: FormEvent): void {
     e.preventDefault()
     if (!valid) {
       return
@@ -150,11 +139,6 @@ function AddSiteBody(): JSX.Element {
   )
 }
 
-/**
- * Nội dung khi bấm một ô đã ghim. Bảng đóng vai trò bệ phóng chứ không nhúng
- * trang vào trong: nhúng được thì phải tạo thêm một WebContentsView lồng
- * trong vùng bảng ở main process, nằm ngoài phạm vi phần giao diện này.
- */
 function AppBody(): JSX.Element {
   const activeItemId = useSidePanelStore((s) => s.activeItemId)
   const items = useSidePanelStore((s) => s.items)
@@ -206,11 +190,6 @@ function AppBody(): JSX.Element {
   )
 }
 
-/**
- * Danh sách dấu trang đã lưu. Ô lọc gọi thẳng `searchByPrefix` của
- * bookmarkStore — tức là chạy qua BookmarkTrie tự cài (lib/BookmarkTrie.ts)
- * chứ không phải `Array.filter`.
- */
 function BookmarksBody(): JSX.Element {
   const [filter, setFilter] = useState('')
   const root = useBookmarkStore((s) => s.root)
@@ -220,7 +199,7 @@ function BookmarksBody(): JSX.Element {
   const closePanel = useSidePanelStore((s) => s.closePanel)
   const navigate = useTabStore((s) => s.navigate)
 
-  const all = flattenBookmarks(root)
+  const all = collectBookmarks(root)
   const shown = filter.trim() ? searchByPrefix(filter.trim()) : all
 
   function open(url: string): void {
@@ -255,7 +234,10 @@ function BookmarksBody(): JSX.Element {
       ) : (
         <ul className="mt-2">
           {shown.map((bookmark) => (
-            <li key={bookmark.id} className="group flex items-center gap-2 rounded-lg pr-1 hover:bg-raised">
+            <li
+              key={bookmark.id}
+              className="group flex items-center gap-2 rounded-lg pr-1 hover:bg-raised"
+            >
               <button
                 onClick={() => open(bookmark.url ?? '')}
                 className="flex min-w-0 flex-1 items-center gap-2.5 px-2 py-2 text-left
@@ -292,21 +274,6 @@ function BookmarksBody(): JSX.Element {
       )}
     </div>
   )
-}
-
-/** Duyệt cây dấu trang, lấy ra các nút lá (nút có url). */
-function flattenBookmarks(node: BookmarkNode): BookmarkNode[] {
-  const out: BookmarkNode[] = []
-  const walk = (current: BookmarkNode): void => {
-    if (current.url) {
-      out.push(current)
-    }
-    for (const child of current.children ?? []) {
-      walk(child)
-    }
-  }
-  walk(node)
-  return out
 }
 
 function DownloadsBody(): JSX.Element {

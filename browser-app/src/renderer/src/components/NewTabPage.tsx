@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useState,
+  type FormEvent,
+  type JSX,
+  type KeyboardEvent as ReactKeyboardEvent
+} from 'react'
 import AutocompleteDropdown from './AutocompleteDropdown'
 import { suggest } from '../lib/searchApi'
 import { fetchHotNews, type NewsCard } from '../lib/newsApi'
@@ -6,16 +12,15 @@ import { useSearchViewStore } from '../store/searchViewStore'
 import { useTabStore } from '../store/tabStore'
 import { useShortcutStore } from '../store/shortcutStore'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
-import {
-  CloseIcon,
-  MicIcon,
-  MoonCloudIcon,
-  PlusIcon,
-  SunCloudIcon,
-  VnSearchMark
-} from './icons'
+import { CloseIcon, MicIcon, MoonCloudIcon, PlusIcon, SunCloudIcon, VnSearchMark } from './icons'
 
-/** Truy vấn mẫu để bấm phát là thấy ngay, kể cả cú pháp nâng cao. */
+const SUGGEST_DEBOUNCE_MS = 200
+
+interface NewsOutcome {
+  attempt: number
+  cards: NewsCard[] | null
+}
+
 const SAMPLE_QUERIES = [
   'bóng đá Việt Nam',
   'giá vàng hôm nay',
@@ -23,14 +28,6 @@ const SAMPLE_QUERIES = [
   'site:vnexpress.net kinh tế'
 ]
 
-/**
- * Trang chủ (new tab): ảnh nền lớn, overlay thời tiết, hàng lối tắt, ô tìm
- * kiếm, rồi khu "Tin nóng".
- *
- * Mọi thứ nhìn như "ảnh" ở đây đều là gradient/SVG vẽ tại chỗ: CSP của
- * renderer là `default-src 'self'` (xem index.html) nên không tải được ảnh
- * từ máy chủ ngoài — cùng lý do với "favicon giả" ở lib/site.ts.
- */
 function NewTabPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden bg-surface">
@@ -59,11 +56,6 @@ function NewTabPage(): JSX.Element {
   )
 }
 
-/**
- * "Ảnh nền" trang chủ: một cảnh hoàng hôn vẽ bằng SVG — trời chuyển màu, quầng
- * sáng mặt trời, ba lớp núi chồng nhau tạo chiều sâu. Màu cố định, không đổi
- * theo giao diện sáng/tối, vì đây đóng vai trò tấm ảnh chứ không phải bề mặt.
- */
 function HeroBackdrop(): JSX.Element {
   return (
     <div className="absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
@@ -88,7 +80,6 @@ function HeroBackdrop(): JSX.Element {
             <stop offset="0%" stopColor="#33224b" />
             <stop offset="100%" stopColor="#241a39" />
           </linearGradient>
-          {/* Vệt tối ở đáy để chữ và thẻ tin bên dưới luôn đủ tương phản. */}
           <linearGradient id="ntp-fade" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#0f1220" stopOpacity="0" />
             <stop offset="100%" stopColor="#0f1220" stopOpacity="0.85" />
@@ -98,7 +89,6 @@ function HeroBackdrop(): JSX.Element {
         <rect width="1440" height="520" fill="url(#ntp-sky)" />
         <rect width="1440" height="520" fill="url(#ntp-sun)" />
 
-        {/* Vài vệt mây mảnh. */}
         <g fill="#ffffff" opacity="0.10">
           <ellipse cx="250" cy="120" rx="150" ry="12" />
           <ellipse cx="380" cy="160" rx="200" ry="10" />
@@ -125,16 +115,10 @@ function HeroBackdrop(): JSX.Element {
   )
 }
 
-/**
- * Overlay thời tiết góc trái trên. Ngày tháng và biểu tượng ngày/đêm lấy
- * theo đồng hồ máy; riêng NHIỆT ĐỘ là số tượng trưng — CSP chỉ cho gọi
- * localhost:8080 mà backend VnSearch không có dữ liệu thời tiết.
- */
 function WeatherOverlay(): JSX.Element {
   const [now, setNow] = useState(() => new Date())
 
   useEffect(() => {
-    // Cập nhật mỗi phút là đủ: overlay chỉ hiện giờ:phút và ngày.
     const timer = window.setInterval(() => setNow(new Date()), 60_000)
     return () => window.clearInterval(timer)
   }, [])
@@ -174,7 +158,6 @@ function WeatherOverlay(): JSX.Element {
   )
 }
 
-/** Hàng lối tắt, nút "Thêm mới" đứng đầu như trong bản mô tả. */
 function ShortcutRow(): JSX.Element {
   const shortcuts = useShortcutStore((s) => s.shortcuts)
   const remove = useShortcutStore((s) => s.remove)
@@ -242,7 +225,6 @@ function ShortcutRow(): JSX.Element {
   )
 }
 
-/** Hộp thoại nhỏ để thêm một lối tắt. */
 function AddShortcutDialog({ onClose }: { onClose: () => void }): JSX.Element {
   const add = useShortcutStore((s) => s.add)
   const [name, setName] = useState('')
@@ -259,7 +241,7 @@ function AddShortcutDialog({ onClose }: { onClose: () => void }): JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [onClose])
 
-  function submit(e: React.FormEvent): void {
+  function submit(e: FormEvent): void {
     e.preventDefault()
     if (add(name, url)) {
       onClose()
@@ -336,33 +318,25 @@ function AddShortcutDialog({ onClose }: { onClose: () => void }): JSX.Element {
   )
 }
 
-/**
- * Ô tìm kiếm lớn: bo tròn hoàn toàn, nền đen trong suốt để lộ ảnh nền phía
- * sau. Gõ vào -> chờ 200 ms -> gọi /api/suggest -> đổ xuống dropdown; Enter
- * chuyển sang trang kết quả qua searchViewStore.
- */
 function HeroSearchBox(): JSX.Element {
   const [text, setText] = useState('')
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [highlighted, setHighlighted] = useState(-1)
   const [focused, setFocused] = useState(false)
   const [micNote, setMicNote] = useState(false)
-  const setQuery = useSearchViewStore((s) => s.setQuery)
-  const debounceRef = useRef<number | undefined>(undefined)
+  const runQuery = useSearchViewStore((state) => state.runSearch)
+
+  const suggestible = text.trim().length > 0
 
   useEffect(() => {
-    if (!text.trim()) {
-      setSuggestions([])
+    if (!suggestible) {
       return undefined
     }
-    window.clearTimeout(debounceRef.current)
-    debounceRef.current = window.setTimeout(() => {
-      suggest(text, 8)
-        .then(setSuggestions)
-        .catch(() => setSuggestions([]))
-    }, 200)
-    return () => window.clearTimeout(debounceRef.current)
-  }, [text])
+    const timer = window.setTimeout(() => {
+      suggest(text, 8).then(setSuggestions)
+    }, SUGGEST_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [text, suggestible])
 
   function runSearch(q: string): void {
     const trimmed = q.trim()
@@ -371,10 +345,10 @@ function HeroSearchBox(): JSX.Element {
     }
     setSuggestions([])
     setHighlighted(-1)
-    setQuery(trimmed)
+    runQuery(trimmed)
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
+  function handleKeyDown(e: ReactKeyboardEvent<HTMLInputElement>): void {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       setHighlighted((h) => Math.min(h + 1, suggestions.length - 1))
@@ -392,8 +366,6 @@ function HeroSearchBox(): JSX.Element {
 
   return (
     <div className="mt-9 w-full animate-fade-up" style={{ animationDelay: '60ms' }}>
-      {/* `relative` chỉ bọc riêng ô nhập: dropdown gợi ý neo theo `top-full`
-          nên nếu bọc cả khối, nó sẽ rơi xuống dưới hàng truy vấn mẫu. */}
       <div className="relative">
         <div
           className={
@@ -435,7 +407,7 @@ function HeroSearchBox(): JSX.Element {
         </div>
 
         <AutocompleteDropdown
-          suggestions={suggestions}
+          suggestions={suggestible ? suggestions : []}
           highlightedIndex={highlighted}
           query={text}
           onSelect={(s) => {
@@ -473,38 +445,34 @@ function HeroSearchBox(): JSX.Element {
   )
 }
 
-/**
- * Khu "Tin nóng". Thẻ tin là bài THẬT trong chỉ mục, lấy bằng vài truy vấn
- * theo chuyên mục (xem lib/newsApi.ts) — nên khu này trống khi backend chưa
- * chạy, và nói rõ điều đó thay vì hiện dữ liệu bịa.
- */
 function HotNews(): JSX.Element {
-  const [cards, setCards] = useState<NewsCard[] | null>(null)
-  const [failed, setFailed] = useState(false)
-  const [reloadKey, setReloadKey] = useState(0)
-  const navigate = useTabStore((s) => s.navigate)
+  const [attempt, setAttempt] = useState(0)
+  const [outcome, setOutcome] = useState<NewsOutcome | null>(null)
+  const navigate = useTabStore((state) => state.navigate)
 
   useEffect(() => {
     let cancelled = false
-    setCards(null)
-    setFailed(false)
 
     fetchHotNews(2)
-      .then((result) => {
+      .then((cards) => {
         if (!cancelled) {
-          setCards(result)
+          setOutcome({ attempt, cards })
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setFailed(true)
+          setOutcome({ attempt, cards: null })
         }
       })
 
     return () => {
       cancelled = true
     }
-  }, [reloadKey])
+  }, [attempt])
+
+  const settled = outcome?.attempt === attempt ? outcome : null
+  const cards = settled ? settled.cards : null
+  const failed = settled !== null && settled.cards === null
 
   return (
     <section className="mx-auto max-w-6xl px-8 pb-14 pt-10">
@@ -521,7 +489,7 @@ function HotNews(): JSX.Element {
             <code className="text-muted">docker compose up -d --build</code> ở thư mục gốc.
           </p>
           <button
-            onClick={() => setReloadKey((k) => k + 1)}
+            onClick={() => setAttempt((value) => value + 1)}
             className="mt-4 rounded-full border border-line px-4 py-1.5 text-[12.5px] text-muted
                        transition hover:border-brand/40 hover:text-ink"
           >
@@ -556,8 +524,6 @@ function HotNews(): JSX.Element {
                          focus-visible:ring-brand/50"
               title={card.url}
             >
-              {/* "Ảnh" thẻ tin: mảng màu suy ra từ tên miền + chữ cái đầu, cùng
-                  quy tắc với favicon giả nên mỗi báo luôn ra một màu cố định. */}
               <span
                 className="flex h-28 w-full items-center justify-center text-3xl font-bold text-white/90"
                 style={{ background: siteGradient(card.url) }}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type JSX } from 'react'
 import { search, type SearchResponseDto } from '../lib/searchApi'
 import { useSearchViewStore } from '../store/searchViewStore'
 import { useTabStore } from '../store/tabStore'
@@ -14,69 +14,66 @@ import {
 
 const PAGE_SIZE = 10
 
-/**
- * Trang kết quả. Ngoài title/url/snippet (có <mark>) còn có dòng đầu
- * "Khoảng N kết quả (t giây)", phân trang, và chế độ debug hiện điểm
- * BM25/PageRank của từng kết quả — rất hữu ích khi demo cho giảng viên.
- */
+interface SearchOutcome {
+  key: string
+  response: SearchResponseDto | null
+  error: string | null
+}
+
 function SearchResultList(): JSX.Element | null {
-  const query = useSearchViewStore((s) => s.query)
-  const setQuery = useSearchViewStore((s) => s.setQuery)
-  const navigate = useTabStore((s) => s.navigate)
+  const query = useSearchViewStore((state) => state.query)
+  const clearSearch = useSearchViewStore((state) => state.clear)
+  const navigate = useTabStore((state) => state.navigate)
 
   const [page, setPage] = useState(1)
-  const [response, setResponse] = useState<SearchResponseDto | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [debugMode, setDebugMode] = useState(false)
+  const [outcome, setOutcome] = useState<SearchOutcome | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
-    setPage(1)
-  }, [query])
+  const requestKey = `${page}|${query ?? ''}`
 
   useEffect(() => {
     if (!query) {
-      return
+      return undefined
     }
     let cancelled = false
-    setLoading(true)
-    setError(null)
-    // Sang trang mới mà vẫn ở giữa danh sách cũ thì rất mất phương hướng.
     scrollRef.current?.scrollTo({ top: 0 })
+
     search(query, page, PAGE_SIZE)
-      .then((res) => {
+      .then((response) => {
         if (!cancelled) {
-          setResponse(res)
+          setOutcome({ key: requestKey, response, error: null })
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setError(
-            'Không thể kết nối tới máy chủ tìm kiếm (http://localhost:8080). Hãy chắc chắn backend đang chạy.'
-          )
+          setOutcome({
+            key: requestKey,
+            response: null,
+            error:
+              'Không thể kết nối tới máy chủ tìm kiếm (http://localhost:8080). Hãy chắc chắn backend đang chạy.'
+          })
         }
       })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
+
     return () => {
       cancelled = true
     }
-  }, [query, page])
+  }, [query, page, requestKey])
 
   if (!query) {
     return null
   }
 
+  const settled = outcome?.key === requestKey ? outcome : null
+  const loading = settled === null
+  const response = outcome?.response ?? null
+  const error = settled?.error ?? null
   const totalPages = response ? Math.max(1, Math.ceil(response.totalResults / PAGE_SIZE)) : 1
   const showSkeleton = loading && !response
 
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto bg-surface">
-      {/* Dải tiêu đề dính trên đỉnh: luôn biết đang tìm gì, tìm được bao nhiêu. */}
       <div className="sticky top-0 z-10 border-b border-line bg-surface/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-3xl items-center gap-3 px-6 py-3">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-soft text-brand">
@@ -116,10 +113,7 @@ function SearchResultList(): JSX.Element | null {
           </div>
         )}
 
-        {/* Truy vấn đầy đủ không khớp tài liệu nào nên backend đã tự nới lỏng.
-            Nói ra thay vì im lặng: kết quả bên dưới ứng với một truy vấn hẹp hơn
-            truy vấn người dùng vừa gõ. */}
-        {response && response.droppedTerms?.length > 0 && (
+        {response && response.droppedTerms.length > 0 && (
           <div className="mb-5 flex items-start gap-3 rounded-2xl border border-warn/25 bg-warn/5 px-4 py-3">
             <AlertIcon className="mt-0.5 h-4 w-4 shrink-0 text-warn" />
             <p className="text-[13px] leading-relaxed text-warn">
@@ -133,7 +127,11 @@ function SearchResultList(): JSX.Element | null {
 
         {showSkeleton && <ResultSkeletons />}
 
-        <ul className={'flex flex-col gap-7 ' + (loading && response ? 'opacity-50 transition-opacity' : '')}>
+        <ul
+          className={
+            'flex flex-col gap-7 ' + (loading && response ? 'opacity-50 transition-opacity' : '')
+          }
+        >
           {response?.results.map((result, index) => (
             <li
               key={result.url}
@@ -156,7 +154,7 @@ function SearchResultList(): JSX.Element | null {
               <button
                 onClick={() => {
                   navigate(result.url)
-                  setQuery(null)
+                  clearSearch()
                 }}
                 className="block max-w-full truncate text-left text-[19px] leading-snug text-link
                            hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50"
@@ -165,7 +163,6 @@ function SearchResultList(): JSX.Element | null {
                 {result.title}
               </button>
 
-              {/* eslint-disable-next-line react/no-danger -- snippet chứa thẻ <mark> do backend sinh (an toàn, không lấy từ dữ liệu người dùng nhập) */}
               <p
                 className="selectable mt-1 text-[14px] leading-relaxed text-muted
                            [&_mark]:rounded [&_mark]:bg-transparent [&_mark]:font-semibold [&_mark]:text-ink"
@@ -188,7 +185,8 @@ function SearchResultList(): JSX.Element | null {
             <SearchIcon className="h-9 w-9 text-faint" />
             <p className="text-[15px] text-ink">Không tìm thấy kết quả nào.</p>
             <p className="max-w-sm text-[13px] text-muted">
-              Thử bớt từ khoá, kiểm tra chính tả, hoặc bỏ bộ lọc <code className="text-brand">site:</code>.
+              Thử bớt từ khoá, kiểm tra chính tả, hoặc bỏ bộ lọc{' '}
+              <code className="text-brand">site:</code>.
             </p>
           </div>
         )}
@@ -209,7 +207,6 @@ function ScoreChip({ label, value }: { label: string; value: string }): JSX.Elem
   )
 }
 
-/** Khung xám nhấp nháy trong lúc chờ lượt tìm đầu tiên — đỡ giật hơn là màn hình trắng. */
 function ResultSkeletons(): JSX.Element {
   return (
     <div className="flex flex-col gap-7" aria-hidden="true">
@@ -228,7 +225,6 @@ function ResultSkeletons(): JSX.Element {
   )
 }
 
-/** Phân trang kiểu Google: các số quanh trang hiện tại, tối đa 5 ô. */
 function Pagination({
   page,
   totalPages,
@@ -272,7 +268,11 @@ function Pagination({
         </button>
       ))}
 
-      <button disabled={page >= totalPages} onClick={() => onChange(page + 1)} className={arrowClass}>
+      <button
+        disabled={page >= totalPages}
+        onClick={() => onChange(page + 1)}
+        className={arrowClass}
+      >
         Sau
         <ChevronRightIcon className="h-4 w-4" />
       </button>

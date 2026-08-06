@@ -1,30 +1,10 @@
 import { create } from 'zustand'
 import { Stack } from '../lib/Stack'
 
-/**
- * Zustand store cho back/forward, dung 2 Stack TU CAI DAT (khong dung
- * array.push/pop truc tiep, xem lib/Stack.ts) rieng cho MOI tab.
- *
- * Quy tac (mo hinh Stack kinh dien cho dieu huong trinh duyet):
- *   - recordNavigation(url moi): push URL HIEN TAI vao backStack, CLEAR forwardStack,
- *     roi cap nhat currentUrl = url moi. Goi moi khi tab thuc su chuyen sang
- *     mot URL khac (nguoi dung go dia chi, bam ket qua tim kiem, hoac bam
- *     link ben trong trang) — TRU khi do la ket qua cua chinh goBack/goForward.
- *   - goBack(): pop backStack -> push URL hien tai vao forwardStack -> tra ve
- *     URL vua pop de goi dieu huong that su qua IPC.
- *   - goForward(): doi xung voi goBack().
- *
- * Day KHONG dung lai lich su native cua Electron WebContents
- * (wc.goBack()/wc.canGoBack()) — no la mot cau truc Stack doc lap, tu quan
- * ly hoan toan o phia renderer, dung de minh hoa DSA cho bao cao.
- */
-
 interface TabHistory {
   backStack: Stack<string>
   forwardStack: Stack<string>
   currentUrl: string
-  /** Danh dau lan cap nhat URL tiep theo la do chinh goBack/goForward gay ra,
-   *  de recordNavigation khong push lai vao stack mot cach sai lech. */
   suppressNextRecord: boolean
 }
 
@@ -37,9 +17,8 @@ interface HistoryState {
   canGoBack: (tabId: string) => boolean
   canGoForward: (tabId: string) => boolean
   removeTab: (tabId: string) => void
-  /** Các URL vừa ghé qua, mới nhất trước — dùng cho mục "Nhật ký" trong menu. */
+  trackedTabIds: () => string[]
   recentUrls: (limit: number) => string[]
-  /** Xoá nhật ký duyệt web nhưng GIỮ trang hiện tại của từng tab. */
   clearAll: () => void
 }
 
@@ -65,98 +44,93 @@ export const useHistoryStore = create<HistoryState>((set, get) => ({
   },
 
   recordNavigation: (tabId, newUrl) => {
-    const h = get().histories[tabId]
-    if (!h || newUrl === h.currentUrl) {
+    const history = get().histories[tabId]
+    if (!history || newUrl === history.currentUrl) {
       return
     }
-    if (h.suppressNextRecord) {
-      // URL nay la ket qua cua goBack/goForward do chinh ta goi -> chi cap
-      // nhat currentUrl, KHONG push them vao backStack (da xu ly trong goBack/goForward roi).
+
+    if (history.suppressNextRecord) {
       set((state) => ({
         histories: {
           ...state.histories,
-          [tabId]: { ...h, currentUrl: newUrl, suppressNextRecord: false }
+          [tabId]: { ...history, currentUrl: newUrl, suppressNextRecord: false }
         }
       }))
       return
     }
-    h.backStack.push(h.currentUrl)
-    h.forwardStack.clear()
+
+    history.backStack.push(history.currentUrl)
+    history.forwardStack.clear()
     set((state) => ({
-      histories: { ...state.histories, [tabId]: { ...h, currentUrl: newUrl } }
+      histories: { ...state.histories, [tabId]: { ...history, currentUrl: newUrl } }
     }))
   },
 
   goBack: (tabId) => {
-    const h = get().histories[tabId]
-    if (!h || h.backStack.isEmpty()) {
+    const history = get().histories[tabId]
+    if (!history || history.backStack.isEmpty()) {
       return undefined
     }
-    const prevUrl = h.backStack.pop() as string
-    h.forwardStack.push(h.currentUrl)
+    const previousUrl = history.backStack.pop() as string
+    history.forwardStack.push(history.currentUrl)
     set((state) => ({
-      histories: { ...state.histories, [tabId]: { ...h, suppressNextRecord: true } }
+      histories: { ...state.histories, [tabId]: { ...history, suppressNextRecord: true } }
     }))
-    return prevUrl
+    return previousUrl
   },
 
   goForward: (tabId) => {
-    const h = get().histories[tabId]
-    if (!h || h.forwardStack.isEmpty()) {
+    const history = get().histories[tabId]
+    if (!history || history.forwardStack.isEmpty()) {
       return undefined
     }
-    const nextUrl = h.forwardStack.pop() as string
-    h.backStack.push(h.currentUrl)
+    const nextUrl = history.forwardStack.pop() as string
+    history.backStack.push(history.currentUrl)
     set((state) => ({
-      histories: { ...state.histories, [tabId]: { ...h, suppressNextRecord: true } }
+      histories: { ...state.histories, [tabId]: { ...history, suppressNextRecord: true } }
     }))
     return nextUrl
   },
 
   canGoBack: (tabId) => {
-    const h = get().histories[tabId]
-    return !!h && !h.backStack.isEmpty()
+    const history = get().histories[tabId]
+    return !!history && !history.backStack.isEmpty()
   },
 
   canGoForward: (tabId) => {
-    const h = get().histories[tabId]
-    return !!h && !h.forwardStack.isEmpty()
+    const history = get().histories[tabId]
+    return !!history && !history.forwardStack.isEmpty()
   },
 
   removeTab: (tabId) => {
     set((state) => {
-      const rest = { ...state.histories }
-      delete rest[tabId]
-      return { histories: rest }
+      const remaining = { ...state.histories }
+      delete remaining[tabId]
+      return { histories: remaining }
     })
   },
 
-  /**
-   * Gộp lịch sử của mọi tab thành một danh sách phẳng. Trong mỗi tab, đáy
-   * backStack là trang cũ nhất nên phải đảo ngược lại; giữa các tab thì chỉ
-   * cần loại trùng URL và cắt bớt, vì Stack không lưu mốc thời gian.
-   */
+  trackedTabIds: () => Object.keys(get().histories),
+
   recentUrls: (limit) => {
     const seen = new Set<string>()
-    const out: string[] = []
+    const urls: string[] = []
 
     for (const history of Object.values(get().histories)) {
       for (const url of [history.currentUrl, ...history.backStack.toArray().reverse()]) {
         if (!seen.has(url)) {
           seen.add(url)
-          out.push(url)
+          urls.push(url)
         }
       }
     }
-    return out.slice(0, limit)
+    return urls.slice(0, limit)
   },
 
   clearAll: () => {
     set((state) => {
       const cleared: Record<string, TabHistory> = {}
       for (const [tabId, history] of Object.entries(state.histories)) {
-        // Tab vẫn đang hiển thị một trang, nên currentUrl phải giữ nguyên;
-        // chỉ hai chồng back/forward bị dọn, khiến nút quay lại mờ đi.
         cleared[tabId] = newTabHistory(history.currentUrl)
       }
       return { histories: cleared }

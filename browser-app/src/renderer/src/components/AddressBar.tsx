@@ -1,12 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type JSX,
+  type KeyboardEvent,
+  type SyntheticEvent
+} from 'react'
 import { useTabStore, HOME_URL } from '../store/tabStore'
-import { useBookmarkStore } from '../store/bookmarkStore'
+import { useBookmarkStore, collectBookmarks } from '../store/bookmarkStore'
 import { useSearchViewStore } from '../store/searchViewStore'
 import AutocompleteDropdown from './AutocompleteDropdown'
 import { suggest } from '../lib/searchApi'
 import { CloseIcon, GlobeIcon, LockIcon, StarIcon, VnSearchMark } from './icons'
 
-/** Nhận diện một chuỗi gõ vào là URL (có dấu chấm TLD, không khoảng trắng) hay từ khoá tìm kiếm. */
+const SUGGEST_DEBOUNCE_MS = 180
+
 function looksLikeUrl(text: string): boolean {
   const trimmed = text.trim()
   if (/^https?:\/\//i.test(trimmed)) {
@@ -15,110 +24,100 @@ function looksLikeUrl(text: string): boolean {
   return !trimmed.includes(' ') && /\.[a-z]{2,}(\/.*)?$/i.test(trimmed)
 }
 
-/**
- * Ô địa chỉ đa năng (omnibox): URL thì điều hướng, từ khoá thì bật
- * SearchResultList. Khi đang gõ từ khoá, ô này cũng gọi /api/suggest và đổ
- * gợi ý xuống dropdown — đúng hành vi người dùng chờ đợi ở một trình duyệt
- * thật, và tận dụng lại đúng Trie đã cài ở backend.
- */
 function AddressBar(): JSX.Element {
-  const tabs = useTabStore((s) => s.tabs)
-  const activeTabId = useTabStore((s) => s.activeTabId)
-  const navigate = useTabStore((s) => s.navigate)
-  const query = useSearchViewStore((s) => s.query)
-  const setQuery = useSearchViewStore((s) => s.setQuery)
-  const isBookmarked = useBookmarkStore((s) => s.isBookmarked)
-  const toggleBookmark = useBookmarkStore((s) => s.toggleBookmark)
-  // Đọc `root` để component vẽ lại ngay khi cây bookmark đổi (ngôi sao phải
-  // đổi màu tức thì); bản thân giá trị không dùng tới ở đây.
-  useBookmarkStore((s) => s.root)
+  const tabs = useTabStore((state) => state.tabs)
+  const activeTabId = useTabStore((state) => state.activeTabId)
+  const navigate = useTabStore((state) => state.navigate)
+  const query = useSearchViewStore((state) => state.query)
+  const runSearch = useSearchViewStore((state) => state.runSearch)
+  const clearSearch = useSearchViewStore((state) => state.clear)
+  const bookmarkRoot = useBookmarkStore((state) => state.root)
+  const toggleBookmark = useBookmarkStore((state) => state.toggleBookmark)
 
-  const activeTab = tabs.find((t) => t.id === activeTabId)
-  const displayedUrl = activeTab?.url === HOME_URL ? '' : (activeTab?.url ?? '')
-  const [inputValue, setInputValue] = useState(query ?? displayedUrl)
+  const activeTab = tabs.find((tab) => tab.id === activeTabId)
+  const displayedUrl = !activeTab || activeTab.url === HOME_URL ? '' : activeTab.url
+
+  const canonicalText = query ?? displayedUrl
+  const [typedValue, setTypedValue] = useState('')
   const [focused, setFocused] = useState(false)
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [highlighted, setHighlighted] = useState(-1)
   const inputRef = useRef<HTMLInputElement>(null)
-  const debounceRef = useRef<number | undefined>(undefined)
+
+  const inputValue = focused ? typedValue : canonicalText
+  const suggestible = focused && typedValue.trim().length >= 2 && !looksLikeUrl(typedValue)
 
   useEffect(() => {
-    setInputValue(query ?? displayedUrl)
-    // Chỉ đồng bộ lại khi tab/url/query thực sự thay đổi từ bên ngoài (không phải lúc gõ).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTabId, displayedUrl, query])
-
-  useEffect(() => {
-    const text = inputValue.trim()
-    // Đang gõ một địa chỉ thì gợi ý từ khoá chỉ tổ vướng.
-    if (!focused || !text || looksLikeUrl(text)) {
-      setSuggestions([])
+    if (!suggestible) {
       return undefined
     }
-    window.clearTimeout(debounceRef.current)
-    debounceRef.current = window.setTimeout(() => {
-      suggest(text, 8)
-        .then(setSuggestions)
-        .catch(() => setSuggestions([]))
-    }, 200)
-    return () => window.clearTimeout(debounceRef.current)
-  }, [inputValue, focused])
 
-  const bookmarked = activeTab && activeTab.url !== HOME_URL ? isBookmarked(activeTab.url) : false
+    const timer = window.setTimeout(() => {
+      suggest(typedValue).then(setSuggestions)
+    }, SUGGEST_DEBOUNCE_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [typedValue, suggestible])
+
+  const bookmarked = useMemo(() => {
+    if (!displayedUrl) {
+      return false
+    }
+    return collectBookmarks(bookmarkRoot).some((bookmark) => bookmark.url === displayedUrl)
+  }, [bookmarkRoot, displayedUrl])
+
   const isSecure = /^https:\/\//i.test(displayedUrl)
   const searchMode = !displayedUrl || !!query
 
-  function run(text: string): void {
-    const trimmed = text.trim()
-    if (!trimmed) {
+  function submitValue(text: string): void {
+    const value = text.trim()
+    if (!value) {
       return
     }
+
     setSuggestions([])
     setHighlighted(-1)
-    inputRef.current?.blur()
 
-    if (looksLikeUrl(trimmed)) {
-      const url = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
-      setQuery(null)
-      navigate(url)
+    if (looksLikeUrl(value)) {
+      clearSearch()
+      navigate(/^https?:\/\//i.test(value) ? value : `https://${value}`)
     } else {
-      setQuery(trimmed)
       navigate(HOME_URL)
+      runSearch(value)
     }
+    inputRef.current?.blur()
   }
 
-  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>): void {
-    if (e.key === 'ArrowDown' && suggestions.length > 0) {
-      e.preventDefault()
-      setHighlighted((h) => Math.min(h + 1, suggestions.length - 1))
-    } else if (e.key === 'ArrowUp' && suggestions.length > 0) {
-      e.preventDefault()
-      setHighlighted((h) => Math.max(h - 1, -1))
-    } else if (e.key === 'Escape') {
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key === 'ArrowDown' && suggestions.length > 0) {
+      event.preventDefault()
+      setHighlighted((index) => (index + 1) % suggestions.length)
+    } else if (event.key === 'ArrowUp' && suggestions.length > 0) {
+      event.preventDefault()
+      setHighlighted((index) => (index <= 0 ? suggestions.length - 1 : index - 1))
+    } else if (event.key === 'Escape') {
       setSuggestions([])
       setHighlighted(-1)
-      inputRef.current?.blur()
+      setTypedValue(canonicalText)
     }
   }
 
-  function handleSubmit(e: React.FormEvent): void {
-    e.preventDefault()
-    run(highlighted >= 0 ? suggestions[highlighted] : inputValue)
+  function handleSubmit(event: SyntheticEvent): void {
+    event.preventDefault()
+    submitValue(highlighted >= 0 ? suggestions[highlighted] : inputValue)
   }
 
   return (
     <form onSubmit={handleSubmit} className="relative flex min-w-0 flex-1 items-center gap-1.5">
       <div
         className={
-          'flex h-9 min-w-0 flex-1 items-center gap-2.5 rounded-full border px-3.5 transition-all duration-200 ' +
+          'flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-full border px-3.5 ' +
+          'transition-all duration-200 ' +
           (focused
             ? 'border-brand/45 bg-omni shadow-omni ring-4 ring-brand/10'
             : 'border-transparent bg-omni hover:brightness-110')
         }
       >
-        {/* Ở trạng thái mặc định (chưa mở trang nào) hiện dấu hiệu nhận dạng
-            của trình duyệt; khi đang xem một trang thật thì nhường chỗ cho
-            chỉ báo an toàn, đúng thứ tự ưu tiên của một thanh địa chỉ. */}
         <span className="flex shrink-0 items-center">
           {searchMode ? (
             <VnSearchMark className="h-[18px] w-[18px] text-muted" />
@@ -130,18 +129,18 @@ function AddressBar(): JSX.Element {
         </span>
 
         <input
-          // Ctrl+L / Alt+D nhảy về đây — xem lib/useBrowserShortcuts.ts.
           id="omnibox"
           ref={inputRef}
           value={inputValue}
-          onChange={(e) => {
-            setInputValue(e.target.value)
+          onChange={(event) => {
+            setTypedValue(event.target.value)
             setHighlighted(-1)
           }}
           onKeyDown={handleKeyDown}
-          onFocus={(e) => {
+          onFocus={(event) => {
+            setTypedValue(canonicalText)
             setFocused(true)
-            e.target.select() // chọn sẵn toàn bộ như mọi trình duyệt
+            event.target.select()
           }}
           onBlur={() => {
             setFocused(false)
@@ -157,11 +156,12 @@ function AddressBar(): JSX.Element {
           <button
             type="button"
             onClick={() => {
-              setInputValue('')
+              setTypedValue('')
               setSuggestions([])
               inputRef.current?.focus()
             }}
-            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-faint transition hover:bg-line hover:text-ink"
+            className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-faint
+                       transition hover:bg-line hover:text-ink"
             aria-label="Xoá nội dung"
             title="Xoá"
           >
@@ -174,10 +174,10 @@ function AddressBar(): JSX.Element {
         type="button"
         onClick={() => {
           if (activeTab && activeTab.url !== HOME_URL) {
-            toggleBookmark(activeTab.title, activeTab.url)
+            toggleBookmark(activeTab.url, activeTab.title)
           }
         }}
-        disabled={!activeTab || activeTab.url === HOME_URL}
+        disabled={!displayedUrl}
         className={'icon-btn ' + (bookmarked ? 'text-amber-500 hover:text-amber-500' : '')}
         aria-label="Đánh dấu trang"
         title={bookmarked ? 'Bỏ đánh dấu' : 'Đánh dấu trang (Ctrl+D)'}
@@ -186,12 +186,12 @@ function AddressBar(): JSX.Element {
       </button>
 
       <AutocompleteDropdown
-        suggestions={suggestions}
+        suggestions={suggestible ? suggestions : []}
         highlightedIndex={highlighted}
-        query={inputValue}
-        onSelect={(s) => {
-          setInputValue(s)
-          run(s)
+        query={typedValue}
+        onSelect={(suggestion) => {
+          setTypedValue(suggestion)
+          submitValue(suggestion)
         }}
         onHighlight={setHighlighted}
       />

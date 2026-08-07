@@ -267,8 +267,26 @@ public class InvertedIndex implements SearchIndex {
      *
      * <p>File v1 không có trường này, nên Jackson để {@code version = 0} — và
      * đó chính là dấu hiệu nhận ra định dạng cũ.
+     *
+     * <p><b>Vì sao có thêm trường {@code tokenizer}.</b> {@code version} chỉ canh
+     * được <i>định dạng nhị phân</i>, không canh được <i>nội dung</i>. Nhưng chỉ
+     * mục còn phụ thuộc một thứ nữa mà định dạng không hề biết: <b>bộ tách từ đã
+     * dựng ra nó</b>. Javadoc của {@link Tokenizer} nêu bất biến sống còn — tầng
+     * chỉ mục và tầng truy vấn phải dùng cùng một tokenizer VÀ cùng một từ điển.
+     *
+     * <p>Vi phạm bất biến đó là một lỗi <b>hoàn toàn im lặng</b>. Ví dụ thật đã
+     * xảy ra: từ điển đổi từ 154 lên 49.793 mục, câu "không trung thực" trước
+     * tách thành {@code [không_trung][thực]}, nay thành {@code [không][trung_thực]}.
+     * Chỉ mục cũ trên đĩa vẫn đúng định dạng v2, vẫn nạp trót lọt, và mọi truy vấn
+     * về chủ đề đó lặng lẽ trả về rỗng — không ngoại lệ, không log, không test đỏ.
+     *
+     * <p>Trường này lưu {@link Tokenizer#name()}, chuỗi đã chứa sẵn tên thuật toán
+     * và <b>kích thước từ điển</b>, nên mọi thay đổi đáng kể đều làm nó khác đi.
+     * File đời trước không có trường này ({@code null}) và được chấp nhận có cảnh
+     * báo — không thể khẳng định chúng sai, chỉ là không kiểm chứng được.
      */
-    record IndexData(int version, Map<String, CompressedPostings> index,
+    record IndexData(int version, String tokenizer,
+                      Map<String, CompressedPostings> index,
                       Map<Integer, WebDocument> documents,
                       Map<Integer, Integer> docLength) {
     }
@@ -278,7 +296,7 @@ public class InvertedIndex implements SearchIndex {
         for (Map.Entry<String, List<Posting>> entry : index.entrySet()) {
             compressed.put(entry.getKey(), CompressedPostings.of(entry.getValue()));
         }
-        return new IndexData(FORMAT_VERSION, compressed, documents, docLength);
+        return new IndexData(FORMAT_VERSION, tokenizer.name(), compressed, documents, docLength);
     }
 
     static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {

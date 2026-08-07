@@ -173,7 +173,8 @@ public class CrawlerService {
         UrlStorage urlStorage = config.urlStoragePath() == null
                 ? UrlStorage.disabled()
                 : UrlStorage.file(Path.of(config.urlStoragePath()));
-        urlFilter = new UrlFilter(config.allowedDomains(), config.maxDepth());
+        urlFilter = new UrlFilter(config.allowedDomains(), config.maxDepth(),
+                config.excludedHostPrefixes());
         urlSeenFilter = UrlSeenFilter.forMaxPages(config.maxPages(), urlStorage);
 
         try {

@@ -98,17 +98,23 @@ class QueryAstTest {
 
     @Test
     void phraseNodeRequiresConsecutivePositions() {
-        // doc0 = "máy tính xách tay" -> token: [0]máy_tính [1]xách [2]tay
-        // ("xách tay" khong co trong tu dien tu ghep 154 muc nen khong duoc gop)
-        assertEquals(List.of(0), new PhraseNode(List.of("máy_tính", "xách")).evaluate(index));
+        // doc0 = "máy tính xách tay" -> token: [0]máy_tính [1]xách_tay
+        //
+        // Truoc day test nay ky vong [0]máy_tính [1]xách [2]tay, kem chu thich
+        // "'xách tay' khong co trong tu dien tu ghep 154 muc nen khong duoc gop".
+        // Tu dien nay gio co 40.000 tu ghep va "xách tay" nam trong do, nen tien de
+        // cu khong con dung. Day la thay doi DUNG huong — "xách tay" la mot tu that
+        // — nen test duoc cap nhat theo, khong phai bug.
+        assertEquals(List.of(0), new PhraseNode(List.of("máy_tính", "xách_tay")).evaluate(index));
         // Dao thu tu thi khong con lien tiep nua.
-        assertTrue(new PhraseNode(List.of("xách", "máy_tính")).evaluate(index).isEmpty());
+        assertTrue(new PhraseNode(List.of("xách_tay", "máy_tính")).evaluate(index).isEmpty());
     }
 
     @Test
     void phraseNodeRejectsNonAdjacentTerms() {
-        // "máy_tính" o vi tri 0 va "tay" o vi tri 2 — cung co mat nhung KHONG lien tiep.
-        assertTrue(new PhraseNode(List.of("máy_tính", "tay")).evaluate(index).isEmpty(),
+        // doc2 = "máy tính giá rẻ" -> [0]máy_tính [1]giá [2]rẻ  ("giá rẻ" khong
+        // co trong tu dien). "máy_tính" va "rẻ" cung co mat nhung KHONG lien tiep.
+        assertTrue(new PhraseNode(List.of("máy_tính", "rẻ")).evaluate(index).isEmpty(),
                 "Cung co mat la chua du; phai LIEN TIEP");
     }
 

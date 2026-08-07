@@ -57,7 +57,10 @@ public class MultiDomainCrawlRunner {
             "https://vietnamnet.vn/",
             "https://nhandan.vn/",
             "https://hanoimoi.vn/",
-            "https://baochinhphu.vn/");
+            "https://baochinhphu.vn/",
+            "https://www.vietnamplus.vn/",
+            "https://tuyensinhso.vn/",
+            "https://hcmiu.edu.vn/");
 
     public static void main(String[] args) throws IOException {
         int maxPages = args.length > 0 ? Integer.parseInt(args[0]) : 5000;
@@ -100,7 +103,22 @@ public class MultiDomainCrawlRunner {
                 .maxPages(maxPages)
                 .threadCount(allowedDomains.size() * 2)
                 .allowedDomains(allowedDomains)
-                .maxDurationMinutes(90)
+                // Chan rieng ban tieng Trung/Nhat tren subdomain — KHONG chan
+                // ngoai ngu noi chung. Tieng Anh, Nga, Han, Tay Ban Nha, Phap deu
+                // tach duoc theo khoang trang va tim kiem duoc binh thuong, corpus
+                // da ngu la tot. Rieng chu Trung/Nhat khong co dau cach giua cac tu
+                // nen tokenizer tra ve nguyen mot menh de lam MOT token — tai lieu
+                // vao duoc chi muc nhung khong truy van nao khop noi. Xem so lieu
+                // do duoc o Javadoc cua hang so nay.
+                .excludedHostPrefixes(UrlFilter.SPACELESS_SCRIPT_HOST_PREFIXES)
+                // Politeness 1 giây/domain với 11 domain cho thông lượng trần
+                // ~11 trang/giây, tức 30.000 trang cần ~45 phút Ở TỐC ĐỘ TRẦN.
+                // Thực tế luôn thấp hơn (độ trễ mạng, trang bị robots.txt chặn,
+                // trang lỗi), nên mốc 90 phút cũ đủ sát để có thể cắt ngang phiên
+                // trước khi đạt maxPages — và khi đó số trang thu được là một con
+                // số tuỳ tiện phụ thuộc tốc độ mạng hôm đó, không tái lập được.
+                // 180 phút để maxPages mới là thứ quyết định phiên kết thúc.
+                .maxDurationMinutes(180)
                 .build();
 
         // HAI listener cùng lúc — đúng thứ Observer pattern sinh ra để làm.

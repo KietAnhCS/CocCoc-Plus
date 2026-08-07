@@ -6,8 +6,10 @@
 > từ 6 báo điện tử Việt Nam.
 >
 > **Nguyên tắc xuyên suốt báo cáo:** mỗi khẳng định về hiệu năng đều phải kèm
-> **số đo**, không được là suy đoán. Mục 3 ghi lại hai lỗi hiệu năng mà **chỉ
-> có đo mới phát hiện được** — đó là phần đáng đọc nhất.
+> **số đo**, không được là suy đoán. Mục 3 ghi lại bốn lỗi hiệu năng mà **chỉ
+> có đo mới phát hiện được** — đó là phần đáng đọc nhất. Mục 2.8 và 4.7 là thay
+> đổi lớn nhất về chất lượng: bộ tách từ tiếng Việt được viết lại, **nhanh gấp
+> 4,80 lần** và tách khác đi ở **54,0%** tài liệu.
 >
 > **Tài liệu liên quan:** `docs/Math/` (lý thuyết), `docs/Math/`
 > (từng thuật toán kèm mã), `ARCHITECTURE.md` (kiến trúc),
@@ -17,7 +19,7 @@
 
 1. [Bảng tổng hợp Big-O](#1-bảng-tổng-hợp-big-o)
 2. [Vì sao chọn cấu trúc này thay vì phương án có sẵn](#2-vì-sao-chọn-cấu-trúc-này-thay-vì-phương-án-có-sẵn)
-3. [Ba lỗi hiệu năng chỉ phát hiện được nhờ đo đạc](#3-ba-lỗi-hiệu-năng-chỉ-phát-hiện-được-nhờ-đo-đạc)
+3. [Năm lỗi hiệu năng chỉ phát hiện được nhờ đo đạc](#3-năm-lỗi-hiệu-năng-chỉ-phát-hiện-được-nhờ-đo-đạc)
 4. [Số liệu hiệu năng đầy đủ](#4-số-liệu-hiệu-năng-đầy-đủ)
 5. [Kiểm thử](#5-kiểm-thử)
 6. [Hạn chế đã biết](#6-hạn-chế-đã-biết)
@@ -40,12 +42,15 @@ thử được độc lập trong vài chục milli-giây.
 | **Min-Heap** | `MinHeap.java` | Lấy top-K điểm cao nhất | `insert` / `extractMin` O(log n) · `peek` O(1) · `topK` **O(n log k)** | O(n) |
 | **Url Frontier** | `crawler/frontier/` (9 lớp) | Hàng đợi hai tầng: ưu tiên + politeness | **`addUrl` O(1)** · **`nextUrl` O(log n)** · `size` / `domainCount` O(1) | O(n), chặn trên 500.000 URL |
 | **Sparse Matrix** | `SparseMatrix.java` | Ma trận liên kết web cho PageRank | `set` O(1) amortised · `multiply` **O(nnz)** · `nnz()` O(n + nnz) | O(nnz) |
+| **Syllable Trie** | `SyllableTrie.java` | Từ điển từ ghép tiếng Việt cho tách từ | `intern` / `child` / `weightAt` **O(1)** kỳ vọng · `insert` O(k), k = số âm tiết | O(số nút + bảng cạnh) — **2,0 MB** cho 49.793 từ |
 
 ### 1.2. Chỉ mục và truy vấn (`index/`, `query/`)
 
 | Cấu trúc / Thuật toán | File | Dùng để làm gì | Big-O thời gian | Big-O bộ nhớ |
 |---|---|---|---|---|
 | **Vietnamese Tokenizer** | `VietnameseTokenizer.java` | Tách từ, chuẩn hoá, bỏ dấu, lọc stopword | `tokenize` O(n × 4) = **O(n)** · `stripDiacritics` O(L) | O(n) cho token + O(\|từ điển\|) cố định |
+| **Max-Weight Segmenter** | `MaxWeightSegmenter.java` | Ghép từ ghép bằng **quy hoạch động** (thay Longest Matching) | `segment` O(n × 4) = **O(n)** — đường đi dài nhất trên DAG | O(n) cho hai mảng `best` / `trace` |
+| **Vietnamese Word Dictionary** | `VietnameseWordDictionary.java` | Nạp 49.793 từ có tần suất, tính trọng số | `weightOf` **O(1)** · nạp O(\|từ điển\|) = **143 ms**, một lần cho cả tiến trình | O(\|từ điển\|), dùng chung toàn tiến trình |
 | **Inverted Index** | `InvertedIndex.java` | Tra tài liệu chứa một term | `addDocument` O(L) · `getPostings` / `getDocumentFrequency` **O(1)** · `getPositions` **O(log n)** · `getAverageDocLength` **O(1)** | O(tổng số cặp (term, doc)) |
 | **Term Dictionary** | `TermDictionary.java` | Flyweight cho khoá term | `intern` **O(1)** khấu hao | O(số term phân biệt) — thay vì O(số lần xuất hiện) |
 | **Posting Cursor** | `ArrayPostingCursor.java` | Duyệt posting list có nhảy cóc | `next` O(1) · **`skipTo` O(log d)** (galloping) | O(1) — không cấp phát |
@@ -403,7 +408,144 @@ if (postings.isEmpty()) {
 
 ---
 
-## 3. Ba lỗi hiệu năng chỉ phát hiện được nhờ đo đạc
+### 2.8. Trie âm tiết + quy hoạch động thay cho `HashSet` + Longest Matching
+
+> Đây là thay đổi **lớn nhất** về chất lượng trong toàn bộ đồ án: nó gỡ bỏ đúng
+> cái trần đã được ghi nhận ở mục 6.1 của các bản báo cáo trước.
+
+#### Vấn đề của phương án cũ
+
+Bản cũ ghép từ ghép bằng **Longest Matching tham lam** trên một
+`HashSet<String>` 154 mục:
+
+```java
+for (int len = maxLen; len >= 2; len--) {
+    String candidate = String.join(" ", Arrays.copyOfRange(syllables, i, i + len));
+    if (bigramDictionary.contains(candidate)) { matchedLen = len; break; }
+}
+```
+
+Đoạn này có **hai** khiếm khuyết độc lập, và chúng che lấp lẫn nhau:
+
+| # | Khiếm khuyết | Hệ quả |
+|---|---|---|
+| 1 | Từ điển **154 mục**, chỉ trả lời *có / không* | Hầu hết từ ghép không được nhận ra |
+| 2 | Tham lam, **không rút lại được** quyết định | Tách sai ở câu nhập nhằng |
+
+Khiếm khuyết (2) hầu như **không lộ ra** khi từ điển còn nhỏ — muốn chọn sai
+thì trước hết phải có nhiều lựa chọn. Nên chỉ sửa (1) mà giữ (2) sẽ khiến chất
+lượng **tệ đi**, chứ không tốt lên. Hai thay đổi này bắt buộc phải đi cùng nhau.
+
+#### Vì sao tham lam sai
+
+Xét cụm `nhà hàng xóm`. Cả hai cách tách đều **hợp lệ về từ điển**:
+
+```mermaid
+graph LR
+    subgraph G["Tham lam — quyết định tại i=0, không rút lại được"]
+        direction LR
+        G0(["nhà"]) --- G1(["hàng"]) --- G2(["xóm"])
+        G3["nhà_hàng = 9,59"] -.-> G0
+        G3 -.-> G1
+        G4["xóm = 3,46"] -.-> G2
+        G5["TỔNG 13,05 — quán ăn + xóm  ✗"]
+    end
+    subgraph D["Quy hoach dong — so ca cau"]
+        direction LR
+        D0(["nhà"]) --- D1(["hàng"]) --- D2(["xóm"])
+        D3["nhà = 3,69"] -.-> D0
+        D4["hàng_xóm = 9,44"] -.-> D1
+        D4 -.-> D2
+        D5["TỔNG 13,13 — nhà của người hàng xóm  ✓"]
+    end
+```
+
+Cùng nội dung đó ở dạng ASCII (để đọc được cả khi Mermaid không render):
+
+```
+             âm tiết:   nhà      hàng      xóm
+                        |         |         |
+   Tham lam:            +----+----+         |      "nhà hàng" CÓ trong từ điển
+                          9,59              |      -> chộp ngay, hết đường lui
+                                          3,46
+                        TỔNG = 9,59 + 3,46 = 13,05     -> [nhà_hàng][xóm]   SAI
+
+   Quy hoạch động:      |         +----+----+
+                       3,69            9,44
+                        TỔNG = 3,69 + 9,44 = 13,13     -> [nhà][hàng_xóm]   ĐÚNG
+                                                          ^^^^^ lớn hơn
+```
+
+Mấu chốt: tham lam **không có cách nào** phân biệt hai phương án này, vì cả hai
+đều khớp từ điển. Nó buộc phải đoán bằng heuristic "dài hơn thì đúng hơn" — và ở
+đây heuristic đó sai. Quy hoạch động không đoán: nó chấm điểm **cả câu** rồi chọn
+tổng lớn nhất, nên tần suất của `hàng xóm` có cơ hội thắng tần suất của `nhà hàng`.
+
+#### Nguồn từ điển và giấy phép
+
+Từ điển lấy từ **`coccoc-tokenizer`** — bộ tách từ mã nguồn mở **đang chạy trong
+hệ thống Search và Ads của Cốc Cốc**, công cụ tìm kiếm lớn thứ hai Việt Nam.
+Cụ thể là file `dicts/tokenizer/vndic_multiterm`.
+
+| | |
+|---|---|
+| Kho nguồn | `github.com/coccoc/coccoc-tokenizer` |
+| Giấy phép | **LGPL-3.0** — file `vietnamese-words.txt` sinh ra giữ nguyên ghi công trong phần đầu file |
+| Đã dùng | `vndic_multiterm` (từ vựng) + công thức trọng số |
+| **Không** dùng | `keyword.freq` — lý do ở mục 3.4(a) |
+
+Bộ tách từ đó tự công bố tốc độ **15 triệu ký tự/giây**. Đáng chú ý cho phần
+thảo luận: một hệ thống thương mại quy mô đó vẫn tách từ tiếng Việt bằng **từ
+điển**, không bằng mô hình học máy — README của họ nói thẳng mục tiêu là "đạt
+hiệu năng cao trong khi giữ chất lượng ở mức hợp lý cho nhu cầu xếp hạng".
+
+#### Công thức trọng số
+
+Lấy nguyên văn công thức đang chạy trong production của Cốc Cốc
+(`multiterm_hash_trie_node.hpp`, hàm `finalize()`):
+
+$$w = \bigl(\log_2(f + 3)\bigr)^{\alpha_k} \cdot k^{\beta_k}$$
+
+với `f` là tần suất, `k` số âm tiết, và $(\alpha_k, \beta_k)$ tra từ bảng
+`PARAM = {0,38 · 1,00 | 0,14 · 2,59 | 1,42 · 4,42 | 1,45 · 0,23}`.
+
+Hai chi tiết **không hiển nhiên** trong công thức này:
+
+- **`log₂(f)` chứ không phải `f`.** Tần suất trải từ 10 đến 2.147.483.647 — hơn
+  tám bậc. Dùng thang tuyến tính thì một từ phổ biến áp đảo mọi tổ hợp khác và
+  quy hoạch động thoái hoá thành "luôn chọn từ phổ biến nhất", bất kể ngữ cảnh.
+- **`+3` trước khi lấy log.** Chặn dưới. Từ có `f = 1` cho `log₂(1) = 0`, tức
+  trọng số 0 — đúng bằng giá trị dành cho *"không phải từ"*.
+
+#### Vì sao mảng phẳng chứ không phải nút đối tượng
+
+Cách viết tự nhiên là mỗi nút một đối tượng chứa `Map<String, Node> children`.
+Với ~50.000 nút, đó là 50.000 `Node` **cộng** 50.000 `HashMap` — mỗi `HashMap`
+rỗng đã tốn ~48 byte header trước khi chứa gì. `SyllableTrie` thay bằng:
+
+| | Cách tự nhiên | `SyllableTrie` |
+|---|---|---|
+| Nút | đối tượng `Node` | **chỉ số `int`** vào mảng song song |
+| Cạnh | một `HashMap` **mỗi nút** | **một** bảng băm địa chỉ mở cho **cả cây** |
+| Khoá cạnh | `String` | `(nútCha << 32) \| idÂmTiết`, kiểu `long` |
+| Phụ trội mỗi cạnh | ~64 byte (boxing `Long`+`Integer`+ `Node` của HashMap) | **12 byte**, không đối tượng |
+
+Bảng băm tự cài chứ không dùng `HashMap<Long, Integer>` vì `HashMap` bắt buộc
+**boxing** cả khoá lẫn giá trị. Mảng `long[]` + `int[]` nằm liền nhau trong bộ
+nhớ nên thân thiện với cache CPU — và mục 3.4 dưới đây cho thấy điều đó **đo
+được**, không phải lý thuyết suông.
+
+> **Bẫy đã tránh:** khoá cạnh là `(nútCha << 32) | idÂmTiết`. Nếu chỉ lấy
+> `khoá & mask` thì **32 bit cao — chính là nút cha — bị vứt đi hoàn toàn**, và
+> mọi cạnh mang cùng một âm tiết sẽ đổ vào cùng một ô. Âm tiết phổ biến như
+> `của` xuất hiện dưới hàng nghìn nút cha khác nhau, tất cả sẽ xếp thành một
+> chuỗi thăm dò dài — biến O(1) thành O(n). Vì vậy khoá được trộn bằng hàm
+> finalizer của splitmix64 trước khi lấy dư. `SyllableTrieTest` có một test
+> riêng ép đúng tình huống này (`sameSyllableUnderManyParentsStaysCorrect`).
+
+---
+
+## 3. Năm lỗi hiệu năng chỉ phát hiện được nhờ đo đạc
 
 > **Mục đích của mục này.** Ghi lại ba vấn đề mà **suy luận thuần không tìm
 > ra** — chỉ có số đo mới lộ. Đây là phần trả lời trực tiếp cho câu hỏi "vì
@@ -552,22 +694,180 @@ Trung và tiếng Anh, tạo ra những truy vấn vô nghĩa.
 
 ---
 
+### 3.4. Hai lỗi của chính bản tách từ mới — cả hai chỉ lộ ra khi chạy thật
+
+Mục này ghi lại hai sai lầm mắc phải **trong lúc làm mục 2.8**. Cả hai đều
+"đúng trên giấy" và chỉ bị bắt khi có số đo.
+
+#### (a) Dùng nhầm truy vấn tìm kiếm làm từ vựng
+
+`coccoc-tokenizer` có hai file từ điển, và lúc đầu chúng được gộp cả vào:
+
+| File | Số mục | Thực chất là gì |
+|---|---|---|
+| `vndic_multiterm` | 40.236 từ ghép | **Từ vựng** — các từ của tiếng Việt |
+| `keyword.freq` | 142.040 mục | **Truy vấn** người dùng đã gõ vào Cốc Cốc |
+
+Gộp cả hai cho 164.005 từ ghép — nghe như càng nhiều càng tốt. Chạy thử thì:
+
+```
+nhà hàng xóm                       -> [nhà_hàng_xóm]            (gộp hết làm một)
+tôi đi mua máy tính xách tay mới   -> [đi][mua_máy_tính][xách_tay][mới]
+```
+
+`mua máy tính` **là** một truy vấn có thật, nhưng **không phải một từ**. Đưa nó
+vào từ điển thì bộ tách từ học được rằng "mua máy tính" là một đơn vị từ vựng —
+và nó phá luôn `máy tính xách tay`. Bảng tham số làm chuyện tệ hơn: $\beta_3 =
+4{,}42$ khiến mọi khớp 3 âm tiết mạnh gấp ~1.000 lần hai khớp 2 âm tiết cộng
+lại, nên một truy vấn 3 âm tiết bất kỳ đều nuốt trọn ngữ cảnh quanh nó.
+
+**Cách sửa:** chỉ nạp `vndic_multiterm`. Từ điển giảm 164.005 → 40.236 từ ghép,
+và kết quả tốt lên:
+
+```
+nhà hàng xóm                       -> [nhà][hàng_xóm]           ĐÚNG
+tôi đi mua máy tính xách tay mới   -> [đi][mua][máy_tính][xách_tay][mới]
+```
+
+> **Bài học.** Từ điển lớn hơn không đồng nghĩa với tách từ tốt hơn. Cái quan
+> trọng là **mỗi mục có thật sự là một đơn vị từ vựng hay không**. Đây cũng là
+> lý do bảng `PARAM` được tách ra thành tham số của constructor thay vì hằng số
+> chôn trong code: nó là tham số Cốc Cốc dò trên dữ liệu **của họ**, không phải
+> chân lý ngôn ngữ học, nên phải để `EvaluationRunner` chạy ablation được trên nó.
+
+#### (b) Cấp phát trước quá tay — và bộ nhớ nhỏ lại thì **nhanh hơn**
+
+`SyllableTrie` được khởi tạo với `expectedEdges = 1 << 19`. Không sai: chương
+trình chạy đúng, test xanh hết. Nhưng benchmark in ra dung lượng bảng:
+
+| | Cấp phát `1 << 19` | Cấp phát `1 << 16` |
+|---|---|---|
+| Cạnh **thực tế** | 50.325 | 50.325 |
+| Ô của bảng cạnh | 1.048.576 | 131.072 |
+| Bộ nhớ mảng phẳng | **14.336 KB** | **2.048 KB** (−85,7%) |
+| Nhanh hơn Longest Matching | 2,97 lần | **4,80 lần** |
+
+Điều đáng chú ý nằm ở **dòng cuối**: thu nhỏ bảng không chỉ tiết kiệm bộ nhớ mà
+còn làm chương trình **nhanh lên rõ rệt**. Bảng 12 MB vượt xa cache L2/L3, nên
+mỗi lần tra cạnh là một lần đi ra RAM; bảng 1,5 MB thì phần lớn nằm luôn trong
+cache. Big-O của cả hai đều là O(1) — **hằng số** mới là chỗ khác nhau, và
+Big-O cố ý bỏ qua đúng chỗ đó.
+
+> **Vì sao suy luận thuần không bắt được.** Cả hai lỗi đều thuộc loại "chạy vẫn
+> đúng, test vẫn xanh". Không có ngoại lệ nào được ném ra, không có khẳng định
+> nào sai. Chỉ khi in số ra màn hình mới thấy 14 MB cho 50.000 cạnh là vô lý, và
+> chỉ khi chạy trên câu tiếng Việt thật mới thấy `nhà hàng xóm` bị gộp làm một.
+
+---
+
+### 3.5. Corpus đa ngữ: 8,4% tài liệu vào được chỉ mục nhưng không ai tìm thấy
+
+**Triệu chứng.** Bảng phân bố domain của phiên crawl 30.001 trang có mười lăm host
+lạ nằm trong nhóm dẫn đầu, mỗi host đúng ~850 trang: `cn.nhandan.vn`,
+`en.nhandan.vn`, `ru.vietnamplus.vn`, `kr.nhandan.vn`… Cộng lại **12.677 trang
+(42,3%)** không phải tiếng Việt.
+
+**Vì sao chúng lọt vào.** Hai cơ chế đúng đắn cộng lại thành một kết quả sai:
+
+1. `UrlFilter.isAllowedDomain` khớp bằng `host.endsWith(domain)`, nên hạt giống
+   `nhandan.vn` kéo theo **mọi** subdomain, kể cả sáu bản ngoại ngữ.
+2. Frontier chia lượt **công bằng theo host** (`BackQueues`, mỗi host một hàng
+   đợi — mục 2.5). Công bằng ở đây phản tác dụng: mỗi bản ngoại ngữ nhận đúng
+   bằng phần của bản tiếng Việt.
+
+**Phản ứng đầu tiên đã SAI.** Kết luận vội là "chặn hết ngoại ngữ" — và đó là kết
+luận sai, bị chính người hướng dẫn đồ án bác lại: *"có nhất thiết là 100% tiếng
+Việt đâu, tiếng Anh gì cũng được mà"*. Đúng vậy. Nên thay vì cãi, hãy **đo**. Cho
+`VietnameseTokenizer` chạy trên tiêu đề thật lấy từ chính corpus:
+
+| Ngôn ngữ | Tiêu đề mẫu | Token / ký tự | Token dài nhất |
+|---|---|---|---|
+| Việt | *Văn hóa là động lực và nguồn lực…* | 5 / 43 | 10 |
+| **Anh** | *Viet Nam records best-ever result at…* | **11 / 63** | 13 |
+| **Nga** | *Высокие цены на личи: Бакнинь получил…* | **12 / 56** | 7 |
+| **Hàn** | *올해 첫 5개월 신생업체 9.5만개…* | **10 / 29** | 4 |
+| **Trung** | *越南国会常务委员会会议：提交国会审议…* | **2 / 31** | **19** |
+
+**Kết luận thật, khác hẳn kết luận ban đầu.** Vấn đề không phải "ngoại ngữ" mà là
+**chữ viết có dấu cách giữa các từ hay không** — một tiêu chí kỹ thuật, không phải
+tiêu chí ngôn ngữ:
+
+- Tiếng Anh, Nga, Hàn, Tây Ban Nha, Pháp **tách bình thường** theo khoảng trắng.
+  Chúng tìm kiếm được, và corpus đa ngữ là chuyện tốt chứ không phải khiếm khuyết.
+  Đây là **33,9%** corpus, và nó hoàn toàn dùng được.
+- Tiếng Trung/Nhật **không đặt dấu cách giữa các từ**, nên `splitIntoSyllables`
+  trả về nguyên một mệnh đề làm **một token 19 ký tự**. Token đó không bao giờ khớp
+  truy vấn nào — muốn tìm ra, người dùng phải gõ lại chính xác từng ký tự của cả
+  mệnh đề. Những tài liệu này **nằm trong chỉ mục, chiếm chỗ, làm tăng `N` trong
+  công thức IDF của mọi term khác, nhưng vĩnh viễn không thể được tìm thấy.**
+  Đây là **2.533 trang (8,4%)** trên ba host: `cn.nhandan.vn`, `zh.vietnamplus.vn`,
+  `cn.baochinhphu.vn`.
+
+**Cách sửa.** `UrlFilter.SPACELESS_SCRIPT_HOST_PREFIXES` = `{cn., zh., ja., jp.}`,
+nối qua `CrawlConfig.excludedHostPrefixes`. Lọc theo **tiền tố host** chứ không
+theo nội dung: không phải tải trang về mới biết, và tiền tố ngôn ngữ là quy ước ổn
+định của chính các toà soạn. Khớp có kèm dấu chấm để `cnn.example.vn` không bị loại
+oan vì `cn.`.
+
+> **Hai bài học, và bài học thứ hai đắt hơn.**
+>
+> Thứ nhất: `LanguageDetector` đã ghi nhận đúng triệu chứng này từ trước (Javadoc
+> của nó kể chuyện truy vấn đánh giá sinh ra chuỗi tiếng Trung vô nghĩa), nhưng vá
+> ở khâu **sinh truy vấn** — tức sau khi đã tốn công tải, lưu và lập chỉ mục. Vá
+> đúng chỗ là chặn tại nguồn.
+>
+> Thứ hai: kết luận đầu tiên — "chặn hết ngoại ngữ" — **rộng gấp năm lần** mức cần
+> thiết (42,3% thay vì 8,4%), và nó nghe rất hợp lý. Cái phân biệt được kết luận
+> đúng với kết luận nghe-có-vẻ-đúng không phải là suy luận thêm, mà là **cho
+> tokenizer chạy thử và đếm token**. Mất đúng một lần chạy.
+
+**Corpus hiện hành vẫn còn khiếm khuyết này** — nó được crawl *trước* khi bộ lọc
+tồn tại, nên 2.533 trang tiếng Trung vẫn nằm trong đó. Bộ lọc chỉ có tác dụng từ
+phiên crawl sau. Xem mục 6.8.
+
+---
+
 ## 4. Số liệu hiệu năng đầy đủ
 
 Mọi số dưới đây đo trên corpus **5.011 trang** từ 6 báo điện tử Việt Nam.
 
 ### 4.1. Crawl
 
-| Phép đo | Kết quả |
+Corpus hiện hành, crawl từ **11 hạt giống** (9 báo điện tử + 2 trang giáo dục),
+`maxPages=30000`, `maxDepth=4`:
+
+| Phép đo | Corpus hiện hành | *(mốc cũ, 5.011 trang)* |
+|---|---|---|
+| Số trang | **30.001** | *5.011* |
+| Thời gian | **35,6 phút** | *3,2 phút* |
+| Thông lượng | **14,03 trang/giây** | *26,2 trang/giây* |
+| Số host phân biệt | **93 trong cache DNS**, 45 host có trang | *52* |
+| Tổng outlink thu được | **2.100.699** (trung bình **70,0**/trang) | *394.940* |
+| Số cạnh đồ thị PageRank | **1.611.135** | *239.691* |
+| — nội bộ domain | 1.439.708 (89,4%) | *197.689 (82,5%)* |
+| — **chéo domain** | **171.427 (10,6%)** | *42.002 (17,5%)* |
+| Tỷ lệ thưa nnz/n² | **0,1790%** | *0,9546%* |
+
+Thống kê theo từng khối của kiến trúc crawler — mỗi khối chứng minh được là có
+việc thật để làm:
+
+| Khối | Số liệu |
 |---|---|
-| Thời gian crawl 5.011 trang | **3,2 phút** |
-| Thông lượng | **26,2 trang/giây** (trần lý thuyết 52 do politeness) |
-| Số host phân biệt | **52** |
-| Tổng outlink thu được | **394.940** (trung bình **78,8**/trang) |
-| Số cạnh trong đồ thị PageRank (outlink trỏ **vào** corpus) | **239.691** |
-| — trong đó liên kết nội bộ domain | 197.689 (82,5%) |
-| — trong đó **liên kết chéo domain** | **42.002 (17,5%)** |
-| Tỷ lệ thưa nnz/n² | **0,9546%** |
+| DNS Resolver | 93 host trong cache, **tỷ lệ trúng 99,7%**, 6 host chết bị loại sớm |
+| HTML Downloader | tải 31.736 trang, 1.838 lần thử lại, 801 thất bại |
+| Content Seen? | 29.947 nội dung phân biệt, **vứt 1.735 bản trùng**, 54 trang thân bài rỗng |
+| URL Filter | nhận 1.450.209 · loại 650.501 *(độ sâu 521.961 · domain 123.029 · scheme 4.921 · đuôi tệp 590)* |
+| URL Seen? | 130.848 URL phân biệt, bộ lọc Bloom **57.510.351 bit (6,7 MB)**, 7 hàm băm |
+
+> **Tỷ lệ thưa giảm 5,3 lần** (0,9546% → 0,1790%) khi corpus lớn gấp 6. Đúng như
+> dự đoán lý thuyết ở mục 2.3: `nnz` tăng tuyến tính theo số trang còn `n²` tăng
+> bình phương, nên ma trận càng lớn càng thưa — và lựa chọn `SparseMatrix` thay
+> `double[n][n]` càng đúng. Với n = 30.001, mảng đặc sẽ cần **7,2 GB**.
+
+> **Thông lượng giảm còn 14,03 trang/giây** (từ 26,2) không phải do code chậm đi,
+> mà do politeness: mỗi host chờ 1 giây giữa hai lần tải, nên trần thông lượng
+> bằng **số host đang hoạt động**. Phiên này chạm tới các host nhỏ và các host trả
+> lỗi liên tục (801 lần thất bại), làm số host thực sự cấp được trang giảm xuống.
 
 ### 4.2. Lập chỉ mục
 
@@ -714,6 +1014,74 @@ cộng 500.000 chuỗi ngẫu nhiên.
 
 ---
 
+### 4.7. Tách từ tiếng Việt — so sánh trực tiếp cũ / mới
+
+Đo bằng `TokenizerBenchmark` trên **5.996 tài liệu** thật của corpus
+(6.741.175 âm tiết), Java 21, sau 3 vòng warm-up cho JIT:
+
+```bash
+./mvnw.cmd -q compile exec:java \
+  -Dexec.mainClass=com.vnsearch.eval.TokenizerBenchmark \
+  -Dexec.args="data/crawled-documents.json 6000"
+```
+
+#### Bảng so sánh tổng hợp
+
+| Hạng mục | Cũ — Longest Matching | Mới — Quy hoạch động | Thay đổi |
+|---|---|---|---|
+| Thuật toán ghép từ | Tham lam, không rút lại được | **QHĐ cực đại trọng số** | — |
+| Cấu trúc từ điển | `HashSet<String>` | **`SyllableTrie`** (mảng phẳng) | — |
+| Số mục từ điển | 154 | **49.793** | **×323** |
+| — trong đó từ ghép | 154 | **40.390** | ×262 |
+| Từ điển trả lời được | có / không | có / không **+ trọng số** | — |
+| Độ phức tạp | O(n × 4) = O(n) | O(n × 4) = **O(n)** | **không đổi** |
+| Cấp phát mỗi âm tiết | 3 mảng tạm + 3 chuỗi | **0** | — |
+| **Tốc độ ghép từ** | 3.718.748 âm tiết/giây | **17.853.690 âm tiết/giây** | **nhanh 4,80 lần** |
+| Thời gian trên corpus | 1.812,8 ms | **377,6 ms** | −79,2% |
+| Bộ nhớ từ điển | ~0,02 MB (154 mục) | **2,0 MB** (49.793 mục) | — |
+| Thời gian nạp từ điển | ~1 ms | **143 ms**, một lần / tiến trình | — |
+
+> **Big-O không đổi — vậy 4,80 lần đến từ đâu?** Từ **hằng số**. Cả hai đều duyệt
+> `n` âm tiết với hằng số 4. Khác nhau ở việc mỗi bước làm gì: bản cũ tạo ba
+> `Arrays.copyOfRange` và ba `String.join` rồi vứt đi ngay; bản mới đi một lượt
+> trên trie, không cấp phát gì. Trên 6,7 triệu âm tiết, đó là khoảng 20 triệu
+> lần cấp phát chết non được xoá bỏ. Đây chính là kiểu cải thiện mà **chỉ đo mới
+> thấy** — cùng bài học với mục 3.1 và 3.4(b).
+
+#### Kết quả tách khác nhau ở đâu
+
+| Phép đo | Kết quả |
+|---|---|
+| Tài liệu tách khác nhau | **3.236 / 5.996 (54,0%)** |
+| Mốc giới hạn khác nhau | 14.089 |
+| Tổng token — QHĐ / tham lam | 5.312.681 / 5.318.748 |
+
+Hơn **một nửa** tài liệu được tách khác đi. Đáng chú ý là **tổng số token gần
+như không đổi** (chênh 0,1%): quy hoạch động không đơn thuần gộp nhiều hơn hay
+ít hơn, nó **đặt ranh giới vào chỗ khác**.
+
+Năm ví dụ đầu tiên benchmark tìm được trong corpus (trái: tham lam, phải: QHĐ):
+
+| Tham lam (cũ) | Quy hoạch động (mới) | Chuyện gì đã xảy ra |
+|---|---|---|
+| `[không_trung][thực]` | `[không][trung_thực]` | *không trung* = vùng trời. Nghĩa bị đảo hoàn toàn |
+| `[xa_giá][trị]` | `[xa][giá_trị]` | *xa giá* = xe vua đi. Cướp mất âm tiết của *giá trị* |
+| `[đại_hội][đồng]` | `[đại][hội_đồng]` | *đại hội đồng* — tham lam chộp `đại hội` trước |
+| `[làm][đẹp]` | `[làm_đẹp]` | Từ ghép mà từ điển 154 mục không có |
+| `[chuyển_đổi][số]` | `[chuyển_đổi_số]` | Thuật ngữ 3 âm tiết bị cắt đôi |
+
+Ví dụ thứ nhất là ví dụ đắt nhất: một bài viết về **sự trung thực** bị lập chỉ
+mục thành bài viết về **không trung**. Không có ngoại lệ nào được ném ra, không
+có test nào đỏ — chỉ là kết quả tìm kiếm sai một cách khó hiểu.
+
+> **Điều bảng này CHƯA chứng minh.** 54,0% tài liệu tách khác đi, và các ví dụ
+> cho thấy bản mới đúng hơn — nhưng đó là **quan sát định tính trên năm ví dụ**,
+> không phải phép đo độ chính xác. Muốn khẳng định "tách từ chính xác hơn X%"
+> thì cần một tập văn bản đã tách từ thủ công làm chuẩn, và đồ án **chưa có**.
+> Xem mục 6.1.
+
+---
+
 ## 5. Kiểm thử
 
 **280 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
@@ -734,6 +1102,8 @@ cd search-engine
 | **`CandidateResolverTest`** | **12** | Lui dần về AND-của-tập-con: thứ tự bỏ term theo IDF, cụm từ và mệnh đề `NOT` **không bao giờ** bị bỏ |
 | `HeapifyAndFreezeTest` | 12 | Floyd heapify $O(n)$, đóng băng `SparseMatrix` sang CSR |
 | `TrieTest` | 12 | Prefix search, tách khoá/hiển thị, top-k theo frequency, **thread-safe** |
+| **`MaxWeightSegmenterTest`** | **10** | Quy hoạch động tách từ. Phần lớn dùng trie **tự dựng tay** để kiểm tra thuật toán *riêng nó*, không lẫn với câu hỏi "từ điển có đủ tốt không". Test trọng tâm: `resolvesAmbiguityThatGreedyLongestMatchingGetsWrong` (`nhà hàng xóm`) và test đối chiếu `stillPrefersLongWordWhenItScoresHigher` |
+| **`SyllableTrieTest`** | **9** | Trie mảng phẳng. Hai test ép đúng chỗ dễ sai: `survivesRehashingWithManyWords` (5.000 từ, buộc bảng băm lại) và `sameSyllableUnderManyParentsStaysCorrect` (2.000 nút cha — bắt lỗi hàm băm bỏ qua 32 bit cao) |
 | `BM25ScorerTest` | 11 | Kiểm chứng **tính chất** phân biệt BM25 với TF-IDF |
 | `UrlFrontierTest` | 14 | Ưu tiên, politeness, **đồng thời với 8 thread** |
 | `BackQueuesTest` | 8 | Một host một hàng đợi, nạp lại khi cạn, Mapping Table bị chặn |
@@ -800,27 +1170,41 @@ quả phụ thuộc đồ thị đầu vào.
 > Nêu ra để người đọc không phải tự phát hiện — và để biết chỗ nào đáng làm
 > tiếp nếu mở rộng đồ án.
 
-### 6.1. Từ điển tách từ chỉ có 154 mục — trần chất lượng của cả hệ thống
+### 6.1. Độ chính xác tách từ vẫn chưa được đo
 
-`vietnamese-bigrams.txt` có **154 mục** phân bố như sau:
+> **Hạn chế này đã đổi bản chất.** Các bản báo cáo trước ghi ở đây: *"Từ điển
+> tách từ chỉ có 154 mục — trần chất lượng của cả hệ thống"*, với nhận định
+> *"một từ điển tiếng Việt đầy đủ cần 30.000–70.000 mục"*. Trần đó **đã được gỡ**
+> ở mục 2.8: từ điển nay có **49.793 mục (40.390 từ ghép)**, nằm đúng trong
+> khoảng nói trên, và thuật toán ghép từ đã chuyển từ tham lam sang quy hoạch
+> động. Ví dụ cũ được nêu trong mục này — `bóng đá` bị tách thành `bóng` + `đá`
+> — nay ghép đúng.
 
-| Số tiếng | Số mục | Ví dụ |
-|---|---|---|
-| 2 tiếng | 131 | `máy tính`, `khoa học`, `internet` |
-| 3 tiếng | 11 | `trình duyệt web`, `mạng xã hội`, `bất động sản` |
-| 4 tiếng | 12 | `khoa học máy tính`, `trí tuệ nhân tạo`, `thương mại điện tử` |
+Phần **chưa** giải quyết được, và nó mới là hạn chế thật sự:
 
-Thuật toán Longest Matching cài **đúng**, nhưng chạy trên từ điển nhỏ này thì
-nhiều cụm từ phổ biến không được ghép: `máy tính` **có** nên ghép đúng, còn
-`bóng đá` **không có** nên bị tách thành `bóng` + `đá`. Một từ điển tiếng Việt
-đầy đủ cần **30.000–70.000 mục**.
+**Không có tập chuẩn để đo.** Mục 4.7 chứng minh được rằng bản mới **nhanh hơn
+4,80 lần** và **tách khác đi ở 54,0% tài liệu**, nhưng không chứng minh được
+rằng nó **chính xác hơn bao nhiêu phần trăm**. Bằng chứng về chất lượng hiện chỉ
+là năm ví dụ đọc bằng mắt (`[không_trung][thực]` → `[không][trung_thực]`) — thuyết
+phục, nhưng là quan sát định tính, không phải phép đo.
 
-**Độ chính xác tách từ chưa được đo** — đây là khoảng trống lớn nhất của phần
-đánh giá. Muốn đo cần một tập văn bản đã tách từ thủ công làm chuẩn.
+Muốn đo thật cần một tập văn bản tiếng Việt **đã tách từ thủ công** làm chuẩn
+vàng, rồi tính precision / recall / F1 trên ranh giới từ. Quy mô tối thiểu dùng
+được là khoảng 500–1.000 câu. Đây là khoảng trống lớn nhất còn lại của phần đánh
+giá, và là việc **nên làm trước** mọi cải tiến tiếp theo của bộ tách từ — vì
+không có nó thì mọi thay đổi sau này đều không biết là tốt lên hay tệ đi.
 
-Ghi chú thêm về cách đặt tên: biến trong code là `bigramDictionary` và file là
-`vietnamese-bigrams.txt`, nhưng từ điển thực chất chứa cụm **tới 4 tiếng** —
-tên gọi gây nhầm.
+**Ba hạn chế nhỏ hơn còn lại:**
+
+| Hạn chế | Chi tiết |
+|---|---|
+| Bảng `PARAM` chưa được dò lại | Bộ tham số $(\alpha_k, \beta_k)$ lấy nguyên từ Cốc Cốc, dò trên dữ liệu **của họ** với trie theo **ký tự**; ở đây trie theo **âm tiết**. Đã tách thành tham số constructor để chạy ablation, nhưng **chưa chạy** vì chưa có tập chuẩn ở trên |
+| $\beta_3 = 4{,}42$ là một quả mìn | Mọi khớp 3 âm tiết mạnh gấp ~1.000 lần hai khớp 2 âm tiết cộng lại. Với từ điển từ vựng hiện tại thì không sao, nhưng nếu mở rộng từ điển thì phải đo lại — mục 3.4(a) đã trúng đúng cái mìn này một lần |
+| Từ ghép trên 4 âm tiết không nhận được | `MAX_SYLLABLES = 4` là chặn trên của bảng `PARAM` (9 phần tử). `khoa học máy tính` (4) ghép được, nhưng cụm 5 âm tiết thì không |
+
+Ghi chú về cách đặt tên: file từ điển thủ công theo miền vẫn tên
+`vietnamese-bigrams.txt` dù chứa cụm **tới 4 tiếng** — tên gọi gây nhầm, giữ lại
+vì đổi tên sẽ phá tương thích với chỉ mục đã lưu.
 
 ### 6.2. Toán tử `-` chỉ loại trừ một tiếng
 
@@ -884,6 +1268,32 @@ nhớ (6.4), WAND (6.5), và tránh boxing `Integer` ở `docIdsOf`.
 | `RobotsTxtParser` | Bỏ qua wildcard `*` / `$`; khi hai luật cùng độ dài thì luật đầu thắng (chuẩn: `Allow` thắng) | Nhỏ |
 | `HtmlDownloader.download` | Retry **không có** exponential backoff | Có thể dồn tải lên server đang gặp sự cố |
 
+### 6.8. Corpus hiện hành còn 2.533 trang tiếng Trung không tìm được
+
+Mục 3.5 mô tả đầy đủ vấn đề và cách sửa. Phần còn tồn đọng: bộ lọc
+`SPACELESS_SCRIPT_HOST_PREFIXES` được viết **sau** khi corpus 30.001 trang đã crawl
+xong, mà nó chỉ tác động lúc crawl chứ không lọc ngược file đã có. Nên corpus đang
+dùng vẫn chứa **2.533 trang (8,4%)** tiếng Trung mà mọi truy vấn đều không khớp nổi.
+
+Ảnh hưởng cụ thể tới các con số trong báo cáo:
+
+| Chỗ bị ảnh hưởng | Ảnh hưởng |
+|---|---|
+| IDF của mọi term | `N = 30.001` thay vì `27.468` → `log(N/df)` lệch nhẹ, đều cho mọi term nên **thứ tự xếp hạng gần như không đổi** |
+| Kích thước chỉ mục | Thừa ~8% dung lượng cho tài liệu không bao giờ trả về |
+| Đồ thị PageRank | 2.533 đỉnh vẫn nhận và truyền PageRank bình thường — hợp lệ về mặt đồ thị |
+| `EvaluationRunner` | **Không** bị ảnh hưởng: `KnownItemQueryGenerator` đã lọc bằng `LanguageDetector` từ trước |
+
+Chưa sửa vì sửa đúng cách là **crawl lại** (~36 phút), và đây là quyết định đánh
+đổi thời gian đã được cân nhắc rồi bỏ qua có ý thức, chứ không phải sót. Hai cách
+xử lý khi cần:
+
+1. **Crawl lại** với bộ lọc đã có — cho corpus sạch, và ~2.500 slot đó chuyển sang
+   trang tiếng Việt thật.
+2. **Lọc ngược file corpus** bằng một lượt quét, loại tài liệu có host khớp
+   `SPACELESS_SCRIPT_HOST_PREFIXES` — nhanh hơn nhiều nhưng corpus co lại còn 27.468
+   trang thay vì đủ 30.000.
+
 Các hạn chế **kiến trúc** (chỉ mục một tiến trình, reindex toàn phần, không
 có `Content Seen?`…): xem mục 6 của `ARCHITECTURE.md`. Các điểm **vỡ ở quy mô
 1 tỷ trang**: xem mục 13 của `docs/Math/`.
@@ -898,7 +1308,7 @@ corpus cố định.
 ```bash
 cd search-engine
 
-# 1. Bộ test đầy đủ (280 test)
+# 1. Bộ test đầy đủ (362 test)
 ./mvnw.cmd test
 
 # 2. Demo từng cấu trúc dữ liệu, chạy độc lập không cần Spring
@@ -914,6 +1324,21 @@ cd search-engine
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.ranking.TfIdfScorer
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.ranking.PageRankService
 ./mvnw.cmd -q compile exec:java -Dexec.mainClass=com.vnsearch.ranking.ResultRanker
+
+# 2a-0. Sinh lại từ điển tách từ từ nguồn coccoc-tokenizer (mục 2.8).
+#       Chỉ cần chạy khi muốn dựng lại vietnamese-words.txt từ đầu —
+#       file kết quả đã có sẵn trong src/main/resources/.
+#       Tham số thứ 3 (tuỳ chọn) là ngưỡng tần suất để nạp thêm keyword.freq;
+#       BỎ TRỐNG là đúng — xem mục 3.4(a) về lý do không dùng file đó.
+python tools/build_dict.py \
+  ../coccoc-tokenizer/dicts/tokenizer \
+  src/main/resources/vietnamese-words.txt
+
+# 2a. So sánh tách từ cũ / mới: tốc độ + khác biệt kết quả (mục 4.7)
+#     In luôn kích thước trie và vài ví dụ tách khác nhau tìm được trong corpus.
+./mvnw.cmd -q compile exec:java \
+  -Dexec.mainClass=com.vnsearch.eval.TokenizerBenchmark \
+  -Dexec.args="data/crawled-documents.json 6000"
 
 # 2b. Đo kích thước chỉ mục theo 3 định dạng (mục 4.2) + kiểm chứng nạp lại
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \

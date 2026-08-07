@@ -8,7 +8,6 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.text.Normalizer;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -27,11 +26,11 @@ import java.util.regex.Pattern;
  *   <li>Lowercase, thay moi ky tu khong phai chu/so bang khoang trang
  *       (bo dau cau).</li>
  *   <li>Tach theo khoang trang thanh danh sach "tieng" (syllable).</li>
- *   <li>Ghep tu ghep bang thuat toan <b>Longest Matching</b>: tai moi vi
- *       tri, thu ghep toi da {@code MAX_COMPOUND_LENGTH} tieng lien tiep,
- *       giam dan do dai, kiem tra co trong tu dien
- *       {@code vietnamese-bigrams.txt} khong; neu co thi gop thanh 1 token
- *       (noi bang dau "_"), neu khong thi lui ve token 1 tieng.</li>
+ *   <li>Ghep tu ghep bang <b>quy hoach dong cuc dai trong so</b>
+ *       ({@link MaxWeightSegmenter}) tren tu dien co tan suat
+ *       ({@link VietnameseWordDictionary}). Truoc day buoc nay la
+ *       <b>Longest Matching</b> tham lam tren mot {@code HashSet} 154 muc —
+ *       xem muc "Vi sao doi thuat toan" ben duoi.</li>
  *   <li>Loai stopword (chi ap dung cho token 1 tieng, doc tu
  *       {@code vietnamese-stopwords.txt}).</li>
  *   <li>Sinh them ban khong dau cua moi token (Normalizer NFD + regex bo
@@ -40,14 +39,38 @@ import java.util.regex.Pattern;
  *       tim khong dau ("may tinh" van tim thay "máy tính").</li>
  * </ol>
  *
+ * <h2>Vi sao doi thuat toan ghep tu</h2>
+ *
+ * <p>Javadoc cua {@link Tokenizer} da chi ra rang bo tach tu la <b>tran chat
+ * luong</b> cua ca he thong, va nguyen nhan la tu dien tu ghep chi co 154 muc.
+ * Ban nay go bo tran do o ca hai phia:
+ *
+ * <ol>
+ *   <li><b>Tu dien: 154 &rarr; hon 185.000 muc co tan suat</b>, trich tu
+ *       {@code coccoc-tokenizer} (LGPL-3.0) — bo tach tu dang chay trong
+ *       production cua Coc Coc. Xem {@link VietnameseWordDictionary}.</li>
+ *   <li><b>Thuat toan: Longest Matching &rarr; quy hoach dong.</b> Tham lam
+ *       chon tu dai nhat tai moi vi tri va khong rut lai duoc quyet dinh do, nen
+ *       no tach sai o cau nhap nhang: {@code "nha hang xom"} thanh
+ *       {@code [nha_hang][xom]}. Quy hoach dong cham diem ca cau roi chon phuong
+ *       an tot nhat, cho ra {@code [nha][hang_xom]}. Xem
+ *       {@link MaxWeightSegmenter}.</li>
+ * </ol>
+ *
+ * <p>Hai thay doi nay phu thuoc nhau: quy hoach dong <b>vo nghia</b> tren tu dien
+ * nhi phan (khong co trong so thi moi cach tach hop le deu dat diem bang nhau),
+ * va tu dien lon <b>lam tham lam te hon</b> (cang nhieu tu ghep thi cang nhieu co
+ * hoi chon nham tu dai). Chi doi mot trong hai deu khong an.
+ *
+ * <p><b>Bat bien phai giu:</b> tang chi muc va tang truy van phai dung cung mot
+ * tokenizer VA cung mot tu dien — xem Javadoc {@link Tokenizer}. Vi vay tu dien la
+ * mot the hien dung chung, bat bien sau khi nap ({@link #sharedDictionary()}).
+ *
  * <p>Do phuc tap thoi gian: goi {@link #tokenize(String)} tren van ban co
- * n tieng la O(n * MAX_COMPOUND_LENGTH) = O(n) vi MAX_COMPOUND_LENGTH la
- * hang so nho (4). Do phuc tap khong gian: O(n) cho danh sach token +
- * O(|tu dien|) co dinh cho stopword/bigram set.
+ * n tieng la O(n * MAX_SYLLABLES) = O(n) vi MAX_SYLLABLES la hang so nho (4).
+ * Do phuc tap khong gian: O(n) cho danh sach token + O(|tu dien|) co dinh.
  */
 public class VietnameseTokenizer implements Tokenizer {
-
-    private static final int MAX_COMPOUND_LENGTH = 4;
 
     /**
      * Regex duoc BIEN DICH SAN.
@@ -67,12 +90,46 @@ public class VietnameseTokenizer implements Tokenizer {
     public record Token(String term, String noDiacriticTerm, int position) {
     }
 
+    /**
+     * Tu dien dung chung, nap mot lan cho ca tien trinh.
+     *
+     * <p>Nap 185.000 muc mat vai tram milli-giay va chiem hang chuc MB. Trong ma
+     * nguon hien co, {@code new VietnameseTokenizer()} xuat hien o <b>bay</b> cho
+     * ({@code InvertedIndex}, {@code QueryParser}, {@code IndexPersistence},
+     * {@code EvaluationHarness}...) — neu moi lan deu nap lai thi vua cham vua ton
+     * bo nho gap bay lan cho cung mot du lieu bat bien.
+     *
+     * <p>Dung <b>lazy holder idiom</b>: JVM bao dam lop long chi duoc khoi tao mot
+     * lan, dung luc lan dau ai do doc {@code INSTANCE}, va bao dam nay <b>khong
+     * ton khoa</b> o cac lan doc sau. Viet {@code synchronized} tay hay
+     * double-checked locking deu vua dai vua de sai hon.
+     */
+    private static final class DictionaryHolder {
+        static final VietnameseWordDictionary INSTANCE = new VietnameseWordDictionary();
+    }
+
+    /** Tu dien dung chung; bat bien sau khi nap nen an toan cho nhieu luong. */
+    public static VietnameseWordDictionary sharedDictionary() {
+        return DictionaryHolder.INSTANCE;
+    }
+
     private final Set<String> stopwords;
-    private final Set<String> bigramDictionary;
+    private final VietnameseWordDictionary dictionary;
+    private final MaxWeightSegmenter segmenter;
 
     public VietnameseTokenizer() {
+        this(sharedDictionary());
+    }
+
+    /**
+     * @param dictionary tu dien muon dung — tach ra lam tham so de
+     *                   {@code EvaluationRunner} do duoc anh huong cua tu dien
+     *                   va cua bang tham so trong so len chat luong tim kiem
+     */
+    public VietnameseTokenizer(VietnameseWordDictionary dictionary) {
         this.stopwords = loadResourceLines("/vietnamese-stopwords.txt");
-        this.bigramDictionary = loadResourceLines("/vietnamese-bigrams.txt");
+        this.dictionary = dictionary;
+        this.segmenter = new MaxWeightSegmenter(dictionary);
     }
 
     private static Set<String> loadResourceLines(String resourcePath) {
@@ -167,8 +224,11 @@ public class VietnameseTokenizer implements Tokenizer {
      */
     @Override
     public String name() {
-        return "VietnameseTokenizer(LongestMatching, maxCompound=" + MAX_COMPOUND_LENGTH
-                + ", dict=" + bigramDictionary.size() + ", stopwords=" + stopwords.size() + ")";
+        return "VietnameseTokenizer(MaxWeightDP, maxSyllables="
+                + VietnameseWordDictionary.MAX_SYLLABLES
+                + ", dict=" + dictionary.wordCount()
+                + " (" + dictionary.compoundCount() + " tu ghep)"
+                + ", stopwords=" + stopwords.size() + ")";
     }
 
     @Override
@@ -178,26 +238,23 @@ public class VietnameseTokenizer implements Tokenizer {
             return tokens;
         }
         String[] syllables = splitIntoSyllables(text);
-        int i = 0;
+        int[] boundaries = segmenter.segment(syllables);
+
         int position = 0;
-        while (i < syllables.length) {
-            int matchedLen = 1;
-            int maxLen = Math.min(MAX_COMPOUND_LENGTH, syllables.length - i);
-            for (int len = maxLen; len >= 2; len--) {
-                String candidate = String.join(" ", Arrays.copyOfRange(syllables, i, i + len));
-                if (bigramDictionary.contains(candidate)) {
-                    matchedLen = len;
-                    break;
-                }
-            }
+        for (int k = 0; k + 1 < boundaries.length; k++) {
+            int from = boundaries[k];
+            int to = boundaries[k + 1];
 
             String term;
             boolean isStopword;
-            if (matchedLen > 1) {
-                term = String.join("_", Arrays.copyOfRange(syllables, i, i + matchedLen));
+            if (to - from > 1) {
+                term = joinWithUnderscore(syllables, from, to);
+                // Tu ghep khong bao gio bi coi la stopword: "co the" hay "cho nen"
+                // la tu that mang nghia, du tung tieng deu nam trong danh sach
+                // stopword. Bo chung se lam hong ca truy van chua cum tu do.
                 isStopword = false;
             } else {
-                term = syllables[i];
+                term = syllables[from];
                 isStopword = stopwords.contains(term);
             }
 
@@ -205,19 +262,53 @@ public class VietnameseTokenizer implements Tokenizer {
                 tokens.add(new Token(term, stripDiacritics(term), position));
                 position++;
             }
-            i += matchedLen;
         }
         return tokens;
+    }
+
+    /** Noi {@code syllables[from..to)} bang dau "_" — mot lan cap phat duy nhat. */
+    private static String joinWithUnderscore(String[] syllables, int from, int to) {
+        int length = to - from - 1; // so dau "_"
+        for (int i = from; i < to; i++) {
+            length += syllables[i].length();
+        }
+        StringBuilder joined = new StringBuilder(length);
+        joined.append(syllables[from]);
+        for (int i = from + 1; i < to; i++) {
+            joined.append('_').append(syllables[i]);
+        }
+        return joined.toString();
     }
 
     /** Demo minh hoa nho de chup man hinh lam bao cao. */
     public static void main(String[] args) {
         VietnameseTokenizer tokenizer = new VietnameseTokenizer();
+        System.out.println(tokenizer.name());
+        System.out.println();
+
         String text = "Trình duyệt web và công cụ tìm kiếm là các sản phẩm công nghệ rất quan trọng của một công ty.";
         List<Token> tokens = tokenizer.tokenize(text);
         System.out.println("Van ban: " + text);
         for (Token t : tokens) {
             System.out.println("  [" + t.position() + "] " + t.term() + "  (khong dau: " + t.noDiacriticTerm() + ")");
+        }
+
+        // Cac cau NHAP NHANG: ca hai cach tach deu hop le ve tu dien, nen Longest
+        // Matching phai doan — va doan sai. Day la phan dang doc nhat cua demo.
+        System.out.println("\n--- Cac ca nhap nhang ---");
+        String[] ambiguous = {
+                "nhà hàng xóm",
+                "ông già đi nhanh quá",
+                "học sinh học sinh học",
+                "tôi đi mua máy tính xách tay mới",
+                "cải cách ruộng đất",
+        };
+        for (String sentence : ambiguous) {
+            StringBuilder line = new StringBuilder();
+            for (Token t : tokenizer.tokenize(sentence)) {
+                line.append('[').append(t.term()).append(']');
+            }
+            System.out.printf("  %-34s -> %s%n", sentence, line);
         }
     }
 }

@@ -30,6 +30,7 @@ public final class CrawlConfig {
     private final int maxPages;
     private final int threadCount;
     private final Set<String> allowedDomains;
+    private final Set<String> excludedHostPrefixes;
     private final int maxDurationMinutes;
     private final String urlStoragePath;
 
@@ -38,6 +39,7 @@ public final class CrawlConfig {
         this.maxPages = builder.maxPages;
         this.threadCount = builder.threadCount;
         this.allowedDomains = Set.copyOf(builder.allowedDomains); // ban sao BAT BIEN
+        this.excludedHostPrefixes = Set.copyOf(builder.excludedHostPrefixes);
         this.maxDurationMinutes = builder.maxDurationMinutes;
         this.urlStoragePath = builder.urlStoragePath;
     }
@@ -59,6 +61,14 @@ public final class CrawlConfig {
     }
 
     /** Tap domain duoc phep crawl; rong nghia la KHONG gioi han. */
+    /**
+     * Tien to host bi loai, du domain goc duoc phep — xem
+     * {@link UrlFilter#FOREIGN_LANGUAGE_HOST_PREFIXES}.
+     */
+    public Set<String> excludedHostPrefixes() {
+        return excludedHostPrefixes;
+    }
+
     public Set<String> allowedDomains() {
         return allowedDomains;
     }
@@ -89,6 +99,7 @@ public final class CrawlConfig {
         private int maxPages = 100;
         private int threadCount = 4;
         private Set<String> allowedDomains = Set.of();
+        private Set<String> excludedHostPrefixes = Set.of();
         private int maxDurationMinutes = 60;
         private String urlStoragePath = null;
 
@@ -112,6 +123,19 @@ public final class CrawlConfig {
 
         public Builder allowedDomains(Set<String> value) {
             this.allowedDomains = value == null ? Set.of() : value;
+            return this;
+        }
+
+        /**
+         * Loai cac host co tien to nay, DU domain goc nam trong allowedDomains.
+         *
+         * <p>Sinh ra de chan cac ban ngoai ngu ma bao Viet Nam dat tren subdomain
+         * ({@code en.nhandan.vn}, {@code cn.baochinhphu.vn}...). Xem
+         * {@link UrlFilter#FOREIGN_LANGUAGE_HOST_PREFIXES} — Javadoc o do co con so
+         * do duoc ve muc do nghiem trong neu khong chan.
+         */
+        public Builder excludedHostPrefixes(Set<String> value) {
+            this.excludedHostPrefixes = value == null ? Set.of() : value;
             return this;
         }
 

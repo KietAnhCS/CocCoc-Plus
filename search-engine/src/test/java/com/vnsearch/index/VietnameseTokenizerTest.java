@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class VietnameseTokenizerTest {
@@ -26,7 +27,7 @@ class VietnameseTokenizerTest {
     }
 
     @Test
-    void compoundWordsAreMergedByLongestMatching() {
+    void compoundWordsAreMerged() {
         List<String> terms = terms("trình duyệt web rất tốt");
         assertTrue(terms.contains("trình_duyệt_web"), "Phai ghep 3 tieng thanh 1 token compound");
     }
@@ -36,6 +37,43 @@ class VietnameseTokenizerTest {
         List<String> terms = terms("con mèo đang ngủ");
         assertTrue(terms.contains("mèo"));
         assertTrue(terms.contains("ngủ"));
+    }
+
+    /**
+     * Ca nhap nhang ma Longest Matching tham lam tach sai: tai am tiet dau no thay
+     * "nhà hàng" co trong tu dien va lay ngay, an mat am tiet "hàng" ma cach tach dung
+     * can den. Quy hoach dong cham diem ca cau nen chon duoc [nhà][hàng_xóm].
+     */
+    @Test
+    void ambiguousPhraseIsSegmentedByGlobalScoreNotGreedily() {
+        assertEquals(List.of("nhà", "hàng_xóm"), terms("nhà hàng xóm"));
+    }
+
+    /** Doi chieu: "nhà hàng" van phai duoc gop khi no thuc su la mot tu. */
+    @Test
+    void sameCompoundIsStillMergedInAnUnambiguousSentence() {
+        assertTrue(terms("nhà hàng này rất ngon").contains("nhà_hàng"));
+    }
+
+    /**
+     * Tu ghep khong bi loc stopword, ke ca khi mot am tiet cua no la stopword.
+     *
+     * <p>"của cải" la tai san, con "của" la stopword. Neu tach roi thi "của" bi bo va
+     * chi con "cải" (rau cai) — truy van ve tai san se ra ket qua ve rau. Loi kieu nay
+     * <b>im lang</b>: khong ngoai le nao duoc nem, chi la ket qua sai mot cach kho hieu.
+     */
+    @Test
+    void compoundIsNotDroppedWhenOneSyllableIsAStopword() {
+        List<String> terms = terms("của cải trong nhà");
+        assertTrue(terms.contains("của_cải"), "Nhan duoc: " + terms);
+    }
+
+    /** Tu dien dung chung chi duoc nap MOT lan cho ca tien trinh. */
+    @Test
+    void dictionaryIsSharedAcrossInstances() {
+        assertSame(VietnameseTokenizer.sharedDictionary(),
+                VietnameseTokenizer.sharedDictionary());
+        assertTrue(new VietnameseTokenizer().name().contains("MaxWeightDP"));
     }
 
     @Test

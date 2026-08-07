@@ -80,7 +80,48 @@ public class IndexPersistence {
         if (data.version() != InvertedIndex.FORMAT_VERSION) {
             throw new IOException(formatMismatchMessage(path, data.version()));
         }
+        checkTokenizerMatches(path, data.tokenizer(), tokenizer);
         return InvertedIndex.importData(data, tokenizer);
+    }
+
+    /**
+     * Chặn việc nạp một chỉ mục do bộ tách từ KHÁC dựng nên.
+     *
+     * <p>Đây là bất biến sống còn nêu trong Javadoc của {@link Tokenizer}: chỉ mục
+     * và truy vấn phải dùng cùng một tokenizer và cùng một từ điển. Nếu lệch, chỉ
+     * mục vẫn đúng định dạng và vẫn nạp trót lọt, nhưng term hai bên sinh ra không
+     * còn khớp nhau — truy vấn trả về rỗng mà <b>không có bất kỳ dấu hiệu nào</b>.
+     *
+     * <p>Ném {@link IOException} chứ không phải ghi log rồi chạy tiếp, vì bên gọi
+     * ({@code SearchEngineFacade.loadCorpus}) đã bắt sẵn ngoại lệ này và tự dựng
+     * lại chỉ mục từ corpus gốc — đúng việc cần làm. Chỉ mục dựng sẵn là
+     * <b>cache dẫn xuất</b>, không phải nguồn sự thật, nên vứt đi rồi làm lại luôn
+     * là hành vi đúng.
+     *
+     * @param stored dấu vân tay đọc từ file; {@code null} với file đời trước
+     */
+    private static void checkTokenizerMatches(String path, String stored, Tokenizer current)
+            throws IOException {
+        if (stored == null) {
+            // File ghi trước khi có trường này. Không thể khẳng định nó sai — chỉ
+            // là không kiểm chứng được. Cảnh báo thay vì chặn, để chỉ mục cũ hợp lệ
+            // không bị vứt đi oan.
+            System.err.println("[CANH BAO] Chi muc '" + path + "' khong ghi dau van tay"
+                    + " tokenizer (dinh dang doi truoc). Khong the kiem chung no co khop voi"
+                    + " bo tach tu hien tai hay khong. Neu ket qua tim kiem rong bat thuong,"
+                    + " hay xoa file nay de dung lai chi muc.");
+            return;
+        }
+        String expected = current.name();
+        if (!stored.equals(expected)) {
+            throw new IOException("File chỉ mục '" + path + "' được dựng bởi một bộ tách từ"
+                    + " KHÁC với bộ đang dùng.\n"
+                    + "  trong file : " + stored + "\n"
+                    + "  hiện tại   : " + expected + "\n"
+                    + "Chỉ mục và truy vấn bắt buộc phải dùng cùng một tokenizer và cùng một"
+                    + " từ điển, nếu không term hai bên sinh ra sẽ không khớp và mọi truy vấn"
+                    + " trả về rỗng một cách im lặng. Chỉ mục sẽ được dựng lại từ corpus gốc.");
+        }
     }
 
     private static String formatMismatchMessage(String path, int foundVersion) {

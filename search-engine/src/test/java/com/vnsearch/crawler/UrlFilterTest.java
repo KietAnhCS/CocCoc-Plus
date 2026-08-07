@@ -96,12 +96,68 @@ class UrlFilterTest {
 
     @Test
     void totalRejectedSumsEveryReason() {
-        UrlFilter filter = new UrlFilter(Set.of("a.vn"), 1);
+        UrlFilter filter = new UrlFilter(Set.of("a.vn"), 1, Set.of("en."));
         filter.accept("https://a.vn/x", 9);        // do sau
         filter.accept("mailto:x@a.vn", 0);          // scheme
         filter.accept("https://b.vn/x", 0);         // domain
+        filter.accept("https://en.a.vn/x", 0);      // tien to host
         filter.accept("https://a.vn/anh.png", 0);   // duoi tep
-        assertEquals(4, filter.getTotalRejectedCount());
+        assertEquals(5, filter.getTotalRejectedCount());
         assertEquals(0, filter.getAcceptedCount());
+    }
+
+    /**
+     * Subdomain tiếng Trung/Nhật bị loại, nhưng ngoại ngữ có dấu cách thì KHÔNG.
+     *
+     * <p>Tiêu chí là <b>chữ viết có dấu cách hay không</b>, không phải "ngoại ngữ".
+     * Tiếng Anh, Nga, Hàn, Tây Ban Nha, Pháp đều tách được theo khoảng trắng và tìm
+     * kiếm được bình thường — corpus đa ngữ là chuyện tốt. Riêng chữ Trung/Nhật
+     * không có dấu cách nên tokenizer trả về cả mệnh đề làm một token, tài liệu vào
+     * chỉ mục nhưng không truy vấn nào khớp nổi. Số đo ở Javadoc của
+     * {@link UrlFilter#SPACELESS_SCRIPT_HOST_PREFIXES}.
+     */
+    @Test
+    void spacelessScriptSubdomainsAreRejectedButOtherLanguagesAreKept() {
+        // Ca ba domain goc deu phai nam trong allowedDomains, neu khong URL bi loai
+        // vi DOMAIN chu khong phai vi tien to host — va test se do sai thu.
+        UrlFilter filter = new UrlFilter(
+                Set.of("nhandan.vn", "vnexpress.net", "vietnamplus.vn"), 5,
+                UrlFilter.SPACELESS_SCRIPT_HOST_PREFIXES);
+
+        assertTrue(filter.accept("https://nhandan.vn/bai-viet", 0), "Ban tieng Viet");
+        assertTrue(filter.accept("https://en.nhandan.vn/x", 0), "Tieng Anh tach duoc — phai GIU");
+        assertTrue(filter.accept("https://ru.nhandan.vn/x", 0), "Tieng Nga tach duoc — phai GIU");
+        assertTrue(filter.accept("https://kr.nhandan.vn/x", 0), "Tieng Han co dau cach — phai GIU");
+        assertTrue(filter.accept("https://es.nhandan.vn/x", 0), "Tieng Tay Ban Nha — phai GIU");
+        assertTrue(filter.accept("https://e.vnexpress.net/x", 0), "Ban tieng Anh VnExpress — GIU");
+
+        assertFalse(filter.accept("https://cn.nhandan.vn/x", 0), "Tieng Trung — khong dau cach");
+        assertFalse(filter.accept("https://zh.vietnamplus.vn/x", 0), "Tieng Trung");
+
+        assertEquals(2, filter.getRejectedByHostPrefixCount());
+        assertEquals(6, filter.getAcceptedCount());
+    }
+
+    /**
+     * Khớp tiền tố phải kèm dấu chấm, nếu không sẽ loại oan những host tiếng Việt
+     * chỉ vô tình bắt đầu bằng cùng mấy chữ cái.
+     */
+    @Test
+    void hostPrefixMatchRequiresADotAndDoesNotCatchSimilarNames() {
+        UrlFilter filter = new UrlFilter(Set.of("example.vn"), 5,
+                UrlFilter.SPACELESS_SCRIPT_HOST_PREFIXES);
+
+        assertTrue(filter.accept("https://cnn.example.vn/x", 0), "'cnn' khong phai 'cn.'");
+        assertTrue(filter.accept("https://zhang.example.vn/x", 0), "'zhang' khong phai 'zh.'");
+        assertTrue(filter.accept("https://japan-news.example.vn/x", 0), "'japan' khong phai 'ja.'");
+        assertEquals(0, filter.getRejectedByHostPrefixCount());
+    }
+
+    /** Không cấu hình tiền tố nào thì bộ lọc phải giữ nguyên hành vi cũ. */
+    @Test
+    void emptyPrefixSetRejectsNothingExtra() {
+        UrlFilter filter = new UrlFilter(Set.of("nhandan.vn"), 5);
+        assertTrue(filter.accept("https://en.nhandan.vn/x", 0));
+        assertEquals(0, filter.getRejectedByHostPrefixCount());
     }
 }

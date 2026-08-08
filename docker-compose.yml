@@ -12,7 +12,9 @@ services:
     environment:
       POSTGRES_DB: vnsearch
       POSTGRES_USER: vnsearch
-      POSTGRES_PASSWORD: vnsearch
+      # Doc tu bien moi truong (hoac tep .env canh docker-compose.yml).
+      # Mac dinh `vnsearch` cho demo cuc bo; dat POSTGRES_PASSWORD de doi.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
       # Sắp xếp theo chuẩn C cho tốc độ; việc so khớp tiếng Việt do
       # VietnameseTokenizer tự cài đảm nhiệm chứ không dựa vào collation của DB.
       POSTGRES_INITDB_ARGS: "--encoding=UTF8"
@@ -38,6 +40,21 @@ services:
         # se hoi mot cong chua ai nghe roi lui ve nguon JSON mot cach nham lan.
         condition: service_healthy
     environment:
+      # Khoa quan tri. Cu phap `:?` lam `docker compose up` DUNG NGAY voi thong
+      # bao nay neu chua dat bien, thay vi khoi dong roi chet trong container
+      # (noi khong ai doc log). Cung triet ly "hong to hon hong am tham" ma
+      # SecurityConfig da chon, chi la ap o tang dieu phoi.
+      # Sinh khoa: openssl rand -hex 32
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?Thieu ADMIN_API_KEY - xem README.md muc "Chay bang Docker"}
+      # Bật profile `prod` để logback-spring.xml chuyển sang log JSON.
+      #
+      # Không có dòng này thì nhánh <springProfile name="prod"> trong
+      # logback-spring.xml KHÔNG BAO GIỜ chạy: thư viện đã có trong pom.xml,
+      # cấu hình đã viết xong, nhưng đường chạy thật duy nhất lại không bật nó,
+      # nên log ra vẫn là dạng văn xuôi có mã màu ANSI — thứ khó lọc theo trường
+      # và bẩn khi đổ vào một hệ thống thu thập log.
+      SPRING_PROFILES_ACTIVE: prod
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
       # Bat PostgreSQL lam nguon corpus UU TIEN. An toan ngay ca khi CSDL con
       # rong: PostgresDocumentStore.isAvailable() tra ve false khi bang khong co
       # tai lieu nao, nen chuoi du phong tu lui ve JSON.
@@ -46,7 +63,6 @@ services:
       # localhost — localhost trong container la chinh container do.
       APP_STORAGE_POSTGRES_URL: jdbc:postgresql://postgres:5432/vnsearch
       APP_STORAGE_POSTGRES_USER: vnsearch
-      APP_STORAGE_POSTGRES_PASSWORD: vnsearch
       APP_CORS_ALLOWED_ORIGINS: http://localhost:5173
       # Doi sang `bm25` de dung cau hinh dat MRR cao nhat (0,9093 so voi 0,8758)
       # — xem docs/EVALUATION.md.
@@ -60,7 +76,12 @@ services:
       #     container, nen lan khoi dong sau khong phai lap chi muc lai.
       - ./search-engine/data:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/api/admin/stats || exit 1"]
+      # PHAI la /api/health chu KHONG phai /api/admin/stats. Duong dan admin can
+      # header X-API-Key, ma healthcheck khong gui header nao — no se nhan 401,
+      # container bi danh dau unhealthy, roi `restart: unless-stopped` khoi dong
+      # lai vo han. /api/health la endpoint cong khai va tra 503 khi chi muc
+      # rong, dung thu healthcheck can phan biet.
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 12

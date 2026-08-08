@@ -62,6 +62,10 @@ export async function search(query: string, page = 1, pageSize = 10): Promise<Se
     results,
     totalResults: raw.totalResults ?? results.length,
     page: raw.page ?? page,
+    // Máy chủ trả về `pageSize` ĐÃ ÁP DỤNG, có thể khác giá trị vừa gửi lên:
+    // một `size` ngoài khoảng 1..100 bị thay bằng mặc định 20. Vì vậy giá trị
+    // của máy chủ mới là giá trị đúng, và `?? pageSize` chỉ còn là lối lùi cho
+    // máy chủ đời cũ chưa có trường này.
     pageSize: raw.pageSize ?? pageSize,
     timeTakenMs: raw.timeTakenMs ?? 0,
     droppedTerms: raw.droppedTerms ?? []

@@ -12,9 +12,13 @@ browser-app/dist/
 search-engine/data/*.json
 !search-engine/data/seed-documents.json
 
+# Bi mat. Chi `.env.example` (khong chua gia tri that) duoc commit.
+.env
+
 # IDE / OS
 .idea/
 .vscode/
+.claude/settings.local.json
 *.iml
 .DS_Store
 Thumbs.db

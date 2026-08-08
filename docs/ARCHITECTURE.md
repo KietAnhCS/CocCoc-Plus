@@ -219,7 +219,9 @@ flowchart TD
     Robots -->|"Có"| Fetch["<b>HTML Downloader</b><br/>timeout 10s, retry ≤ 2"]
     Fetch <--> Dns["<b>DNS Resolver</b><br/>LRUCache&lt;host, IP&gt;"]
     Fetch --> Parse["<b>Content Parser</b><br/>title / meta / body"]
-    Parse --> Seen{"<b>Content Seen?</b><br/>SHA-256 thân bài"}
+    Parse --> Lang{"<b>Language Filter</b><br/>hệ chữ / dấu Việt / từ chức năng Anh"}
+    Lang -->|"Không phải vi/en"| Drop
+    Lang -->|"vi hoặc en"| Seen{"<b>Content Seen?</b><br/>SHA-256 thân bài"}
     Seen -->|"Đã thấy → bản trùng"| Drop
     Seen -->|"Chưa thấy"| Store["<b>Content Storage</b><br/>ContentStorage → crawled-multi.json"]
     Store --> Links["<b>Link Extractor</b><br/>outlink tuyệt đối, đã chuẩn hoá"]
@@ -231,12 +233,23 @@ flowchart TD
     UrlSeen <--> UrlStore[("<b>URL Storage</b><br/>tệp append-only")]
 ```
 
-**Thứ tự các khối không tuỳ tiện.** Hai chỗ đáng chú ý:
+**Thứ tự các khối không tuỳ tiện.** Ba chỗ đáng chú ý:
 
 - `Content Seen?` đứng **trước** `Link Extractor`, nên trang trùng nội dung bị
   vứt mà không phải bóc liên kết — liên kết đó đã lấy từ bản gốc rồi.
+- `Language Filter` đứng ngay sau `Content Parser` và **trước** `Content Seen?`:
+  nó chỉ cần văn bản đã bóc (không cần vân tay), và trang ngoại ngữ bị vứt tại đó
+  thì **không bóc liên kết**. Nếu vẫn bóc, crawler tiếp tục đi sâu vào vùng ngoại
+  ngữ — một bài tiếng Trung hầu như chỉ trỏ sang bài tiếng Trung khác — để rồi
+  tải hàng nghìn trang chỉ để vứt.
 - `URL Filter` đứng **trước** `URL Seen?`, nên các luật rẻ chạy trước phép tra
   bộ lọc Bloom.
+
+**Chính sách ngôn ngữ: chỉ tiếng Việt và tiếng Anh**, thi hành ở hai tuyến. Tuyến
+rẻ là `UrlFilter.NON_VI_EN_HOST_PREFIXES` (`cn.`, `ru.`, `fr.`, `ko.`…), loại URL
+**trước khi tải**, chỉ bằng phép so chuỗi. Tuyến chắc là `LanguageFilter`, nhận
+diện theo **nội dung** sau khi tải, nên bắt được cả bài ngoại ngữ nằm lẫn trong
+đường dẫn tiếng Việt. Chi tiết ba tầng bằng chứng ở `DSA-REPORT.md` mục 3.5.1.
 
 Bản thân `URL Filter` cũng tách làm hai mức theo chi phí. Mức rẻ
 (`UrlFilter.accept`) chỉ so sánh số nguyên và phân tích chuỗi, chạy cho **mọi**

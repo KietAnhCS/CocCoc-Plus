@@ -19,7 +19,7 @@
 
 1. [Bảng tổng hợp Big-O](#1-bảng-tổng-hợp-big-o)
 2. [Vì sao chọn cấu trúc này thay vì phương án có sẵn](#2-vì-sao-chọn-cấu-trúc-này-thay-vì-phương-án-có-sẵn)
-3. [Năm lỗi hiệu năng chỉ phát hiện được nhờ đo đạc](#3-năm-lỗi-hiệu-năng-chỉ-phát-hiện-được-nhờ-đo-đạc)
+3. [Sáu lỗi hiệu năng chỉ phát hiện được nhờ đo đạc](#3-sáu-lỗi-hiệu-năng-chỉ-phát-hiện-được-nhờ-đo-đạc)
 4. [Số liệu hiệu năng đầy đủ](#4-số-liệu-hiệu-năng-đầy-đủ)
 5. [Kiểm thử](#5-kiểm-thử)
 6. [Hạn chế đã biết](#6-hạn-chế-đã-biết)
@@ -545,11 +545,15 @@ nhớ nên thân thiện với cache CPU — và mục 3.4 dưới đây cho th�
 
 ---
 
-## 3. Năm lỗi hiệu năng chỉ phát hiện được nhờ đo đạc
+## 3. Sáu lỗi hiệu năng chỉ phát hiện được nhờ đo đạc
 
-> **Mục đích của mục này.** Ghi lại ba vấn đề mà **suy luận thuần không tìm
+> **Mục đích của mục này.** Ghi lại những vấn đề mà **suy luận thuần không tìm
 > ra** — chỉ có số đo mới lộ. Đây là phần trả lời trực tiếp cho câu hỏi "vì
 > sao phải đo, chẳng phải Big-O đã đủ sao?".
+>
+> Mục [3.6](#36-chẩn-đoán-bộ-nhớ-sai-gần-sáu-lần--và-thủ-phạm-thật) là ví dụ
+> mạnh nhất của cả mục: ở đó **một chẩn đoán nghe rất hợp lý đã sai gần sáu
+> lần**, và chỉ một phép đo mới chỉ ra được thủ phạm thật.
 
 ### 3.1. Sinh snippet cho mọi ứng viên thay vì chỉ top-N
 
@@ -803,11 +807,11 @@ tiêu chí ngôn ngữ:
   Đây là **2.533 trang (8,4%)** trên ba host: `cn.nhandan.vn`, `zh.vietnamplus.vn`,
   `cn.baochinhphu.vn`.
 
-**Cách sửa.** `UrlFilter.SPACELESS_SCRIPT_HOST_PREFIXES` = `{cn., zh., ja., jp.}`,
-nối qua `CrawlConfig.excludedHostPrefixes`. Lọc theo **tiền tố host** chứ không
-theo nội dung: không phải tải trang về mới biết, và tiền tố ngôn ngữ là quy ước ổn
-định của chính các toà soạn. Khớp có kèm dấu chấm để `cnn.example.vn` không bị loại
-oan vì `cn.`.
+**Cách sửa (bản đầu).** `UrlFilter.SPACELESS_SCRIPT_HOST_PREFIXES` =
+`{cn., zh., ja., jp.}`, nối qua `CrawlConfig.excludedHostPrefixes`. Lọc theo **tiền
+tố host** chứ không theo nội dung: không phải tải trang về mới biết, và tiền tố
+ngôn ngữ là quy ước ổn định của chính các toà soạn. Khớp có kèm dấu chấm để
+`cnn.example.vn` không bị loại oan vì `cn.`.
 
 > **Hai bài học, và bài học thứ hai đắt hơn.**
 >
@@ -816,14 +820,220 @@ oan vì `cn.`.
 > ở khâu **sinh truy vấn** — tức sau khi đã tốn công tải, lưu và lập chỉ mục. Vá
 > đúng chỗ là chặn tại nguồn.
 >
-> Thứ hai: kết luận đầu tiên — "chặn hết ngoại ngữ" — **rộng gấp năm lần** mức cần
-> thiết (42,3% thay vì 8,4%), và nó nghe rất hợp lý. Cái phân biệt được kết luận
-> đúng với kết luận nghe-có-vẻ-đúng không phải là suy luận thêm, mà là **cho
-> tokenizer chạy thử và đếm token**. Mất đúng một lần chạy.
+> Thứ hai: kết luận "chặn hết ngoại ngữ" **rộng gấp năm lần** mức mà *tokenizer*
+> đòi hỏi (42,3% thay vì 8,4%). Cái phân biệt được kết luận đúng với kết luận
+> nghe-có-vẻ-đúng không phải là suy luận thêm, mà là **cho tokenizer chạy thử và
+> đếm token**. Mất đúng một lần chạy.
 
-**Corpus hiện hành vẫn còn khiếm khuyết này** — nó được crawl *trước* khi bộ lọc
-tồn tại, nên 2.533 trang tiếng Trung vẫn nằm trong đó. Bộ lọc chỉ có tác dụng từ
-phiên crawl sau. Xem mục 6.8.
+#### 3.5.1. Chính sách sửa lần hai: chỉ tiếng Việt và tiếng Anh
+
+Phép đo trên trả lời câu hỏi *"tokenizer chịu được ngôn ngữ nào"*. Nó **không** trả
+lời câu hỏi *"corpus nên gồm ngôn ngữ nào"* — câu thứ hai là một quyết định về sản
+phẩm, và quyết định đó là: **chỉ tiếng Việt và tiếng Anh**. Lý do không nằm ở
+tokenizer mà ở phần dưới của hệ thống: bộ tách từ tiếng Việt, từ điển âm tiết, danh
+sách stopword, gợi ý truy vấn và toàn bộ tập truy vấn đánh giá đều được xây cho hai
+ngôn ngữ này. Một bài tiếng Nga *tách token được* nhưng không có gì trong hệ thống
+xếp hạng nó đúng, và không truy vấn nào trong bộ đánh giá chạm tới nó — nó chỉ làm
+tăng `N` trong IDF.
+
+Chính sách được thi hành ở **hai tuyến, chi phí chênh nhau một bậc**:
+
+| Tuyến | Lớp | Chi phí | Bắt được gì |
+|---|---|---|---|
+| 1 | `UrlFilter.NON_VI_EN_HOST_PREFIXES` | vài phép so chuỗi, **trước khi tải** | bản ngoại ngữ đặt trên subdomain quy ước (`cn.`, `ru.`, `fr.`, `ko.`…) |
+| 2 | `LanguageFilter` | O(độ dài văn bản), **sau khi tải** | mọi thứ còn lại: bài ngoại ngữ nằm lẫn trong đường dẫn tiếng Việt, site đặt bản dịch ở `/zh/` thay vì subdomain, trang khai `lang="en"` nhưng thân bài tiếng Trung |
+
+`LanguageFilter` xét ba tầng bằng chứng theo độ tin cậy giảm dần:
+
+1. **Hệ chữ viết** (`Character.UnicodeScript`) — chữ Hán, Kana, Hangul, Kirin, Ả
+   Rập, Thái không thể là tiếng Việt hay tiếng Anh. Ngưỡng 10% chứ không phải 0, vì
+   một bài tiếng Việt vẫn có thể trích một tên riêng chữ Hán.
+2. **Dấu phụ đặc trưng tiếng Việt** — khối `U+1EA0..U+1EF9` cùng `ơ ư ă đ`. Cố ý
+   **không** đếm `é à ô`: tiếng Pháp, Bồ, Tây Ban Nha dùng chung, đếm cả sẽ nhận
+   nhầm bài tiếng Pháp thành tiếng Việt.
+3. **Từ chức năng tiếng Anh** — văn bản tiếng Anh thật có 25–40% token nằm trong
+   danh sách; tiếng Pháp/Đức/Indonesia hiếm khi vượt ngưỡng 12%.
+
+Hai quyết định thiết kế đáng nêu:
+
+- **Không tin `<html lang>`.** Rất nhiều mã nguồn website để mặc định `lang="en"`
+  trên toàn site kể cả trang tiếng Việt. Thuộc tính này chỉ được dùng khi trang quá
+  ngắn (< 40 token) để có bằng chứng nội dung.
+- **Thiếu bằng chứng thì CHO QUA.** Trang chỉ có menu và vài chữ không đủ dữ liệu
+  để kết luận — mà đó lại chính là những trang cung cấp nhiều liên kết nhất. Vứt
+  nhầm chúng làm cụt cả một nhánh đồ thị crawl; giữ nhầm chỉ tốn một bản ghi gần
+  như rỗng.
+
+**Vị trí trong sơ đồ có ý nghĩa.** `Language Filter` đứng ngay sau `Content Parser`
+và **trước** `Content Seen?`: trang bị loại tại đó thì không tốn một lần băm
+SHA-256, và quan trọng hơn — **không bóc liên kết**. Nếu vẫn bóc, crawler tiếp tục
+đi sâu vào vùng ngoại ngữ (một bài tiếng Trung hầu như chỉ trỏ sang bài tiếng Trung
+khác) để rồi tải hàng nghìn trang chỉ để vứt.
+
+**Hệ quả kèm theo: phải thêm hạt giống tiếng Anh.** Bộ lọc chỉ *loại bớt*, nó không
+*sinh ra* trang tiếng Anh. Với 11 hạt giống đều là báo tiếng Việt thì phần "tiếng
+Anh" của chính sách là vô nghĩa trên thực tế. `MultiDomainCrawlRunner.ENGLISH_SEEDS`
+thêm tám hạt giống: bản tiếng Anh của chính các toà soạn đó (`e.vnexpress.net`,
+`en.vietnamnet.vn`, `en.nhandan.vn`…) cộng `vietnamnews.vn`, `english.vov.vn`,
+`vir.com.vn`. Chọn chúng chứ không chọn BBC/Reuters vì cụm này **trỏ liên kết qua
+lại thật** với phần tiếng Việt, tức đóng góp cạnh chéo cho đồ thị PageRank; một tờ
+báo quốc tế chỉ tạo ra một thành phần liên thông rời, làm PageRank phân mảnh chứ
+không giàu thêm.
+
+**Kết quả đo trên corpus 30.017 trang** (`maxDepth=4`, 18 hạt giống, hai phiên
+10.000 + 20.000 trang nối tiếp nhau, tổng 24,4 phút):
+
+| Chỉ số | Giá trị |
+|---|---|
+| Tiếng Việt | 24.483 trang (**81,6%**) |
+| Tiếng Anh | 5.513 trang (**18,4%**) |
+| Không kết luận được (`und`) | 21 trang (0,1%) |
+| Ngôn ngữ khác | **0 trang** |
+| `LanguageFilter` vứt ở phiên 2 | 76 trang (`other` 43, `zh` 19, `ru` 13, `th` 1) |
+
+So với corpus 30.001 trang crawl bằng bản cũ — nơi **12.677 trang (42,3%)** không
+phải tiếng Việt và riêng 2.533 trang tiếng Trung vĩnh viễn không tìm được — corpus
+mới cùng quy mô có **0 trang ngoài chính sách**.
+
+Con số 76 trang bị tuyến 2 vứt thoạt nhìn nhỏ đến mức tưởng như tuyến 2 thừa. Nó
+chứng minh điều ngược lại về **cả hai** tuyến. Phần lớn trang ngoại ngữ đã bị
+`NON_VI_EN_HOST_PREFIXES` loại *trước khi tải* — đó là 76 trang **duy nhất** mà
+phép lọc theo tên miền không thể bắt, và 43 trong số đó là chữ Latinh không phải
+vi/en, thứ mà mọi phép lọc theo tên miền đều mù về nguyên tắc. Không có tuyến 2,
+43 trang đó vào thẳng chỉ mục.
+
+> **Một hạt giống chết vì lý do không liên quan đến ngôn ngữ.** `tuoitrenews.vn`
+> thu được 0 trang: chứng chỉ TLS của site đã hết hạn, mọi lần tải đều ném
+> `CertPathValidatorException`. Bỏ qua lỗi chứng chỉ đòi phải tắt xác thực TLS cho
+> **toàn bộ** crawler — cái giá quá đắt cho một hạt giống, nên nó được thay bằng
+> `english.vov.vn` và `vir.com.vn`. Đây là lý do `printStatistics` in cảnh báo
+> "không crawl được trang nào từ ..." thay vì im lặng: một hạt giống chết mà không
+> báo thì corpus lệch đi mà không ai biết.
+
+---
+
+### 3.6. Chẩn đoán bộ nhớ sai gần sáu lần — và thủ phạm thật
+
+**Triệu chứng.** Backend chiếm **5,43 GiB RAM** cho corpus 30.017 trang — khoảng
+190 KB mỗi trang. Đây là trần thật của kiến trúc, không phải chuyện tinh chỉnh:
+ngoại suy tuyến tính cho 1 triệu trang ra ~180 GB.
+
+**Chẩn đoán ban đầu — nghe rất hợp lý, và sai.** Bản rà soát kết luận nguyên nhân
+là `InvertedIndex.documents` giữ nguyên `WebDocument` **kể cả `bodyText` đầy đủ**,
+trong khi xếp hạng không cần tới nó (chỉ khâu sinh đoạn trích cho top-K mới cần).
+Lập luận thêm: chuỗi Java là UTF-16 nên corpus 367 MB trên đĩa nở gấp đôi trong
+bộ nhớ. Ước lượng: **bỏ `bodyText` sẽ giảm 60–70%**.
+
+Con số đó **chưa từng được đo**. Nên bước đầu tiên không phải là sửa, mà là viết
+`com.vnsearch.eval.MemoryBreakdown` để đo thật, trên corpus **2.518 trang** vừa
+crawl (35 MB JSON, 998 token/trang, 56.041 term phân biệt):
+
+```
+1. Tài liệu (WebDocument)  :  58,6 MB   19,7%
+   trong đó bodyText       :  34,2 MB   11,5%   ← "thủ phạm" bị nghi
+   trong đó title          :   0,3 MB
+2. Chỉ mục đảo             : 237,8 MB   80,3%
+   1.594.938 posting, 3.821.061 vị trí
+   riêng phần vị trí       :  87,5 MB   29,5%   ← thủ phạm THẬT
+   ────────────────────────────────────────────
+   TỔNG                    : 296,4 MB
+```
+
+`bodyText` chiếm **11,5%**, không phải 60–70%. Chẩn đoán lệch **gần sáu lần**.
+
+**Thủ phạm thật.** Một dòng khai báo trong `Posting`:
+
+```java
+public record Posting(int docId, int termFrequency, List<Integer> positions) { }
+```
+
+Với 3,8 triệu vị trí, khai báo này trả giá **ba lần** cho cùng một số 4 byte:
+
+```
+   List<Integer>                          int[]
+   ├─ Integer      : 16 byte/phần tử      ├─ 4 byte/phần tử
+   ├─ ô tham chiếu :  4..8 byte           ├─ (không có)
+   ├─ ArrayList    : 40 byte × 1,59 triệu ├─ (không có)
+   └─ Object[]     : 16 byte header/mảng  └─ 16 byte header/mảng
+```
+
+Riêng lớp bọc `ArrayList` đã tốn ~**89 MB** để chứa trung bình **2,4 số nguyên**
+mỗi posting — đắt ngang chính dữ liệu nó bọc.
+
+Vị trí là dữ liệu **chỉ đọc, duyệt tuần tự hoặc tìm nhị phân**, không bao giờ
+thêm/bớt sau khi tạo. Toàn bộ tiện ích của `List` không được dùng tới; chỉ còn
+lại chi phí.
+
+**Ba thay đổi, đo lại sau mỗi bước.**
+
+| # | Thay đổi | Trạng thái ổn định | Mỗi trang |
+|---|---|---:|---:|
+| — | *(trước khi sửa)* | 296,4 MB | 120,6 KB |
+| 1 | `Posting.positions` → `int[]` | 163,1 MB | 66,3 KB |
+| 2 | Facade thôi giữ `lastCrawledDocuments` | *(điều kiện của #3)* | — |
+| 3 | `bodyText` lưu nén, tách khỏi `WebDocument` | **136,5 MB** | **55,5 KB** |
+
+**Giảm 54%.** Ngoại suy lên 30.017 trang: ~5,4 GB → **~2,5 GB**.
+
+**Bước #2 suýt bị bỏ sót, và nếu sót thì #3 vô nghĩa.** `SearchEngineFacade` có
+trường `lastCrawledDocuments` giữ nguyên **cả corpus** — kể cả `bodyText` đầy đủ
+— chỉ để phục vụ `reindex()`. Nén văn bản trong chỉ mục mà vẫn còn trường đó thì
+**không tiết kiệm được một byte nào**: bản nguyên văn vẫn sống ở nơi khác. Nay
+`reindex()` đọc lại từ đĩa — một thao tác quản trị hiếm khi gọi, không nằm trên
+đường chạy của truy vấn.
+
+> Đây cũng là lý do phép đo phải tách **"đỉnh lúc dựng chỉ mục"** khỏi **"trạng
+> thái ổn định"**. Chỉ đo lúc corpus và chỉ mục cùng sống sẽ báo một con số không
+> bao giờ xảy ra khi ứng dụng phục vụ thật.
+
+**Vì sao nén tại chỗ, không đọc theo yêu cầu từ PostgreSQL.**
+
+|  | Đọc từ CSDL | Nén tại chỗ |
+|---|---|---|
+| Bộ nhớ | gần bằng 0 | ~1/4 bản gốc |
+| Độ trễ mỗi truy vấn | thêm một vòng I/O | không |
+| Chạy khi **không** có CSDL | **không sinh được snippet** | bình thường |
+
+Cột cuối là cột quyết định: dự án cố ý giữ tính chất *clone về là chạy được ngay*
+— tầng dự phòng `JsonDocumentStore` với corpus mẫu tồn tại chính vì điều đó. Biến
+PostgreSQL thành bắt buộc chỉ để tiết kiệm thêm ~9 MB là đánh đổi sai.
+
+Đáng chú ý: `CompressedText` chọn **ngược** với `CompressedPostings`. Lớp kia cố ý
+*không* dùng nén tổng quát, vì posting list cần truy cập ngẫu nhiên theo từng term
+(xem mục 4.2). Thân bài thì luôn đọc trọn vẹn một tài liệu, nên nén tổng quát lại
+là đúng công cụ. **Hai lựa chọn trái ngược nhau cho hai bài toán trái ngược nhau**
+— và cả hai đều đúng.
+
+**Kiểm chứng trên hệ thống chạy thật.** Định dạng chỉ mục lên **v3**; tệp v2 cũ bị
+từ chối kèm thông báo nói rõ phải làm gì (cơ chế đã có sẵn từ trước).
+
+```
+/api/health                         200  {"status":"UP","indexedDocuments":2518}
+/api/search?q=công nghệ             200  965 kết quả, 22 ms
+  snippet: "<mark>Công</mark> <mark>nghệ</mark> - Game ..."   ← sinh từ kho nén
+/api/search?q="công nghệ thông tin" 200  66 kết quả          ← phrase search trên int[]
+```
+
+Bốn bài kiểm thử mới khoá lại hành vi, trong đó bài quan trọng nhất kiểm rằng
+`addDocument` **không sửa đối tượng của người gọi**: chỉ mục dùng
+`WebDocument.withoutBodyText()` tạo bản sao, vì danh sách truyền vào còn được
+`MultiDomainCrawlRunner` ghi ra tệp và `EvaluationRunner` sinh truy vấn từ thân
+bài **sau đó**. Gán `bodyText = null` tại chỗ sẽ là một tác dụng phụ từ xa: nó làm
+mất dữ liệu ở một nơi hoàn toàn khác, và không ai đọc mã ở đây đoán ra được.
+
+**Bài học phương pháp.** Đây là cùng một bài học với mục 3.2 (lỗi JIT warmup),
+chỉ ở một chỗ khác: **đừng tối ưu theo phỏng đoán, kể cả khi phỏng đoán nghe rất
+hợp lý.** Nếu làm đúng theo đề xuất ban đầu — chỉ bỏ `bodyText` — thì công sức
+lớn nhất sẽ đổ vào thứ chiếm 11,5%, kết quả thu được sẽ nhỏ hơn nhiều so với kỳ
+vọng, và kết luận "đã tối ưu bộ nhớ" sẽ **sai mà vẫn nghe có vẻ đúng**.
+
+**Việc còn lại của hướng này.** Phần vị trí nay đã rẻ, nhưng **1,59 triệu đối
+tượng `Posting` + 1,59 triệu mảng `int[]`** vẫn còn (~112 MB). Bước tiếp theo là
+bỏ hẳn `Posting` dạng đối tượng, lưu mỗi posting list thành **ba mảng nguyên thuỷ
+song song** (`int[] docIds`, `int[] offsets`, `int[] positions`) — đúng bố cục mà
+`CompressedPostings` đã dùng khi ghi ra đĩa. Khi đó cấu trúc trong bộ nhớ và cấu
+trúc trên đĩa trùng nhau, và số đối tượng giảm từ hàng triệu xuống vài chục nghìn.
+Đây là thay đổi lớn hơn hẳn nên được tách phiên riêng.
 
 ---
 
@@ -911,6 +1121,38 @@ Ba kỹ thuật nén và lý do không dùng GZIP: xem `CompressedPostings` Java
 *(Con số lịch sử **9,1 MB** trong các bản báo cáo trước là của corpus rút gọn
 `crawled-documents.json` (~150 trang), **không** phải corpus 5.011 trang — giữ
 lại ghi chú này để tránh so sánh nhầm hai quy mô.)*
+
+### 4.2b. Bộ nhớ của chỉ mục
+
+Đo bằng `com.vnsearch.eval.MemoryBreakdown` trên corpus **2.518 trang** (35 MB
+JSON, 998 token/trang, 56.041 term phân biệt). Câu chuyện đầy đủ ở [mục 3.6](#36-chẩn-đoán-bộ-nhớ-sai-gần-sáu-lần--và-thủ-phạm-thật).
+
+| Phiên bản | Trạng thái ổn định | Mỗi trang | So với mốc trước |
+|---|---:|---:|---|
+| Ban đầu (`List<Integer>`, `bodyText` nguyên văn) | 296,4 MB | 120,6 KB | — |
+| `Posting.positions` → `int[]` | 163,1 MB | 66,3 KB | **−45,0%** |
+| `bodyText` nén + Facade thôi giữ corpus | **136,5 MB** | **55,5 KB** | −16,3% |
+| | | | **Tổng: −54,0%** |
+
+Thành phần sau khi tối ưu:
+
+| Thành phần | Chiếm |
+|---|---|
+| `Posting` + mảng `int[]` (1,59 triệu mỗi loại) | phần lớn — xem 3.6, việc còn lại |
+| Khoá term (Flyweight qua `TermDictionary`) | 56.041 chuỗi phân biệt |
+| `WebDocument` (không còn `bodyText`) | url, title, outlinks, ngôn ngữ |
+| `bodyText` đã nén (deflate + UTF-8) | ~1/4 bản gốc |
+
+> **Hai con số rất khác nhau, đừng lẫn.** *Đỉnh lúc dựng chỉ mục* (corpus gốc và
+> chỉ mục cùng sống) là **171,1 MB** và chỉ tồn tại vài giây. *Trạng thái ổn định*
+> là **136,5 MB** và tồn tại suốt vòng đời ứng dụng. Chỉ con số thứ hai mới dùng
+> để so sánh giữa các phiên bản.
+>
+> Phép đo dựa trên `Runtime.totalMemory() - freeMemory()` sau khi gọi
+> `System.gc()` nhiều lần, nên **không chính xác tuyệt đối** — `System.gc()` chỉ
+> là một lời đề nghị. Sai số đó ngẫu nhiên và nhỏ so với khoảng cách giữa các
+> thành phần, đủ để trả lời câu hỏi thật sự cần trả lời: *phần nào chiếm nhiều
+> nhất?*
 
 ### 4.3. PageRank
 
@@ -1102,7 +1344,7 @@ cd search-engine
 | **`CandidateResolverTest`** | **12** | Lui dần về AND-của-tập-con: thứ tự bỏ term theo IDF, cụm từ và mệnh đề `NOT` **không bao giờ** bị bỏ |
 | `HeapifyAndFreezeTest` | 12 | Floyd heapify $O(n)$, đóng băng `SparseMatrix` sang CSR |
 | `TrieTest` | 12 | Prefix search, tách khoá/hiển thị, top-k theo frequency, **thread-safe** |
-| **`MaxWeightSegmenterTest`** | **10** | Quy hoạch động tách từ. Phần lớn dùng trie **tự dựng tay** để kiểm tra thuật toán *riêng nó*, không lẫn với câu hỏi "từ điển có đủ tốt không". Test trọng tâm: `resolvesAmbiguityThatGreedyLongestMatchingGetsWrong` (`nhà hàng xóm`) và test đối chiếu `stillPrefersLongWordWhenItScoresHigher` |
+| **`MaxWeightSegmenterTest`** | **9** | Quy hoạch động tách từ. Phần lớn dùng trie **tự dựng tay** để kiểm tra thuật toán *riêng nó*, không lẫn với câu hỏi "từ điển có đủ tốt không". Test trọng tâm: `resolvesAmbiguityThatGreedyLongestMatchingGetsWrong` (`nhà hàng xóm`) và test đối chiếu `stillPrefersLongWordWhenItScoresHigher` |
 | **`SyllableTrieTest`** | **9** | Trie mảng phẳng. Hai test ép đúng chỗ dễ sai: `survivesRehashingWithManyWords` (5.000 từ, buộc bảng băm lại) và `sameSyllableUnderManyParentsStaysCorrect` (2.000 nút cha — bắt lỗi hàm băm bỏ qua 32 bit cao) |
 | `BM25ScorerTest` | 11 | Kiểm chứng **tính chất** phân biệt BM25 với TF-IDF |
 | `UrlFrontierTest` | 14 | Ưu tiên, politeness, **đồng thời với 8 thread** |
@@ -1117,28 +1359,36 @@ cd search-engine
 | **`CompressedPostingsTest`** | **8** | Nén/giải nén posting list, **ép bất biến `tf == |positions|`**, ví dụ tính tay 13 byte, 200 vòng ngẫu nhiên |
 | `MinHeapTest` | 8 | siftUp/siftDown, topK |
 | `QueryParserTest` | 8 | Cụm từ, loại trừ, `OR`, `site:`, tokenize khớp index |
-| `SearchEngineFacadeApiTest` | 8 | Hợp đồng API qua facade (không qua HTTP) |
+| **`SearchEngineFacadeApiTest`** | **11** | Hợp đồng API qua facade (không qua HTTP) |
 | `TfIdfScorerTest` | 8 | tf, idf, cosine, chuẩn hoá độ dài |
 | `BloomFilterTest` | 7 | Không false negative, tỷ lệ false positive |
 | `CrawlStatusTest` | 7 | Máy trạng thái; **không trạng thái nào chuyển về chính nó** |
 | `LRUCacheTest` | 7 | Thứ tự MRU/LRU, eviction |
 | `ResultRankerTest` | 7 | Kết hợp điểm, snippet, **bôi sáng có dấu** |
-| `VietnameseTokenizerTest` | 7 | Longest Matching, NFC/NFD, `đ`, stopword |
+| `VietnameseTokenizerTest` | 11 | Longest Matching, NFC/NFD, `đ`, stopword |
 | `InvertedIndexTest` | 6 | Bất biến sắp xếp **tự ép**, chỉ mục kép, binary search |
 | `PageRankServiceTest` | 6 | Kiểm chứng bằng **tính chất toán học** |
 | `RobotsTxtParserTest` | 6 | Longest-prefix-match, section riêng thắng `*` |
 | `SparseMatrixTest` | 6 | set/multiply/nnz, biên |
-| `UrlFilterTest` | 11 | Lọc độ sâu / scheme / domain / đuôi tệp, đếm theo nguyên nhân |
+| `UrlFilterTest` | 14 | Lọc độ sâu / scheme / domain / đuôi tệp, đếm theo nguyên nhân |
 | `UrlSeenFilterTest` | 10 | Test-and-set nguyên tử, cỡ bộ lọc, lưu bền + nạp lại |
 | `ContentSeenFilterTest` | 8 | Vân tay SHA-256, chuẩn hoá, đồng thời |
 | `LinkExtractorTest` | 5 | URL tuyệt đối, khử trùng, bỏ scheme không phải http |
 | `ContentParserTest` | 4 | Trích title/meta/body, **không** bóc liên kết |
-| `IndexPersistenceTest` | 1 | Lưu rồi nạp lại phải bằng nhau |
+| `IndexPersistenceTest` | 2 | Lưu rồi nạp lại phải bằng nhau |
 | `VnSearchApplicationTests` | 1 | Spring context khởi động được |
-| **40 lớp** | **340** | |
+| **`LanguageFilterTest`** | **12** | Nhận diện ngôn ngữ theo **nội dung**, không tin `<html lang>` (mục 3.5) |
+| **`CheckpointCrawlListenerTest`** | **4** | Chu kỳ ghi điểm kiểm tra **giãn dần**: khoá lại tính chất `O(n)` thay vì `O(n²)` |
+| **`CompressedTextTest`** | **4** | Nén/giải nén thân bài giữ nguyên dấu tiếng Việt; **`addDocument` không sửa đối tượng của người gọi** (mục 3.6) |
+| **`EmptyCorpusFallbackTest`** | **1** | Nguồn dữ liệu **rỗng** không được chặn tầng dự phòng phía sau |
+| **44 lớp** | **390** | |
 
-Ba lớp in đậm là test của đợt sửa lỗi và tối ưu gần nhất: chúng phủ dạng nén
-posting list, kiểm định thống kê, và cơ chế nới lỏng truy vấn.
+Các lớp in đậm là test của những đợt sửa gần nhất. Bốn lớp cuối bảng đáng chú ý
+vì chúng khoá lại các **tính chất phi chức năng** — thứ mà test thường bỏ sót:
+`CheckpointCrawlListenerTest` bảo vệ một tính chất về **độ phức tạp** (số lần ghi
+phải dưới 30 cho 30.000 trang, chứ không phải 120), còn `CompressedTextTest` bảo
+vệ một tính chất về **quyền sở hữu dữ liệu** (chỉ mục không được sửa danh sách
+tài liệu mà người gọi còn dùng tiếp).
 
 ### 5.2. Bốn lớp test đáng chú ý nhất
 
@@ -1262,37 +1512,41 @@ nhớ (6.4), WAND (6.5), và tránh boxing `Integer` ở `docIdsOf`.
 
 | Chỗ | Vấn đề | Ảnh hưởng hiện tại |
 |---|---|---|
-| `PostingListMerger` | `docIdsOf` tạo `List<Integer>` mới → boxing 250.000 `Integer` mỗi phép giao lớn | Trung bình; dùng `int[]` sẽ nhanh hơn đáng kể |
+| `PostingListMerger` | `docIdsOf` tạo `List<Integer>` mới → boxing 250.000 `Integer` mỗi phép giao lớn | Trung bình; dùng `int[]` sẽ nhanh hơn đáng kể. *(Phần `Posting.positions` đã đổi sang `int[]` — xem 3.6; phần `docIdsOf` thì chưa.)* |
+| `InvertedIndex` | 1,59 triệu đối tượng `Posting` + 1,59 triệu mảng `int[]` (~112 MB). Gộp thành ba mảng nguyên thuỷ song song sẽ giảm số đối tượng xuống vài chục nghìn | Lớn ở corpus lớn — xem 3.6, *việc còn lại* |
 | `CandidateResolver` | Chuỗi `FILTERS` là `static final`, không inject được → không cấu hình được theo request, khó mock trong test | Nhỏ ở quy mô hiện tại |
 | `UrlFrontier.nextUrl` | Hàng đợi tái sử dụng thừa hưởng đồng hồ lịch sự của host trước | Chờ thừa, không bao giờ chờ thiếu |
 | `RobotsTxtParser` | Bỏ qua wildcard `*` / `$`; khi hai luật cùng độ dài thì luật đầu thắng (chuẩn: `Allow` thắng) | Nhỏ |
 | `HtmlDownloader.download` | Retry **không có** exponential backoff | Có thể dồn tải lên server đang gặp sự cố |
 
-### 6.8. Corpus hiện hành còn 2.533 trang tiếng Trung không tìm được
+### 6.8. ~~Corpus còn 2.533 trang tiếng Trung không tìm được~~ — ĐÃ SỬA
 
-Mục 3.5 mô tả đầy đủ vấn đề và cách sửa. Phần còn tồn đọng: bộ lọc
-`SPACELESS_SCRIPT_HOST_PREFIXES` được viết **sau** khi corpus 30.001 trang đã crawl
-xong, mà nó chỉ tác động lúc crawl chứ không lọc ngược file đã có. Nên corpus đang
-dùng vẫn chứa **2.533 trang (8,4%)** tiếng Trung mà mọi truy vấn đều không khớp nổi.
+**Vấn đề cũ.** Bộ lọc tiền tố host được viết **sau** khi corpus 30.001 trang đã
+crawl xong, mà nó chỉ tác động lúc crawl chứ không lọc ngược file đã có. Corpus khi
+đó chứa **12.677 trang (42,3%)** không phải tiếng Việt, trong đó **2.533 trang
+(8,4%)** tiếng Trung mà mọi truy vấn đều không khớp nổi.
 
-Ảnh hưởng cụ thể tới các con số trong báo cáo:
+**Cách sửa đã chọn: crawl lại từ đầu.** Hai phương án được cân nhắc:
 
-| Chỗ bị ảnh hưởng | Ảnh hưởng |
+1. **Lọc ngược file corpus** — nhanh (một lượt quét), nhưng corpus co lại còn
+   27.468 trang thay vì đủ 30.000, và không thêm được trang tiếng Anh nào.
+2. **Crawl lại** với `LanguageFilter` + `NON_VI_EN_HOST_PREFIXES` + hạt giống tiếng
+   Anh — tốn thời gian hơn, nhưng ~2.500 slot đó chuyển thành trang vi/en **thật**.
+
+Chọn phương án 2. Chi phí thực tế **24,4 phút** cho 30.017 trang (hai phiên
+10.000 + 20.000 nối tiếp), rẻ hơn ước tính 36 phút trước đó vì thông lượng thực đo
+được là 26,7 trang/giây. Kết quả: **0 trang ngoài chính sách vi/en** (chi tiết ở
+mục 3.5.1).
+
+| Chỗ từng bị ảnh hưởng | Trạng thái |
 |---|---|
-| IDF của mọi term | `N = 30.001` thay vì `27.468` → `log(N/df)` lệch nhẹ, đều cho mọi term nên **thứ tự xếp hạng gần như không đổi** |
-| Kích thước chỉ mục | Thừa ~8% dung lượng cho tài liệu không bao giờ trả về |
-| Đồ thị PageRank | 2.533 đỉnh vẫn nhận và truyền PageRank bình thường — hợp lệ về mặt đồ thị |
-| `EvaluationRunner` | **Không** bị ảnh hưởng: `KnownItemQueryGenerator` đã lọc bằng `LanguageDetector` từ trước |
+| IDF của mọi term | `N = 30.017`, **mọi** tài liệu trong đó đều tìm được |
+| Kích thước chỉ mục | Không còn ~8% dung lượng chết |
+| Đồ thị PageRank | 1.527.237 cạnh, trong đó **167.895 cạnh chéo domain** (11,0%) |
+| `EvaluationRunner` | Vẫn không bị ảnh hưởng |
 
-Chưa sửa vì sửa đúng cách là **crawl lại** (~36 phút), và đây là quyết định đánh
-đổi thời gian đã được cân nhắc rồi bỏ qua có ý thức, chứ không phải sót. Hai cách
-xử lý khi cần:
-
-1. **Crawl lại** với bộ lọc đã có — cho corpus sạch, và ~2.500 slot đó chuyển sang
-   trang tiếng Việt thật.
-2. **Lọc ngược file corpus** bằng một lượt quét, loại tài liệu có host khớp
-   `SPACELESS_SCRIPT_HOST_PREFIXES` — nhanh hơn nhiều nhưng corpus co lại còn 27.468
-   trang thay vì đủ 30.000.
+**Việc còn lại:** corpus 367 MB này chưa được nạp vào chỉ mục — cần khởi động lại
+backend hoặc gọi `POST /api/admin/reindex`.
 
 Các hạn chế **kiến trúc** (chỉ mục một tiến trình, reindex toàn phần, không
 có `Content Seen?`…): xem mục 6 của `ARCHITECTURE.md`. Các điểm **vỡ ở quy mô
@@ -1308,7 +1562,9 @@ corpus cố định.
 ```bash
 cd search-engine
 
-# 1. Bộ test đầy đủ (362 test)
+# 1. Bộ test đầy đủ (390 test)
+#    KHÔNG cần đặt ADMIN_API_KEY: pom.xml đã cấp một khoá giả cho surefire.
+#    Chỉ khi chạy ỨNG DỤNG mới cần đặt biến đó — xem README.md.
 ./mvnw.cmd test
 
 # 2. Demo từng cấu trúc dữ liệu, chạy độc lập không cần Spring
@@ -1343,6 +1599,13 @@ python tools/build_dict.py \
 # 2b. Đo kích thước chỉ mục theo 3 định dạng (mục 4.2) + kiểm chứng nạp lại
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \
   -Dexec.mainClass=com.vnsearch.index.IndexPersistence \
+  -Dexec.args="data/crawled-multi.json"
+
+# 2c. Đo BỘ NHỚ của chỉ mục, tách theo thành phần (mục 3.6 và 4.2b).
+#     In cả "đỉnh lúc dựng chỉ mục" lẫn "trạng thái ổn định" — chỉ con số
+#     thứ hai mới dùng để so sánh giữa các phiên bản.
+MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \
+  -Dexec.mainClass=com.vnsearch.eval.MemoryBreakdown \
   -Dexec.args="data/crawled-multi.json"
 
 # 3. Dựng lại corpus lớn (~3-5 phút, cần mạng)

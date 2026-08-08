@@ -104,6 +104,43 @@ public class CrawlerService {
     /** Điểm ưu tiên khởi điểm của seed — luôn cao hơn liên kết bóc được. */
     private static final int SEED_BACKLINK_SCORE = 10;
 
+    // ─────────────────────────────────────────────────────────────────────
+    // CỬA SỔ CHỜ TRƯỚC KHI KẾT LUẬN "HẾT VIỆC"
+    // ─────────────────────────────────────────────────────────────────────
+    //
+    // Điều kiện dừng là {frontier rỗng} AND {không worker nào bận}, xác nhận
+    // nhiều lần liên tiếp. Nhưng "bao lâu là đủ để chắc chắn" phụ thuộc hoàn
+    // toàn vào việc URL mới quay về bằng đường nào:
+    //
+    //   in-process   enqueue là một LỜI GỌI HÀM. URL có mặt trong frontier
+    //                trước khi processPage trả về. 600 ms là thừa thãi.
+    //
+    //   qua Kafka    URL phải đi: publishPage -> broker -> UrlExtractorService
+    //                -> lọc -> publishDiscoveredUrl -> broker -> feeder ->
+    //                frontier. Riêng linger.ms của producer đã là 20 ms, cộng
+    //                chu kỳ poll của hai consumer, cộng độ trễ mạng.
+    //
+    // LỖI ĐÃ XẢY RA THẬT: với cửa sổ 600 ms, crawler chạy chế độ Kafka kết
+    // luận "hết việc" ngay sau trang seed và dừng với đúng 1–2 trang — trong
+    // khi 104 URL đang trên đường quay về. Job báo DONE, không lỗi nào.
+    //
+    // Đây KHÔNG phải lời giải đúng đắn có chứng minh. Bài toán "phát hiện kết
+    // thúc phân tán" có lời giải chính xác (Dijkstra–Scholten, Safra) dựa trên
+    // việc đếm thông điệp đang bay chứ không dựa vào thời gian. Nới cửa sổ chỉ
+    // làm xác suất nhầm nhỏ đi, không làm nó bằng 0 — và nó đánh đổi bằng việc
+    // mỗi phiên crawl mất thêm ~15 giây ở cuối để chắc chắn.
+    //
+    // Ghi rõ như vậy vì Javadoc của workerLoop() vốn đã thừa nhận đây là một
+    // HEURISTIC; phần này chỉ chỉnh tham số của nó cho đúng từng chế độ.
+
+    /** in-process: enqueue đồng bộ, 3 × 200 ms là quá đủ. */
+    private static final int IDLE_CONFIRMATIONS_LOCAL = 3;
+    private static final long IDLE_SLEEP_MS_LOCAL = 200L;
+
+    /** qua Kafka: 15 × 1 giây = 15 giây, phủ được vòng khứ hồi chậm nhất đo được. */
+    private static final int IDLE_CONFIRMATIONS_BUS = 15;
+    private static final long IDLE_SLEEP_MS_BUS = 1_000L;
+
     // --- Các khối không phụ thuộc cấu hình phiên crawl ---
     private final UrlFrontier frontier = new UrlFrontier();
     private final DnsResolver dnsResolver = new DnsResolver();
@@ -524,7 +561,8 @@ public class CrawlerService {
      * (Dijkstra-Scholten, Safra) nhưng phức tạp hơn nhiều.
      */
     private void workerLoop(CrawlConfig config) {
-        final int idleConfirmations = 3;
+        final int idleConfirmations = ownsBus ? IDLE_CONFIRMATIONS_LOCAL : IDLE_CONFIRMATIONS_BUS;
+        final long idleSleepMs = ownsBus ? IDLE_SLEEP_MS_LOCAL : IDLE_SLEEP_MS_BUS;
         int idleChecks = 0;
 
         while (pagesCrawled.get() < config.maxPages()) {
@@ -534,7 +572,7 @@ public class CrawlerService {
                     break; // thật sự hết việc
                 }
                 try {
-                    Thread.sleep(200);
+                    Thread.sleep(idleSleepMs);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     return;

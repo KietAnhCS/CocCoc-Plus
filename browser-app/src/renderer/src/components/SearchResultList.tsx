@@ -118,7 +118,11 @@ function SearchResultList(): JSX.Element | null {
   }
 
   const settled = outcome?.key === requestKey ? outcome : null
-  const loading = mode === 'web' ? settled === null : (imageMeta?.loading ?? true)
+  // Số liệu ảnh chỉ hợp lệ khi nó thuộc về ĐÚNG truy vấn đang xem. Khác truy
+  // vấn = lô đầu chưa về = đang tải. Suy ra như vậy để component con không
+  // phải gọi setState của lớp cha ngay trong effect.
+  const imageSettled = imageMeta?.query === query ? imageMeta : null
+  const loading = mode === 'web' ? settled === null : imageSettled === null
   const response = outcome?.response ?? null
   const error = settled?.error ?? null
   const totalPages = response ? Math.max(1, Math.ceil(response.totalResults / PAGE_SIZE)) : 1
@@ -130,9 +134,9 @@ function SearchResultList(): JSX.Element | null {
 
   const metaLine = (): string => {
     if (mode === 'images') {
-      if (!imageMeta || imageMeta.loading) return 'Đang tìm ảnh…'
-      return `${imageMeta.total.toLocaleString('vi-VN')} ảnh · ${(
-        imageMeta.timeTakenMs / 1000
+      if (!imageSettled) return 'Đang tìm ảnh…'
+      return `${imageSettled.total.toLocaleString('vi-VN')} ảnh · ${(
+        imageSettled.timeTakenMs / 1000
       ).toFixed(3)} giây`
     }
     if (!response) return 'Đang tìm kiếm…'

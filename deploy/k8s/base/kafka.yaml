@@ -1,0 +1,277 @@
+# Kafka — bus sự kiện giữa crawler và cụm Modular Services.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# GIỚI HẠN PHẢI ĐỌC TRƯỚC KHI DÙNG THẬT
+# ═══════════════════════════════════════════════════════════════════════════
+# Đây là MỘT node, không sao lưu, replication factor 1. Đủ cho đồ án và cho
+# môi trường dev. Một cụm thật cần tối thiểu ba node để chịu được mất một node
+# mà không mất dữ liệu, và ở quy mô đó thì tự vận hành Kafka là một chuyên môn
+# riêng — nên chọn dịch vụ quản trị sẵn (MSK, Confluent Cloud) hoặc một
+# operator (Strimzi).
+#
+# Ghi rõ giới hạn ở đây, cùng chỗ với cấu hình, là có chủ ý: một dòng cảnh báo
+# nằm trong tài liệu riêng thì người copy tệp YAML này sẽ không bao giờ đọc.
+# Cùng lập luận mà postgres.yaml đã dùng.
+
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vnsearch-kafka
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: kafka
+spec:
+  # StatefulSet chứ không phải Deployment, vì hai lý do độc lập nhau:
+  #
+  #   1. DANH TÍNH ỔN ĐỊNH. Kafka ở chế độ KRaft cần mỗi node có một
+  #      `node.id` cố định và một địa chỉ đoán trước được — quorum bầu cử
+  #      được khai báo bằng chính những địa chỉ đó. Deployment cấp tên ngẫu
+  #      nhiên cho từng Pod nên không dùng được.
+  #
+  #   2. Ổ ĐĨA ĐI THEO POD. Log của Kafka LÀ dữ liệu. Deployment cho mọi Pod
+  #      dùng chung một PVC; StatefulSet cấp cho mỗi Pod một ổ riêng và gắn
+  #      lại đúng ổ đó sau mỗi lần khởi động lại.
+  serviceName: vnsearch-kafka
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: kafka
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vnsearch
+        app.kubernetes.io/component: kafka
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      # Kafka đóng cửa chậm: nó phải xả bộ đệm xuống đĩa và bàn giao vai trò
+      # lãnh đạo phân hoạch. Mặc định 30 giây là quá ngắn — bị giết giữa chừng
+      # thì lần khởi động sau phải phục hồi log, mất nhiều phút.
+      terminationGracePeriodSeconds: 120
+
+      containers:
+        - name: kafka
+          image: apache/kafka:3.8.1
+          ports:
+            - name: kafka
+              containerPort: 9092
+            - name: controller
+              containerPort: 9093
+
+          env:
+            - name: KAFKA_NODE_ID
+              value: "1"
+            - name: KAFKA_PROCESS_ROLES
+              value: broker,controller
+            # Tên DNS đầy đủ do Service headless cấp. Dạng ngắn `vnsearch-kafka-0`
+            # KHÔNG phân giải được từ Pod ở namespace khác, và quorum thì so
+            # khớp chuỗi này theo đúng ký tự.
+            - name: KAFKA_CONTROLLER_QUORUM_VOTERS
+              value: "1@vnsearch-kafka-0.vnsearch-kafka.vnsearch.svc.cluster.local:9093"
+            - name: KAFKA_CONTROLLER_LISTENER_NAMES
+              value: CONTROLLER
+            - name: KAFKA_LISTENERS
+              value: "PLAINTEXT://:9092,CONTROLLER://:9093"
+            - name: KAFKA_ADVERTISED_LISTENERS
+              value: "PLAINTEXT://vnsearch-kafka-0.vnsearch-kafka.vnsearch.svc.cluster.local:9092"
+            - name: KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+              value: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+            - name: KAFKA_INTER_BROKER_LISTENER_NAME
+              value: PLAINTEXT
+
+            # Một node thì không thể có bản sao thứ hai. Mặc định của Kafka là
+            # 3, và để nguyên thì các topic nội bộ không tạo được — cụm khởi
+            # động rồi treo mà không có lỗi rõ ràng.
+            - name: KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+              value: "1"
+            - name: KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+              value: "1"
+
+            - name: KAFKA_NUM_PARTITIONS
+              value: "12"
+            - name: KAFKA_AUTO_CREATE_TOPICS_ENABLE
+              value: "false"
+
+            # PHẢI khớp MAX_MESSAGE_BYTES trong KafkaCrawlConfig. Lệch nhau thì
+            # producer gửi được mà broker từ chối, và nó từ chối đúng những
+            # trang giàu nội dung nhất.
+            - name: KAFKA_MESSAGE_MAX_BYTES
+              value: "4194304"
+            - name: KAFKA_REPLICA_FETCH_MAX_BYTES
+              value: "4194304"
+
+            - name: KAFKA_LOG_RETENTION_HOURS
+              value: "168"
+            # Heap phải nhỏ hơn hẳn limits.memory: Kafka dựa rất nhiều vào page
+            # cache của hệ điều hành cho log, nên phần RAM ngoài heap không phải
+            # là phần thừa mà là phần LÀM VIỆC.
+            - name: KAFKA_HEAP_OPTS
+              value: "-Xmx1g -Xms1g"
+
+          # Hỏi broker qua giao thức thật. Kiểm tra cổng thì vô dụng: cổng mở
+          # rất sớm trong quá trình khởi động, nên nó báo "sẵn sàng" trong khi
+          # broker còn đang nạp log.
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 5
+
+          # Liveness THOÁNG hơn readiness rất nhiều, và đó là chủ ý: một broker
+          # đang phục hồi log sau sự cố sẽ không trả lời trong nhiều phút. Giết
+          # nó lúc đó là bắt nó phục hồi lại từ đầu — vòng lặp khởi động lại vô
+          # hạn, đúng cái bẫy mà startupProbe của backend.yaml đã né.
+          livenessProbe:
+            tcpSocket:
+              port: 9092
+            initialDelaySeconds: 120
+            periodSeconds: 30
+            failureThreshold: 6
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1536Mi
+            limits:
+              # Không đặt limits.cpu — chạm trần CPU thì Kubernetes BÓP GA chứ
+              # không giết, và với Kafka thì bóp ga làm độ trễ tăng vọt theo
+              # cách rất khó truy. Cùng lập luận đã ghi trong backend.yaml.
+              memory: 3Gi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/kafka/data
+            # readOnlyRootFilesystem chặn mọi ghi; Kafka cần ghi tệp cấu hình
+            # sinh lúc khởi động và tệp tạm của JVM.
+            - name: tmp
+              mountPath: /tmp
+            - name: config
+              mountPath: /mnt/shared/config
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: config
+          emptyDir: {}
+
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            # 10 Gi cho retention 7 ngày. Ước lượng: 30.000 trang/tuần x 80 KB
+            # HTML, nén lz4 khoảng 7 lần => ~350 MB cho topic trang. Phần dư là
+            # biên an toàn — chạm đầy đĩa thì Kafka NGỪNG NHẬN GHI, và lúc đó
+            # crawler mất trang một cách im lặng.
+            storage: 10Gi
+
+---
+# Service HEADLESS (clusterIP: None).
+#
+# Vì sao headless chứ không phải ClusterIP thường: một Service thường cho một
+# địa chỉ IP ảo và cân bằng tải ngẫu nhiên về các Pod đứng sau. Với Kafka thì
+# đó là hành vi SAI — client phải nói chuyện với đúng broker đang giữ vai lãnh
+# đạo của phân hoạch nó cần. Headless trả về địa chỉ của TỪNG Pod, để client
+# tự định tuyến theo giao thức Kafka.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vnsearch-kafka
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: kafka
+spec:
+  clusterIP: None
+  # Trả về địa chỉ Pod NGAY CẢ khi Pod chưa sẵn sàng. Bắt buộc cho KRaft: các
+  # node phải tìm thấy nhau để bầu cử, mà trước khi bầu xong thì chưa node nào
+  # "sẵn sàng" — thiếu dòng này là bế tắc khởi động kinh điển.
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: kafka
+  ports:
+    - name: kafka
+      port: 9092
+      targetPort: kafka
+    - name: controller
+      port: 9093
+      targetPort: controller
+
+---
+# Cùng chính sách với PostgreSQL: chỉ những thành phần thật sự cần mới vào
+# được. Một broker Kafka mở cho toàn cụm nghĩa là bất kỳ Pod nào bị chiếm
+# quyền cũng đọc được TOÀN BỘ nội dung đã crawl — và ghi giả vào topic
+# `vnsearch.urls.discovered` để lái crawler đi bất cứ đâu.
+#
+# Vế thứ hai đáng lo hơn vế thứ nhất: nó biến một lỗ hổng "đọc trộm dữ liệu"
+# thành một lỗ hổng "điều khiển được hệ thống".
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vnsearch-kafka-chi-cho-ung-dung
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: kafka
+  policyTypes: [Ingress]
+  ingress:
+    # Backend (phát sự kiện) và crawler-worker (tiêu thụ).
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vnsearch
+              app.kubernetes.io/component: backend
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vnsearch
+              app.kubernetes.io/component: crawler-worker
+        # Chính Kafka: các node KRaft phải nói chuyện với nhau qua cổng
+        # controller để bầu cử. Thiếu mục này thì cụm nhiều node không bao giờ
+        # đạt quorum — với một node thì chưa lộ ra, nên đây là loại lỗi chỉ
+        # xuất hiện đúng lúc mở rộng quy mô.
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vnsearch
+              app.kubernetes.io/component: kafka
+      ports:
+        - protocol: TCP
+          port: 9092
+        - protocol: TCP
+          port: 9093
+
+    # Prometheus thu thập số liệu từ namespace giám sát. Tách thành mục `from`
+    # RIÊNG chứ không gộp vào trên: gộp lại thì Prometheus cũng được mở cả
+    # cổng 9092 và 9093, tức là quyền đọc mọi topic — vượt xa mức nó cần.
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9308

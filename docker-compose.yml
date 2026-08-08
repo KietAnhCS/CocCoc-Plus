@@ -5,6 +5,30 @@
 # Backend phuc vu o http://localhost:8080. Frontend (Electron) chay rieng tren
 # may that — xem run-frontend.bat — vi no la ung dung desktop co cua so, khong
 # phai mot dich vu mang.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# BA MUC DO, CHON BANG PROFILE
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#   docker compose up -d --build
+#       backend + PostgreSQL.  ~1,5 GB RAM.  Du de demo tim kiem.
+#
+#   docker compose --profile kafka up -d --build
+#       Them Kafka + kafka-ui + crawler-worker.  ~3 GB RAM.
+#       Crawl chuyen sang che do PHAN TAN: ba Modular Service chay o tien
+#       trinh rieng.
+#
+#   docker compose --profile kafka --profile monitoring up -d --build
+#       Them Prometheus + Grafana + Alertmanager + kafka-exporter.  ~4 GB RAM.
+#       Chuoi quan sat day du.
+#
+# VI SAO PHAI CHIA PROFILE thay vi bat het. Bay dich vu chay cung luc tren mot
+# may tinh ca nhan la khoang 4 GB RAM va vai phut khoi dong. Bat mot sinh vien
+# tra cai gia do CHI DE xem thu ket qua tim kiem la cach chac chan nhat khien
+# ho khong bao gio chay `docker compose up` lan thu hai.
+#
+# Mac dinh phai la thu nhe nhat ma van chay duoc. Phan nang la thu BAT THEM
+# khi thuc su can nhin no.
 services:
   postgres:
     image: postgres:17-alpine
@@ -91,5 +115,224 @@ services:
       start_period: 90s
     restart: unless-stopped
 
+  # ═════════════════════════════════════════════════════════════════════════
+  # PROFILE `kafka` — bus su kien va crawler-worker tach rieng
+  # ═════════════════════════════════════════════════════════════════════════
+
+  # Kafka che do KRaft: KHONG con Zookeeper.
+  #
+  # Truoc Kafka 3.3, moi cum deu can them mot cum Zookeeper rieng chi de giu
+  # sieu du lieu — hai he thong phan tan phai van hanh thay vi mot. KRaft dua
+  # phan do vao chinh Kafka. Voi mot do an thi khac biet la mot container thay
+  # vi hai, va mot loai su co thay vi hai.
+  kafka:
+    image: apache/kafka:3.8.1
+    container_name: vnsearch-kafka
+    profiles: [kafka, monitoring]
+    environment:
+      KAFKA_NODE_ID: 1
+      # Mot node lam CA hai vai. Chi dung cho mot may; moi truong that tach
+      # controller ra rieng de nang cap broker khong dung toi tang bau cu.
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+
+      # HAI listener, va day la cho hay sai nhat khi chay Kafka trong Docker:
+      #   PLAINTEXT      -> cho container khac trong mang compose  (kafka:9092)
+      #   PLAINTEXT_HOST -> cho tien trinh tren may that           (localhost:29092)
+      #
+      # Kafka tra ve dia chi ADVERTISED cho client, roi client tu ket noi lai
+      # bang dia chi do. Neu chi khai bao mot listener `kafka:9092` thi mot
+      # cong cu chay tren may that se phan giai duoc broker luc dau, nhan ve
+      # ten `kafka`, roi that bai vi ten do khong ton tai ngoai mang Docker.
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+
+      # Mot node thi khong the co ban sao thu hai. Mac dinh cua Kafka la 3, va
+      # de nguyen thi topic noi bo khong tao duoc — cum khoi dong roi treo.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # 0 giay thay vi 3 giay mac dinh: khong phai cho moi lan mot consumer
+      # tham gia nhom. Chi hop ly khi phat trien.
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+
+      KAFKA_NUM_PARTITIONS: 12
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+      # PHAI khop voi MAX_MESSAGE_BYTES trong KafkaCrawlConfig (4 MB). Lech
+      # nhau thi producer gui duoc ma broker tu choi — loi chi lo ra o dung
+      # nhung trang giau noi dung nhat.
+      KAFKA_MESSAGE_MAX_BYTES: 4194304
+      KAFKA_REPLICA_FETCH_MAX_BYTES: 4194304
+
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_HEAP_OPTS: "-Xmx768m -Xms512m"
+    ports:
+      - "29092:29092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      # Hoi chinh broker qua giao thuc that, khong phai chi xem cong co mo.
+      # Cong mo tu rat som trong qua trinh khoi dong, nen kiem tra cong se bao
+      # "san sang" trong khi broker con dang nap log.
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+      start_period: 30s
+    restart: unless-stopped
+
+  # Giao dien xem topic, thong diep va do tre tieu thu.
+  #
+  # Khong phai do trang tri: khi mot thong diep roi vao dead-letter topic, day
+  # la cho doc noi dung va header nguyen nhan goc. Khong co no thi phai go
+  # lenh kafka-console-consumer voi mot ta tham so.
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: vnsearch-kafka-ui
+    profiles: [kafka, monitoring]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_CLUSTERS_0_NAME: vnsearch
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      DYNAMIC_CONFIG_ENABLED: "true"
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  # Crawler worker — CUNG anh voi backend, khac VAI.
+  #
+  # Vi sao cung anh: mot anh da qua kiem thu, mot quy trinh dung, mot noi de
+  # va loi. Vai duoc quyet dinh boi bien moi truong, khong phai boi ma nguon.
+  # Day la nguyen tac "cung mot anh chay o moi moi truong" ma configmap.yaml
+  # da neu, ap cho hai vai tro khac nhau cua cung mot he thong.
+  #
+  # Vi sao tach tien trinh: hai cong viec co ho so tai nguyen NGUOC NHAU.
+  # Phuc vu truy van la CPU + bo nho (chi muc dao nam trong RAM); tieu thu
+  # Kafka de boc lien ket va tai anh la cho mang. Nhot chung mot tien trinh thi
+  # mot dot crawl lam cham moi truy van, va co gian de chiu tai crawl thi phai
+  # nhan ban ca chi muc.
+  crawler-worker:
+    build:
+      context: ./search-engine
+    container_name: vnsearch-crawler-worker
+    profiles: [kafka, monitoring]
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?Thieu ADMIN_API_KEY - xem README.md muc "Chay bang Docker"}
+      SPRING_PROFILES_ACTIVE: prod
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
+
+      # Cong tac chuyen che do. Khong co dong nay thi ung dung chay bus
+      # in-process va toan bo phan Kafka nam im — dung nhu thiet ke.
+      APP_CRAWLER_BUS: kafka
+      APP_CRAWLER_KAFKA_BOOTSTRAP: kafka:9092
+
+      APP_STORAGE_POSTGRES_ENABLED: "true"
+      APP_STORAGE_POSTGRES_URL: jdbc:postgresql://postgres:5432/vnsearch
+      APP_STORAGE_POSTGRES_USER: vnsearch
+    volumes:
+      - ./search-engine/data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health/liveness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 90s
+    restart: unless-stopped
+
+  # ═════════════════════════════════════════════════════════════════════════
+  # PROFILE `monitoring` — chuoi quan sat day du
+  # ═════════════════════════════════════════════════════════════════════════
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: vnsearch-prometheus
+    profiles: [monitoring]
+    volumes:
+      - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      # 15 ngay: du de nhin lai mot su co tuan truoc, du ngan de khong an het
+      # o dia cua may ca nhan.
+      - --storage.tsdb.retention.time=15d
+      # Cho nap lai cau hinh bang POST /-/reload, khong phai khoi dong lai.
+      - --web.enable-lifecycle
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: vnsearch-grafana
+    profiles: [monitoring]
+    depends_on: [prometheus]
+    environment:
+      # Mat khau demo cuc bo. Moi truong that dat GRAFANA_PASSWORD.
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      # Tat viec goi ve may chu Grafana kiem tra phien ban — mot container
+      # giam sat khong nen tu mo ket noi ra Internet.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      # Mo thang bang dieu khien VnSearch khi vao trang chu.
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/vnsearch.json
+    volumes:
+      - ./deploy/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deploy/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: vnsearch-alertmanager
+    profiles: [monitoring]
+    volumes:
+      - ./deploy/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager-data:/alertmanager
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    ports:
+      - "9093:9093"
+    restart: unless-stopped
+
+  # Kafka phoi so lieu qua JMX, khong phai HTTP. Container nay dich sang dinh
+  # dang Prometheus.
+  #
+  # Thang do quan trong nhat no cho ra la `kafka_consumergroup_lag` — vua la
+  # tin hieu canh bao, vua la tin hieu CO GIAN cho KEDA. Xem
+  # deploy/k8s/base/crawler-worker.yaml.
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:v1.7.0
+    container_name: vnsearch-kafka-exporter
+    profiles: [monitoring]
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command: ["--kafka.server=kafka:9092"]
+    ports:
+      - "9308:9308"
+    restart: unless-stopped
+
 volumes:
   postgres-data:
+  kafka-data:
+  prometheus-data:
+  grafana-data:
+  alertmanager-data:

@@ -71,3 +71,88 @@ patches:
       - op: replace
         path: /data/APP_RANKING_SCORER
         value: tfidf
+
+  # --- Cụm Modular Services trên máy cá nhân -------------------------------
+
+  # Một worker là đủ. Nhiều hơn chỉ tạo thêm những lần cân bằng nhóm consumer
+  # mà không tăng thông lượng — trên một máy thì nút thắt là băng thông mạng
+  # ra Internet, không phải số tiến trình.
+  - target:
+      kind: Deployment
+      name: vnsearch-crawler-worker
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  # Bỏ KEDA ScaledObject: KEDA là một operator phải cài riêng, và cụm kind
+  # mặc định không có nó. Để lại thì `kubectl apply` báo lỗi "no matches for
+  # kind ScaledObject" và TOÀN BỘ lần triển khai thất bại — không phải chỉ
+  # riêng tài nguyên này.
+  #
+  # Muốn thử KEDA thật thì cài rồi xoá đoạn dưới:
+  #   helm install keda kedacore/keda -n keda --create-namespace
+  - target:
+      kind: ScaledObject
+      name: vnsearch-crawler-worker
+    patch: |-
+      $patch: delete
+      apiVersion: keda.sh/v1alpha1
+      kind: ScaledObject
+      metadata:
+        name: vnsearch-crawler-worker
+
+  # Cùng lý do với PDB của backend: chặn cứng `kubectl drain` trên cụm một node.
+  - target:
+      kind: PodDisruptionBudget
+      name: vnsearch-crawler-worker
+    patch: |-
+      $patch: delete
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: vnsearch-crawler-worker
+
+  # Kafka nhỏ lại cho vừa máy cá nhân.
+  #
+  # Dùng strategic merge (khớp theo TÊN) chứ không phải JSON patch (khớp theo
+  # CHỈ SỐ). Một patch dạng `/env/13/value` sẽ âm thầm sửa nhầm biến khác ngay
+  # khi ai đó chèn thêm một biến vào giữa danh sách trong kafka.yaml — và
+  # `kubectl apply` vẫn thành công, nên không có gì báo. Khớp theo tên thì
+  # không thể sai kiểu đó.
+  - target:
+      kind: StatefulSet
+      name: vnsearch-kafka
+    patch: |-
+      apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: vnsearch-kafka
+      spec:
+        template:
+          spec:
+            containers:
+              - name: kafka
+                env:
+                  - name: KAFKA_HEAP_OPTS
+                    value: "-Xmx512m -Xms512m"
+                resources:
+                  requests:
+                    cpu: 100m
+                    memory: 768Mi
+                  limits:
+                    memory: 1536Mi
+
+  # 10 Gi là kích thước cho retention 7 ngày ở quy mô thật; ở dev thì một phiên
+  # crawl thử vài trăm trang.
+  #
+  # volumeClaimTemplates KHÔNG sửa được bằng strategic merge (Kubernetes coi nó
+  # là mảng nguyên khối), nên chỗ này buộc phải dùng JSON patch theo chỉ số —
+  # an toàn vì mảng chỉ có đúng một phần tử.
+  - target:
+      kind: StatefulSet
+      name: vnsearch-kafka
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: 2Gi

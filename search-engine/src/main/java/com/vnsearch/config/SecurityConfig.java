@@ -24,7 +24,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
  *   GET  /api/search                     POST /api/admin/crawl
  *   GET  /api/suggest                    POST /api/admin/reindex
  *   GET  /api/health                     GET  /api/admin/stats
- *   GET  /actuator/health                GET  /api/admin/crawl/{id}/status
+ *   GET  /api/images                     GET  /api/admin/crawl/{id}/status
+ *   GET  /actuator/health
  *   GET  /actuator/prometheus            GET  /actuator/**  (con lai)
  * </pre>
  *
@@ -96,7 +97,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Preflight CORS khong bao gio mang header xac thuc.
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/search", "/api/suggest", "/api/health").permitAll()
+                        // Duong dan CONG KHAI. Them mot endpoint doc du lieu
+                        // ma quen dong nay thi no tra 401 — dung mac dinh cua
+                        // Spring Security (chan truoc, mo sau), va la ly do
+                        // /api/images tra 401 o lan chay dau tien.
+                        .requestMatchers("/api/search", "/api/suggest", "/api/health",
+                                "/api/images").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/admin/**", "/actuator/**").hasRole("ADMIN")
                         .anyRequest().denyAll())

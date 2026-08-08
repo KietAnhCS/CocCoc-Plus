@@ -2,6 +2,8 @@ package com.vnsearch.ranking;
 
 import com.vnsearch.datastructure.SparseMatrix;
 import com.vnsearch.model.WebDocument;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,6 +38,8 @@ import java.util.Map;
  * O(N) (xu ly dangling/teleport) -&gt; tong O(iterations * (nnz + N)).
  */
 public class PageRankService {
+
+    private static final Logger log = LoggerFactory.getLogger(PageRankService.class);
 
     private static final double DAMPING = 0.85;
     private static final double EPSILON = 1e-6;
@@ -121,8 +125,13 @@ public class PageRankService {
             iteration++;
         } while (diff >= EPSILON && iteration < MAX_ITERATIONS);
 
-        System.out.printf("PageRank hoi tu sau %d vong lap (diff cuoi = %.2e, nnz = %d, do thua = %.4f%%)%n",
-                iteration, diff, incoming.nnz(), incoming.density() * 100);
+        // Logger chu khong phai System.out: dong nay chay trong tien trinh may
+        // chu, nen no can dau thoi gian, muc do va loc duoc nhu moi dong log
+        // khac. In thang ra stdout thi no khong co gi ca, va o profile prod
+        // (log dang JSON) no lot ra ngoai dinh dang.
+        log.info("PageRank hoi tu sau {} vong lap (diff cuoi = {}, nnz = {}, do thua = {}%)",
+                iteration, String.format("%.2e", diff), incoming.nnz(),
+                String.format("%.4f", incoming.density() * 100));
 
         Map<Integer, Double> result = new HashMap<>();
         for (int idx = 0; idx < n; idx++) {

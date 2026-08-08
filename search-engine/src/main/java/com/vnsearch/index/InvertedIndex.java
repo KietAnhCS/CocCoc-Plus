@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Inverted index tu cai dat: {@code Map<String term, List<Posting>>}.
@@ -46,6 +47,16 @@ public class InvertedIndex implements SearchIndex {
     private final Map<String, List<Posting>> index = new LinkedHashMap<>();
     private final Map<Integer, WebDocument> documents = new LinkedHashMap<>();
     private final Map<Integer, Integer> docLength = new LinkedHashMap<>();
+
+    /**
+     * Van ban than bai, luu DA NEN, tach khoi {@link #documents}.
+     *
+     * <p>Xep hang khong dung toi truong nay; chi khau sinh doan trich cho top-K
+     * moi can, va no giai nen dung {@code K} tai lieu. Giu nguyen van trong
+     * {@code WebDocument} thi ton gap khoang bon lan — xem
+     * {@link CompressedText} ve lua chon nen tai cho thay vi doc tu CSDL.
+     */
+    private final Map<Integer, byte[]> bodyTexts = new LinkedHashMap<>();
     private final Tokenizer tokenizer;
     private final TermDictionary termDictionary = new TermDictionary();
 
@@ -73,6 +84,35 @@ public class InvertedIndex implements SearchIndex {
      * @throws IllegalArgumentException neu docId khong lon hon docId truoc do
      */
     public void addDocument(WebDocument doc) {
+        addDocument(doc, tokenizer.tokenize(indexableText(doc)));
+    }
+
+    /**
+     * Van ban duoc dua vao chi muc cho mot tai lieu: tieu de + mo ta + than bai.
+     *
+     * <p>Tach thanh ham cong khai de {@code IndexBuilder} <b>tach tu song
+     * song</b> tren nhieu nhan roi moi nap tuan tu vao day. Neu ham nay chi la
+     * mot bieu thuc noi trong {@link #addDocument}, buoc tach tu — phan chiem
+     * gan nhu toan bo thoi gian dung chi muc — bi khoa cung vao mot luong.
+     */
+    public static String indexableText(WebDocument doc) {
+        return String.join(" ",
+                doc.getTitle() != null ? doc.getTitle() : "",
+                doc.getMetaDescription() != null ? doc.getMetaDescription() : "",
+                doc.getBodyText() != null ? doc.getBodyText() : "");
+    }
+
+    /**
+     * Them mot tai lieu voi danh sach token DA TACH SAN.
+     *
+     * <p>Cung rang buoc thu tu docId tang dan nhu {@link #addDocument(WebDocument)}.
+     * Nguoi goi chiu trach nhiem bao dam token duoc tach bang <b>dung</b>
+     * tokenizer cua chi muc nay — xem bat bien song hanh o Javadoc cua
+     * {@link Tokenizer}.
+     *
+     * @throws IllegalArgumentException neu docId khong lon hon docId truoc do
+     */
+    public void addDocument(WebDocument doc, List<VietnameseTokenizer.Token> tokens) {
         int docId = doc.getDocId();
         if (docId <= lastDocId) {
             throw new IllegalArgumentException(
@@ -83,13 +123,10 @@ public class InvertedIndex implements SearchIndex {
         }
         lastDocId = docId;
 
-        String combinedText = String.join(" ",
-                doc.getTitle() != null ? doc.getTitle() : "",
-                doc.getMetaDescription() != null ? doc.getMetaDescription() : "",
-                doc.getBodyText() != null ? doc.getBodyText() : "");
-
-        List<VietnameseTokenizer.Token> tokens = tokenizer.tokenize(combinedText);
-        documents.put(docId, doc);
+        // Van ban than bai di duong RIENG, o dang nen. Ban luu trong `documents`
+        // khong con truong do — neu giu ca hai thi khong tiet kiem duoc gi.
+        bodyTexts.put(docId, CompressedText.compress(doc.getBodyText()));
+        documents.put(docId, doc.withoutBodyText());
         docLength.put(docId, tokens.size());
         totalTokens += tokens.size();
 
@@ -108,8 +145,15 @@ public class InvertedIndex implements SearchIndex {
         }
 
         for (Map.Entry<String, List<Integer>> entry : positionsByTerm.entrySet()) {
+            // Chuyen sang int[] NGAY tai day: danh sach tam o tren chi song
+            // trong pham vi mot tai lieu, con mang ket qua thi nam lai trong chi
+            // muc suot vong doi ung dung. Xem Javadoc cua Posting ve so do.
             List<Integer> positions = entry.getValue();
-            Posting posting = new Posting(docId, positions.size(), positions);
+            int[] packed = new int[positions.size()];
+            for (int i = 0; i < packed.length; i++) {
+                packed[i] = positions.get(i);
+            }
+            Posting posting = new Posting(docId, packed.length, packed);
             index.computeIfAbsent(entry.getKey(), k -> new ArrayList<>()).add(posting); // ← APPEND
         }
     }
@@ -149,13 +193,21 @@ public class InvertedIndex implements SearchIndex {
     /**
      * O(log n) - danh sach vi tri xuat hien cua {@code term} trong {@code docId}.
      * Dung cho phrase search (kiem tra cac term co nam LIEN TIEP khong).
+     *
+     * <p>Tra ve mang NOI BO, khong phai ban sao: sao chep o day se dung het
+     * phan tiet kiem ma {@code int[]} vua mang lai, va phrase search goi ham
+     * nay cho MOI term nhan MOI tai lieu ung vien. Nguoi goi phai coi mang tra
+     * ve la CHI DOC — day la danh doi co y, duoc ghi ro thay vi de ngam.
      */
     @Override
-    public List<Integer> getPositions(String term, int docId) {
+    public int[] getPositions(String term, int docId) {
         List<Posting> postings = getPostings(term);
         int position = binarySearchPosting(postings, docId);
-        return position < 0 ? List.of() : postings.get(position).positions();
+        return position < 0 ? EMPTY_POSITIONS : postings.get(position).positions();
     }
+
+    /** Dung chung cho moi lan "khong tim thay" — khoi cap phat mang rong moi lan. */
+    private static final int[] EMPTY_POSITIONS = new int[0];
 
     @Override
     public PostingCursor cursor(String term) {
@@ -193,6 +245,22 @@ public class InvertedIndex implements SearchIndex {
     @Override
     public WebDocument getDocument(int docId) {
         return documents.get(docId);
+    }
+
+    /**
+     * Van ban than bai cua mot tai lieu, giai nen tai cho.
+     *
+     * <p><b>Goi ham nay CHI cho nhung tai lieu that su duoc tra ve.</b> Moi lan
+     * goi la mot lan giai nen; goi cho toan bo ung vien se dung het phan tiet
+     * kiem ma viec nen mang lai, lai them chi phi CPU. {@code ResultRanker} da
+     * duoc chia hai giai doan dung vi ly do nay: cham diem truoc cho moi ung
+     * vien, sinh doan trich sau chi cho top-K.
+     *
+     * @return van ban, hoac chuoi rong neu tai lieu khong ton tai
+     */
+    @Override
+    public String getBodyText(int docId) {
+        return CompressedText.decompress(bodyTexts.get(docId));
     }
 
     /** So luong term (khoa) khac nhau dang co trong index. */
@@ -243,13 +311,27 @@ public class InvertedIndex implements SearchIndex {
     }
 
     /**
+     * Moi khoa term dang co, <b>khong sua doi duoc</b>.
+     *
+     * <p>Dung cho cac cong cu duyet toan bo chi muc (do bo nho, thong ke). Tra
+     * ve khung nhin {@code unmodifiable} chu khong phai ban sao: duyet 56.000
+     * term khong nen phai cap phat them mot tap moi.
+     */
+    public Set<String> getAllTerms() {
+        return Collections.unmodifiableSet(index.keySet());
+    }
+
+    /**
      * Phiên bản hiện hành của định dạng file chỉ mục.
      *
      * <p>Lịch sử: <b>v1</b> ghi posting list thẳng ra JSON, không nén.
      * <b>v2</b> ghi ở dạng {@link CompressedPostings} (delta + VByte + base64).
-     * Hai định dạng <b>không đọc lẫn nhau được</b>.
+     * <b>v3</b> tách {@code bodyText} khỏi {@code WebDocument} sang một bản đồ
+     * riêng đã nén ({@link CompressedText}) — trước đó văn bản đầy đủ nằm ngay
+     * trong tài liệu và chiếm phần lớn kích thước tệp chỉ mục.
+     * Các định dạng <b>không đọc lẫn nhau được</b>.
      */
-    public static final int FORMAT_VERSION = 2;
+    public static final int FORMAT_VERSION = 3;
 
     /**
      * Dung boi IndexPersistence de luu/nap toan bo trang thai index ra file.
@@ -288,6 +370,7 @@ public class InvertedIndex implements SearchIndex {
     record IndexData(int version, String tokenizer,
                       Map<String, CompressedPostings> index,
                       Map<Integer, WebDocument> documents,
+                      Map<Integer, byte[]> bodyTexts,
                       Map<Integer, Integer> docLength) {
     }
 
@@ -296,7 +379,10 @@ public class InvertedIndex implements SearchIndex {
         for (Map.Entry<String, List<Posting>> entry : index.entrySet()) {
             compressed.put(entry.getKey(), CompressedPostings.of(entry.getValue()));
         }
-        return new IndexData(FORMAT_VERSION, tokenizer.name(), compressed, documents, docLength);
+        // bodyTexts da o dang byte[]; Jackson tu ma hoa base64 khi ghi JSON,
+        // cung co che dang dung cho posting list da nen.
+        return new IndexData(FORMAT_VERSION, tokenizer.name(), compressed, documents,
+                bodyTexts, docLength);
     }
 
     static InvertedIndex importData(IndexData data, Tokenizer tokenizer) {
@@ -309,6 +395,9 @@ public class InvertedIndex implements SearchIndex {
                     entry.getValue().toPostings());
         }
         result.documents.putAll(data.documents());
+        if (data.bodyTexts() != null) {
+            result.bodyTexts.putAll(data.bodyTexts());
+        }
         result.docLength.putAll(data.docLength());
         // Nap lai tu file KHONG di qua addDocument, nen moi trang thai dan xuat
         // phai duoc tinh lai o day. Quen mot cai la loi im lang: totalTokens = 0

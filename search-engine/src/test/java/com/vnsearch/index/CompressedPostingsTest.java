@@ -20,11 +20,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class CompressedPostingsTest {
 
     private static Posting posting(int docId, int... positions) {
-        List<Integer> list = new ArrayList<>(positions.length);
-        for (int position : positions) {
-            list.add(position);
-        }
-        return new Posting(docId, positions.length, list);
+        // `positions` da la int[] san nho varargs — dua thang vao Posting.
+        return new Posting(docId, positions.length, positions);
     }
 
     @Test
@@ -85,7 +82,7 @@ class CompressedPostingsTest {
     @Test
     @DisplayName("Bất biến termFrequency == |positions| bị vi phạm thì ném ngoại lệ NGAY")
     void enforcesTermFrequencyInvariant() {
-        List<Posting> broken = List.of(new Posting(7, 99, List.of(1, 2)));
+        List<Posting> broken = List.of(new Posting(7, 99, new int[]{1, 2}));
 
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> CompressedPostings.of(broken));

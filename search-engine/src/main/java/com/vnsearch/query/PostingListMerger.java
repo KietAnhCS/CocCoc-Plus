@@ -5,7 +5,7 @@ import com.vnsearch.index.Posting;
 import com.vnsearch.index.SearchIndex;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
@@ -209,22 +209,24 @@ public final class PostingListMerger {
             return true;
         }
         // TỐI ƯU 1: lấy tất cả danh sách vị trí MỘT lần, ngoài vòng lặp.
-        List<List<Integer>> positionsByTerm = new ArrayList<>(phraseTerms.size());
-        for (String term : phraseTerms) {
-            List<Integer> positions = index.getPositions(term, docId);
-            if (positions.isEmpty()) {
+        int[][] positionsByTerm = new int[phraseTerms.size()][];
+        for (int i = 0; i < phraseTerms.size(); i++) {
+            int[] positions = index.getPositions(phraseTerms.get(i), docId);
+            if (positions.length == 0) {
                 return false; // một term không xuất hiện -> không thể có cụm
             }
-            positionsByTerm.add(positions);
+            positionsByTerm[i] = positions;
         }
 
-        List<Integer> firstPositions = positionsByTerm.get(0);
-        for (int start : firstPositions) {
+        for (int start : positionsByTerm[0]) {
             boolean allMatch = true;
             for (int i = 1; i < phraseTerms.size(); i++) {
-                // TỐI ƯU 2: tìm kiếm nhị phân trên danh sách đã sắp xếp, thay
-                // vì List.contains quét tuyến tính.
-                if (Collections.binarySearch(positionsByTerm.get(i), start + i) < 0) {
+                // TỐI ƯU 2: tìm kiếm nhị phân trên dãy đã sắp xếp, thay vì quét
+                // tuyến tính. `Arrays.binarySearch` thay cho
+                // `Collections.binarySearch`: cùng thuật toán, nhưng chạy thẳng
+                // trên int[] nên không phải mở hộp một `Integer` ở mỗi bước so
+                // sánh — mà vòng này là chỗ nóng nhất của tìm kiếm theo cụm.
+                if (Arrays.binarySearch(positionsByTerm[i], start + i) < 0) {
                     allMatch = false;
                     break;
                 }
@@ -239,15 +241,15 @@ public final class PostingListMerger {
     /** Demo minh hoạ nhỏ để chụp màn hình làm báo cáo. */
     public static void main(String[] args) {
         List<Posting> a = List.of(
-                new Posting(1, 2, List.of(0, 5)),
-                new Posting(3, 1, List.of(2)),
-                new Posting(5, 1, List.of(1)),
-                new Posting(7, 1, List.of(0)));
+                new Posting(1, 2, new int[]{0, 5}),
+                new Posting(3, 1, new int[]{2}),
+                new Posting(5, 1, new int[]{1}),
+                new Posting(7, 1, new int[]{0}));
         List<Posting> b = List.of(
-                new Posting(2, 1, List.of(0)),
-                new Posting(3, 1, List.of(1)),
-                new Posting(5, 2, List.of(0, 3)),
-                new Posting(8, 1, List.of(0)));
+                new Posting(2, 1, new int[]{0}),
+                new Posting(3, 1, new int[]{1}),
+                new Posting(5, 2, new int[]{0, 3}),
+                new Posting(8, 1, new int[]{0}));
 
         System.out.println("intersect(a,b)        = " + intersect(docIdsOf(a), docIdsOf(b)));
         System.out.println("union(a,b)            = " + union(docIdsOf(a), docIdsOf(b)));

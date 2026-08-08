@@ -103,7 +103,6 @@ public class SearchEngineFacade {
 
     private volatile SearchIndex index;
     private volatile Map<Integer, Double> pageRankScores = Map.of();
-    private volatile List<WebDocument> lastCrawledDocuments = List.of();
     private volatile RelevanceScorer scorer;
     private volatile LRUCache<String, SearchResponse> searchCache;
 
@@ -148,9 +147,21 @@ public class SearchEngineFacade {
         // Chi muc da dung san la duong nhanh nhat: khong phai index lai.
         if (Files.exists(Path.of(indexDataPath))) {
             try {
-                index = IndexPersistence.load(indexDataPath, tokenizer);
-                log.info("Da nap chi muc dung san tu {}", indexDataPath);
-                return;
+                SearchIndex prebuilt = IndexPersistence.load(indexDataPath, tokenizer);
+                // Mot chi muc RONG khong phai la chi muc dung duoc. Truong hop
+                // that da gap: mot lan crawl thu that bai de lai index.json 159
+                // byte, va vi duong nhanh nay chi hoi "tep co ton tai khong",
+                // ung dung nap tep rong roi RETURN — che mat ca corpus mau di
+                // kem repo. Ket qua: moi truy van tra ve 0, /api/health bao 503,
+                // va trong Docker thi container vao vong khoi dong lai vo han.
+                if (prebuilt.getTotalDocs() > 0) {
+                    index = prebuilt;
+                    log.info("Da nap chi muc dung san tu {} ({} tai lieu)",
+                            indexDataPath, prebuilt.getTotalDocs());
+                    return;
+                }
+                log.warn("Chi muc dung san tai {} khong co tai lieu nao. Bo qua va"
+                        + " dung lai tu corpus goc.", indexDataPath);
             } catch (IOException | RuntimeException e) {
                 // Chi muc dung san la CACHE dan xuat, khong phai nguon su that:
                 // mot file hong hoac ghi boi phien ban dinh dang cu KHONG duoc
@@ -163,12 +174,57 @@ public class SearchEngineFacade {
             if (!store.isAvailable()) {
                 continue;
             }
-            lastCrawledDocuments = store.loadAll();
-            index = indexBuilder.build(lastCrawledDocuments);
-            log.info("Da nap corpus tu {} ({} tai lieu)", store.describe(), lastCrawledDocuments.size());
+            List<WebDocument> docs = store.loadAll();
+            // Nguon RONG khong phai la nguon. `isAvailable()` cua
+            // JsonDocumentStore chi hoi "tep co ton tai khong", nen mot tep
+            // chua dung `[]` — thu ma mot phien crawl hong de lai — van duoc
+            // coi la kha dung va CHAN mat cac tang du phong phia sau. Ca chuoi
+            // du phong sinh ra chinh de tranh dieu do.
+            if (docs.isEmpty()) {
+                log.warn("Bo qua nguon {}: khong co tai lieu nao.", store.describe());
+                continue;
+            }
+            index = indexBuilder.build(docs);
+            log.info("Da nap corpus tu {} ({} tai lieu)", store.describe(), docs.size());
+            persistIndex();
             return;
         }
         log.warn("Khong tim thay nguon du lieu nao, bat dau voi index rong");
+    }
+
+    /**
+     * Ghi chi muc vua dung ra dia de <b>lan khoi dong sau khong phai dung lai</b>.
+     *
+     * <p><b>Vi sao doan nay tung thieu, va thieu no ton bao nhieu.</b> Dau
+     * {@link #loadCorpus} co mot duong nhanh: neu tep chi muc ton tai thi nap
+     * thang, khoi phai lap chi muc. Nhung khong co cho nao ghi tep do ra ca —
+     * chi {@link #reindex} va {@link #startCrawl} moi ghi. Nen voi mot he thong
+     * chi crawl bang dong lenh (dung cach dang dung), tep chi muc <b>khong bao
+     * gio ton tai</b>, va duong nhanh kia khong bao gio chay.
+     *
+     * <p>Do duoc tren corpus 30.017 trang: khoi dong mat <b>58,5 giay</b>, va
+     * con so do lap lai y het o moi lan khoi dong sau. Bang chung gian tiep nam
+     * ngay trong {@link #getStats}: {@code indexSizeBytes} luon bang 0, nghia la
+     * tep chi muc khong ton tai.
+     *
+     * <p><b>Loi ghi khong duoc phep lam hong lan khoi dong.</b> Chi muc dung san
+     * la <i>cache dan xuat</i>, khong phai nguon su that — dia day hay khong co
+     * quyen ghi thi ung dung van phai phuc vu duoc, chi la lan sau khoi dong lai
+     * cham. Vi vay bat het ngoai le tai day thay vi de no noi len.
+     */
+    private void persistIndex() {
+        if (!(index instanceof InvertedIndex invertedIndex)) {
+            return;
+        }
+        try {
+            long start = System.currentTimeMillis();
+            IndexPersistence.save(invertedIndex, indexDataPath);
+            log.info("Da ghi chi muc ra {} ({} ms) — lan khoi dong sau se nap thang tu day.",
+                    indexDataPath, System.currentTimeMillis() - start);
+        } catch (IOException | RuntimeException e) {
+            log.warn("Khong ghi duoc chi muc ra {} ({}). He thong van chay binh thuong,"
+                    + " nhung lan khoi dong sau se phai lap chi muc lai.", indexDataPath, e.toString());
+        }
     }
 
     private List<DocumentStore> buildStoreChain() {
@@ -202,6 +258,11 @@ public class SearchEngineFacade {
         LRUCache<String, SearchResponse> cache = searchCache;
         SearchIndex currentIndex = index;
         RelevanceScorer currentScorer = scorer;
+        // pageRankScores cung phai duoc chup, vi dung ly do: mot lan reindex xen
+        // giua se doi truong nay, va khi do ket qua tra ve ghep chi muc CU voi
+        // diem PageRank MOI. Truoc day ba truong tren duoc chup con truong nay
+        // thi doc thang — dung loai bat nhat ma chinh nhan xet o tren canh bao.
+        Map<Integer, Double> currentPageRank = pageRankScores;
 
         String cacheKey = normalizedQuery.toLowerCase(Locale.ROOT) + "|p" + page + "|s" + size;
         SearchResponse cached = cache.get(cacheKey);
@@ -220,7 +281,7 @@ public class SearchEngineFacade {
         int topN = Math.max(page * size, size);
         List<ResultRanker.RankedResult> ranked = resultRanker.rank(
                 candidates, resolved.queryTermFrequency(), currentIndex,
-                currentScorer, pageRankScores, topN);
+                currentScorer, currentPageRank, topN);
 
         int fromIndex = Math.min((Math.max(page, 1) - 1) * size, ranked.size());
         int toIndex = Math.min(fromIndex + size, ranked.size());
@@ -232,8 +293,10 @@ public class SearchEngineFacade {
         }
 
         long elapsed = System.currentTimeMillis() - start;
+        // Tra ve `size` DA DUOC AP DUNG, khong phai `size` client gui len — xem
+        // Javadoc cua SearchResponse.
         SearchResponse response = new SearchResponse(
-                normalizedQuery, candidates.size(), page, elapsed, pageResults,
+                normalizedQuery, candidates.size(), page, size, elapsed, pageResults,
                 resolved.droppedTerms());
         cache.put(cacheKey, response);
 
@@ -252,7 +315,8 @@ public class SearchEngineFacade {
     public String startCrawl(List<String> seedUrls, int maxDepth, int maxPages) {
         return crawlJobManager.start(seedUrls, maxDepth, maxPages, docs -> {
             try {
-                lastCrawledDocuments = docs;
+                // Ghi ra dia TRUOC khi dung chi muc: tu day tro di, tep moi la
+                // nguon su that cua corpus — khong con ban nao trong bo nho.
                 ContentStorage.saveToJson(docs, crawledDataPath);
                 index = indexBuilder.build(docs);
                 IndexPersistence.save((InvertedIndex) index, indexDataPath);
@@ -267,15 +331,69 @@ public class SearchEngineFacade {
         return crawlJobManager.getStatus(jobId);
     }
 
+    /**
+     * Dung lai chi muc tu corpus tren dia.
+     *
+     * <p><b>Doc lai tu dia thay vi giu mot ban trong bo nho.</b> Truoc day lop
+     * nay co truong {@code lastCrawledDocuments} giu NGUYEN ca corpus — ke ca
+     * {@code bodyText} day du cua moi trang — chi de phuc vu ham nay. Do la mot
+     * cai gia rat dat cho mot thao tac quan tri hiem khi duoc goi: tren corpus
+     * 2.518 trang, rieng phan van ban do la 34 MB, va no ton tai suot vong doi
+     * ung dung.
+     *
+     * <p>Te hon, no lam vo hieu chinh phep toi uu ma chi muc vua ap dung: chi
+     * muc luu than bai o dang NEN, nhung neu mot truong khac van giu ban nguyen
+     * van thi tong bo nho khong giam mot byte nao.
+     *
+     * <p>Doi lai la mot lan doc dia moi khi goi {@code /api/admin/reindex}. Do
+     * la danh doi dung: reindex khong nam tren duong chay cua truy van.
+     */
     public void reindex() throws IOException {
-        List<WebDocument> docs = lastCrawledDocuments;
-        if (docs.isEmpty() && Files.exists(Path.of(crawledDataPath))) {
+        List<WebDocument> docs = List.of();
+        if (Files.exists(Path.of(crawledDataPath))) {
             docs = ContentStorage.loadFromJson(crawledDataPath);
-            lastCrawledDocuments = docs;
+        }
+        if (docs.isEmpty()) {
+            // Khong co corpus da crawl thi lui ve chuoi nguon nhu luc khoi dong,
+            // de reindex tren ban demo (chi co seed) khong xoa sach chi muc.
+            for (DocumentStore store : buildStoreChain()) {
+                if (store.isAvailable()) {
+                    List<WebDocument> candidate = store.loadAll();
+                    if (!candidate.isEmpty()) {
+                        docs = candidate;
+                        break;
+                    }
+                }
+            }
         }
         index = indexBuilder.build(docs);
         IndexPersistence.save((InvertedIndex) index, indexDataPath);
         refreshDerivedState();
+    }
+
+    /**
+     * So tai lieu dang co trong chi muc — nguon du lieu cho
+     * {@code /api/health} va cho thang do Micrometer.
+     *
+     * <p>Tach rieng khoi {@link #getStats} vi hai thu phuc vu hai doi tuong
+     * khac nhau: ham nay tra loi cau hoi cong khai "he thong co phuc vu duoc
+     * khong", con {@code getStats} phoi bay chi tiet van hanh va can xac thuc.
+     */
+    public int getIndexedDocumentCount() {
+        SearchIndex current = index;
+        return current == null ? 0 : current.getTotalDocs();
+    }
+
+    /** Ty le trung cache tim kiem — thang do cho Micrometer. */
+    public double getCacheHitRate() {
+        long hits = cacheHits.get();
+        long total = hits + cacheMisses.get();
+        return total == 0 ? 0.0 : (double) hits / total;
+    }
+
+    public int getTermCount() {
+        SearchIndex current = index;
+        return current == null ? 0 : current.getTermCount();
     }
 
     public Map<String, Object> getStats() {

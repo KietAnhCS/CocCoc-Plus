@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PostingListMergerTest {
 
     private Posting p(int docId) {
-        return new Posting(docId, 1, List.of(0));
+        return new Posting(docId, 1, new int[]{0});
     }
 
     @Test

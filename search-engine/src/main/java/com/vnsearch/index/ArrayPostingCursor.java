@@ -32,9 +32,11 @@ final class ArrayPostingCursor implements PostingCursor {
         return index < postings.size() ? postings.get(index).termFrequency() : 0;
     }
 
+    private static final int[] EMPTY_POSITIONS = new int[0];
+
     @Override
-    public List<Integer> positions() {
-        return index < postings.size() ? postings.get(index).positions() : List.of();
+    public int[] positions() {
+        return index < postings.size() ? postings.get(index).positions() : EMPTY_POSITIONS;
     }
 
     @Override

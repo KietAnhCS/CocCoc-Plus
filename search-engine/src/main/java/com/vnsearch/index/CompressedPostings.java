@@ -97,8 +97,8 @@ public record CompressedPostings(int count, byte[] docIds, byte[] offsets, byte[
         int running = 0;
         for (int i = 0; i < count; i++) {
             Posting posting = postings.get(i);
-            List<Integer> positions = posting.positions();
-            int size = positions == null ? 0 : positions.size();
+            int[] positions = posting.positions();
+            int size = positions.length;
 
             if (posting.termFrequency() != size) {
                 throw new IllegalArgumentException(
@@ -110,11 +110,8 @@ public record CompressedPostings(int count, byte[] docIds, byte[] offsets, byte[
             }
 
             docIds[i] = posting.docId();
-            int[] segment = new int[size];
-            for (int j = 0; j < size; j++) {
-                segment[j] = positions.get(j);
-            }
-            segments.add(segment);
+            // positions da la int[] roi — dua thang vao, khoi sao chep.
+            segments.add(positions);
 
             running += size;
             offsets[i + 1] = running;
@@ -143,11 +140,7 @@ public record CompressedPostings(int count, byte[] docIds, byte[] offsets, byte[
         List<Posting> result = new ArrayList<>(count);
         for (int i = 0; i < count; i++) {
             int[] segment = segments[i];
-            List<Integer> positionList = new ArrayList<>(segment.length);
-            for (int position : segment) {
-                positionList.add(position);
-            }
-            result.add(new Posting(ids[i], segment.length, positionList));
+            result.add(new Posting(ids[i], segment.length, segment));
         }
         return result;
     }

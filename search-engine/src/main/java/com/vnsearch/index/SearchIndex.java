@@ -51,7 +51,17 @@ public interface SearchIndex {
     int getTermFrequency(String term, int docId);
 
     /** O(log n) - danh sach vi tri xuat hien cua {@code term} trong {@code docId}. */
-    List<Integer> getPositions(String term, int docId);
+    int[] getPositions(String term, int docId);
+
+    /**
+     * Van ban than bai cua mot tai lieu — chi dung de sinh doan trich.
+     *
+     * <p>Tach khoi {@link #getDocument(int)} vi hai thu co chi phi rat khac
+     * nhau: lay {@code WebDocument} la mot phep tra bang bam, con lay van ban
+     * co the phai giai nen. Gop chung se giau mat chi phi do sau mot loi goi
+     * trong vo vo hai.
+     */
+    String getBodyText(int docId);
 
     /**
      * O(1) - con tro duyet posting list co ho tro nhay coc.

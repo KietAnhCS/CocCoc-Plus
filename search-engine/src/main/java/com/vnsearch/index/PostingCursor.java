@@ -48,8 +48,8 @@ public interface PostingCursor {
     /** O(1) - tan suat term trong tai lieu hien tai. */
     int termFrequency();
 
-    /** O(1) - danh sach vi tri xuat hien trong tai lieu hien tai. */
-    List<Integer> positions();
+    /** O(1) - danh sach vi tri xuat hien trong tai lieu hien tai (CHI DOC). */
+    int[] positions();
 
     /** O(1) - tien mot buoc. Tra ve {@code false} neu da het. */
     boolean next();

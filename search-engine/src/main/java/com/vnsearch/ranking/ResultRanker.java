@@ -115,11 +115,16 @@ public class ResultRanker {
         QuerySyllables syllables = QuerySyllables.from(queryTermFrequency.keySet());
         List<RankedResult> results = new ArrayList<>(top.size());
         for (ScoredCandidate candidate : top) {
+            // Van ban lay tu CHI MUC, khong tu WebDocument: tu ban v3, than bai
+            // duoc luu rieng o dang nen va khong con nam trong tai lieu. Moi loi
+            // goi nay giai nen mot tai lieu — nen no o day, trong vong lap chi
+            // duyet top-K, chu khong o giai doan cham diem phia tren.
             results.add(new RankedResult(
                     candidate.document(),
                     candidate.finalScore(),
                     candidate.pageRankScore(),
-                    snippetBuilder.build(candidate.document().getBodyText(), syllables)));
+                    snippetBuilder.build(index.getBodyText(candidate.document().getDocId()),
+                            syllables)));
         }
         return results;
     }

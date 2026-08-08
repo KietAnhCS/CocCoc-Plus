@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -14,7 +15,7 @@ class PostingCursorTest {
     private static List<Posting> postings(int... docIds) {
         List<Posting> list = new ArrayList<>(docIds.length);
         for (int docId : docIds) {
-            list.add(new Posting(docId, 1, List.of(0)));
+            list.add(new Posting(docId, 1, new int[]{0}));
         }
         return list;
     }
@@ -106,11 +107,11 @@ class PostingCursorTest {
 
     @Test
     void exposesTermFrequencyAndPositions() {
-        List<Posting> list = List.of(new Posting(7, 3, List.of(1, 5, 9)));
+        List<Posting> list = List.of(new Posting(7, 3, new int[]{1, 5, 9}));
         PostingCursor cursor = PostingCursor.of(list);
         assertEquals(7, cursor.docId());
         assertEquals(3, cursor.termFrequency());
-        assertEquals(List.of(1, 5, 9), cursor.positions());
+        assertArrayEquals(new int[]{1, 5, 9}, cursor.positions());
         assertEquals(1, cursor.size());
     }
 }

@@ -15,6 +15,7 @@ import com.vnsearch.crawler.modular.UrlExtractorService;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.binder.MeterBinder;
+import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -32,6 +33,7 @@ import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
@@ -121,6 +123,61 @@ public class KafkaCrawlConfig {
     private short replicationFactor;
 
     // --- Topic ---------------------------------------------------------
+
+    /**
+     * Bộ quản trị tạo các topic bên dưới — <b>bắt buộc phải khai ở đây</b>.
+     *
+     * <h3>Vì sao không để Spring Boot tự lo</h3>
+     *
+     * <p>{@code KafkaAutoConfiguration} có tạo sẵn một {@link KafkaAdmin},
+     * nhưng nó đọc địa chỉ broker từ {@code spring.kafka.bootstrap-servers}.
+     * Cấu hình của dự án này lại nằm ở
+     * {@code app.crawler.kafka.bootstrap-servers} — mọi khoá đều dưới tiền tố
+     * {@code app.} để một chỗ duy nhất mô tả hành vi ứng dụng.
+     *
+     * <p>Hệ quả nếu thiếu bean này: {@code KafkaAdmin} mặc định trỏ về
+     * {@code localhost:9092}. Trong container thì {@code localhost} là chính
+     * container đó, nơi không có broker nào. Nên <b>không topic nào được
+     * tạo</b>.
+     *
+     * <p>Và đây là phần tệ nhất: {@code fatalIfBrokerNotAvailable} mặc định
+     * {@code false}, nên ứng dụng <b>vẫn khởi động bình thường</b>. Triệu
+     * chứng quan sát được là:
+     *
+     * <pre>
+     *   docker ps          -> crawler-worker: healthy
+     *   log                -> sáu consumer group đăng ký thành công
+     *   log                -> UNKNOWN_TOPIC_OR_PARTITION, lặp mãi ở mức WARN
+     *   kafka-topics --list -> chỉ có __consumer_offsets
+     * </pre>
+     *
+     * <p>Tức là: mọi thứ trông như đang chạy, nhưng không một trang nào đi qua
+     * được bus. Lỗi này đã xảy ra thật ở lần chạy Docker đầu tiên, và không
+     * bài test nào bắt được — cả bộ test tích hợp cũng không, vì ở đó topic
+     * được tạo tự động bởi cấu hình của Testcontainers.
+     *
+     * <h3>Vì sao {@code fatalIfBrokerNotAvailable(true)}</h3>
+     *
+     * <p>Đặt {@code app.crawler.bus=kafka} là một <b>tuyên bố có chủ đích</b>:
+     * người vận hành nói rằng hệ thống này chạy phân tán. Nếu broker không có
+     * thật thì ứng dụng phải <b>từ chối khởi động</b>, chứ không phải chạy
+     * tiếp trong một trạng thái nửa vời mà mọi thang đo đều xanh.
+     *
+     * <p>Cùng triết lý mà {@code SecurityConfig} đã chọn khi thiếu
+     * {@code ADMIN_API_KEY}, và mà {@code docker-compose.yml} áp ở tầng điều
+     * phối: <i>hỏng to hơn hỏng âm thầm</i>.
+     *
+     * <p>An toàn trong thực tế vì cả compose lẫn Kubernetes đều buộc chờ
+     * Kafka {@code healthy} trước khi khởi động tiến trình này.
+     */
+    @Bean
+    public KafkaAdmin crawlKafkaAdmin() {
+        Map<String, Object> props = new HashMap<>();
+        props.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
+        KafkaAdmin admin = new KafkaAdmin(props);
+        admin.setFatalIfBrokerNotAvailable(true);
+        return admin;
+    }
 
     /**
      * Topic trang — luồng chính, và cũng là topic tốn đĩa nhất.

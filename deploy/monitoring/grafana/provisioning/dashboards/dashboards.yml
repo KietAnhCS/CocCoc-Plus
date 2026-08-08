@@ -1,0 +1,28 @@
+# Nạp bảng điều khiển từ thư mục, thay vì nhập tay qua giao diện.
+#
+# Cùng lập luận với datasources/prometheus.yml: một bảng điều khiển chỉ tồn tại
+# trong CSDL của Grafana là một bảng điều khiển không có lịch sử, không review
+# được, và mất khi container bị tạo lại.
+
+apiVersion: 1
+
+providers:
+  - name: vnsearch
+    orgId: 1
+    folder: VnSearch
+    type: file
+
+    # KHÔNG cho sửa từ giao diện. Sửa được thì bản trong Git và bản đang chạy
+    # sẽ lệch nhau, và lần triển khai sau sẽ âm thầm ghi đè công sức của người
+    # vừa chỉnh. Muốn đổi thì sửa tệp JSON rồi commit — đó mới là nguồn sự thật.
+    disableDeletion: true
+    allowUiUpdates: false
+
+    # Quét lại mỗi 30 giây, nên sửa tệp là thấy đổi ngay mà không phải khởi
+    # động lại Grafana.
+    updateIntervalSeconds: 30
+
+    options:
+      path: /var/lib/grafana/dashboards
+      # Giữ cấu trúc thư mục thành cây thư mục trong Grafana.
+      foldersFromFilesStructure: false

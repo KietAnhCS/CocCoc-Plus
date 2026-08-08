@@ -1,0 +1,35 @@
+# Nguồn dữ liệu Grafana, khai báo bằng TỆP chứ không bấm chuột.
+#
+# VÌ SAO QUAN TRỌNG. Một Grafana cấu hình bằng tay là cấu hình sống trong ổ đĩa
+# của đúng một máy: xoá container là mất, và không ai khác dựng lại được y hệt.
+# Khai báo bằng tệp thì `docker compose up` cho ra một Grafana đã nối dây sẵn,
+# và tệp này nằm trong Git nên mọi thay đổi đều có lịch sử.
+#
+# Đây cũng chính là lập luận mà deploy/k8s/base/configmap.yaml đã dùng cho cấu
+# hình ứng dụng, áp cho tầng công cụ.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    # Tên dịch vụ trong mạng nội bộ của compose, KHÔNG phải localhost —
+    # localhost trong container Grafana là chính container Grafana.
+    url: http://prometheus:9090
+
+    # Nguồn mặc định: bảng điều khiển tham chiếu datasource theo biến
+    # ${DS_PROMETHEUS}, và cờ này làm nó phân giải được mà không cần UID cứng.
+    isDefault: true
+
+    # Cho phép ghi đè bằng API. Để false thì mỗi lần sửa tệp này phải xoá tay
+    # bản ghi cũ trong CSDL của Grafana trước khi bản mới được nạp.
+    editable: false
+
+    jsonData:
+      # Phải KHỚP với scrape_interval trong prometheus.yml. Lệch nhau thì
+      # Grafana chọn bước thời gian sai và đồ thị hiện ra lởm chởm hoặc
+      # phẳng lì một cách giả tạo — một lỗi trông như lỗi dữ liệu nhưng thực
+      # ra là lỗi cấu hình hiển thị.
+      timeInterval: 15s
+      httpMethod: POST

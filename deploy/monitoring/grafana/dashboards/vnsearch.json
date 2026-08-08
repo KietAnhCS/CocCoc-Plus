@@ -1,0 +1,274 @@
+{
+  "title": "VnSearch — Tìm kiếm & Crawl",
+  "uid": "vnsearch-tong-quan",
+  "tags": ["vnsearch", "kafka", "crawl"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "job",
+        "label": "Tiến trình",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+        "query": "label_values(up, job)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Sức khoẻ — nhìn 5 giây là biết hệ thống còn phục vụ được không",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false
+    },
+    {
+      "type": "stat",
+      "title": "Bản sao đang sống",
+      "description": "up == 1 nghĩa là Prometheus thu thập được. Bằng 0 là tiến trình chết hoặc mạng đứt.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
+      "targets": [{ "expr": "sum(up{job=~\"vnsearch.*\"})", "legendFormat": "sống" }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tài liệu trong chỉ mục",
+      "description": "Bằng 0 là ca hỏng đặc thù của máy tìm kiếm: mọi thang đo kỹ thuật xanh, nhưng mọi truy vấn trả về rỗng. Xem cảnh báo VnSearchEmptyIndex.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 5, "w": 5, "x": 4, "y": 1 },
+      "targets": [{ "expr": "max(vnsearch_index_documents)", "legendFormat": "tài liệu" }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Tỷ lệ trúng cache",
+      "description": "Tụt đột ngột thường là dấu hiệu vừa reindex (cache bị xoá sạch) hoặc mẫu truy vấn đổi.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 5, "w": 5, "x": 9, "y": 1 },
+      "targets": [{ "expr": "max(vnsearch_cache_hit_rate)", "legendFormat": "trúng" }],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 0.3 },
+              { "color": "green", "value": 0.6 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Sự kiện bus gửi hỏng",
+      "description": "PHẢI luôn bằng 0. Khác 0 nghĩa là crawler vẫn chạy nhưng không có gì tới được các Modular Service — frontier sẽ cạn dần rồi phiên crawl tự chết, trong khi mọi thang đo khác vẫn xanh.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 5, "w": 5, "x": 14, "y": 1 },
+      "targets": [{ "expr": "sum(vnsearch_crawl_bus_publish_failures)", "legendFormat": "hỏng" }],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "stat",
+      "title": "Heap đang dùng",
+      "description": "Chỉ mục đảo nằm hoàn toàn trong RAM, nên đây là thang đo chặn quy mô corpus.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 5, "w": 5, "x": 19, "y": 1 },
+      "targets": [
+        { "expr": "sum(jvm_memory_used_bytes{area=\"heap\", job=~\"$job\"})", "legendFormat": "heap" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+
+    {
+      "type": "row",
+      "title": "Đường truy vấn — thứ người dùng thật sự cảm nhận",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Độ trễ /api/search theo phân vị",
+      "description": "p99 chứ không phải trung bình: trung bình giấu đúng phần đuôi. Một hệ thống trung bình 20 ms vẫn có thể có p99 3 giây. Đường đứt là ngưỡng SLO 500 ms.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_server_requests_seconds_bucket{uri=\"/api/search\"}[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{uri=\"/api/search\"}[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{uri=\"/api/search\"}[5m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": { "fillOpacity": 8, "lineWidth": 2 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.5 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Thông lượng và lỗi",
+      "description": "Request/giây tách theo mã trạng thái. Một đợt 5xx tăng cùng lúc thông lượng giảm là dấu hiệu quá tải.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "targets": [
+        {
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{job=~\"$job\"}[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 15, "stacking": { "mode": "normal" } } } }
+    },
+
+    {
+      "type": "row",
+      "title": "Crawl & Kafka — cụm Modular Services",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 15 },
+      "collapsed": false
+    },
+    {
+      "type": "timeseries",
+      "title": "Độ trễ tiêu thụ theo consumer group",
+      "description": "Số thông điệp mỗi nhóm còn nợ. Đây vừa là tín hiệu cảnh báo, vừa là tín hiệu co giãn cho KEDA — CPU không dùng được vì worker chờ mạng nên CPU gần bằng 0 trong khi hàng đợi dài ra.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum by (consumergroup) (kafka_consumergroup_lag)",
+          "legendFormat": "{{consumergroup}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "fillOpacity": 10 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 10000 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "title": "Trang crawl được, theo ngôn ngữ",
+      "description": "Ngôn ngữ là chiều DUY NHẤT được làm nhãn Prometheus: lực lượng nhỏ và biết trước. Host thì không — nó không chặn trên được và sẽ tạo hàng chục nghìn chuỗi thời gian.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum by (language) (rate(vnsearch_crawl_pages_by_language_total[5m]) * 60)",
+          "legendFormat": "{{language}}"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "cpm", "custom": { "fillOpacity": 15, "stacking": { "mode": "normal" } } } }
+    },
+    {
+      "type": "timeseries",
+      "title": "Phân bố kích thước trang",
+      "description": "Đuôi phân bố quyết định trần max.request.size của Kafka. p99 chạm 4 MB nghĩa là đã đến lúc nâng trần, nếu không những trang giàu nội dung nhất sẽ bị rớt.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 7, "w": 8, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(vnsearch_crawl_page_size_bytes_bucket[10m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(vnsearch_crawl_page_size_bytes_bucket[10m])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "bytes" } }
+    },
+    {
+      "type": "stat",
+      "title": "Host phân biệt đã gặp",
+      "description": "Chặn trên 10.000 trong bộ nhớ (CrawlAnalyticsService.MAX_TRACKED_HOSTS). Chạm trần thì host mới không được theo dõi riêng nữa nhưng vẫn vào tổng.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 7, "w": 4, "x": 8, "y": 24 },
+      "targets": [{ "expr": "max(vnsearch_crawl_hosts_distinct)", "legendFormat": "host" }]
+    },
+    {
+      "type": "stat",
+      "title": "Độ sâu BFS lớn nhất",
+      "description": "So với maxDepth cấu hình. Bằng đúng maxDepth nghĩa là crawler đã chạm biên và đang bị luật độ sâu chặn.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 7, "w": 4, "x": 12, "y": 24 },
+      "targets": [{ "expr": "max(vnsearch_crawl_depth_max)", "legendFormat": "độ sâu" }]
+    },
+    {
+      "type": "timeseries",
+      "title": "Ảnh tìm được và ảnh thiếu alt",
+      "description": "Tỷ lệ thiếu alt là chỉ số tiếp cận của các trang trong corpus — thứ mà Image Download Service tính được mà không cần tải một byte ảnh nào.",
+      "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 24 },
+      "targets": [
+        { "expr": "rate(vnsearch_crawl_images_total[5m]) * 60", "legendFormat": "tổng ảnh/phút" },
+        {
+          "expr": "rate(vnsearch_crawl_images_missing_alt_total[5m]) * 60",
+          "legendFormat": "thiếu alt/phút"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "cpm" } }
+    }
+  ]
+}

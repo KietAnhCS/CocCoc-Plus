@@ -5,10 +5,16 @@ import com.vnsearch.crawler.CrawlConfig;
 import com.vnsearch.crawler.CrawlListener;
 import com.vnsearch.crawler.CrawlerService;
 import com.vnsearch.crawler.UrlFilter;
+import com.vnsearch.crawler.bus.CrawlEventBus;
+import com.vnsearch.crawler.bus.DiscoveredUrl;
+import com.vnsearch.crawler.bus.OutlinksExtracted;
 import com.vnsearch.model.WebDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 import java.net.URI;
 import java.util.HashSet;
@@ -82,6 +88,28 @@ public class CrawlJobManager {
      * tin.
      */
     private volatile String lastJobId;
+
+    /**
+     * Bus sự kiện, hoặc {@code null} khi chạy ở chế độ mặc định.
+     *
+     * <p>{@link ObjectProvider} chứ không phải tiêm thẳng: bean
+     * {@code CrawlEventBus} chỉ tồn tại khi {@code app.crawler.bus=kafka} (xem
+     * {@code KafkaCrawlConfig}). Tiêm thẳng một bean có thể vắng mặt sẽ làm
+     * ứng dụng <b>không khởi động được</b> ở cấu hình mặc định — đúng thứ mà
+     * cả thiết kế này cố tránh.
+     */
+    private final CrawlEventBus sharedBus;
+
+    /** Sự kiện quay về mà không tìm thấy job tương ứng — xem {@link #resolve}. */
+    private final AtomicLong unroutableEvents = new AtomicLong();
+
+    public CrawlJobManager(ObjectProvider<CrawlEventBus> busProvider) {
+        this.sharedBus = busProvider.getIfAvailable();
+        if (sharedBus != null) {
+            log.info("CrawlJobManager dung bus dung chung: {}",
+                    sharedBus.getClass().getSimpleName());
+        }
+    }
 
     /**
      * Mot job crawl, voi trang thai duoc bao ve boi may trang thai.
@@ -169,8 +197,12 @@ public class CrawlJobManager {
     public String start(List<String> seedUrls, int maxDepth, int maxPages,
                          Consumer<List<WebDocument>> onSuccess) {
         String jobId = UUID.randomUUID().toString();
-        CrawlerService crawler = new CrawlerService()
-                .addListener(new ConsoleCrawlListener(25)); // Observer
+        // sharedBus null ở chế độ mặc định -> CrawlerService tự dựng bus
+        // in-process và tự đăng ký ba Modular Service. Không có nhánh if nào
+        // cần thiết ở đây: constructor đã nhận null làm "về mặc định".
+        CrawlerService crawler = new CrawlerService(sharedBus);
+        crawler.setJobId(jobId); // TRƯỚC khi crawl, để mọi sự kiện mang đúng id
+        crawler.addListener(new ConsoleCrawlListener(25)); // Observer
         CrawlJob job = new CrawlJob(crawler);
         jobs.put(jobId, job);
         lastJobId = jobId; // dat NGAY, de job dang chay cung bao cao duoc so lieu
@@ -229,6 +261,65 @@ public class CrawlJobManager {
                     && job.finishedAtMillis > 0
                     && job.finishedAtMillis < cutoff;
         });
+    }
+
+    // --- Đường về từ Kafka --------------------------------------------
+
+    /**
+     * Nạp một URL do {@code URL Extractor} tìm được vào frontier của <b>đúng
+     * phiên crawl đã sinh ra nó</b>.
+     *
+     * <p>Đây là chặng cuối của vòng lặp trong sơ đồ kiến trúc, ở chế độ nhiều
+     * tiến trình: URL đi từ crawler ra Kafka, qua URL Extractor, quay lại đây,
+     * rồi vào {@code UrlFrontier}.
+     */
+    public boolean feedDiscoveredUrl(DiscoveredUrl url) {
+        CrawlerService crawler = resolve(url == null ? null : url.jobId());
+        return crawler != null && crawler.acceptDiscoveredUrl(url);
+    }
+
+    /** Ghi danh sách liên kết ra vào Content Storage của đúng phiên crawl. */
+    public void feedOutlinks(OutlinksExtracted outlinks) {
+        CrawlerService crawler = resolve(outlinks == null ? null : outlinks.jobId());
+        if (crawler != null) {
+            crawler.acceptOutlinks(outlinks);
+        }
+    }
+
+    /**
+     * Tìm crawler đang chạy ứng với một {@code jobId}.
+     *
+     * <p><b>Trả về {@code null} là chuyện bình thường</b>, không phải lỗi: một
+     * sự kiện có thể quay về sau khi job đã kết thúc và crawler đã được buông
+     * (xem {@code CrawlJob.releaseCrawler}). Với Kafka thì điều này chắc chắn
+     * xảy ra — thông điệp còn nằm trên topic lâu hơn vòng đời của job đã sinh
+     * ra nó, và khởi động lại ứng dụng là đọc lại chúng.
+     *
+     * <p>Bỏ qua là đúng, nhưng phải <b>đếm</b>: nếu con số này bằng đúng tổng
+     * số sự kiện thì nghĩa là định tuyến hỏng hoàn toàn — frontier không bao
+     * giờ được nạp và mọi phiên crawl dừng ngay sau các seed. Một hệ thống
+     * hỏng theo kiểu "im lặng không làm gì" cần có đúng một con số để lộ ra.
+     */
+    private CrawlerService resolve(String jobId) {
+        if (jobId == null || jobId.isBlank()) {
+            unroutableEvents.incrementAndGet();
+            return null;
+        }
+        CrawlJob job = jobs.get(jobId);
+        if (job == null) {
+            unroutableEvents.incrementAndGet();
+            return null;
+        }
+        CrawlerService crawler = job.crawler;
+        if (crawler == null) {
+            unroutableEvents.incrementAndGet();
+        }
+        return crawler;
+    }
+
+    /** Số sự kiện quay về không tìm được job — xem {@link #resolve}. */
+    public long getUnroutableEventCount() {
+        return unroutableEvents.get();
     }
 
     /** Trang thai cua mot job, hoac {@code null} neu khong co job do. */

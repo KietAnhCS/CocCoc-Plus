@@ -163,8 +163,10 @@ public class ImageDownloadService implements PageEventHandler {
         Set<String> seen = new LinkedHashSet<>();
         int emitted = 0;
 
-        for (Element img : document.select("img[src]")) {
-            String raw = img.absUrl("src");
+        // `img` trần, KHÔNG phải `img[src]`: ảnh lazy-load có thể chỉ có
+        // `data-src` — xem resolveSource().
+        for (Element img : document.select("img")) {
+            String raw = resolveSource(img);
             if (raw == null || raw.isBlank()) {
                 continue;
             }
@@ -192,6 +194,51 @@ public class ImageDownloadService implements PageEventHandler {
             bus.publishImage(found);
             emitted++;
         }
+    }
+
+    /**
+     * Địa chỉ THẬT của một ảnh, xử lý được cả ảnh nạp trễ (lazy loading).
+     *
+     * <h3>Vì sao không thể chỉ đọc {@code src}</h3>
+     *
+     * <p>Báo điện tử Việt Nam nạp ảnh bằng JavaScript để trang hiện nhanh: thẻ
+     * {@code <img>} mang {@code class="lazy"}, thuộc tính {@code src} chứa một
+     * ảnh giữ chỗ (hoặc một chuỗi mẫu JavaScript), còn địa chỉ thật nằm ở
+     * {@code data-src} và chỉ được gán khi người dùng cuộn tới.
+     *
+     * <p>Đo trên trang chủ vnexpress.net: <b>22 trong 31</b> thẻ {@code <img>}
+     * có {@code data-src}. Chỉ đọc {@code src} thì thứ duy nhất lọt vào kho là
+     * <b>logo và icon của site</b> — đúng triệu chứng đã quan sát được: tab
+     * Hình ảnh đầy những ảnh không liên quan.
+     *
+     * <p>Crawler này <b>không chạy JavaScript</b> (nó dùng Jsoup, không phải
+     * trình duyệt thật), nên nó phải tự hiểu quy ước lazy loading. Đó là cái
+     * giá của việc chọn một bộ phân tích HTML thay vì điều khiển một trình
+     * duyệt — rẻ hơn hàng chục lần về tài nguyên, đổi lại phải biết vài quy
+     * ước như thế này.
+     *
+     * <h3>Thứ tự ưu tiên</h3>
+     *
+     * <p>{@code data-src} đứng TRƯỚC {@code src}: khi có cả hai thì {@code src}
+     * chính là ảnh giữ chỗ. Lấy nhầm nó sẽ cho ra hàng loạt bản ghi trỏ tới
+     * cùng một ảnh mờ 1×1.
+     *
+     * <p>{@code data-original} là quy ước của thư viện jQuery Lazy Load cũ,
+     * vẫn còn gặp trên các site đời trước.
+     */
+    private static String resolveSource(Element img) {
+        for (String attr : new String[] {"data-src", "data-original", "src"}) {
+            if (!img.hasAttr(attr)) {
+                continue;
+            }
+            // absUrl phân giải theo baseUri của tài liệu, nên nó xử lý được cả
+            // đường dẫn tương đối lẫn dạng "//cdn.example.com/anh.jpg".
+            String resolved = img.absUrl(attr);
+            if (resolved != null && !resolved.isBlank()) {
+                return resolved;
+            }
+        }
+        return null;
     }
 
     /**

@@ -57,6 +57,39 @@ class ImageDownloadServiceTest {
         assertFalse(service.isDownloadEnabled());
     }
 
+    /**
+     * Anh nap tre (lazy loading): dia chi that nam o data-src, con src chi la
+     * anh giu cho. Do tren vnexpress.net: 22/31 the img dung kieu nay — chi
+     * doc src thi thu duy nhat lot vao kho la logo va icon cua site.
+     */
+    @Test
+    void prefersDataSrcOverPlaceholderSrc() {
+        new ImageDownloadService(bus).onPage(pageWith("""
+                <img class="lazy" src="https://a.com/giu-cho.jpg"
+                     data-src="https://a.com/anh-that.jpg" alt="anh that">
+                """));
+
+        assertEquals(1, found.size());
+        assertEquals("https://a.com/anh-that.jpg", found.get(0).imageUrl(),
+                "Phai lay data-src, khong phai anh giu cho o src");
+    }
+
+    /** Quy uoc cu cua jQuery Lazy Load, van con gap tren site doi truoc. */
+    @Test
+    void fallsBackToDataOriginal() {
+        new ImageDownloadService(bus).onPage(
+                pageWith("<img data-original='https://a.com/cu.jpg' alt='x'>"));
+        assertEquals("https://a.com/cu.jpg", found.get(0).imageUrl());
+    }
+
+    /** Khong co data-src thi src van duoc dung nhu binh thuong. */
+    @Test
+    void usesPlainSrcWhenThereIsNoLazyAttribute() {
+        new ImageDownloadService(bus).onPage(
+                pageWith("<img src='https://a.com/thuong.jpg' alt='x'>"));
+        assertEquals("https://a.com/thuong.jpg", found.get(0).imageUrl());
+    }
+
     @Test
     void resolvesRelativeImageUrls() {
         new ImageDownloadService(bus).onPage(pageWith("<img src='/tinh/anh.png'>"));

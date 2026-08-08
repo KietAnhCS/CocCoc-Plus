@@ -1,0 +1,182 @@
+# Quy tắc cảnh báo — chặng cuối của chuỗi quan sát.
+#
+# NGUYÊN TẮC CHỌN CẢNH BÁO. Chỉ cảnh báo những thứ mà một CON NGƯỜI phải làm
+# gì đó. Một cảnh báo không dẫn tới hành động nào sẽ bị bỏ qua, và một danh
+# sách toàn cảnh báo bị bỏ qua thì làm hỏng cả những cảnh báo thật — hiện
+# tượng "mệt mỏi vì cảnh báo" giết nhiều hệ thống hơn là thiếu cảnh báo.
+#
+# Vì thế ở đây có 7 quy tắc, không phải 70. Mỗi quy tắc trả lời được ba câu:
+# nó phát hiện gì, người nhận phải làm gì, và vì sao ngưỡng là con số đó.
+#
+# `for:` KHÔNG phải trang trí. Nó là khoảng thời gian điều kiện phải đúng LIÊN
+# TỤC trước khi cảnh báo bắn. Thiếu nó thì một lần thu thập hụt duy nhất cũng
+# đánh thức người trực.
+
+groups:
+  # ======================================================================
+  - name: vnsearch-kha-dung
+    rules:
+      # ------------------------------------------------------------------
+      - alert: VnSearchBackendDown
+        expr: up{job="vnsearch-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend {{ $labels.instance }} không phản hồi"
+          description: >-
+            Prometheus không thu thập được số liệu trong 2 phút liên tục.
+            Người dùng nhiều khả năng đang thấy lỗi.
+          runbook: >-
+            1) docker compose logs vnsearch-backend --tail 100
+            2) Xem có OutOfMemoryError không — chỉ mục đảo nằm hoàn toàn trong
+               RAM nên corpus lớn bất thường là nghi phạm đầu tiên.
+            3) Kiểm tra PostgreSQL còn sống không: backend chờ CSDL lúc khởi động.
+
+      # ------------------------------------------------------------------
+      # Chỉ mục RỖNG là ca hỏng đặc thù của một máy tìm kiếm, và là ca mà mọi
+      # thang đo kỹ thuật đều xanh: tiến trình sống, heap khoẻ, CPU thấp,
+      # request trả 200 — chỉ có điều mọi truy vấn trả về 0 kết quả.
+      #
+      # KHÔNG đặt severity critical: khởi động lại không sửa được gì (đây là
+      # vấn đề DỮ LIỆU), nên đánh thức người trực lúc 3 giờ sáng là vô ích.
+      - alert: VnSearchEmptyIndex
+        expr: vnsearch_index_documents == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chỉ mục rỗng trên {{ $labels.instance }}"
+          description: >-
+            Chỉ mục không có tài liệu nào trong 10 phút. Mọi truy vấn đang trả
+            về 0 kết quả trong khi hệ thống trông hoàn toàn khoẻ mạnh.
+          runbook: >-
+            1) Kiểm tra tệp corpus: docker exec vnsearch-backend ls -la /app/data
+            2) Nếu bật PostgreSQL: bảng documents có dữ liệu không?
+            3) Chạy lại crawl, hoặc nạp lại chỉ mục dựng sẵn.
+
+  # ======================================================================
+  - name: vnsearch-hieu-nang
+    rules:
+      # ------------------------------------------------------------------
+      # SLO: 99% truy vấn dưới 500 ms.
+      #
+      # Vì sao p99 chứ không phải trung bình: trung bình giấu đúng phần đuôi.
+      # Một hệ thống có trung bình 20 ms vẫn có thể có p99 là 3 giây, và p99
+      # mới là con số quyết định người dùng có quay lại hay không.
+      #
+      # Phép tính này chỉ chạy được nhờ percentiles-histogram=true trong
+      # application.properties — nó đẩy cả histogram sang Prometheus nên phân
+      # vị GỘP được từ nhiều bản sao. Nếu chỉ đẩy giá trị p99 đã tính sẵn thì
+      # không cộng dồn được: trung bình của hai p99 không phải p99 của tổng.
+      - alert: VnSearchSearchLatencyHigh
+        expr: >-
+          histogram_quantile(0.99,
+            sum by (le, job) (
+              rate(http_server_requests_seconds_bucket{uri="/api/search"}[5m])
+            )
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Độ trễ p99 của /api/search vượt 500 ms"
+          description: "p99 hiện tại: {{ $value | humanizeDuration }}."
+          runbook: >-
+            1) Tỷ lệ trúng cache có tụt không? (vnsearch_cache_hit_rate)
+            2) Corpus vừa lớn lên đột ngột?
+            3) Xem docs/DANH-GIA-DU-AN.md mục khoá ghi trên đường truy vấn —
+               đây là trần thông lượng đã biết của hệ thống.
+
+      # ------------------------------------------------------------------
+      - alert: VnSearchHighErrorRate
+        expr: >-
+          sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+          /
+          sum(rate(http_server_requests_seconds_count[5m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Trên 5% request trả về lỗi 5xx"
+          description: "Tỷ lệ lỗi: {{ $value | humanizePercentage }}."
+          runbook: "docker compose logs vnsearch-backend | grep -i error"
+
+  # ======================================================================
+  - name: vnsearch-crawl-va-kafka
+    rules:
+      # ------------------------------------------------------------------
+      # Ca hỏng ÂM THẦM nhất trong toàn hệ thống.
+      #
+      # Crawler vẫn tải trang, vẫn lưu corpus, vẫn báo tiến độ — nhưng không
+      # sự kiện nào tới được ba Modular Service. Nghĩa là: không bóc liên kết
+      # (frontier cạn dần rồi crawl dừng), không thống kê, không ảnh. Mọi thang
+      # đo khác đều xanh.
+      #
+      # Ngưỡng là "có bất kỳ lỗi nào trong 5 phút", không phải một tỷ lệ: ở
+      # trạng thái khoẻ mạnh con số này phải là 0 tuyệt đối.
+      - alert: VnSearchCrawlBusFailing
+        expr: increase(vnsearch_crawl_bus_publish_failures[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Bus sự kiện crawl đang mất thông điệp"
+          description: >-
+            {{ $value }} sự kiện không gửi được lên Kafka trong 5 phút.
+            Crawler trông vẫn bình thường nhưng các Modular Service không nhận
+            được gì — frontier sẽ cạn dần và phiên crawl tự chết.
+          runbook: >-
+            1) Kafka còn sống không? docker compose ps kafka
+            2) Thông điệp vượt trần kích thước? Tìm "max.request.size" trong log.
+            3) Trần ở producer (4 MB) phải khớp message.max.bytes của broker.
+
+      # ------------------------------------------------------------------
+      # Độ trễ tiêu thụ: số thông điệp một consumer group còn nợ.
+      #
+      # Đây vừa là cảnh báo, vừa là tín hiệu CO GIÃN (xem KEDA ScaledObject).
+      # Vì sao lag chứ không phải CPU: một worker chờ mạng có CPU gần bằng 0
+      # trong khi hàng đợi dài ra — co giãn theo CPU sẽ không bao giờ kích hoạt
+      # đúng lúc cần.
+      #
+      # Ngưỡng 10.000 và for 10m: một đợt crawl bình thường tạo lag hàng nghìn
+      # trong vài phút rồi tự tiêu hết. Chỉ khi lag CAO và DAI DẲNG thì mới là
+      # dấu hiệu consumer không theo kịp.
+      - alert: VnSearchKafkaConsumerLagHigh
+        expr: sum by (consumergroup, topic) (kafka_consumergroup_lag) > 10000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nhóm {{ $labels.consumergroup }} chậm {{ $value }} thông điệp"
+          description: >-
+            Trên topic {{ $labels.topic }}. Consumer không theo kịp tốc độ sinh.
+          runbook: >-
+            1) Tăng số bản sao crawler-worker (KEDA lẽ ra đã tự làm).
+            2) Nhớ trần: số bản sao hiệu dụng không vượt quá số phân hoạch (12).
+            3) Nếu đã chạm trần thì phải tăng phân hoạch — NHƯNG đọc Javadoc
+               của DiscoveredUrl trước: đổi số phân hoạch phá phép băm theo
+               host và làm bộ lọc Bloom mất tính đúng.
+
+      # ------------------------------------------------------------------
+      # Dead-letter topic lớn lên nghĩa là có thông điệp hỏng LẶP LẠI — đã thử
+      # lại hết số lần mà vẫn không xử lý được.
+      #
+      # Không cấp critical: thông điệp không mất, chúng nằm nguyên trên DLT và
+      # phát lại được sau khi sửa. Nhưng phải có người nhìn, nếu không cả một
+      # loại trang sẽ âm thầm vắng mặt khỏi corpus.
+      - alert: VnSearchDeadLetterGrowing
+        expr: increase(kafka_topic_partition_current_offset{topic=~".*\\.DLT"}[15m]) > 10
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Dead-letter topic {{ $labels.topic }} đang lớn lên"
+          description: >-
+            {{ $value }} thông điệp bị đẩy sang DLT trong 15 phút — chúng đã
+            thử lại hết số lần cho phép mà vẫn hỏng.
+          runbook: >-
+            1) Xem nội dung: dùng kafka-ui ở http://localhost:8081
+            2) Header dead-letter chứa nguyên nhân gốc.
+            3) Sửa xong thì phát lại từ DLT về topic gốc.

@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -98,8 +99,37 @@ public class ImageSearchController {
         }
 
         // Bước 2 — tra ảnh theo đúng thứ tự trang.
-        List<ImageFound> images =
-                imageStore.forPages(new ArrayList<>(titleByUrl.keySet()), safeSize);
+        //
+        // Lấy DƯ rồi mới sắp xếp và cắt: sắp xếp trên một tập đã bị cắt đúng
+        // safeSize thì không đổi được gì — thứ cần đẩy lên có thể đã bị loại ở
+        // bước lấy.
+        List<ImageFound> images = new ArrayList<>(
+                imageStore.forPages(new ArrayList<>(titleByUrl.keySet()),
+                        safeSize * FETCH_PAGE_MULTIPLIER));
+
+        // Bước 3 — ĐẨY ẢNH NỘI DUNG LÊN TRƯỚC ẢNH TRANG TRÍ.
+        //
+        // Tín hiệu: sự CÓ MẶT của văn bản thay thế. Đây không phải mẹo vặt mà
+        // là đúng ngữ nghĩa của chuẩn tiếp cận — `alt` mô tả một bức ảnh
+        // truyền đạt nội dung, còn ảnh trang trí (icon, logo, ảnh nền) thì quy
+        // ước là để trống hoặc bỏ hẳn thuộc tính.
+        //
+        // Số liệu đo trên trang thật khớp với ngữ nghĩa đó:
+        //
+        //     vnexpress.net   31 ảnh, 100% có alt   (ảnh bài viết)
+        //     eclick.vn       12 ảnh,   0% có alt   (toàn icon và logo)
+        //
+        // Nếu không sắp xếp, lưới đầy icon của những trang xếp hạng cao mà
+        // nghèo nội dung ảnh — đúng triệu chứng đã quan sát được.
+        //
+        // Sắp xếp ỔN ĐỊNH: trong cùng một nhóm, thứ tự xếp hạng trang được giữ
+        // nguyên. Nên đây chỉ là một lần phân hoạch hai nhóm, không phải thay
+        // thế phép xếp hạng của máy tìm kiếm.
+        images.sort(Comparator.comparing(ImageFound::missingAlt));
+
+        if (images.size() > safeSize) {
+            images = images.subList(0, safeSize);
+        }
 
         List<Map<String, Object>> items = new ArrayList<>(images.size());
         for (ImageFound image : images) {

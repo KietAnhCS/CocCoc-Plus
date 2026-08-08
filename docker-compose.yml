@@ -63,6 +63,23 @@ services:
         # `depends_on` tran khong doi den luc Postgres nhan ket noi, nen backend
         # se hoi mot cong chua ai nghe roi lui ve nguon JSON mot cach nham lan.
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+        # `required: false` — mau chot de GIU DUOC che do mac dinh nhe.
+        #
+        # Kafka chi ton tai trong profile `kafka`. Mot `depends_on` thuong se
+        # keo no vao MOI lan chay, ke ca `docker compose up` tran — dung thu
+        # ma viec chia profile sinh ra de tranh.
+        #
+        # Voi `required: false`: co profile `kafka` thi backend CHO Kafka
+        # healthy roi moi khoi dong; khong co thi backend bo qua phu thuoc nay
+        # va chay binh thuong.
+        #
+        # Vi sao phai cho: khi APP_CRAWLER_BUS=kafka, KafkaCrawlConfig dat
+        # fatalIfBrokerNotAvailable(true) — ung dung TU CHOI khoi dong neu
+        # broker chua san sang. Do la hanh vi dung (hong to hon hong am tham),
+        # nhung no bien thu tu khoi dong thanh mot rang buoc that.
+        required: false
     environment:
       # Khoa quan tri. Cu phap `:?` lam `docker compose up` DUNG NGAY voi thong
       # bao nay neu chua dat bien, thay vi khoi dong roi chet trong container
@@ -79,6 +96,24 @@ services:
       # và bẩn khi đổ vào một hệ thống thu thập log.
       SPRING_PROFILES_ACTIVE: prod
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
+
+      # Bus su kien crawl. Mac dinh `memory` de `docker compose up` khong doi
+      # Kafka.
+      #
+      # VI SAO PHAI CO O DAY, KHONG CHI O crawler-worker. Backend la noi giu
+      # endpoint POST /api/admin/crawl — tuc no la BEN PHAT su kien. Neu chi
+      # crawler-worker duoc dat `kafka` thi cum Modular Services co day du ha
+      # tang nhung KHONG CO GI chay qua: backend crawl in-process, khong ghi
+      # len topic nao, va ba service ngoi khong.
+      #
+      # Loi nay im lang hoan toan — moi container `healthy`, moi topic ton
+      # tai, khong mot dong log loi nao. Chi co dieu topic rong mai mai.
+      #
+      # Chay che do phan tan: dat APP_CRAWLER_BUS=kafka trong .env, roi
+      #   docker compose --profile kafka up -d
+      APP_CRAWLER_BUS: ${APP_CRAWLER_BUS:-memory}
+      APP_CRAWLER_KAFKA_BOOTSTRAP: kafka:9092
+
       # Bat PostgreSQL lam nguon corpus UU TIEN. An toan ngay ca khi CSDL con
       # rong: PostgresDocumentStore.isAvailable() tra ve false khi bang khong co
       # tai lieu nao, nen chuoi du phong tu lui ve JSON.
@@ -237,6 +272,13 @@ services:
       # in-process va toan bo phan Kafka nam im — dung nhu thiet ke.
       APP_CRAWLER_BUS: kafka
       APP_CRAWLER_KAFKA_BOOTSTRAP: kafka:9092
+
+      # Vai tro `worker`: KHONG giu kho anh. Kho do nam trong bo nho tien trinh
+      # va chi duoc nap o dung mot noi — tien trinh phuc vu API. Chay o ca hai
+      # thi Kafka chia doi luong va moi ben chi co mot nua so anh, trong khi
+      # giao dien van hien binh thuong. Xem ImageStoreListener.
+      APP_CRAWLER_ROLE: worker
+      APP_CRAWLER_ROLE_IS_API: "false"
 
       APP_STORAGE_POSTGRES_ENABLED: "true"
       APP_STORAGE_POSTGRES_URL: jdbc:postgresql://postgres:5432/vnsearch

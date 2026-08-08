@@ -72,6 +72,69 @@ export async function search(query: string, page = 1, pageSize = 10): Promise<Se
   }
 }
 
+export interface ImageResultDto {
+  imageUrl: string
+  pageUrl: string
+  pageTitle: string
+  host: string
+  altText: string
+  /** Chiều rộng KHAI BÁO trong HTML, `-1` khi trang không khai báo. */
+  width: number
+  height: number
+  missingAlt: boolean
+}
+
+export interface ImageResponseDto {
+  query: string
+  results: ImageResultDto[]
+  totalResults: number
+  /**
+   * Số trang đã xét để lấy ảnh.
+   *
+   * Cần cho giao diện phân biệt HAI ca mà nếu chỉ nhìn `results` rỗng thì
+   * trông giống hệt nhau:
+   *
+   *   pagesScanned === 0  → truy vấn không khớp trang nào
+   *   pagesScanned > 0    → có trang khớp, nhưng chưa trang nào được
+   *                         Image Download Service xử lý
+   *
+   * Ca thứ hai cần một thông báo hoàn toàn khác: "hãy chạy crawl", chứ không
+   * phải "không tìm thấy" — nói sai chỗ này khiến người dùng đi sửa truy vấn
+   * trong khi vấn đề nằm ở chỗ chưa có dữ liệu.
+   */
+  pagesScanned: number
+  timeTakenMs: number
+}
+
+function normalizeImage(raw: Partial<ImageResultDto>): ImageResultDto {
+  return {
+    imageUrl: raw.imageUrl ?? '',
+    pageUrl: raw.pageUrl ?? '',
+    pageTitle: raw.pageTitle || (raw.pageUrl ?? ''),
+    host: raw.host ?? '',
+    altText: raw.altText ?? '',
+    width: raw.width ?? -1,
+    height: raw.height ?? -1,
+    missingAlt: raw.missingAlt ?? false
+  }
+}
+
+export async function searchImages(query: string, size = 30): Promise<ImageResponseDto> {
+  const raw = await getJson<Partial<ImageResponseDto>>('/api/images', { q: query, size })
+  const results = (raw.results ?? [])
+    .map(normalizeImage)
+    // Bỏ mục không có địa chỉ ảnh: chúng chỉ tạo ra một ô vỡ trong lưới.
+    .filter((image) => image.imageUrl !== '')
+
+  return {
+    query: raw.query ?? query,
+    results,
+    totalResults: raw.totalResults ?? results.length,
+    pagesScanned: raw.pagesScanned ?? 0,
+    timeTakenMs: raw.timeTakenMs ?? 0
+  }
+}
+
 export async function suggest(query: string, limit = 8): Promise<string[]> {
   const trimmed = query.trim()
   if (!trimmed) {

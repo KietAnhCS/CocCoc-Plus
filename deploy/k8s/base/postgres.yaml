@@ -125,16 +125,26 @@ spec:
       targetPort: postgres
 
 ---
-# Chặn mọi kết nối tới CSDL trừ từ chính backend.
+# Chặn mọi kết nối tới CSDL trừ từ hai thành phần thật sự cần.
 #
 # Mặc định của Kubernetes là MỌI Pod nói chuyện được với mọi Pod. Với một cụm
-# chỉ có hai dịch vụ thì nghe không sao, nhưng đây chính là con đường mà một
+# chỉ có vài dịch vụ thì nghe không sao, nhưng đây chính là con đường mà một
 # container bị chiếm quyền dùng để đi ngang sang chỗ khác. Chi phí của quy tắc
 # này bằng 0; không có nó thì cổng 5432 mở cho toàn cụm.
+#
+# HAI mục `from`, không phải một. Khi crawler-worker được tách ra thành thành
+# phần riêng, nó mang nhãn `component: crawler-worker` — không khớp
+# `component: backend` nữa, nên nó bị chặn khỏi CSDL.
+#
+# Kiểu hỏng này đặc biệt khó truy: Pod khởi động bình thường, log không có gì
+# bất thường trong nhiều giây, rồi kết nối JDBC hết thời gian chờ. Không có
+# thông báo "bị NetworkPolicy chặn" ở đâu cả — gói tin chỉ đơn giản biến mất.
+# Đó là lý do quy tắc mạng phải được cập nhật CÙNG LÚC với việc thêm thành
+# phần mới, chứ không phải sau khi có người báo lỗi.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: vnsearch-postgres-chi-cho-backend
+  name: vnsearch-postgres-chi-cho-ung-dung
   namespace: vnsearch
 spec:
   podSelector:
@@ -148,6 +158,10 @@ spec:
             matchLabels:
               app.kubernetes.io/name: vnsearch
               app.kubernetes.io/component: backend
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vnsearch
+              app.kubernetes.io/component: crawler-worker
       ports:
         - protocol: TCP
           port: 5432

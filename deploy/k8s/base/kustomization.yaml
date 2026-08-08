@@ -16,7 +16,9 @@ resources:
   - configmap.yaml
   - secret.yaml
   - postgres.yaml
+  - kafka.yaml
   - backend.yaml
+  - crawler-worker.yaml
   - ingress.yaml
 
 # Bản sao của search-engine/src/main/resources/db/schema.sql.

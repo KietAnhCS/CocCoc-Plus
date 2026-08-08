@@ -1,14 +1,24 @@
 package com.vnsearch.crawler;
 
+import com.vnsearch.crawler.bus.CrawlEventBus;
+import com.vnsearch.crawler.bus.DiscoveredUrl;
+import com.vnsearch.crawler.bus.InProcessCrawlEventBus;
+import com.vnsearch.crawler.bus.OutlinksExtracted;
+import com.vnsearch.crawler.bus.PageEvent;
 import com.vnsearch.crawler.frontier.CrawlTask;
 import com.vnsearch.crawler.frontier.UrlFrontier;
+import com.vnsearch.crawler.modular.CrawlAnalyticsService;
+import com.vnsearch.crawler.modular.ImageDownloadService;
+import com.vnsearch.crawler.modular.UrlExtractorService;
 import com.vnsearch.model.WebDocument;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.jsoup.nodes.Document;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -17,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Bộ điều phối một phiên crawl — lớp này <b>không tự làm gì</b>, nó chỉ nối
@@ -100,7 +111,43 @@ public class CrawlerService {
     private final LanguageFilter languageFilter = new LanguageFilter();
     private final ContentSeenFilter contentSeenFilter = new ContentSeenFilter();
     private final ContentStorage contentStorage = new ContentStorage();
-    private final LinkExtractor linkExtractor = new LinkExtractor();
+
+    /**
+     * Bus nối crawler với cụm <b>Modular Services</b> — ô {@code Kafka} trong
+     * sơ đồ kiến trúc.
+     *
+     * <p>Ở đây kết thúc trách nhiệm của lớp này: crawler tải trang, phân tích,
+     * lọc ngôn ngữ, khử trùng, lưu — rồi <b>đẩy lên bus và quên đi</b>. Việc
+     * bóc liên kết, tải ảnh và thống kê là của ba service phía sau.
+     */
+    private final CrawlEventBus bus;
+
+    /**
+     * {@code true} khi lớp này tự dựng bus in-process và do đó phải tự đăng ký
+     * ba Modular Service.
+     *
+     * <p>Khi bus được tiêm từ ngoài vào (chế độ Kafka), các service đã chạy ở
+     * <i>tiến trình khác</i>; đăng ký thêm bản cục bộ ở đây sẽ khiến mỗi trang
+     * bị xử lý hai lần và mỗi URL bị xếp hàng hai lượt.
+     */
+    private final boolean ownsBus;
+
+    /** Số OutlinksExtracted tới cho một URL không có trong Content Storage. */
+    private final AtomicLong orphanOutlinks = new AtomicLong();
+
+    /**
+     * Danh tính phiên crawl này, đi kèm mọi sự kiện phát lên bus.
+     *
+     * <p>Mặc định là một UUID để chạy dòng lệnh cũng có danh tính hợp lệ;
+     * {@code CrawlJobManager} ghi đè bằng id của job để các sự kiện quay về từ
+     * Kafka tìm đúng đường. Xem Javadoc của {@code PageEvent}.
+     */
+    private volatile String jobId = java.util.UUID.randomUUID().toString();
+
+    /** Chỉ khác null ở chế độ in-process — giữ để lấy số liệu cho báo cáo. */
+    private volatile UrlExtractorService urlExtractorService;
+    private volatile ImageDownloadService imageDownloadService;
+    private volatile CrawlAnalyticsService analyticsService;
 
     // --- Các khối phải cấp phát lại theo từng phiên (cần allowedDomains, maxPages) ---
     private volatile UrlFilter urlFilter = new UrlFilter(Set.of(), Integer.MAX_VALUE);
@@ -137,6 +184,115 @@ public class CrawlerService {
      * cấu trúc này được thiết kế cho.
      */
     private final List<CrawlListener> listeners = new CopyOnWriteArrayList<>();
+
+    /**
+     * Chế độ MỘT TIẾN TRÌNH — mặc định.
+     *
+     * <p>Tự dựng {@link InProcessCrawlEventBus} và tự đăng ký ba Modular
+     * Service vào nó. Hành vi quan sát được từ bên ngoài giống hệt bản mã
+     * trước khi tách service: gọi {@code crawl()} rồi nhận về danh sách tài
+     * liệu đầy đủ, kèm outlinks. Nhờ vậy {@code run-crawl.bat},
+     * {@code MultiDomainCrawlRunner} và toàn bộ bài test hiện có không phải
+     * sửa một dòng nào.
+     */
+    public CrawlerService() {
+        this.bus = new InProcessCrawlEventBus();
+        this.ownsBus = true;
+    }
+
+    /**
+     * Chế độ NHIỀU TIẾN TRÌNH — truyền vào một bus Kafka.
+     *
+     * <p>Lớp này chỉ còn <b>phát</b> sự kiện; ba Modular Service chạy ở tiến
+     * trình khác và co giãn độc lập. Vòng lặp crawl được khép lại từ bên ngoài
+     * bằng cách gọi {@link #acceptDiscoveredUrl} và {@link #acceptOutlinks} từ
+     * các listener Kafka.
+     *
+     * @param bus bus đã cấu hình sẵn; {@code null} nghĩa là quay về chế độ mặc định
+     */
+    public CrawlerService(CrawlEventBus bus) {
+        if (bus == null) {
+            this.bus = new InProcessCrawlEventBus();
+            this.ownsBus = true;
+        } else {
+            this.bus = bus;
+            this.ownsBus = false;
+        }
+    }
+
+    /**
+     * Đăng ký ba Modular Service vào bus in-process, cho một phiên crawl.
+     *
+     * <p>Phải gọi <b>sau</b> khi {@link #urlFilter} và {@link #urlSeenFilter}
+     * đã được cấp phát cho phiên này — {@link UrlExtractorService} nhận chúng
+     * qua {@link java.util.function.Supplier} nên nó luôn thấy bộ lọc hiện
+     * hành, nhưng bản thân việc đăng ký thì phải xảy ra một lần cho mỗi
+     * {@code CrawlerService}, không phải mỗi phiên.
+     *
+     * <p>Vì sao {@link SimpleMeterRegistry} chứ không phải registry của Spring:
+     * lớp này được dùng cả từ dòng lệnh ({@code MultiDomainCrawlRunner}), nơi
+     * không có ngữ cảnh Spring nào. Registry đơn giản vẫn cộng dồn đủ số liệu
+     * cho báo cáo cuối phiên; khi chạy trong ứng dụng web thì bản Kafka dùng
+     * registry thật và số liệu chảy ra Prometheus.
+     */
+    private void wireInProcessServices() {
+        if (!ownsBus || urlExtractorService != null) {
+            return; // đã nối rồi, hoặc bus do bên ngoài quản
+        }
+        InProcessCrawlEventBus localBus = (InProcessCrawlEventBus) bus;
+
+        UrlExtractorService extractor = new UrlExtractorService(
+                new LinkExtractor(), () -> urlFilter, () -> urlSeenFilter, bus);
+        ImageDownloadService images = new ImageDownloadService(bus);
+        CrawlAnalyticsService analytics = new CrawlAnalyticsService(new SimpleMeterRegistry());
+
+        localBus.subscribePages(extractor)
+                .subscribePages(images)
+                .subscribePages(analytics)
+                // Khép vòng lặp của sơ đồ: URL Extractor -> ... -> URL Frontier
+                .subscribeDiscoveredUrls(this::acceptDiscoveredUrl)
+                // Chiều ngược của mũi tên hai chiều: outlinks về Content Storage
+                .subscribeOutlinks(this::acceptOutlinks)
+                // Hai service gặp nhau qua bus, không gọi thẳng nhau
+                .subscribeImages(analytics::onImage);
+
+        this.urlExtractorService = extractor;
+        this.imageDownloadService = images;
+        this.analyticsService = analytics;
+    }
+
+    /**
+     * Nạp một URL đã qua {@code URL Filter} và {@code URL Seen Detector} vào
+     * frontier — mũi tên đóng vòng lặp trong sơ đồ.
+     *
+     * <p>Công khai vì ở chế độ Kafka, lời gọi này đến từ một
+     * {@code @KafkaListener} nằm ngoài lớp này. Ở chế độ in-process nó được
+     * nối qua {@code subscribeDiscoveredUrls}.
+     *
+     * <p><b>Không lọc lại ở đây.</b> Hai phép lọc đã chạy tại
+     * {@link UrlExtractorService}; chạy lại lần nữa thì {@code markSeenIfNew}
+     * sẽ trả về {@code false} cho <i>chính URL vừa được ghi nhận</i> và không
+     * URL nào vào được frontier — crawler dừng ngay sau các seed.
+     */
+    public boolean acceptDiscoveredUrl(DiscoveredUrl discovered) {
+        if (discovered == null) {
+            return false;
+        }
+        return frontier.addUrl(discovered.url(), discovered.depth(), 1);
+    }
+
+    /** Ghi danh sách liên kết ra vào tài liệu tương ứng — dữ liệu cho PageRank. */
+    public void acceptOutlinks(OutlinksExtracted outlinks) {
+        if (outlinks == null) {
+            return;
+        }
+        if (!contentStorage.applyOutlinks(outlinks.sourceUrl(), outlinks.outlinks())) {
+            // Bình thường ở chế độ Kafka: sự kiện của một phiên trước, hoặc của
+            // một trang bị loại vì trùng nội dung. Đếm để nếu con số này lớn
+            // bất thường thì có cái mà nhìn.
+            orphanOutlinks.incrementAndGet();
+        }
+    }
 
     /** Đăng ký một bộ quan sát phiên crawl (Observer pattern). */
     public CrawlerService addListener(CrawlListener listener) {
@@ -182,6 +338,11 @@ public class CrawlerService {
         urlFilter = new UrlFilter(config.allowedDomains(), config.maxDepth(),
                 config.excludedHostPrefixes());
         urlSeenFilter = UrlSeenFilter.forMaxPages(config.maxPages(), urlStorage);
+
+        // SAU khi hai bộ lọc đã có: UrlExtractorService đọc chúng qua Supplier,
+        // nhưng đăng ký ở đây thì thứ tự luôn đúng kể cả khi bản cài đổi sang
+        // giữ tham chiếu trực tiếp.
+        wireInProcessServices();
 
         try {
             long replayed = urlSeenFilter.replayFromStorage();
@@ -400,8 +561,6 @@ public class CrawlerService {
             return;
         }
 
-        doc.setOutlinks(linkExtractor.extract(task.url(), html)); // Link Extractor
-
         if (!contentStorage.save(doc)) { // Content Storage
             return; // URL này đã có bản ghi, không đếm trùng
         }
@@ -410,16 +569,52 @@ public class CrawlerService {
         // Đặc, không thủng lỗ vì cấp SAU khi lưu thành công; cộng mốc corpus cũ
         // để phiên nối tiếp không cấp lại docId đã dùng.
         doc.setDocId(restoredDocCount + count - 1);
+
+        // ─── Ranh giới giữa crawler và cụm Modular Services ───────────────
+        //
+        // Trước đây bốn dòng ở đây gọi thẳng LinkExtractor rồi lặp enqueue().
+        // Nay chúng được thay bằng MỘT lời phát lên bus, và ba service phía
+        // sau tự lấy phần của mình:
+        //
+        //     URL Extractor  -> liên kết -> URL Filter -> URL Seen -> Frontier
+        //     Image Download -> ảnh
+        //     Analytics      -> số liệu
+        //
+        // CHI PHÍ ĐÃ BIẾT: html.outerHtml() kết xuất lại cây DOM thành chuỗi,
+        // và ở chế độ in-process thì UrlExtractorService phân tích chuỗi đó
+        // lần nữa — khoảng 3–8 ms mỗi trang, tức DOM bị dựng hai lần. Đây là
+        // giá phải trả để CÙNG MỘT đường mã chạy được ở cả hai chế độ. Một
+        // đường tắt "nếu in-process thì truyền thẳng Document" sẽ tạo ra một
+        // nhánh chỉ chạy ở môi trường thật, tức một nhánh không được test.
+        //
+        // Đây cũng là lý do phần tải trang vẫn nằm ở đây chứ không thành một
+        // service nữa: nó là thứ DUY NHẤT phải tôn trọng chính sách lịch sự
+        // theo host, và chính sách đó gắn liền với UrlFrontier.
+        bus.publishPage(new PageEvent(
+                task.url(), hostOf(task.url()), task.depth(),
+                doc.getTitle(), doc.getBodyText(), doc.getLanguage(),
+                html.outerHtml(),
+                ContentSeenFilter.fingerprint(doc.getBodyText() == null ? "" : doc.getBodyText()),
+                doc.getCrawledAt() != null ? doc.getCrawledAt() : Instant.now(),
+                jobId));
+
+        // Ở chế độ in-process, phát lên bus là đồng bộ nên outlinks đã được
+        // UrlExtractorService ghi vào doc trước dòng này. Ở chế độ Kafka thì
+        // chưa — con số outlink trong sự kiện tiến độ sẽ là 0, và đó là hành
+        // vi đúng: lúc này crawler THẬT SỰ chưa biết trang có bao nhiêu liên
+        // kết. Báo một con số đoán bừa còn tệ hơn báo 0.
         notifyPageCrawled(new CrawlListener.CrawlEvent(
                 count, config.maxPages(), task.url(), task.depth(),
                 doc.getOutlinks().size(), frontier.size(), frontier.domainCount()));
+    }
 
-        // Không tự chặn độ sâu ở đây: đó là việc của khối URL Filter. Chặn cả
-        // hai chỗ thì luật độ sâu có hai nguồn sự thật, và bộ đếm
-        // getRejectedByDepthCount() luôn bằng 0 nên không phát hiện được khi
-        // một trong hai chỗ sai.
-        for (String outlink : doc.getOutlinks()) {
-            enqueue(outlink, task.depth() + 1);
+    /** Host của một URL, lùi về chính URL khi không phân giải được — khoá phân hoạch. */
+    private static String hostOf(String url) {
+        try {
+            String host = java.net.URI.create(url).getHost();
+            return host != null && !host.isBlank() ? host : url;
+        } catch (Exception e) {
+            return url;
         }
     }
 
@@ -547,5 +742,55 @@ public class CrawlerService {
 
     public LanguageFilter getLanguageFilter() {
         return languageFilter;
+    }
+
+    // --- Cụm Modular Services ---
+
+    /** Bus đang dùng — in-process hay Kafka tuỳ constructor nào được gọi. */
+    public CrawlEventBus getEventBus() {
+        return bus;
+    }
+
+    public String getJobId() {
+        return jobId;
+    }
+
+    /**
+     * Gán danh tính phiên. Gọi <b>trước</b> {@code crawl()}; đổi giữa chừng
+     * thì các sự kiện đã phát mang id cũ và sẽ không tìm được đường về.
+     */
+    public void setJobId(String jobId) {
+        if (jobId != null && !jobId.isBlank()) {
+            this.jobId = jobId;
+        }
+    }
+
+    /** {@code true} khi ba Modular Service chạy trong chính tiến trình này. */
+    public boolean isInProcessMode() {
+        return ownsBus;
+    }
+
+    /** {@code null} ở chế độ Kafka — khi đó service chạy ở tiến trình khác. */
+    public UrlExtractorService getUrlExtractorService() {
+        return urlExtractorService;
+    }
+
+    public ImageDownloadService getImageDownloadService() {
+        return imageDownloadService;
+    }
+
+    public CrawlAnalyticsService getAnalyticsService() {
+        return analyticsService;
+    }
+
+    /**
+     * Số sự kiện outlinks tới cho một URL không có trong Content Storage.
+     *
+     * <p>Ở chế độ in-process con số này phải luôn bằng 0 — sự kiện được phát
+     * ngay sau khi lưu thành công. Khác 0 là dấu hiệu có lỗi thật. Ở chế độ
+     * Kafka thì một lượng nhỏ là bình thường (sự kiện còn sót từ phiên trước).
+     */
+    public long getOrphanOutlinksCount() {
+        return orphanOutlinks.get();
     }
 }

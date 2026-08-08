@@ -100,6 +100,54 @@ class ImageStoreTest {
         assertEquals(1, store.forPages(List.of("https://a.vn/mot", "https://a.vn/hai"), 10).size());
     }
 
+    /**
+     * THU TU PHAI XAC DINH — day la dieu kien de phan trang chay dung.
+     *
+     * Truoc day map ben trong la ConcurrentHashMap, thu tu no tra ve khong xac
+     * dinh va co the khac nhau giua hai lan doc. Hau qua: lo 2 cua tab Hinh anh
+     * lech so voi lo 1, nen anh vua LAP vua THIEU khi nguoi dung cuon xuong —
+     * khong loi nao duoc nem ra.
+     */
+    @Test
+    void keepsInsertionOrderAcrossRepeatedReads() {
+        for (int i = 0; i < 20; i++) {
+            store.add(image("https://a.vn/bai", "https://a.vn/" + i + ".jpg"));
+        }
+        List<String> lan1 = store.forPage("https://a.vn/bai").stream()
+                .map(ImageFound::imageUrl).toList();
+
+        for (int lap = 0; lap < 5; lap++) {
+            List<String> lanSau = store.forPage("https://a.vn/bai").stream()
+                    .map(ImageFound::imageUrl).toList();
+            assertEquals(lan1, lanSau, "Moi lan doc phai cho cung mot thu tu");
+        }
+
+        // Va thu tu do phai la thu tu CHEN VAO (= thu tu xuat hien trong DOM),
+        // vi anh dau tien cua mot bai bao gan nhu luon la anh chinh.
+        assertEquals("https://a.vn/0.jpg", lan1.get(0));
+        assertEquals("https://a.vn/19.jpg", lan1.get(19));
+    }
+
+    /**
+     * Cat lat lien tiep phai phu het danh sach, khong lap khong thieu — chinh
+     * la thu ma tab Hinh anh lam khi cuon.
+     */
+    @Test
+    void consecutiveSlicesCoverEverythingExactlyOnce() {
+        for (int i = 0; i < 25; i++) {
+            store.add(image("https://a.vn/bai", "https://a.vn/" + i + ".jpg"));
+        }
+        List<ImageFound> tatCa = store.forPages(List.of("https://a.vn/bai"), 100);
+        assertEquals(25, tatCa.size());
+
+        java.util.Set<String> gom = new java.util.LinkedHashSet<>();
+        for (int from = 0; from < tatCa.size(); from += 8) {
+            int to = Math.min(from + 8, tatCa.size());
+            tatCa.subList(from, to).forEach(img -> gom.add(img.imageUrl()));
+        }
+        assertEquals(25, gom.size(), "Cac lat phai phu het va khong trung nhau");
+    }
+
     @Test
     void forPagesRespectsTheLimit() {
         for (int i = 0; i < 10; i++) {

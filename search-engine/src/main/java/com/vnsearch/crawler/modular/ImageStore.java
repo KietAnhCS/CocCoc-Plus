@@ -70,6 +70,35 @@ public class ImageStore {
     /** Số ảnh tối đa giữ cho mỗi trang. */
     public static final int MAX_IMAGES_PER_PAGE = 60;
 
+    /**
+     * trang -&gt; (địa chỉ ảnh -&gt; bản ghi), <b>giữ nguyên thứ tự xuất hiện</b>.
+     *
+     * <h3>Vì sao map bên trong phải giữ thứ tự</h3>
+     *
+     * <p>Trước đây đây là {@code ConcurrentHashMap}, và thứ tự nó trả về là
+     * <b>không xác định</b> — có thể khác nhau giữa hai lần đọc. Với một lời
+     * gọi lấy toàn bộ thì không sao, nhưng nó làm <b>phân trang hỏng ngầm</b>:
+     *
+     * <pre>
+     *   lần 1: lấy ảnh 0..7   -> [A B C D E F G H]
+     *   lần 2: lấy ảnh 8..15  -> thứ tự đã đổi, C và F xuất hiện LẠI,
+     *                            còn J và K không bao giờ được trả về
+     * </pre>
+     *
+     * <p>Người dùng thấy ảnh trùng khi cuộn xuống, và một phần ảnh biến mất —
+     * không có lỗi nào, chỉ là kết quả sai một cách khó tả.
+     *
+     * <h3>Vì sao thứ tự xuất hiện là thứ tự ĐÚNG</h3>
+     *
+     * <p>Không chỉ để phân trang chạy được — nó còn là thứ tự tốt nhất về mặt
+     * nội dung. Ảnh đầu tiên trong DOM của một bài báo gần như luôn là ảnh
+     * chính; ảnh cuối là ảnh của các bài "đọc thêm" ở chân trang. Sắp theo thứ
+     * tự DOM nghĩa là ảnh quan trọng nhất của mỗi trang hiện trước.
+     *
+     * <p>{@code LinkedHashMap} không thread-safe nên phải bọc
+     * {@code synchronizedMap}. Chi phí chấp nhận được: khoá chỉ bao một phép
+     * chèn vào map, không có thao tác vào/ra nào bên trong.
+     */
     private final Map<String, Map<String, ImageFound>> byPage = new ConcurrentHashMap<>();
 
     private final AtomicLong added = new AtomicLong();
@@ -100,7 +129,8 @@ public class ImageStore {
                 droppedPageLimit.incrementAndGet();
                 return false;
             }
-            images = byPage.computeIfAbsent(pageUrl, url -> new ConcurrentHashMap<>());
+            images = byPage.computeIfAbsent(pageUrl,
+                    url -> java.util.Collections.synchronizedMap(new LinkedHashMap<>()));
         }
 
         if (images.size() >= MAX_IMAGES_PER_PAGE && !images.containsKey(image.imageUrl())) {
@@ -121,10 +151,23 @@ public class ImageStore {
         return isNew;
     }
 
-    /** Ảnh của một trang, theo thứ tự xuất hiện không bảo đảm. */
+    /**
+     * Ảnh của một trang, <b>theo đúng thứ tự xuất hiện trong DOM</b>.
+     *
+     * <p>Sao chép trong khối {@code synchronized}: {@code synchronizedMap} chỉ
+     * đồng bộ từng phương thức, còn việc DUYỆT thì người gọi phải tự khoá —
+     * nếu không, một lần ghi xen vào giữa lúc duyệt sẽ ném
+     * {@code ConcurrentModificationException}. Đây là bẫy kinh điển của
+     * {@code Collections.synchronizedMap}, và nó chỉ nổ dưới tải.
+     */
     public List<ImageFound> forPage(String pageUrl) {
         Map<String, ImageFound> images = byPage.get(pageUrl);
-        return images == null ? List.of() : new ArrayList<>(images.values());
+        if (images == null) {
+            return List.of();
+        }
+        synchronized (images) {
+            return new ArrayList<>(images.values());
+        }
     }
 
     /**

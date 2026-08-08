@@ -48,6 +48,40 @@ public class ContentStorage {
         return byUrl.putIfAbsent(doc.getUrl(), doc) == null;
     }
 
+    /**
+     * Gắn danh sách liên kết ra vào một tài liệu đã lưu.
+     *
+     * <p><b>Vì sao outlinks tới SAU nội dung.</b> Từ khi khối
+     * {@code URL Extractor} tách thành một Modular Service riêng, việc bóc
+     * liên kết không còn nằm trên đường chạy của crawler nữa: crawler lưu
+     * trang rồi đẩy lên bus, service bóc liên kết xong mới gửi ngược lại qua
+     * {@link com.vnsearch.crawler.bus.OutlinksExtracted}. Ở chế độ in-process
+     * việc gửi ngược đó xảy ra đồng bộ ngay trong cùng lời gọi; ở chế độ Kafka
+     * nó tới sau vài chục mili-giây.
+     *
+     * <p>Dữ liệu này bắt buộc phải có trước khi lập chỉ mục vì PageRank chạy
+     * trên đồ thị liên kết. Nó <i>không</i> cần có trước lúc lưu — đó là lý do
+     * tách được làm hai bước mà không hỏng gì.
+     *
+     * @return {@code false} nếu chưa có tài liệu nào ứng với URL này — nghĩa
+     *         là một sự kiện tới muộn cho một trang không được lưu (trùng nội
+     *         dung, hoặc thuộc phiên crawl trước). Bỏ qua là đúng, nhưng người
+     *         gọi nên đếm để con số đó không âm thầm lớn lên.
+     */
+    public boolean applyOutlinks(String url, List<String> outlinks) {
+        if (url == null || outlinks == null) {
+            return false;
+        }
+        WebDocument doc = byUrl.get(url);
+        if (doc == null) {
+            return false;
+        }
+        // Sao chép: danh sách gốc thuộc về một thông điệp bất biến, và
+        // WebDocument.setOutlinks giữ nguyên tham chiếu được truyền vào.
+        doc.setOutlinks(new ArrayList<>(outlinks));
+        return true;
+    }
+
     public int size() {
         return byUrl.size();
     }

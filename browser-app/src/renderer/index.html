@@ -3,9 +3,34 @@
   <head>
     <meta charset="UTF-8" />
     <title>VnSearch Browser</title>
+    <!--
+      Chính sách bảo mật nội dung.
+
+      `img-src` có thêm `https:` để tab "Hình ảnh" hiện được ảnh từ máy chủ
+      gốc. Trước đó chính sách là `img-src 'self' data:` — nghĩa là MỌI ảnh
+      ngoài đều bị chặn, và lưới ảnh trắng trơn mà không có lỗi nào trong giao
+      diện. Chỉ console của DevTools mới báo, nên rất dễ đi tìm nhầm chỗ (CDN
+      chặn hotlink? React hỏng? API rỗng?) trong khi nguyên nhân nằm ở một
+      dòng meta.
+
+      ĐÁNH ĐỔI, nói rõ chứ không giấu: mỗi thẻ <img> là một kết nối thẳng từ
+      máy người dùng tới máy chủ của trang gốc, nên trang đó thấy được địa chỉ
+      IP. `referrerPolicy="no-referrer"` trong ImageResultGrid giấu được địa
+      chỉ trang giới thiệu, nhưng KHÔNG giấu được IP.
+
+      Đóng hẳn khoảng này cần một endpoint proxy ảnh ở backend
+      (`GET /api/images/proxy?url=…`), dùng lại phép chống SSRF của
+      SeedUrlValidator. Khi đó `img-src` quay về `'self'` và trang gốc chỉ
+      thấy máy chủ, không thấy người dùng. Đó là bước đúng cho một trình duyệt
+      hướng riêng tư; ở quy mô đồ án môn học thì `https:` là thoả hiệp chấp
+      nhận được — miễn là được ghi ra.
+
+      `https:` chứ KHÔNG phải `*`: ảnh qua http trần có thể bị sửa trên đường
+      truyền, và cho phép nó là mở lại một lỗ hổng không cần thiết.
+    -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:8080 ws://localhost:*"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://localhost:8080 ws://localhost:*"
     />
   </head>
 

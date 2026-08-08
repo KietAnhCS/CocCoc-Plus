@@ -1,0 +1,153 @@
+# PostgreSQL — kho tài liệu thô.
+#
+# Vì sao StatefulSet chứ không phải Deployment: Deployment coi mọi Pod là thay
+# thế được cho nhau và cấp chung một PVC. Cơ sở dữ liệu thì không như vậy — nó
+# cần một danh tính ổn định (`vnsearch-postgres-0`) và một ổ đĩa riêng đi theo
+# đúng Pod đó qua mỗi lần khởi động lại. StatefulSet cho cả hai.
+#
+# GIỚI HẠN ĐÃ BIẾT: đây là MỘT bản sao, không có replica, không sao lưu tự
+# động. Đủ cho đồ án và cho môi trường dev. Một hệ thống thật nên dùng CSDL
+# quản trị sẵn (RDS, Cloud SQL) hoặc một operator như CloudNativePG — tự vận
+# hành PostgreSQL có tính sẵn sàng cao là một chuyên môn riêng, không phải một
+# tệp YAML.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vnsearch-postgres
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: database
+spec:
+  serviceName: vnsearch-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: database
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vnsearch
+        app.kubernetes.io/component: database
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999          # user `postgres` trong ảnh chính thức
+        runAsGroup: 999
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: vnsearch
+            - name: POSTGRES_USER
+              value: vnsearch
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vnsearch-secret
+                  key: POSTGRES_PASSWORD
+            # Ảnh postgres mặc định đặt dữ liệu ngay tại gốc điểm gắn. Trên
+            # nhiều loại ổ đĩa, thư mục gốc đó chứa sẵn `lost+found`, và
+            # initdb sẽ từ chối chạy vì thư mục "không rỗng". Đặt dữ liệu vào
+            # một thư mục con là cách tránh chuẩn.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+            - name: init
+              mountPath: /docker-entrypoint-initdb.d
+          # `pg_isready` chứ không phải kiểm tra cổng TCP: cổng mở từ rất sớm,
+          # trước khi PostgreSQL thật sự nhận được truy vấn. Backend hỏi một
+          # cổng chưa ai nghe rồi lặng lẽ lùi về nguồn JSON là lỗi đã gặp thật.
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vnsearch", "-d", "vnsearch"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "vnsearch", "-d", "vnsearch"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: init
+          configMap:
+            name: vnsearch-db-schema
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vnsearch-postgres
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: database
+spec:
+  # `clusterIP: None` — Service không đầu (headless). Với StatefulSet, cách này
+  # cho mỗi Pod một tên DNS ổn định (`vnsearch-postgres-0.vnsearch-postgres`)
+  # thay vì cân bằng tải qua một IP ảo. Cân bằng tải giữa các bản sao CSDL là
+  # thứ gần như luôn sai.
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: database
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+
+---
+# Chặn mọi kết nối tới CSDL trừ từ chính backend.
+#
+# Mặc định của Kubernetes là MỌI Pod nói chuyện được với mọi Pod. Với một cụm
+# chỉ có hai dịch vụ thì nghe không sao, nhưng đây chính là con đường mà một
+# container bị chiếm quyền dùng để đi ngang sang chỗ khác. Chi phí của quy tắc
+# này bằng 0; không có nó thì cổng 5432 mở cho toàn cụm.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vnsearch-postgres-chi-cho-backend
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: database
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: vnsearch
+              app.kubernetes.io/component: backend
+      ports:
+        - protocol: TCP
+          port: 5432

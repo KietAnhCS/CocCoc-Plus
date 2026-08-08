@@ -1,0 +1,213 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vnsearch-backend
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: backend
+spec:
+  # Overlay dev hạ xuống 1 để chạy vừa trên máy cá nhân; overlay prod nâng lên.
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: backend
+  strategy:
+    # Cập nhật cuốn chiếu: `maxUnavailable: 0` nghĩa là Pod MỚI phải sẵn sàng
+    # trước khi Pod cũ bị xoá, nên không có giây nào hệ thống ngừng phục vụ.
+    # Đây là thứ `docker compose up -d --build` không làm được — nó dừng
+    # container cũ rồi mới dựng cái mới.
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vnsearch
+        app.kubernetes.io/component: backend
+      annotations:
+        # Để Prometheus tự phát hiện và thu thập. Ứng dụng đã phơi sẵn
+        # /actuator/prometheus (xem MetricsConfig) — đây là dây nối cuối cùng.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/actuator/prometheus"
+    spec:
+      # Bắt buộc bởi Pod Security `restricted` ở namespace, và đúng là điều nên
+      # làm: một tiến trình phục vụ HTTP không cần quyền root. UID 1000 khớp với
+      # user `vnsearch` mà Dockerfile tạo.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      containers:
+        - name: backend
+          # Kustomize thay thẻ này ở từng overlay (xem kustomization.yaml).
+          image: ghcr.io/kietanhcs/search-engine:latest
+          imagePullPolicy: IfNotPresent
+
+          ports:
+            - name: http
+              containerPort: 8080
+
+          envFrom:
+            - configMapRef:
+                name: vnsearch-config
+            - secretRef:
+                name: vnsearch-secret
+
+          # ---------------------------------------------------------------
+          # BA LOẠI PROBE, mỗi loại trả lời một câu hỏi khác nhau.
+          # Đây là chỗ hay bị làm sai nhất trong Kubernetes.
+          #
+          #   startup   "đã khởi động xong chưa?"  -> hoãn hai probe kia
+          #   readiness "nhận request được chưa?"  -> gỡ khỏi Service nếu không
+          #   liveness  "còn sống không?"          -> GIẾT Pod nếu không
+          #
+          # Vì sao cần startupProbe: lập chỉ mục lần đầu trên corpus lớn mất
+          # vài chục giây. Không có nó, livenessProbe sẽ kết luận Pod chết
+          # trong khi nó đang khởi động bình thường, giết đi, rồi Pod mới lại
+          # khởi động chậm y như vậy — vòng lặp khởi động lại vô hạn.
+          #
+          # Vì sao liveness KHÔNG dùng /api/health: endpoint đó trả 503 khi chỉ
+          # mục rỗng. Chỉ mục rỗng là vấn đề DỮ LIỆU, khởi động lại Pod không
+          # sửa được gì — chỉ tạo thêm một vòng lặp restart. Liveness hỏi "tiến
+          # trình có còn đáp ứng không", và /actuator/health/liveness trả lời
+          # đúng câu đó.
+          # ---------------------------------------------------------------
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+            # 5s x 36 = 180 giây cho lần lập chỉ mục đầu tiên.
+            failureThreshold: 36
+
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+          # ---------------------------------------------------------------
+          # TÀI NGUYÊN. `requests` là thứ bộ lập lịch dùng để chọn máy;
+          # `limits` là trần cứng.
+          #
+          # Vì sao KHÔNG đặt limits.cpu: khi chạm trần CPU, Kubernetes không
+          # giết tiến trình mà BÓP GA nó (throttling) — độ trễ tăng vọt theo
+          # cách rất khó truy nguyên. Đặt requests để được lập lịch đúng, rồi
+          # để CPU co giãn, là khuyến nghị hiện nay cho dịch vụ nhạy độ trễ.
+          #
+          # Bộ nhớ thì NGƯỢC LẠI, bắt buộc phải có trần: chỉ mục đảo nằm hoàn
+          # toàn trong RAM, nên một corpus lớn bất thường có thể ăn hết bộ nhớ
+          # của cả node và kéo theo mọi Pod khác.
+          # ---------------------------------------------------------------
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              memory: 2Gi
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+
+          volumeMounts:
+            # readOnlyRootFilesystem chặn mọi ghi lên đĩa, nhưng JVM cần ghi
+            # tệp tạm và ứng dụng cần ghi chỉ mục dựng sẵn. Cấp đúng hai thư
+            # mục ghi được, thay vì mở toàn bộ hệ thống tệp.
+            - name: tmp
+              mountPath: /tmp
+            - name: data
+              mountPath: /app/data
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: data
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vnsearch-backend
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: backend
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+
+---
+# Tự co giãn theo tải.
+#
+# Ngưỡng 70% CPU chứ không phải 90%: co giãn không tức thời — Pod mới phải được
+# lập lịch, kéo ảnh, khởi động, lập chỉ mục. Chờ tới 90% là tới lúc Pod mới sẵn
+# sàng thì đã quá tải từ lâu.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: vnsearch-backend
+  namespace: vnsearch
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: vnsearch-backend
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      # Chờ 5 phút trước khi thu nhỏ. Không có độ trễ này, một đợt tải nhấp nhô
+      # sẽ làm số Pod dao động liên tục, và mỗi Pod mới lại tốn vài chục giây
+      # lập chỉ mục — tốn hơn nhiều so với việc giữ thừa một Pod.
+      stabilizationWindowSeconds: 300
+
+---
+# Giữ tối thiểu 1 Pod luôn sống trong các thao tác TỰ NGUYỆN của cụm (nâng cấp
+# node, rút node đi bảo trì). Không có PDB, `kubectl drain` có thể xoá cả hai
+# Pod cùng lúc và hệ thống ngừng phục vụ trong một việc bảo trì đã lên lịch.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: vnsearch-backend
+  namespace: vnsearch
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: backend

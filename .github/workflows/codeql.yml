@@ -1,0 +1,90 @@
+# CodeQL — phân tích bảo mật mã nguồn (SAST) do GitHub cung cấp.
+#
+# VÌ SAO CẦN THÊM, KHI ĐÃ CÓ SPOTBUGS. Hai công cụ trả lời hai câu hỏi khác nhau:
+#
+#   SpotBugs                          CodeQL
+#   ──────────────────────────────    ──────────────────────────────────────
+#   Xét TỪNG hàm một                  Lần theo LUỒNG DỮ LIỆU xuyên nhiều lớp
+#   "Hàm này so chuỗi bằng =="        "Giá trị từ request.getParameter() đi
+#                                      qua 4 lớp rồi vào Runtime.exec()"
+#   Nhanh, chạy trong mỗi build       Chậm hơn, chạy riêng
+#
+# Câu hỏi thứ hai mới là câu hỏi của bảo mật: một lỗ hổng injection gần như
+# không bao giờ nằm gọn trong một hàm. Đó là lý do phải có cả hai chứ không
+# chọn một.
+#
+# CHI PHÍ: bằng 0. Repo này công khai, nên CodeQL và GitHub Actions đều miễn
+# phí. Với repo riêng tư thì CodeQL cần GitHub Advanced Security (trả phí).
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Quét định kỳ, KHÔNG chỉ khi có commit. Lý do: cơ sở dữ liệu quy tắc của
+  # CodeQL được cập nhật liên tục, nên mã không đổi vẫn có thể lộ ra lỗ hổng
+  # mới phát hiện tuần sau. Một dự án ngủ đông vài tháng vẫn được soi lại.
+  schedule:
+    - cron: '30 2 * * 1'   # 02:30 UTC thứ Hai hằng tuần
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Phân tích ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write   # để ghi kết quả vào tab Security
+      actions: read
+      contents: read
+
+    strategy:
+      # Một ngôn ngữ hỏng thì ngôn ngữ kia vẫn phải được quét xong.
+      fail-fast: false
+      matrix:
+        include:
+          - language: java-kotlin
+            build-mode: manual
+          - language: javascript-typescript
+            build-mode: none    # ngôn ngữ thông dịch, không cần biên dịch
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Khởi tạo CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          # `security-and-quality` rộng hơn bộ mặc định `security-extended`:
+          # thêm các quy tắc về chất lượng mã. Với một đồ án thì phần thừa ra
+          # đó đáng đọc, không phải nhiễu.
+          queries: security-and-quality
+
+      - name: Cài đặt JDK 17
+        if: matrix.language == 'java-kotlin'
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      # build-mode `manual`: CodeQL cần quan sát trình biên dịch chạy thật để
+      # dựng được cơ sở dữ liệu mã. `-DskipTests` vì ở đây chỉ cần bytecode —
+      # test đã chạy ở workflow CI rồi, chạy lại là tốn gấp đôi thời gian mà
+      # không kiểm thêm được gì.
+      - name: Biên dịch backend
+        if: matrix.language == 'java-kotlin'
+        working-directory: search-engine
+        run: ./mvnw -B clean compile -DskipTests
+
+      - name: Phân tích
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}

@@ -1,0 +1,30 @@
+# Cấu hình KHÔNG bí mật. Mọi thứ ở đây đọc được bằng `kubectl get configmap -o
+# yaml`, nên tuyệt đối không đặt mật khẩu hay khoá vào đây — chúng thuộc về
+# Secret (xem secret.yaml).
+#
+# Vì sao tách ConfigMap khỏi ảnh Docker: cùng MỘT ảnh phải chạy được ở dev,
+# staging và production. Nếu cấu hình nằm trong ảnh thì mỗi môi trường cần một
+# ảnh riêng, và ảnh chạy ở production sẽ không phải ảnh đã được kiểm thử.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vnsearch-config
+  namespace: vnsearch
+data:
+  # Bật log JSON. Không có biến này thì nhánh <springProfile name="prod"> trong
+  # logback-spring.xml không bao giờ chạy, và log ra là văn xuôi kèm mã màu ANSI
+  # — thứ vô dụng khi đổ vào một hệ thống thu thập log.
+  SPRING_PROFILES_ACTIVE: "prod"
+
+  # `vnsearch-postgres` là tên Service trong cùng namespace, KHÔNG phải
+  # localhost — localhost trong một container là chính container đó.
+  APP_STORAGE_POSTGRES_ENABLED: "true"
+  APP_STORAGE_POSTGRES_URL: "jdbc:postgresql://vnsearch-postgres:5432/vnsearch"
+  APP_STORAGE_POSTGRES_USER: "vnsearch"
+
+  # BM25 đạt MRR 0,9093 so với 0,8758 của TF-IDF — xem docs/EVALUATION.md.
+  # Đây là chỗ khác biệt so với docker-compose.yml (đang để tfidf cho mục đích
+  # trình bày): môi trường thật thì dùng cấu hình tốt nhất đã đo được.
+  APP_RANKING_SCORER: "bm25"
+
+  APP_CORS_ALLOWED_ORIGINS: "http://localhost:5173"

@@ -1,0 +1,54 @@
+# Kiểm tra tiêu đề pull request theo Conventional Commits.
+#
+# VÌ SAO MÁY KIỂM CHỨ KHÔNG PHẢI NGƯỜI TỰ NHỚ. Repo này đã có bằng chứng cho
+# thấy tự nhớ không hoạt động: bốn commit gần nhau đặt tên "minor" và "update :
+# update frontend, docs".
+#
+# Hệ quả không chỉ là khó đọc. `release.yml` bật `generate_release_notes`, tức
+# ghi chú phát hành được sinh THẲNG từ tiêu đề. Bốn dòng "minor" trong tài liệu
+# phát hành v1.0.0 là thứ không ai muốn nộp kèm đồ án.
+#
+# Khi bật squash merge (khuyến nghị trong docs/DEVOPS.md), tiêu đề PR CHÍNH LÀ
+# tiêu đề commit trên main. Chặn ở đây là chặn đúng chỗ.
+name: PR title
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  kiem-tra-tieu-de:
+    name: Tiêu đề theo Conventional Commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            test
+            perf
+            refactor
+            build
+            ci
+            chore
+            revert
+          # Không bắt buộc có scope: với repo một người, `feat(index):` và
+          # `feat:` giá trị như nhau, mà bắt buộc thì chỉ tạo ra scope đặt bừa.
+          requireScope: false
+          # Bắt buộc chữ thường đầu câu mô tả, cho lịch sử nhất quán.
+          subjectPattern: ^[a-z].*[^.]$
+          subjectPatternError: |
+            Phần mô tả của tiêu đề ("{subject}") phải bắt đầu bằng chữ THƯỜNG
+            và không kết thúc bằng dấu chấm.
+
+            Đúng : feat: add API key auth and rate limiting
+            Sai  : feat: Add API key auth.
+            Sai  : minor

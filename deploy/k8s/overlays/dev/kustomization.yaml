@@ -1,0 +1,73 @@
+# Overlay DEV — chạy trên một cụm kind ở máy cá nhân.
+#
+#   kubectl apply -k deploy/k8s/overlays/dev
+#
+# Khác lớp nền ở đúng những chỗ mà "một máy tính xách tay" khác "một cụm thật".
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: vnsearch
+
+resources:
+  - ../../base
+
+# Ảnh dựng cục bộ rồi nạp thẳng vào kind (`kind load docker-image`), không qua
+# registry nào. Vòng lặp sửa–thử vì thế không phụ thuộc mạng.
+images:
+  - name: ghcr.io/kietanhcs/search-engine
+    newName: vnsearch-backend
+    newTag: dev
+
+patches:
+  # Một bản sao là đủ trên máy cá nhân, và nó làm `kubectl logs` chỉ có một
+  # nguồn để đọc.
+  - target:
+      kind: Deployment
+      name: vnsearch-backend
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  # Tắt tự co giãn: HPA cần metrics-server, thứ không có sẵn trong kind. Để HPA
+  # ở đây thì nó sẽ báo lỗi "unable to fetch metrics" mãi mãi — một dòng đỏ giả
+  # làm người ta quen với việc bỏ qua dòng đỏ.
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: vnsearch-backend
+    patch: |-
+      $patch: delete
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: vnsearch-backend
+
+  # PodDisruptionBudget với minAvailable 1 trên MỘT bản sao sẽ chặn cứng
+  # `kubectl drain`. Vô nghĩa trên cụm một node.
+  - target:
+      kind: PodDisruptionBudget
+      name: vnsearch-backend
+    patch: |-
+      $patch: delete
+      apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: vnsearch-backend
+
+  # Ổ đĩa nhỏ lại cho vừa máy cá nhân.
+  - target:
+      kind: StatefulSet
+      name: vnsearch-postgres
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: 1Gi
+
+  # TF-IDF ở dev để khớp cấu hình mặc định trong docs; prod dùng bm25.
+  - target:
+      kind: ConfigMap
+      name: vnsearch-config
+    patch: |-
+      - op: replace
+        path: /data/APP_RANKING_SCORER
+        value: tfidf

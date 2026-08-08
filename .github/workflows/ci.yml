@@ -4,6 +4,18 @@
 # chạy chúng tự động. Hệ quả đã xảy ra thật: một thay đổi bảo mật làm 9 bài test
 # đỏ và ứng dụng không khởi động được, và lỗi đó tồn tại trong cây làm việc mà
 # không có gì báo. Một bộ test không được chạy là một bộ test không tồn tại.
+#
+# BỐN CỔNG CHẶN, mỗi cổng bắt một loại hỏng khác nhau:
+#
+#   Cổng                 Bắt được gì                        Hỏng thì sao
+#   ──────────────────── ────────────────────────────────── ────────────
+#   399 bài test         Logic từng khối sai                Build đỏ
+#   Độ phủ (JaCoCo)      Mã mới không có test               Build đỏ
+#   Phân tích tĩnh       Lỗi mà test không chạy tới         Build đỏ
+#   Chất lượng xếp hạng  Tìm kiếm tệ đi mà test vẫn xanh    Build đỏ
+#
+# Cổng thứ tư là cổng đặc thù của một hệ thống tìm kiếm: ba cổng đầu đều có thể
+# xanh trong khi kết quả trả về cho người dùng đã tệ đi. Xem RankingQualityTest.
 name: CI
 
 on:
@@ -17,10 +29,19 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Quyền TỐI THIỂU ở cấp workflow. Mặc định của GitHub rộng hơn mức cần; khai báo
+# hẹp ở đây rồi nới thêm ở từng job là nguyên tắc đặc quyền tối thiểu.
+permissions:
+  contents: read
+
 jobs:
   backend:
     name: Backend (Java 17)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Cần để đẩy báo cáo SpotBugs lên tab Security dưới dạng SARIF.
+      security-events: write
 
     steps:
       - uses: actions/checkout@v4
@@ -34,26 +55,56 @@ jobs:
           # này thì mỗi lần chạy đều tải lại toàn bộ phụ thuộc.
           cache: maven
 
-      - name: Chạy test
+      # `verify` chứ không phải `test`: pha verify mới chạy jacoco:check và
+      # spotbugs:check. Chạy `test` là bỏ qua hai trong bốn cổng chặn.
+      - name: Test, đo độ phủ và phân tích tĩnh
         working-directory: search-engine
         # -B (batch) tắt thanh tiến độ động, thứ chỉ có nghĩa trên terminal
         # thật và chỉ làm bẩn log của CI.
-        run: ./mvnw -B clean test
+        run: ./mvnw -B clean verify
+
+      # Đưa con số độ phủ vào phần tóm tắt của lần chạy, để đọc được ngay trên
+      # trang Actions mà không phải tải tệp về rồi mở ra.
+      - name: Tóm tắt độ phủ
+        if: always()
+        working-directory: search-engine
+        run: |
+          CSV=target/site/jacoco/jacoco.csv
+          if [ ! -f "$CSV" ]; then
+            echo "Không có báo cáo JaCoCo (build hỏng trước khi sinh được)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          awk -F, 'NR>1 {im+=$4; ic+=$5; bm+=$6; bc+=$7; lm+=$8; lc+=$9}
+            END {
+              printf "## Độ phủ kiểm thử\n\n"
+              printf "| Chỉ số | Đã phủ | Bỏ sót | Tỷ lệ |\n|---|---:|---:|---:|\n"
+              printf "| Lệnh   | %d | %d | %.1f%% |\n", ic, im, 100*ic/(ic+im)
+              printf "| Nhánh  | %d | %d | %.1f%% |\n", bc, bm, 100*bc/(bc+bm)
+              printf "| Dòng   | %d | %d | %.1f%% |\n", lc, lm, 100*lc/(lc+lm)
+            }' "$CSV" >> "$GITHUB_STEP_SUMMARY"
+
+      # Cảnh báo phân tích tĩnh hiện thẳng trong tab Security và trong diff của
+      # pull request, thay vì nằm trong một tệp XML không ai mở.
+      - name: Đẩy kết quả SpotBugs lên tab Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: search-engine/target/spotbugsSarif.json
+          category: spotbugs
+        continue-on-error: true
 
       # Báo cáo test được đăng lên ngay cả khi bước trên THẤT BẠI — đó mới là
       # lúc cần đọc chúng. `if: always()` là bắt buộc, vì mặc định các bước sau
       # một bước hỏng đều bị bỏ qua.
-      - name: Lưu báo cáo test
+      - name: Lưu báo cáo test và độ phủ
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: surefire-reports
-          path: search-engine/target/surefire-reports/
+          name: bao-cao-backend
+          path: |
+            search-engine/target/surefire-reports/
+            search-engine/target/site/jacoco/
           retention-days: 7
-
-      - name: Đóng gói jar
-        working-directory: search-engine
-        run: ./mvnw -B package -DskipTests
 
   frontend:
     name: Frontend (Electron + TypeScript)
@@ -87,17 +138,60 @@ jobs:
         working-directory: browser-app
         run: npm run lint
 
-  docker:
-    name: Dựng ảnh Docker
+  image:
+    name: Dựng ảnh Docker và quét lỗ hổng
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
 
     steps:
       - uses: actions/checkout@v4
 
-      # Chỉ DỰNG ảnh, không đẩy lên đâu cả. Mục đích là bắt lỗi Dockerfile sớm —
-      # một Dockerfile hỏng chỉ lộ ra lúc triển khai thì đã quá muộn.
-      - name: Build
+      # Kustomize không cho tham chiếu tệp ngoài thư mục gốc, nên schema.sql
+      # phải có một bản sao trong deploy/k8s/base. Bước này chặn hai bản lệch.
+      - name: Chặn lệch schema.sql
+        run: diff -u search-engine/src/main/resources/db/schema.sql deploy/k8s/base/schema.sql
+
+      - uses: docker/setup-buildx-action@v3
+
+      # Chỉ DỰNG ảnh, không đẩy lên đâu cả — việc đẩy là của release.yml. Mục
+      # đích ở đây là bắt lỗi Dockerfile sớm: một Dockerfile hỏng chỉ lộ ra lúc
+      # triển khai thì đã quá muộn.
+      #
+      # `load: true` nạp ảnh vào Docker cục bộ của runner để bước quét bên dưới
+      # có cái mà quét. Không có dòng này thì buildx dựng xong rồi vứt đi.
+      - name: Dựng ảnh
         uses: docker/build-push-action@v6
         with:
           context: ./search-engine
           push: false
+          load: true
+          tags: vnsearch-backend:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Quét CVE trong ảnh — thư viện hệ thống của ảnh nền, không chỉ phụ thuộc
+      # Java. Dependabot không nhìn thấy tầng này.
+      #
+      # KHÔNG chặn build ở đây: ảnh nền `eclipse-temurin` gần như luôn có vài
+      # CVE chưa có bản vá, và một cổng chặn đỏ thường trực sẽ bị vô hiệu hoá
+      # trong vòng một tuần. Kết quả đẩy lên tab Security để theo dõi; việc chặn
+      # phát hành nằm ở release.yml, nơi mức CRITICAL mới thực sự chặn.
+      - name: Quét lỗ hổng bằng Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: vnsearch-backend:ci
+          format: sarif
+          output: trivy.sarif
+          ignore-unfixed: true
+          severity: HIGH,CRITICAL
+        continue-on-error: true
+
+      - name: Đẩy kết quả Trivy lên tab Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+        continue-on-error: true

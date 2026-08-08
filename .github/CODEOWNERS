@@ -1,0 +1,22 @@
+# Ai chịu trách nhiệm rà soát phần nào của mã.
+#
+# Với repo một người, tệp này chưa đổi được điều gì trong thực tế. Nó có ở đây
+# vì hai lý do:
+#
+#   1. Bật branch protection với "Require review from Code Owners" thì GitHub
+#      dùng chính tệp này để tự gán người rà soát cho mỗi pull request.
+#   2. Khi có người thứ hai tham gia, ranh giới trách nhiệm đã sẵn sàng — không
+#      phải dựng lại từ đầu đúng lúc đang bận nhất.
+#
+# Cú pháp giống .gitignore. Dòng KHỚP CUỐI CÙNG là dòng thắng, nên các quy tắc
+# cụ thể phải đặt SAU quy tắc chung.
+
+# Mặc định cho toàn bộ repo
+*                           @KietAnhCS
+
+# Bảo mật và hạ tầng — đổi ở đây thì hậu quả rộng nhất
+/.github/                   @KietAnhCS
+/deploy/                    @KietAnhCS
+/docker-compose.yml         @KietAnhCS
+/search-engine/Dockerfile   @KietAnhCS
+/search-engine/src/main/java/com/vnsearch/config/    @KietAnhCS

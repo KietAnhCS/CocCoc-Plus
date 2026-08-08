@@ -1,0 +1,33 @@
+# Cổng vào từ bên ngoài cụm.
+#
+# Vì sao Ingress chứ không phải Service type LoadBalancer: mỗi LoadBalancer là
+# một địa chỉ IP công cộng riêng và một hoá đơn riêng. Ingress cho nhiều dịch
+# vụ dùng chung một điểm vào, định tuyến theo tên miền và đường dẫn, và là chỗ
+# duy nhất phải cấu hình TLS.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vnsearch
+  namespace: vnsearch
+  annotations:
+    # Chặn thân request quá lớn ngay tại cổng vào, trước khi nó tiêu tài nguyên
+    # của ứng dụng.
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+    # Giới hạn tần suất ở TẦNG MẠNG, chồng lên RateLimitFilter trong ứng dụng.
+    # Hai lớp này khác nhau về bản chất: bộ lọc trong ứng dụng đếm theo từng
+    # tiến trình (nên hạn mức nhân lên theo số bản sao — chính hạn chế mà
+    # Javadoc của nó thừa nhận), còn lớp này đếm ở một chỗ duy nhất cho cả cụm.
+    nginx.ingress.kubernetes.io/limit-rps: "50"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: vnsearch.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vnsearch-backend
+                port:
+                  name: http

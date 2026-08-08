@@ -1,0 +1,239 @@
+# PHÁT HÀNH — phần "CD" của CI/CD.
+#
+# Kích hoạt bằng một thẻ phiên bản:
+#
+#     git tag v1.0.0 && git push origin v1.0.0
+#
+# VÌ SAO TÁCH KHỎI ci.yml. Hai workflow trả lời hai câu hỏi khác nhau và có
+# nhịp khác nhau:
+#
+#     ci.yml       chạy MỖI commit    → "mã này có đúng không?"      quyền: đọc
+#     release.yml  chạy MỖI thẻ       → "phát hành bản này ra ngoài" quyền: ghi
+#
+# Gộp chung nghĩa là cấp quyền ghi registry cho mọi commit trên mọi nhánh, kể
+# cả pull request từ người lạ. Tách ra là áp đặc quyền tối thiểu.
+#
+# VÌ SAO KÍCH HOẠT BẰNG THẺ CHỨ KHÔNG PHẢI MỖI LẦN ĐẨY VÀO MAIN. Phát hành phải
+# là một hành động CÓ CHỦ Ý và đặt được tên. Thẻ `v1.0.0` là thứ ghi vào báo
+# cáo, thứ người dùng báo lỗi trích dẫn, thứ để quay lui về. "Ảnh dựng lúc
+# 14:32 thứ Ba" thì không.
+#
+# BỐN THỨ ĐƯỢC SINH RA, ngoài chính cái ảnh Docker:
+#
+#   Sản phẩm        Trả lời câu hỏi                        Công cụ
+#   ─────────────── ────────────────────────────────────── ─────────
+#   SBOM            Ảnh này chứa những thư viện nào?       Syft/buildx
+#   Provenance      Ảnh này được dựng từ commit nào?       buildx SLSA
+#   Chữ ký          Ảnh này có đúng do repo này dựng ra?   cosign
+#   Báo cáo Trivy   Ảnh này có lỗ hổng đã biết nào?        Trivy
+#
+# Ba thứ đầu là yêu cầu về AN TOÀN CHUỖI CUNG ỨNG — thứ trở thành tiêu chuẩn
+# sau các vụ SolarWinds và Log4Shell, và nay là điều kiện bắt buộc trong nhiều
+# hợp đồng doanh nghiệp.
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  # Cho phép chạy tay để thử quy trình mà không phải tạo thẻ thật.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Phiên bản để thử (ví dụ v0.0.1-test)'
+        required: true
+        default: v0.0.1-test
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # CỔNG CHẶN. Không bao giờ phát hành một bản chưa qua kiểm tra.
+  #
+  # Có người sẽ nói bước này thừa vì CI đã chạy trên main rồi. Không thừa: thẻ
+  # có thể được đặt lên MỘT COMMIT BẤT KỲ, kể cả commit cũ chưa từng qua CI, kể
+  # cả commit trên nhánh khác. Cách duy nhất chắc chắn là chạy lại ngay tại đây.
+  # ---------------------------------------------------------------------------
+  kiem-tra:
+    name: Kiểm tra trước khi phát hành
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      - name: Test, độ phủ, phân tích tĩnh
+        working-directory: search-engine
+        run: ./mvnw -B clean verify
+
+      - name: Đóng gói jar
+        working-directory: search-engine
+        run: ./mvnw -B package -DskipTests
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jar
+          path: search-engine/target/*.jar
+          retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # DỰNG VÀ ĐẨY ẢNH
+  # ---------------------------------------------------------------------------
+  anh-docker:
+    name: Dựng, ký và đẩy ảnh
+    needs: kiem-tra
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write        # đẩy ảnh lên ghcr.io
+      id-token: write        # cosign ký kiểu keyless qua OIDC
+      security-events: write
+
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+      tags: ${{ steps.meta.outputs.tags }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # GITHUB_TOKEN tự có sẵn, không cần tạo secret nào. Đây là lý do chọn
+      # GHCR thay vì Docker Hub cho một đồ án: không phải quản lý thông tin
+      # đăng nhập, và ảnh nằm ngay cạnh mã nguồn.
+      - name: Đăng nhập GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Sinh nhãn theo quy ước: v1.2.3 -> các thẻ 1.2.3, 1.2, 1, latest.
+      # Nhờ vậy người dùng chọn được mức độ chặt: ghim `1.2.3` để không bao giờ
+      # đổi, dùng `1` để tự nhận bản vá tương thích ngược.
+      - name: Sinh nhãn và metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=sha,format=long
+
+      - name: Dựng và đẩy
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./search-engine
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # amd64 + arm64: máy Mac dùng chip Apple và phần lớn máy chủ đám mây
+          # giá rẻ đều là arm64. Ảnh chỉ có amd64 sẽ chạy qua lớp giả lập, chậm
+          # thấy rõ.
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # buildx tự đính kèm SBOM và chứng thực nguồn gốc vào ảnh.
+          sbom: true
+          provenance: mode=max
+
+      # Ký ảnh KHÔNG CẦN KHOÁ (keyless). Danh tính đến từ token OIDC của chính
+      # lần chạy workflow này, và chữ ký được ghi vào sổ công khai Rekor. Không
+      # có khoá riêng nào để mà giữ, để mà lộ, hay để mà xoay vòng.
+      - name: Cài cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Ký ảnh
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          # Ký theo DIGEST chứ không theo thẻ: thẻ có thể bị trỏ sang ảnh khác,
+          # digest thì không — nó chính là mã băm của nội dung.
+          for tag in $TAGS; do
+            cosign sign --yes "${tag%%:*}@${DIGEST}"
+          done
+
+      # Ở ĐÂY Trivy CÓ chặn. Khác với ci.yml (chỉ báo cáo): một CVE mức CRITICAL
+      # đã có bản vá mà vẫn phát hành ra ngoài là điều không chấp nhận được.
+      # `ignore-unfixed` giữ cho cổng chặn này công bằng — không thể trách một
+      # bản phát hành vì lỗ hổng chưa ai có cách sửa.
+      - name: Quét lỗ hổng (chặn ở mức CRITICAL)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL
+
+  # ---------------------------------------------------------------------------
+  # TẠO BẢN PHÁT HÀNH TRÊN GITHUB
+  # ---------------------------------------------------------------------------
+  ban-phat-hanh:
+    name: Tạo GitHub Release
+    needs: anh-docker
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write     # cần để tạo release
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # cần toàn bộ lịch sử để sinh ghi chú phát hành
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: jar
+          path: dist
+
+      - name: Tạo bản phát hành
+        uses: softprops/action-gh-release@v2
+        with:
+          # generate_release_notes để GitHub tự liệt kê commit và pull request
+          # kể từ thẻ trước. Đây chính là lý do quy ước đặt tên commit quan
+          # trọng: ghi chú phát hành được sinh THẲNG từ tiêu đề commit, nên bốn
+          # commit tên "minor" sẽ thành bốn dòng vô nghĩa trong tài liệu phát
+          # hành.
+          generate_release_notes: true
+          files: dist/*.jar
+          body: |
+            ## Ảnh Docker
+
+            ```bash
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            ```
+
+            Ảnh hỗ trợ `linux/amd64` và `linux/arm64`, kèm SBOM và chứng thực
+            nguồn gốc, đã được ký bằng cosign keyless.
+
+            Kiểm chứng chữ ký:
+
+            ```bash
+            cosign verify ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }} \
+              --certificate-identity-regexp 'https://github.com/${{ github.repository }}/.*' \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com
+            ```
+
+            ## Triển khai lên Kubernetes
+
+            ```bash
+            kubectl apply -k deploy/k8s/overlays/dev
+            ```
+
+            Chi tiết: [`docs/DEVOPS.md`](docs/DEVOPS.md)

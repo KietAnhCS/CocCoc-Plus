@@ -48,3 +48,30 @@ updates:
     directory: /
     schedule:
       interval: monthly
+
+  # --- Ảnh nền của Dockerfile ---
+  # Tầng mà Maven và npm KHÔNG nhìn thấy. Một CVE trong glibc hay openssl của
+  # ảnh `eclipse-temurin` không xuất hiện trong pom.xml, nên không có mục này
+  # thì nó không bao giờ được báo — dù Trivy trong CI vẫn quét ảnh, việc quét
+  # chỉ nói "có lỗ hổng", còn Dependabot mở sẵn PR nâng phiên bản.
+  - package-ecosystem: docker
+    directory: /search-engine
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+
+  # --- Ảnh trong docker-compose ---
+  # Kafka, Prometheus, Grafana, Alertmanager, kafka-exporter đều được ghim
+  # phiên bản cụ thể (KHÔNG dùng `latest`, trừ kafka-ui). Ghim chặt thì lặp lại
+  # được, nhưng cũng nghĩa là chúng đứng yên mãi mãi nếu không có gì nhắc.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      ha-tang-giam-sat:
+        patterns:
+          - "prom/*"
+          - "grafana/*"
+          - "danielqsj/*"
+    open-pull-requests-limit: 3

@@ -52,6 +52,28 @@ curl "http://localhost:8080/api/search?q=máy+tính&size=3"
 > is deliberate, not a bug. Step 2 above has not been done.
 > See [Why the admin key is mandatory](#why-the-admin-key-is-mandatory).
 
+### Optional profiles
+
+The default stack is deliberately the lightest thing that still works. Two
+opt-in profiles add the distributed crawl pipeline and the observability chain:
+
+```bash
+# + Kafka, kafka-ui, a separate crawler-worker process   (~3 GB RAM)
+docker compose --profile kafka up -d --build
+
+# + Prometheus, Grafana, Alertmanager, kafka-exporter    (~4 GB RAM)
+docker compose --profile kafka --profile monitoring up -d --build
+```
+
+| Address | What you get |
+|---|---|
+| <http://localhost:8081> | kafka-ui — topics, partitions, consumer lag, dead-letter messages |
+| <http://localhost:3000> | Grafana (`admin`/`admin`), dashboard pre-provisioned |
+| <http://localhost:9090/alerts> | Prometheus — the 7 alert rules and their state |
+| <http://localhost:9093> | Alertmanager |
+
+Details: [`docs/DEVOPS.md`](docs/DEVOPS.md).
+
 ---
 
 ## Running without Docker
@@ -177,14 +199,23 @@ coverage and static-analysis gates.
 
 ### CI/CD
 
-Four workflows, all in [`.github/workflows/`](.github/workflows/):
+Five workflows, all in [`.github/workflows/`](.github/workflows/):
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push to `main`, every PR | Tests, JaCoCo coverage gate, SpotBugs, frontend typecheck/lint, Docker build, Trivy image scan |
+| `ci.yml` | push to `main`, every PR | Tests, JaCoCo coverage gate, SpotBugs, frontend typecheck/lint, Docker build, Trivy image scan, **Kafka integration tests**, **infrastructure validation** |
+| `cd.yml` | after CI passes on `main`; manual | Build + sign image, deploy to staging automatically and to production behind an approval, `--dry-run=server` first, automatic rollback if the rollout fails |
 | `codeql.yml` | push, PR, weekly | CodeQL SAST for Java and TypeScript |
 | `release.yml` | tag `v*.*.*` | Multi-arch image to GHCR with SBOM + provenance, cosign keyless signature, blocking CRITICAL CVE scan, GitHub Release |
 | `pr-title.yml` | PR opened/edited | Enforces Conventional Commits in the PR title |
+
+The `infrastructure` job validates what YAML normally only reveals at deploy
+time: `kustomize build` across all four layers, `kubeconform -strict` against
+the real Kubernetes schema, `promtool check rules` (a bad PromQL expression
+makes Prometheus refuse to load the **entire** rule file — losing every alert,
+silently), `amtool check-config`, `docker compose config` at all three profile
+levels, and a diff that stops the Compose and Kubernetes alert rules from
+drifting apart.
 
 Four quality gates block a merge, each catching a different kind of breakage:
 
@@ -224,6 +255,8 @@ Documentation is written in Vietnamese.
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Overall architecture and data flow |
 | [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Data structures and algorithms report |
 | [`docs/Math/`](docs/Math/README.md) | Per-component mathematics, with mind maps |
+| [`docs/Math/10-kafka/`](docs/Math/10-kafka/00-SO-DO-TU-DUY.md) | Kafka and the Modular Services — where the pipeline is cut, and why the URL Frontier is **not** replaced |
+| [`docs/DEVOPS.md`](docs/DEVOPS.md) | Infrastructure, the observability chain, CI/CD |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | Search quality measurement (MRR, P@k, nDCG) |
 | [`docs/SO-SANH-PHUONG-AN.md`](docs/SO-SANH-PHUONG-AN.md) | Design alternatives compared |
 | [`docs/DANH-GIA-DU-AN.md`](docs/DANH-GIA-DU-AN.md) | Quality review against enterprise standards |

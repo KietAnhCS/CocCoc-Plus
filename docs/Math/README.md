@@ -127,6 +127,24 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 
 ---
 
+### 10. Kafka & cụm Modular Services — [`10-kafka/`](10-kafka/)
+
+Phần **phân tán** của crawler: vì sao cắt pipeline ngay sau khối *Duplicate
+Detection*, và vì sao `URL Frontier` thì **không** bị thay bằng Kafka.
+
+| Tài liệu | Nội dung chính |
+|---|---|
+| 🗺️ [**Sơ đồ tư duy — Kafka & Modular Services**](10-kafka/00-SO-DO-TU-DUY.md) | **Bắt đầu từ đây.** Cắt ở đâu và vì sao, Kafka vs RabbitMQ có bảng so sánh, **bất biến khoá phân hoạch = host** (giải cả chống trùng lẫn politeness), vì sao bốn topic chứ không hai, và **bảng chi phí nói thẳng** |
+| 📘 [**DEVOPS.md**](../DEVOPS.md) | Ba mức triển khai, chuỗi quan sát 4 chặng, 9 quy tắc cảnh báo, co giãn theo **độ dài hàng đợi** thay vì CPU, CI 6 cổng chặn + CD có quay lui |
+
+**Ba service mới, mỗi cái một lý do tồn tại:**
+
+| Service | Vai trò | Điểm đáng đọc |
+|---|---|---|
+| `UrlExtractorService` | Bóc liên kết → URL Filter → URL Seen → Frontier | Tách hai tập URL: tập cho **vòng lặp crawl** khác tập cho **PageRank** |
+| `ImageDownloadService` | Bóc ảnh khỏi DOM | **Mới hoàn toàn.** Mặc định chỉ lấy siêu dữ liệu — ba lý do: băng thông, SSRF, bản quyền |
+| `CrawlAnalyticsService` | Thang đo Prometheus | **Mới hoàn toàn.** Vì sao `host` **không** được làm nhãn Prometheus (nổ cardinality) |
+
 ## 🎓 Tra cứu theo chủ đề DSA
 
 ### Cấu trúc dữ liệu

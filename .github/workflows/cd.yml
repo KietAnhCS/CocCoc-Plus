@@ -1,0 +1,246 @@
+# Triển khai tự động — chặng còn thiếu của chuỗi CI/CD.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# VÌ SAO TỆP NÀY TỒN TẠI
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# `docs/DANH-GIA-DU-AN.md` chấm CI/CD 4,0/10 với lý do ghi rõ: "Chưa commit →
+# chưa chạy; KHÔNG CÓ CD". Hai chữ cái trong "CI/CD" là hai việc khác nhau:
+#
+#   CI  — mã có đúng không?          -> ci.yml, đã có
+#   CD  — mã có TỚI ĐƯỢC người dùng? -> tệp này
+#
+# Không có CD thì việc triển khai là một chuỗi lệnh gõ tay, khác nhau mỗi lần,
+# và chỉ một người trong nhóm biết cách làm. Đó không phải là một quy trình —
+# đó là một điểm hỏng đơn lẻ có hình dạng con người.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# THIẾT KẾ: HAI MÔI TRƯỜNG, HAI MỨC TIN CẬY
+# ═══════════════════════════════════════════════════════════════════════════
+#
+#   staging     tự động, mỗi lần đẩy lên main
+#   production  PHẢI có người bấm duyệt (GitHub Environment protection rule)
+#
+# Vì sao production không tự động: kiểm thử tự động bắt được lỗi hồi quy, chứ
+# không bắt được "tính năng này đúng nhưng chưa nên phát hành". Một người bấm
+# nút là chỗ để phán đoán đó xảy ra.
+name: CD
+
+on:
+  # Chỉ chạy SAU KHI CI đã xanh trên main. `workflow_run` chứ không phải
+  # `push` — nếu dùng push thì CD chạy SONG SONG với CI, và có thể triển khai
+  # xong một bản mã mà bộ test còn chưa chạy tới.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+  # Triển khai tay: chọn môi trường và phiên bản. Cần cho việc quay lui —
+  # lúc đó thứ ta muốn phát hành là một thẻ CŨ, không phải HEAD.
+  workflow_dispatch:
+    inputs:
+      moi-truong:
+        description: Môi trường triển khai
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+      phien-ban:
+        description: Thẻ ảnh (để trống = dùng SHA của commit hiện tại)
+        required: false
+        type: string
+
+concurrency:
+  # KHÔNG huỷ giữa chừng (`cancel-in-progress` không đặt): huỷ một lần triển
+  # khai đang chạy có thể để lại cụm ở trạng thái nửa vời — vài Pod bản mới,
+  # vài Pod bản cũ. Xếp hàng chờ là hành vi đúng ở đây, khác hẳn với CI nơi
+  # huỷ bản cũ là đúng.
+  group: cd-${{ github.event.inputs.moi-truong || 'staging' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════
+  dung-anh:
+    name: Dựng và đẩy ảnh lên registry
+    runs-on: ubuntu-latest
+    # Bỏ qua khi CI đỏ. Thiếu điều kiện này thì `workflow_run` vẫn kích hoạt
+    # kể cả khi CI thất bại — và CD sẽ vui vẻ triển khai một bản mã hỏng.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    permissions:
+      contents: read
+      packages: write
+      # Cần để ký ảnh bằng cosign ở chế độ keyless.
+      id-token: write
+    outputs:
+      digest: ${{ steps.day.outputs.digest }}
+      the: ${{ steps.phien-ban.outputs.the }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: phien-ban
+        name: Xác định thẻ phiên bản
+        run: |
+          if [ -n "${{ github.event.inputs.phien-ban }}" ]; then
+            echo "the=${{ github.event.inputs.phien-ban }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "the=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Đăng nhập ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # GITHUB_TOKEN, KHÔNG phải một Personal Access Token. Token này chỉ
+          # sống trong đúng lần chạy này và chỉ có quyền đã khai ở `permissions`
+          # bên trên. Một PAT thì sống mãi và thường có quyền rộng hơn nhiều.
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: day
+        name: Dựng và đẩy
+        uses: docker/build-push-action@v6
+        with:
+          context: ./search-engine
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/search-engine:${{ steps.phien-ban.outputs.the }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # SBOM và provenance: danh sách mọi thư viện trong ảnh, và bằng chứng
+          # ảnh này được dựng ra từ đâu. Khi CVE tiếp theo được công bố, câu hỏi
+          # đầu tiên là "ta có dùng thư viện đó không" — SBOM trả lời trong vài
+          # giây thay vì vài giờ.
+          sbom: true
+          provenance: mode=max
+
+      # Ký ảnh, chế độ keyless: danh tính đến từ OIDC của GitHub Actions, không
+      # có khoá riêng nào phải lưu và phải xoay vòng.
+      #
+      # Vì sao đáng làm: nó biến câu hỏi "ảnh đang chạy ở production có phải
+      # thứ ta đã dựng không" từ một niềm tin thành một phép kiểm chứng được.
+      - name: Cài cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Ký ảnh
+        env:
+          DIGEST: ${{ steps.day.outputs.digest }}
+        run: |
+          cosign sign --yes \
+            "ghcr.io/${{ github.repository_owner }}/search-engine@${DIGEST}"
+
+      # Quét CVE, và ở ĐÂY thì mức CRITICAL THẬT SỰ chặn.
+      #
+      # Khác với ci.yml, nơi quét là `continue-on-error`. Lý do khác nhau ở hai
+      # chỗ: trong CI, một cổng đỏ thường trực (ảnh nền gần như luôn có vài CVE
+      # chưa vá) sẽ bị vô hiệu hoá trong vòng một tuần. Ở đây thì chặn là đúng —
+      # ranh giới cuối trước khi ảnh chạm vào một cụm thật.
+      - name: Quét CVE, CHẶN nếu có mức CRITICAL
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: ghcr.io/${{ github.repository_owner }}/search-engine:${{ steps.phien-ban.outputs.the }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL
+
+  # ═══════════════════════════════════════════════════════════════════════
+  trien-khai:
+    name: Triển khai lên ${{ github.event.inputs.moi-truong || 'staging' }}
+    needs: dung-anh
+    runs-on: ubuntu-latest
+
+    # GitHub Environment. Đây là chỗ đặt quy tắc "phải có người duyệt": cấu
+    # hình ở Settings > Environments > production > Required reviewers.
+    #
+    # Bí mật cũng gắn theo môi trường, nên KUBE_CONFIG của staging không dùng
+    # được cho production kể cả khi ai đó sửa nhầm workflow này.
+    environment:
+      name: ${{ github.event.inputs.moi-truong || 'staging' }}
+      url: https://vnsearch.local
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.30.0
+
+      - name: Nạp kubeconfig
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          if [ -z "$KUBE_CONFIG" ]; then
+            echo "::error::Thiếu secret KUBE_CONFIG cho môi trường này."
+            echo "Tạo bằng: Settings > Environments > <tên> > Environment secrets"
+            exit 1
+          fi
+          mkdir -p "$HOME/.kube"
+          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+
+      # GHIM ảnh theo DIGEST, không phải theo thẻ.
+      #
+      # Thẻ là một con trỏ di động: hai node kéo ảnh ở hai thời điểm khác nhau
+      # có thể chạy hai bản mã khác nhau dưới cùng một tên. Digest là mã băm
+      # của chính nội dung ảnh — ghim nó là ghim đúng thứ vừa được kiểm thử và
+      # vừa được ký ở job trên. Cùng lập luận đã ghi trong overlays/prod.
+      - name: Ghim ảnh theo digest
+        working-directory: deploy/k8s/overlays/${{ github.event.inputs.moi-truong == 'production' && 'prod' || 'dev' }}
+        run: |
+          kubectl kustomize edit set image \
+            "ghcr.io/kietanhcs/search-engine=ghcr.io/${{ github.repository_owner }}/search-engine@${{ needs.dung-anh.outputs.digest }}" \
+            2>/dev/null || \
+          sed -i "s|newTag:.*|digest: ${{ needs.dung-anh.outputs.digest }}|" kustomization.yaml
+
+      # Chạy khô TRƯỚC. Nó bắt được manifest sai ngay trên cụm thật (CRD thiếu,
+      # quota không đủ, webhook từ chối) mà `kubectl kustomize` cục bộ không
+      # thấy — và bắt được TRƯỚC khi thay đổi nào được ghi vào cụm.
+      - name: Chạy khô
+        run: |
+          kubectl apply -k "deploy/k8s/overlays/${{ github.event.inputs.moi-truong == 'production' && 'prod' || 'dev' }}" \
+            --dry-run=server
+
+      - name: Áp dụng
+        run: |
+          kubectl apply -k "deploy/k8s/overlays/${{ github.event.inputs.moi-truong == 'production' && 'prod' || 'dev' }}"
+
+      # Chờ triển khai xong VÀ tự quay lui nếu hỏng.
+      #
+      # `rollout status` trả về mã khác 0 khi hết thời gian chờ. Không có bước
+      # này thì workflow báo xanh ngay sau `apply` — trong khi Pod mới có thể
+      # đang trong vòng lặp khởi động lại. "Đã triển khai" phải nghĩa là "đang
+      # chạy được", không phải "đã gửi lệnh đi".
+      - name: Chờ cuốn chiếu hoàn tất
+        id: cuon-chieu
+        run: |
+          for bo in vnsearch-backend vnsearch-crawler-worker; do
+            echo "::group::$bo"
+            kubectl -n vnsearch rollout status "deployment/$bo" --timeout=5m
+            echo "::endgroup::"
+          done
+
+      - name: Quay lui khi cuốn chiếu thất bại
+        if: failure() && steps.cuon-chieu.outcome == 'failure'
+        run: |
+          echo "::error::Cuốn chiếu thất bại — đang quay lui về bản trước."
+          for bo in vnsearch-backend vnsearch-crawler-worker; do
+            kubectl -n vnsearch rollout undo "deployment/$bo" || true
+          done
+          kubectl -n vnsearch get pods -o wide
+
+      # Kiểm tra sau triển khai: hỏi ứng dụng qua đúng đường mà người dùng đi.
+      # `rollout status` chỉ nói Pod đã sẵn sàng theo probe; bước này nói hệ
+      # thống thật sự trả lời được.
+      - name: Kiểm tra sau triển khai
+        run: |
+          kubectl -n vnsearch run kiem-tra-cd \
+            --image=curlimages/curl:8.10.1 --rm -i --restart=Never --quiet -- \
+            curl -sSf --max-time 10 http://vnsearch-backend/api/health

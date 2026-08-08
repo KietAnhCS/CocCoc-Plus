@@ -1,0 +1,50 @@
+# Tự động mở pull request khi một thư viện có bản vá hoặc có lỗ hổng công bố.
+#
+# VÌ SAO CẦN. Dự án khoá phiên bản rất chặt (`npm ci`, phiên bản cố định trong
+# pom.xml) — điều đó tốt cho tính lặp lại được, nhưng nó cũng có nghĩa là các
+# thư viện SẼ ĐỨNG YÊN mãi mãi. Một lỗ hổng công bố trong jsoup hay Spring Boot
+# sẽ không tự đến tai ai. Tệp này biến việc đó thành một pull request tự động.
+#
+# Dependabot chạy trên hạ tầng của GitHub, không tốn phút Actions nào.
+version: 2
+
+updates:
+  # --- Backend (Maven) ---
+  - package-ecosystem: maven
+    directory: /search-engine
+    schedule:
+      interval: weekly
+    # Gộp các bản vá nhỏ vào MỘT pull request. Không gộp thì mỗi tuần có thể có
+    # năm bảy PR vá phiên bản vặt, và hệ quả thực tế là không ai đọc PR nào cả.
+    groups:
+      maven-patches:
+        update-types:
+          - patch
+          - minor
+    open-pull-requests-limit: 5
+
+  # --- Frontend (npm) ---
+  - package-ecosystem: npm
+    directory: /browser-app
+    schedule:
+      interval: weekly
+    groups:
+      npm-patches:
+        update-types:
+          - patch
+          - minor
+    open-pull-requests-limit: 5
+    ignore:
+      # Electron lên bản chính là một lần nâng cấp có rủi ro thật (đổi API,
+      # đổi hành vi sandbox), không phải việc gộp vào một PR tự động. Bản vá và
+      # bản phụ vẫn được theo dõi bình thường.
+      - dependency-name: electron
+        update-types:
+          - version-update:semver-major
+
+  # --- Chính các workflow của GitHub Actions ---
+  # `actions/checkout@v4` cũng là một phụ thuộc, và cũng có lỗ hổng.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

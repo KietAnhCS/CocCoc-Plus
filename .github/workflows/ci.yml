@@ -1,0 +1,103 @@
+# Kiểm tra tự động mỗi lần đẩy mã lên hoặc mở pull request.
+#
+# VÌ SAO CẦN. Dự án có 399 bài test viết rất tốt, nhưng trước tệp này không ai
+# chạy chúng tự động. Hệ quả đã xảy ra thật: một thay đổi bảo mật làm 9 bài test
+# đỏ và ứng dụng không khởi động được, và lỗi đó tồn tại trong cây làm việc mà
+# không có gì báo. Một bộ test không được chạy là một bộ test không tồn tại.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Huỷ các lần chạy cũ của cùng một nhánh khi có commit mới: không ai quan tâm
+# kết quả của mã đã bị thay thế, và nó chiếm chỗ trong hàng đợi.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Java 17)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài đặt JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          # Tự lưu đệm kho thư viện Maven giữa các lần chạy. Không có dòng
+          # này thì mỗi lần chạy đều tải lại toàn bộ phụ thuộc.
+          cache: maven
+
+      - name: Chạy test
+        working-directory: search-engine
+        # -B (batch) tắt thanh tiến độ động, thứ chỉ có nghĩa trên terminal
+        # thật và chỉ làm bẩn log của CI.
+        run: ./mvnw -B clean test
+
+      # Báo cáo test được đăng lên ngay cả khi bước trên THẤT BẠI — đó mới là
+      # lúc cần đọc chúng. `if: always()` là bắt buộc, vì mặc định các bước sau
+      # một bước hỏng đều bị bỏ qua.
+      - name: Lưu báo cáo test
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: search-engine/target/surefire-reports/
+          retention-days: 7
+
+      - name: Đóng gói jar
+        working-directory: search-engine
+        run: ./mvnw -B package -DskipTests
+
+  frontend:
+    name: Frontend (Electron + TypeScript)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: browser-app/package-lock.json
+
+      # `npm ci` chứ không phải `npm install`: nó cài ĐÚNG phiên bản ghi trong
+      # package-lock.json và báo lỗi nếu lock lệch với package.json. Trên CI,
+      # tính lặp lại được quan trọng hơn sự tiện lợi.
+      - name: Cài đặt thư viện
+        working-directory: browser-app
+        run: npm ci
+        env:
+          # Bỏ qua bước tải bản chạy Electron (~100 MB): CI chỉ kiểm tra kiểu và
+          # lint, không mở cửa sổ ứng dụng nào.
+          ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+      - name: Kiểm tra kiểu
+        working-directory: browser-app
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: browser-app
+        run: npm run lint
+
+  docker:
+    name: Dựng ảnh Docker
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Chỉ DỰNG ảnh, không đẩy lên đâu cả. Mục đích là bắt lỗi Dockerfile sớm —
+      # một Dockerfile hỏng chỉ lộ ra lúc triển khai thì đã quá muộn.
+      - name: Build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./search-engine
+          push: false

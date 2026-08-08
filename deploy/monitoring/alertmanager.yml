@@ -1,0 +1,73 @@
+# Alertmanager — nơi cảnh báo biến thành thông báo tới con người.
+#
+# VÌ SAO CẦN, KHI PROMETHEUS ĐÃ BIẾT CÁI GÌ ĐANG HỎNG. Hai việc khác nhau:
+# Prometheus quyết định "điều kiện này có đúng không"; Alertmanager quyết định
+# "ai cần biết, và bao nhiêu lần". Không có nó thì mười bản sao cùng hỏng sẽ
+# thành mười thông báo giống hệt nhau, mỗi 15 giây một lần.
+#
+# Cấu hình này CỐ Ý không gửi đi đâu cả — xem receiver `chi-ghi-log`. Với đồ
+# án thì webhook tới một endpoint không tồn tại là đủ để chứng minh chuỗi hoàn
+# chỉnh, mà không cần khoá Slack hay tài khoản PagerDuty trong repo công khai.
+
+route:
+  # Gom cảnh báo theo BA chiều. Chọn đúng bộ khoá này là phần khó nhất của
+  # Alertmanager:
+  #   - alertname : mười bản sao cùng lỗi = một thông báo, không phải mười.
+  #   - severity  : critical không bị chôn lẫn trong đám warning.
+  #   - component : sự cố backend và sự cố Kafka là hai câu chuyện khác nhau.
+  # Thiếu `component` thì một sự cố Kafka và một sự cố backend xảy ra cùng lúc
+  # sẽ gộp thành một thông báo, và người đọc mất thời gian tách chúng ra.
+  group_by: [alertname, severity, component]
+
+  # Chờ 30 giây trước khi gửi thông báo ĐẦU TIÊN của một nhóm mới. Sự cố hiếm
+  # khi đến một mình: 30 giây gom đủ các cảnh báo liên quan vào cùng một thông
+  # báo, thay vì bắn ba lần liên tiếp cho cùng một nguyên nhân gốc.
+  group_wait: 30s
+
+  # Có cảnh báo MỚI trong một nhóm ĐANG hoạt động thì chờ 5 phút rồi mới báo
+  # tiếp — tránh nhỏ giọt từng dòng khi sự cố đang lan.
+  group_interval: 5m
+
+  # Nhắc lại một cảnh báo CHƯA được xử lý sau 4 giờ. Không có nó thì một sự cố
+  # bắt đầu lúc nửa đêm chỉ báo đúng một lần và có thể bị ngủ quên.
+  repeat_interval: 4h
+
+  receiver: chi-ghi-log
+
+  routes:
+    # critical nhắc lại dày hơn nhiều. Đây là chỗ để cắm PagerDuty/Slack ở môi
+    # trường thật, tách khỏi luồng warning.
+    - matchers: [severity="critical"]
+      receiver: chi-ghi-log
+      repeat_interval: 1h
+
+# Chặn cảnh báo con khi nguyên nhân gốc đã được báo.
+#
+# Ví dụ cụ thể của hệ thống này: backend chết -> nó vừa kích hoạt
+# VnSearchBackendDown, vừa làm chỉ mục không đọc được nên kích hoạt luôn
+# VnSearchEmptyIndex. Cái thứ hai là HỆ QUẢ, không phải một sự cố riêng. Báo cả
+# hai làm người trực mất thời gian điều tra một vấn đề không tồn tại.
+inhibit_rules:
+  - source_matchers: [severity="critical"]
+    target_matchers: [severity="warning"]
+    # CHỈ chặn khi cùng một thành phần và cùng một máy. Thiếu equal thì một sự
+    # cố critical ở Kafka sẽ che mọi warning của backend — tệ hơn nhiều so với
+    # việc không có inhibit nào.
+    equal: [component, instance]
+
+receivers:
+  # Webhook trỏ vào hư không, có chủ đích.
+  #
+  # Alertmanager vẫn nhận, vẫn gom nhóm, vẫn hiện đầy đủ ở giao diện
+  # http://localhost:9093 — tức toàn bộ chuỗi đã chạy thật và kiểm chứng được.
+  # Chỉ chặng gửi ra ngoài là để trống, vì không có bí mật nào được phép nằm
+  # trong một repo công khai.
+  #
+  # Cắm thật thì thay bằng:
+  #   slack_configs:
+  #     - api_url: <đọc từ biến môi trường, KHÔNG viết thẳng vào đây>
+  #       channel: '#van-hanh'
+  - name: chi-ghi-log
+    webhook_configs:
+      - url: http://localhost:9093/-/khong-gui-di-dau
+        send_resolved: true

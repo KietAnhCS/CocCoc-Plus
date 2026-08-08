@@ -98,8 +98,9 @@ public final class UrlStorage implements Closeable {
         synchronized (lock) {
             try {
                 if (writer == null) {
-                    if (path.getParent() != null) {
-                        Files.createDirectories(path.getParent());
+                    Path parent = path.getParent();
+                    if (parent != null) {
+                        Files.createDirectories(parent);
                     }
                     writer = Files.newBufferedWriter(path, StandardCharsets.UTF_8,
                             StandardOpenOption.CREATE, StandardOpenOption.APPEND);

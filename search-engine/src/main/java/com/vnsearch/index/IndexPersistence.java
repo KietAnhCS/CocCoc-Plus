@@ -50,8 +50,9 @@ public class IndexPersistence {
 
     public static void save(InvertedIndex index, String path) throws IOException {
         Path filePath = Path.of(path);
-        if (filePath.getParent() != null) {
-            Files.createDirectories(filePath.getParent());
+        Path parent = filePath.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
         }
         createMapper().writeValue(new File(path), index.exportData());
     }

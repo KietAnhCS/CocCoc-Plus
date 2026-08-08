@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Các cảnh báo SpotBugs được loại trừ, kèm LÝ DO cho từng mục.
+
+  Nguyên tắc: mỗi mục ở đây phải trả lời được câu "vì sao cảnh báo này KHÔNG
+  phải lỗi trong ngữ cảnh này". Một tệp loại trừ không có lý do sẽ phình to dần
+  cho tới khi phân tích tĩnh không còn phát hiện được gì nữa.
+-->
+<FindBugsFilter>
+
+    <!-- Các lớp CÔNG CỤ DÒNG LỆNH. Chúng in ra console, đọc tham số dòng lệnh
+         và thoát; SpotBugs cảnh báo về việc dùng System.out và về đường dẫn do
+         người dùng nhập, cả hai đều đúng mục đích ở đây. -->
+    <Match>
+        <Or>
+            <!-- `.*` ở cuối là bắt buộc để bắt cả LỚP LỒNG (PoolBuilder$PoolEntry).
+                 Thiếu nó thì lớp ngoài được loại trừ còn lớp trong thì không. -->
+            <Class name="~com\.vnsearch\.eval\..*Runner.*"/>
+            <Class name="~com\.vnsearch\.eval\.TokenizerBenchmark.*"/>
+            <Class name="~com\.vnsearch\.eval\.MemoryBreakdown.*"/>
+            <Class name="~com\.vnsearch\.eval\.PoolBuilder.*"/>
+            <Class name="~com\.vnsearch\.storage\..*Runner.*"/>
+            <Class name="~com\.vnsearch\.crawler\.MultiDomainCrawlRunner.*"/>
+        </Or>
+    </Match>
+
+    <!-- DMI_RANDOM_USED_ONLY_ONCE trong phép kiểm định hoán vị.
+         Cảnh báo sai. SpotBugs thấy `random.nextLong()` xuất hiện MỘT lần trong
+         mã nguồn nên kết luận bộ sinh chỉ được dùng một lần — nhưng lời gọi đó
+         nằm trong hai vòng lặp lồng nhau chạy B·n ≈ 20 triệu lần. Bộ sinh còn
+         được gieo bằng hằng số SEED một cách CÓ CHỦ Ý, để kết quả kiểm định
+         tái lập được giữa các lần chạy. -->
+    <Match>
+        <Class name="com.vnsearch.eval.SignificanceTest"/>
+        <Bug pattern="DMI_RANDOM_USED_ONLY_ONCE"/>
+    </Match>
+
+    <!-- Hàm main() demo nằm trong các lớp thư viện.
+         Nhiều lớp cấu trúc dữ liệu có một main() nhỏ để minh hoạ khi làm báo
+         cáo (BloomFilter, MinHeap, Trie, VByteCodec...). Chúng chỉ println.
+
+         Riêng ES_COMPARING_STRINGS_WITH_EQ và DM_STRING_CTOR trong
+         TermDictionary.main() là CỐ Ý: đoạn demo đó tồn tại chính để chứng minh
+         rằng intern() trả về CÙNG một instance, nên nó bắt buộc phải tạo hai
+         chuỗi riêng bằng `new String(...)` rồi so sánh bằng `==`. Viết theo
+         cách SpotBugs muốn (equals) sẽ làm đoạn demo mất hết ý nghĩa. -->
+    <Match>
+        <Method name="main"/>
+        <Bug pattern="DM_DEFAULT_ENCODING,OS_OPEN_STREAM,RV_RETURN_VALUE_IGNORED_BAD_PRACTICE,ES_COMPARING_STRINGS_WITH_EQ,DM_STRING_CTOR,DMI_RANDOM_USED_ONLY_ONCE"/>
+    </Match>
+
+    <!-- CT_CONSTRUCTOR_THROW — kiểm tra tham số rồi ném trong hàm dựng.
+         ============================================================
+         SpotBugs 4.8 cảnh báo mọi hàm dựng có thể ném ngoại lệ, vì một đối
+         tượng khởi tạo dở dang về lý thuyết có thể bị "finalizer attack".
+
+         Đây là cảnh báo KHÔNG áp dụng được cho mã này:
+           - Tấn công đó đòi lớp bị kế thừa và có finalize(). Không lớp nào
+             trong dự án ghi đè finalize(), và finalize() đã bị đánh dấu loại bỏ
+             từ Java 9, gỡ khỏi ngôn ngữ từ Java 18.
+           - Phương án SpotBugs gợi ý — bỏ kiểm tra tham số, hoặc đẩy sang
+             factory method — làm mã TỆ HƠN: kiểm tra bất biến ngay tại hàm dựng
+             chính là cách đúng để một đối tượng không bao giờ tồn tại ở trạng
+             thái sai.
+         21 cảnh báo loại này, tất cả đều là `if (x <= 0) throw new
+         IllegalArgumentException(...)`. Giữ lại chúng nghĩa là 21 dòng nhiễu
+         che mất các cảnh báo thật. -->
+    <Match>
+        <Bug pattern="CT_CONSTRUCTOR_THROW"/>
+    </Match>
+
+    <!-- EI_EXPOSE_REP / EI_EXPOSE_REP2 ở mức toàn dự án.
+         ============================================================
+         SpotBugs xếp nhóm này vào MALICIOUS_CODE: một lớp trả về tham chiếu tới
+         collection nội bộ thì bên gọi sửa được trạng thái bên trong.
+
+         Mối lo đó có thật với một THƯ VIỆN công khai nhận đầu vào từ mã không
+         tin cậy. Đây là một ứng dụng khép kín: mọi bên gọi đều nằm trong chính
+         repo này. Đổi lại, sao chép phòng thủ ở mỗi lần trả về sẽ giáng đòn
+         thẳng vào đường chạy nóng — `getPositions()` được gọi trong vòng lặp
+         khớp cụm từ, `getAllDocuments()` trả về toàn bộ corpus.
+
+         47 cảnh báo loại này. Quy ước thay thế: mọi collection và mảng trả ra
+         đều được coi là CHỈ ĐỌC, và điều đó được ghi trong Javadoc của các lớp
+         liên quan. -->
+    <Match>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+    <!-- DMI_CONSTANT_DB_PASSWORD — mật khẩu `vnsearch` mặc định.
+         Đây là giá trị dự phòng CHỈ để chạy demo cục bộ, và nó luôn bị ghi đè
+         bởi biến môi trường POSTGRES_PASSWORD ở mọi môi trường thật (xem
+         .env.example và docker-compose.yml). Cảnh báo đúng về mặt nguyên tắc
+         nhưng đã được xử lý bằng cấu hình, không phải bằng mã. -->
+    <Match>
+        <Class name="com.vnsearch.storage.DocumentRepository"/>
+        <Bug pattern="DMI_CONSTANT_DB_PASSWORD"/>
+    </Match>
+
+    <!-- EI_EXPOSE_REP / EI_EXPOSE_REP2 trên mảng int[] của posting list.
+         Đây là ĐÁNH ĐỔI CÓ CHỦ Ý, không phải sơ suất: chỉ mục đảo trả về chính
+         mảng vị trí thay vì bản sao, vì sao chép mảng ở mỗi lần truy vấn là chi
+         phí trên đường chạy NÓNG NHẤT của hệ thống. Bù lại, mảng đó được coi là
+         CHỈ ĐỌC theo quy ước — xem Javadoc của Posting và InvertedIndex.
+         Đây chính là loại đánh đổi mà một công cụ tự động không thể tự phán. -->
+    <Match>
+        <Or>
+            <Class name="com.vnsearch.index.Posting"/>
+            <Class name="com.vnsearch.index.InvertedIndex"/>
+            <Class name="com.vnsearch.index.CompressedPostings"/>
+            <Class name="com.vnsearch.index.ArrayPostingCursor"/>
+        </Or>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+
+</FindBugsFilter>

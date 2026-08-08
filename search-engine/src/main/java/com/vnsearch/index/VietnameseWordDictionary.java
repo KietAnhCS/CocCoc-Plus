@@ -71,7 +71,10 @@ public class VietnameseWordDictionary {
      * {@code multiterm_hash_trie_node.hpp}: cac cap (freqPower, lenPower) theo
      * {@code spaceCount} = soAmTiet - 1.
      */
-    public static final double[] PARAM = {
+    // Package-private chu khong public: mot mang `public static final` van SUA
+    // duoc tu ben ngoai (`PARAM[0] = 99`) — `final` chi khoa tham chieu, khong
+    // khoa noi dung. Bang nay chi duoc doc trong chinh goi nay.
+    static final double[] PARAM = {
             0.38, 1.00,   // 1 am tiet
             0.14, 2.59,   // 2 am tiet
             1.42, 4.42,   // 3 am tiet

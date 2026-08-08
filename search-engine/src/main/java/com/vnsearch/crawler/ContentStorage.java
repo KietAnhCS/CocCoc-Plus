@@ -74,8 +74,9 @@ public class ContentStorage {
      */
     public static void saveToJson(List<WebDocument> documents, String path) throws IOException {
         Path filePath = Path.of(path);
-        if (filePath.getParent() != null) {
-            Files.createDirectories(filePath.getParent());
+        Path parent = filePath.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
         }
         ObjectMapper mapper = new ObjectMapper()
                 .registerModule(new JavaTimeModule())

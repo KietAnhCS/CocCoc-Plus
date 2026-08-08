@@ -16,6 +16,16 @@
 
 	<properties>
 		<java.version>17</java.version>
+
+		<!-- Ngưỡng độ phủ kiểm thử.
+		     Đo được trên cây mã hiện tại (sau các loại trừ ở jacoco-maven-plugin):
+		         LINE   = 71,0 %      BRANCH = 69,1 %
+		     Ngưỡng đặt thấp hơn vài điểm để một hàm mới chưa kịp có test không
+		     làm đỏ bản build ngay lập tức. Nâng lên mỗi khi độ phủ thật tăng;
+		     đừng bao giờ hạ xuống để build xanh trở lại — hạ ngưỡng là bỏ cổng
+		     chặn, không phải sửa lỗi. -->
+		<jacoco.line.minimum>0.68</jacoco.line.minimum>
+		<jacoco.branch.minimum>0.65</jacoco.branch.minimum>
 	</properties>
 
 	<dependencies>
@@ -119,6 +129,124 @@
 						<app.security.rate-limit.enabled>false</app.security.rate-limit.enabled>
 					</systemPropertyVariables>
 				</configuration>
+			</plugin>
+
+			<!-- ĐO ĐỘ PHỦ KIỂM THỬ, và CHẶN nếu tụt dưới ngưỡng.
+			     ============================================================
+			     Vì sao cần một ngưỡng chứ không chỉ một báo cáo: một con số chỉ
+			     để nhìn thì sẽ tụt dần mà không ai nhận ra. Ngưỡng biến nó thành
+			     một điều kiện phải giữ.
+
+			     Vì sao ngưỡng đặt ở mức này chứ không phải 80%: đây là con số ĐO
+			     ĐƯỢC trên cây mã hiện tại, làm tròn xuống. Đặt một ngưỡng cao hơn
+			     thực tế thì bản build đỏ ngay từ ngày đầu và việc đầu tiên người
+			     ta làm là hạ nó xuống — lúc đó cổng chặn thành đồ trang trí. Cách
+			     dùng đúng: mỗi lần độ phủ tăng thật thì nâng ngưỡng lên theo.
+
+			     Vì sao loại trừ các lớp dưới đây: chúng là CÔNG CỤ DÒNG LỆNH có
+			     hàm main(), chạy tay khi cần sinh báo cáo hoặc nhập dữ liệu. Viết
+			     test cho chúng là test cho System.out.println. Chúng không nằm
+			     trên đường chạy của một request nào. -->
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.12</version>
+				<configuration>
+					<excludes>
+						<!-- Runner đánh giá IR + công cụ đo, chỉ chạy tay từ CLI -->
+						<exclude>com/vnsearch/eval/EvaluationRunner.*</exclude>
+						<exclude>com/vnsearch/eval/QrelsEvaluationRunner.*</exclude>
+						<exclude>com/vnsearch/eval/TokenizerBenchmark.*</exclude>
+						<exclude>com/vnsearch/eval/MemoryBreakdown.*</exclude>
+						<exclude>com/vnsearch/eval/PoolBuilder.*</exclude>
+						<!-- Công cụ nhập liệu / thí nghiệm đối chứng PostgreSQL -->
+						<exclude>com/vnsearch/storage/GinBaselineRunner.*</exclude>
+						<exclude>com/vnsearch/storage/PostgresImportRunner.*</exclude>
+						<!-- Runner crawl đa domain + hai bộ hiển thị tiến độ ra console -->
+						<exclude>com/vnsearch/crawler/MultiDomainCrawlRunner.*</exclude>
+						<exclude>com/vnsearch/crawler/ProgressBarCrawlListener.*</exclude>
+						<exclude>com/vnsearch/crawler/ConsoleCrawlListener.*</exclude>
+						<!-- Lớp khởi động Spring: chỉ có main() gọi SpringApplication.run -->
+						<exclude>com/vnsearch/VnSearchApplication.*</exclude>
+					</excludes>
+				</configuration>
+				<executions>
+					<execution>
+						<id>chuan-bi-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>sinh-bao-cao</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>kiem-tra-nguong</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<rule>
+									<element>BUNDLE</element>
+									<limits>
+										<limit>
+											<counter>LINE</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>${jacoco.line.minimum}</minimum>
+										</limit>
+										<limit>
+											<counter>BRANCH</counter>
+											<value>COVEREDRATIO</value>
+											<minimum>${jacoco.branch.minimum}</minimum>
+										</limit>
+									</limits>
+								</rule>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- PHÂN TÍCH TĨNH — tìm lỗi mà trình biên dịch không thấy và test
+			     không chạy tới: so sánh chuỗi bằng ==, luồng có thể null, tài
+			     nguyên không đóng, đồng bộ hoá sai.
+			     ============================================================
+			     `threshold=Medium` chứ không phải `Low`: mức Low sinh rất nhiều
+			     cảnh báo về phong cách, và một danh sách quá dài thì không ai
+			     đọc — đó là cách nhanh nhất để biến phân tích tĩnh thành thứ bị
+			     phớt lờ.
+
+			     Gắn vào pha `verify` để `mvn verify` chạy nó, còn `mvn test`
+			     (vòng lặp thường ngày của lập trình viên) vẫn nhanh. -->
+			<plugin>
+				<groupId>com.github.spotbugs</groupId>
+				<artifactId>spotbugs-maven-plugin</artifactId>
+				<version>4.8.6.4</version>
+				<configuration>
+					<effort>Max</effort>
+					<threshold>Medium</threshold>
+					<includeTests>false</includeTests>
+					<excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>
+					<!-- Xuất thêm SARIF để tải lên tab Security của GitHub: cảnh
+					     báo hiện ngay trong pull request thay vì nằm trong một
+					     tệp XML mà không ai mở. -->
+					<sarifOutput>true</sarifOutput>
+				</configuration>
+				<executions>
+					<execution>
+						<id>kiem-tra-tinh</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 
 			<!-- Chay cac runner doc lap (crawl da domain, bo danh gia IR) tu CLI:

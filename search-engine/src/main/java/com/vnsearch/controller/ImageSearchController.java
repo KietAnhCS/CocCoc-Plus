@@ -56,17 +56,33 @@ public class ImageSearchController {
     private static final int MAX_SIZE = 100;
     private static final int DEFAULT_SIZE = 30;
 
+    /** Trần số lô, chặn {@code page} vô lý làm phép nhân tràn số nguyên. */
+    private static final int MAX_PAGE = 100;
+
     /**
-     * Lấy nhiều trang hơn số ảnh cần, vì phần lớn trang có <b>vài</b> ảnh chứ
-     * không phải một.
+     * Số trang đã xếp hạng được quét để gom ảnh.
      *
-     * <p>Đo trên trang thật: vnexpress.net 31 thẻ {@code <img>} mỗi trang,
-     * tuoitre.vn 36. Nhưng phần lớn bị loại vì không có đuôi ảnh (icon SVG
-     * nội tuyến, ảnh theo dõi) — nên số ảnh thật lọt vào kho thấp hơn nhiều.
-     * Hệ số 2 là thoả hiệp: đủ để lấp đầy lưới, không đủ để biến một truy vấn
-     * thành việc quét cả chỉ mục.
+     * <p><b>Cố định, KHÔNG phụ thuộc lô đang hỏi.</b> Đây là điều kiện để phân
+     * trang đúng: mọi lô phải nhìn cùng một tập ảnh nền, nếu không thì cắt lát
+     * ở lô sau sẽ lệch so với lô trước.
+     *
+     * <p>60 là thoả hiệp có căn cứ. Đo trên trang thật, mỗi trang cho khoảng
+     * 5–15 ảnh lọt qua bộ lọc đuôi tệp, nên 60 trang là vài trăm ảnh — đủ để
+     * cuộn rất lâu mà không phải quét cả chỉ mục cho mỗi lần cuộn.
+     *
+     * <p>Chi phí thật của nó nhỏ: {@code facade.search} có cache, và bước tra
+     * ảnh chỉ là tra bảng băm.
      */
-    private static final int FETCH_PAGE_MULTIPLIER = 2;
+    private static final int MAX_SCANNED_PAGES = 60;
+
+    /**
+     * Trần số ảnh gom cho một truy vấn.
+     *
+     * <p>Chặn ca bệnh lý: một truy vấn khớp 60 trang mà mỗi trang có 60 ảnh sẽ
+     * là 3.600 bản ghi phải sắp xếp cho <i>mỗi lần cuộn</i>. Người dùng không
+     * bao giờ cuộn tới đó — Google Images cũng chặn ở vài trăm.
+     */
+    private static final int MAX_TOTAL_IMAGES = 300;
 
     private final SearchEngineFacade facade;
     private final ImageStore imageStore;
@@ -79,13 +95,20 @@ public class ImageSearchController {
     @GetMapping("/images")
     public Map<String, Object> searchImages(
             @RequestParam("q") String q,
+            @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "30") int size) {
 
         long start = System.currentTimeMillis();
         int safeSize = size < 1 || size > MAX_SIZE ? DEFAULT_SIZE : size;
+        int safePage = Math.min(Math.max(page, 1), MAX_PAGE);
 
         // Bước 1 — xếp hạng TRANG bằng máy tìm kiếm văn bản sẵn có.
-        SearchResponse pages = facade.search(q, 1, safeSize * FETCH_PAGE_MULTIPLIER);
+        //
+        // Số trang lấy KHÔNG phụ thuộc `page`: luôn quét cùng một tập trang đã
+        // xếp hạng, rồi mới cắt lát ở bước 4. Đây là mấu chốt để phân trang
+        // đúng — nếu số trang quét thay đổi theo `page` thì tập ảnh nền cũng
+        // đổi, và ảnh sẽ vừa lặp vừa thiếu giữa các lô.
+        SearchResponse pages = facade.search(q, 1, MAX_SCANNED_PAGES);
 
         // Giữ tiêu đề trang theo URL để gắn vào từng ảnh ở bước 2. LinkedHashMap
         // vì thứ tự chèn CHÍNH LÀ thứ tự xếp hạng, và ImageStore.forPages dựa
@@ -100,12 +123,11 @@ public class ImageSearchController {
 
         // Bước 2 — tra ảnh theo đúng thứ tự trang.
         //
-        // Lấy DƯ rồi mới sắp xếp và cắt: sắp xếp trên một tập đã bị cắt đúng
-        // safeSize thì không đổi được gì — thứ cần đẩy lên có thể đã bị loại ở
-        // bước lấy.
+        // Lấy TOÀN BỘ (tới trần MAX_TOTAL_IMAGES) chứ không chỉ một lô: phải
+        // có cả danh sách thì sắp xếp ở bước 3 mới ổn định giữa các lô, và
+        // phép cắt ở bước 4 mới không bỏ sót.
         List<ImageFound> images = new ArrayList<>(
-                imageStore.forPages(new ArrayList<>(titleByUrl.keySet()),
-                        safeSize * FETCH_PAGE_MULTIPLIER));
+                imageStore.forPages(new ArrayList<>(titleByUrl.keySet()), MAX_TOTAL_IMAGES));
 
         // Bước 3 — ĐẨY ẢNH NỘI DUNG LÊN TRƯỚC ẢNH TRANG TRÍ.
         //
@@ -127,12 +149,18 @@ public class ImageSearchController {
         // thế phép xếp hạng của máy tìm kiếm.
         images.sort(Comparator.comparing(ImageFound::missingAlt));
 
-        if (images.size() > safeSize) {
-            images = images.subList(0, safeSize);
-        }
+        // Bước 4 — CẮT LÁT cho lô đang hỏi.
+        //
+        // Ba bước trên hoàn toàn không phụ thuộc `page`, nên danh sách nền là
+        // như nhau ở mọi lô. Nhờ vậy lô 2 nối đúng vào sau lô 1: không ảnh nào
+        // hiện hai lần, không ảnh nào bị nhảy qua.
+        int total = images.size();
+        int from = Math.min((safePage - 1) * safeSize, total);
+        int to = Math.min(from + safeSize, total);
+        List<ImageFound> slice = images.subList(from, to);
 
-        List<Map<String, Object>> items = new ArrayList<>(images.size());
-        for (ImageFound image : images) {
+        List<Map<String, Object>> items = new ArrayList<>(slice.size());
+        for (ImageFound image : slice) {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("imageUrl", image.imageUrl());
             item.put("pageUrl", image.pageUrl());
@@ -148,7 +176,17 @@ public class ImageSearchController {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("query", q);
         response.put("results", items);
-        response.put("totalResults", items.size());
+        response.put("page", safePage);
+        response.put("pageSize", safeSize);
+        // TỔNG số ảnh khớp truy vấn, không phải số ảnh trong lô này. Giao diện
+        // cần nó để hiện "N ảnh" ngay từ lô đầu thay vì một con số lớn dần lên
+        // theo mỗi lần cuộn.
+        response.put("totalResults", total);
+        // Còn lô nữa không. Tính ở máy chủ chứ không để giao diện tự suy từ
+        // `results.length === pageSize`: cách suy đó sai đúng ở ca biên hay
+        // gặp nhất — khi tổng số ảnh chia hết cho pageSize, lô cuối đầy đủ nên
+        // giao diện tưởng còn nữa, gọi thêm một lần rồi nhận về rỗng.
+        response.put("hasMore", to < total);
         // Số trang đã xét — cần cho giao diện phân biệt HAI ca hoàn toàn khác
         // nhau mà nếu chỉ nhìn `results` rỗng thì trông giống hệt:
         //   pagesScanned = 0  -> truy vấn không khớp trang nào

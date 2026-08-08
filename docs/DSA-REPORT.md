@@ -489,7 +489,7 @@ Cụ thể là file `dicts/tokenizer/vndic_multiterm`.
 
 | | |
 |---|---|
-| Kho nguồn | `github.com/coccoc/coccoc-tokenizer` |
+| Kho nguồn | `github.com/coccoc/coccoc-tokenizer` — **không** vendor vào repo này; clone riêng nếu cần sinh lại từ điển |
 | Giấy phép | **LGPL-3.0** — file `vietnamese-words.txt` sinh ra giữ nguyên ghi công trong phần đầu file |
 | Đã dùng | `vndic_multiterm` (từ vựng) + công thức trọng số |
 | **Không** dùng | `keyword.freq` — lý do ở mục 3.4(a) |
@@ -1584,6 +1584,8 @@ cd search-engine
 # 2a-0. Sinh lại từ điển tách từ từ nguồn coccoc-tokenizer (mục 2.8).
 #       Chỉ cần chạy khi muốn dựng lại vietnamese-words.txt từ đầu —
 #       file kết quả đã có sẵn trong src/main/resources/.
+#       Nguồn KHÔNG nằm trong repo này (xem mục 2.8), clone riêng khi cần:
+#         git clone https://github.com/coccoc/coccoc-tokenizer.git ../coccoc-tokenizer
 #       Tham số thứ 3 (tuỳ chọn) là ngưỡng tần suất để nạp thêm keyword.freq;
 #       BỎ TRỐNG là đúng — xem mục 3.4(a) về lý do không dùng file đó.
 python tools/build_dict.py \

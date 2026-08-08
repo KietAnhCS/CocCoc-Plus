@@ -183,5 +183,4 @@ search-engine/          Backend Spring Boot (Java 17)
     eval/               Bộ đo chất lượng tìm kiếm
 browser-app/            Trình duyệt mini (Electron + React + TypeScript)
 docs/                   Tài liệu
-coccoc-tokenizer/       Nguồn từ điển tiếng Việt (bên thứ ba)
 ```

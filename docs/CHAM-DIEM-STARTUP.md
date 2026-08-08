@@ -237,8 +237,9 @@ Hai vấn đề phụ đi kèm:
   vì tiêu đề tiếng Việt có giới hạn, nhưng một hệ thống nhận đầu vào từ Internet
   không nên có đường đệ quy không chặn.
 - Mỗi nút là một `HashMap<Character, TrieNode>` — khoảng 48 byte phụ trội cho
-  **mỗi cạnh**. Trớ trêu: `coccoc-tokenizer` ngay trong repo có sẵn double-array
-  trie (`da_trie.hpp`) giải đúng bài toán này, nhưng không được dùng.
+  **mỗi cạnh**. `coccoc-tokenizer` — nguồn của chính bộ từ điển đang dùng — giải
+  bài toán này bằng double-array trie (`da_trie.hpp`); đây là hướng tham khảo
+  sẵn có nếu muốn thay cấu trúc nút.
 
 > **Sửa:** lưu sẵn top-k tại **mỗi nút** lúc dựng trie (cache k phần tử tốt nhất
 > của cây con). Truy vấn thành `O(độ dài tiền tố)` thay vì `O(kích thước cây

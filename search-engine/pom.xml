@@ -30,10 +30,39 @@
 			<version>1.18.1</version>
 		</dependency>
 
+		<!-- Bao ve /api/admin/**. Chi dung phan loc + cau hinh chuoi loc; KHONG
+		     dung phan quan ly nguoi dung, vi he thong nay chi co MOT chu the goi
+		     la cong cu van hanh, khong co nguoi dung dang nhap. -->
 		<dependency>
-			<groupId>org.projectlombok</groupId>
-			<artifactId>lombok</artifactId>
-			<optional>true</optional>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- Kiem tra rang buoc tham so ngay o bien controller (@Valid, @Max...)
+		     thay vi rai if-throw trong than ham. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+
+		<!-- Quan sat duoc: /actuator/health, /actuator/metrics, /actuator/prometheus -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
+		<!-- Log dang JSON cho profile prod (xem logback-spring.xml). Log dang van
+		     xuoi khong truy van duoc: mot su co luc 3 gio sang can loc theo
+		     truong, khong phai doc bang mat. -->
+		<dependency>
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+			<version>8.0</version>
 		</dependency>
 
 		<!-- Driver PostgreSQL. Co y KHONG dung spring-boot-starter-jdbc/JPA:
@@ -52,10 +81,46 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
 		<plugins>
+			<!-- Cap cau hinh chi danh cho luc CHAY TEST.
+
+			     Vi sao dat o day chu khong phai src/test/resources/application.properties:
+			     tep do se CHE HAN tep cung ten trong src/main/resources (Spring chi
+			     lay tep dau tien tim thay tren classpath, khong hop nhat hai tep),
+			     nen moi khoa khong duoc chep lai deu bien mat. Da thu, va hau qua la
+			     CorsConfig khong tim thay app.cors.allowed-origins.
+
+			     Dat o day thi cau hinh that van la nguon su that duy nhat; cho nay
+			     chi them dung hai gia tri ma test can. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<configuration>
+					<systemPropertyVariables>
+						<!-- Khoa GIA. SecurityConfig co y khong cho ung dung khoi dong
+						     khi thieu khoa, nen moi bai test dung @SpringBootTest deu
+						     can mot khoa. Du 16 ky tu de qua phep kiem tra do dai.
+						     KHONG BAO GIO dung gia tri nay o moi truong that. -->
+						<ADMIN_API_KEY>test-only-key-0123456789abcdef</ADMIN_API_KEY>
+
+						<!-- Tat gioi han tan suat: cac bai test dung chung mot gao
+						     token, nen khi bo test lon dan chung se bat dau nhan 429
+						     thay vi ket qua that — dung loai loi chap chon ton nhieu
+						     gio nhat de truy. -->
+						<app.security.rate-limit.enabled>false</app.security.rate-limit.enabled>
+					</systemPropertyVariables>
+				</configuration>
+			</plugin>
+
 			<!-- Chay cac runner doc lap (crawl da domain, bo danh gia IR) tu CLI:
 			     mvnw exec:java -Dexec.mainClass=... -Dexec.args="..." -->
 			<plugin>
@@ -70,14 +135,6 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
-				<configuration>
-					<excludes>
-						<exclude>
-							<groupId>org.projectlombok</groupId>
-							<artifactId>lombok</artifactId>
-						</exclude>
-					</excludes>
-				</configuration>
 			</plugin>
 		</plugins>
 	</build>

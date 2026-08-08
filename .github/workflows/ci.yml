@@ -195,3 +195,174 @@ jobs:
           sarif_file: trivy.sarif
           category: trivy
         continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Test tích hợp Kafka — chạy với một broker THẬT
+  # ═══════════════════════════════════════════════════════════════════════
+  #
+  # Job RIÊNG, chạy song song với job `backend`, vì hai lý do:
+  #
+  #   1. Nó chậm (dựng broker mất ~15 giây) và job chính phải nhanh — nó là
+  #      thứ lập trình viên chờ để biết mã có xanh không.
+  #   2. Nó hỏng vì những lý do KHÁC: Docker không có, kéo ảnh thất bại, mạng
+  #      chậm. Trộn vào job chính thì một sự cố hạ tầng CI trông y hệt một lỗi
+  #      mã nguồn.
+  #
+  # Ba thứ chỉ job này bắt được — bộ test in-process về nguyên tắc không thể:
+  # thông điệp có serialize được không (Instant cần JavaTimeModule), phân
+  # hoạch theo host có ổn định không, và thông điệp lớn có qua nổi trần không.
+  kafka-integration:
+    name: Tích hợp Kafka (Testcontainers)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài đặt JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      # Hồ sơ `kafka-it` đảo ngược bộ lọc nhóm test: chỉ chạy @Tag("kafka-it").
+      # Nhờ vậy job này mất khoảng một phút thay vì chạy lại 490 bài đã chạy ở
+      # job `backend`. Hai cổng chặn nặng (JaCoCo, SpotBugs) cũng tắt trong hồ
+      # sơ đó — xem pom.xml.
+      - name: Chạy test tích hợp
+        working-directory: search-engine
+        run: ./mvnw -B verify -Pkafka-it
+
+      - name: Lưu báo cáo test tích hợp
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bao-cao-kafka-it
+          path: search-engine/target/surefire-reports/
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Kiểm định HẠ TẦNG — bắt lỗi YAML trước khi nó chạm vào một cụm thật
+  # ═══════════════════════════════════════════════════════════════════════
+  #
+  # VÌ SAO CẦN. YAML hạ tầng có một tính chất khó chịu: nó hỏng ở nơi xa nhất
+  # so với nơi viết ra. Một `replicas: "2"` (chuỗi thay vì số) hay một
+  # `apiVersion` gõ sai chỉ lộ ra lúc `kubectl apply`, tức lúc đang triển
+  # khai — và nếu đó là production thì đã quá muộn.
+  #
+  # Job này bắt chúng trong khoảng 30 giây, không cần cụm nào.
+  infrastructure:
+    name: Kiểm định manifest và cấu hình giám sát
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Kubernetes -----------------------------------------------------
+
+      - name: Cài kubeconform
+        run: |
+          curl -sSfL \
+            https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz \
+            | tar -xz -C /usr/local/bin kubeconform
+
+      # `kustomize build` một mình đã bắt được lỗi cú pháp và patch trỏ vào
+      # tài nguyên không tồn tại. Chạy cho CẢ BA lớp: một patch chỉ có ở
+      # overlay dev sẽ không lộ ra khi chỉ dựng lớp nền.
+      - name: Dựng cả ba lớp kustomize
+        run: |
+          for lop in base overlays/dev overlays/prod; do
+            echo "::group::deploy/k8s/$lop"
+            kubectl kustomize "deploy/k8s/$lop" > "/tmp/$(echo "$lop" | tr / -).yaml"
+            echo "::endgroup::"
+          done
+          kubectl kustomize deploy/k8s/monitoring > /tmp/monitoring.yaml
+
+      # kubeconform đối chiếu với lược đồ THẬT của Kubernetes — bắt được thứ
+      # mà kustomize không thấy: sai kiểu dữ liệu, thiếu trường bắt buộc, dùng
+      # apiVersion đã bị gỡ bỏ.
+      #
+      # `-strict` từ chối cả trường thừa. Đây là chỗ bắt lỗi gõ sai tên trường:
+      # không có nó, `replicaz: 3` được chấp nhận im lặng và Deployment chạy
+      # với số bản sao mặc định.
+      #
+      # ScaledObject (KEDA), ServiceMonitor và PrometheusRule là CRD, không có
+      # trong lược đồ chuẩn — `-ignore-missing-schemas` bỏ qua chúng thay vì
+      # báo đỏ. Đánh đổi có ý thức: chúng vẫn được `kustomize build` kiểm cú
+      # pháp ở bước trên.
+      - name: Đối chiếu lược đồ Kubernetes
+        run: |
+          for tep in /tmp/base.yaml /tmp/overlays-dev.yaml /tmp/overlays-prod.yaml /tmp/monitoring.yaml; do
+            echo "::group::$tep"
+            kubeconform -strict -summary -ignore-missing-schemas \
+              -kubernetes-version 1.30.0 "$tep"
+            echo "::endgroup::"
+          done
+
+      # --- Prometheus -----------------------------------------------------
+
+      # Một biểu thức PromQL sai cú pháp làm Prometheus TỪ CHỐI NẠP CẢ TỆP quy
+      # tắc — nghĩa là mất toàn bộ cảnh báo, không chỉ cái viết sai. Và nó thất
+      # bại im lặng: Prometheus vẫn chạy, vẫn thu thập, chỉ là không cảnh báo
+      # gì nữa. Đúng loại hỏng mà không ai phát hiện cho tới khi cần cảnh báo.
+      # Mount vào ĐÚNG /etc/prometheus, không phải một thư mục tuỳ ý.
+      #
+      # `check config` đọc `rule_files:` bên trong prometheus.yml và đi theo
+      # đường dẫn ghi ở đó — vốn là đường dẫn TUYỆT ĐỐI trong container thật
+      # (/etc/prometheus/alerts.yml). Mount vào /work thì đường dẫn ấy không
+      # tồn tại và bước này báo đỏ vì một lý do hoàn toàn giả.
+      #
+      # Đây là một lỗi đã xảy ra thật khi viết tệp này, và nó đáng ghi lại:
+      # công cụ kiểm định chỉ có ích khi nó chạy trong đúng bối cảnh mà thứ
+      # nó kiểm sẽ chạy.
+      - name: Kiểm tra cấu hình Prometheus và quy tắc cảnh báo
+        run: |
+          docker run --rm --entrypoint promtool \
+            -v "${{ github.workspace }}/deploy/monitoring:/etc/prometheus" \
+            prom/prometheus:v2.55.1 check config /etc/prometheus/prometheus.yml
+
+      - name: Kiểm tra cấu hình Alertmanager
+        run: |
+          docker run --rm --entrypoint amtool \
+            -v "${{ github.workspace }}/deploy/monitoring:/etc/alertmanager" \
+            prom/alertmanager:v0.27.0 check-config /etc/alertmanager/alertmanager.yml
+
+      # --- Docker Compose -------------------------------------------------
+
+      # Kiểm cả ba mức profile. Một dịch vụ chỉ có trong profile `monitoring`
+      # mà tham chiếu một volume chưa khai báo sẽ không lộ ra khi chỉ kiểm
+      # cấu hình mặc định.
+      - name: Kiểm định docker-compose ở cả ba mức
+        env:
+          ADMIN_API_KEY: chi-de-kiem-dinh-0123456789abcdef
+        run: |
+          docker compose config --quiet
+          docker compose --profile kafka config --quiet
+          docker compose --profile kafka --profile monitoring config --quiet
+
+      # --- Chống lệch giữa hai bản quy tắc --------------------------------
+
+      # deploy/monitoring/alerts.yml và deploy/k8s/monitoring/prometheusrule.yaml
+      # mô tả CÙNG một bộ cảnh báo cho hai đường triển khai. Chúng không thể
+      # dùng chung một tệp (khác định dạng, và kustomize không tham chiếu được
+      # tệp ngoài thư mục gốc), nên phải có một bước canh cho chúng không lệch.
+      #
+      # So theo TÊN cảnh báo chứ không so nguyên văn: hai bản cố ý khác nhau ở
+      # phần runbook (`kubectl` so với `docker compose`) và bản Kubernetes có
+      # thêm hai cảnh báo chỉ có nghĩa trên cụm.
+      #
+      # Cùng cơ chế mà bước "Chặn lệch schema.sql" ở job trên đang dùng.
+      - name: Chặn lệch giữa hai bản quy tắc cảnh báo
+        run: |
+          thieu=0
+          for ten in $(grep -oP '(?<=- alert: )\w+' deploy/monitoring/alerts.yml); do
+            if ! grep -q "alert: $ten" deploy/k8s/monitoring/prometheusrule.yaml; then
+              echo "::error::Cảnh báo '$ten' có trong compose nhưng THIẾU ở bản Kubernetes"
+              thieu=1
+            fi
+          done
+          if [ "$thieu" -eq 1 ]; then
+            echo "Hai bản quy tắc đã lệch nhau — xem đầu tệp prometheusrule.yaml."
+            exit 1
+          fi
+          echo "Hai bản quy tắc khớp nhau."

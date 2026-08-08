@@ -96,6 +96,29 @@ public class CrawlKafkaListeners {
     }
 
     // --- Vòng lặp khép về URL Frontier ---------------------------------
+    //
+    // ╔═══════════════════════════════════════════════════════════════════╗
+    // ║  QUY TẮC: listener nào ghi vào TRẠNG THÁI TRONG BỘ NHỚ của tiến   ║
+    // ║  trình API thì CHỈ được chạy ở tiến trình API.                    ║
+    // ╚═══════════════════════════════════════════════════════════════════╝
+    //
+    // Hai listener dưới đây nạp vào `UrlFrontier` và `ContentStorage` — cả hai
+    // nằm trong `CrawlerService` của một job, và job chỉ tồn tại ở tiến trình
+    // nhận request POST /api/admin/crawl.
+    //
+    // LỖI ĐÃ XẢY RA THẬT. Không có `autoStartup`, cả backend lẫn crawler-worker
+    // đều chạy hai listener này, và vì chúng dùng CHUNG một groupId nên Kafka
+    // CHIA ĐÔI luồng URL giữa hai tiến trình. Nửa đi về worker gặp
+    // `jobs.get(jobId) == null` và bị bỏ lặng lẽ.
+    //
+    // Hậu quả quan sát được: frontier không bao giờ được nạp đủ, crawler kết
+    // luận "hết việc" và dừng với 1 trang, job báo DONE. Kiểm chứng bằng:
+    //
+    //   kafka-consumer-groups.sh --describe --group vnsearch-frontier-feeder
+    //   → HAI địa chỉ consumer khác nhau cùng giữ các phân hoạch
+    //
+    // Đây đúng là ca hỏng mà `CrawlJobManager.getUnroutableEventCount()` sinh
+    // ra để lộ diện — con số đó khác 0 chính là dấu hiệu.
 
     /**
      * Nạp một URL đã qua lọc trở lại {@code URL Frontier} — mũi tên đóng vòng
@@ -111,7 +134,8 @@ public class CrawlKafkaListeners {
     @KafkaListener(
             topics = "${app.crawler.kafka.topic.urls}",
             groupId = "${app.crawler.kafka.group.frontier}",
-            containerFactory = "crawlListenerContainerFactory")
+            containerFactory = "crawlListenerContainerFactory",
+            autoStartup = "${app.crawler.role.is-api:true}")
     public void onDiscoveredUrl(DiscoveredUrl url) {
         jobManager.feedDiscoveredUrl(url);
     }
@@ -119,7 +143,8 @@ public class CrawlKafkaListeners {
     @KafkaListener(
             topics = "${app.crawler.kafka.topic.outlinks}",
             groupId = "${app.crawler.kafka.group.frontier}",
-            containerFactory = "crawlListenerContainerFactory")
+            containerFactory = "crawlListenerContainerFactory",
+            autoStartup = "${app.crawler.role.is-api:true}")
     public void onOutlinks(OutlinksExtracted outlinks) {
         jobManager.feedOutlinks(outlinks);
     }

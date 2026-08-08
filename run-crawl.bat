@@ -38,8 +38,9 @@ set "MAX_DEPTH=%~2"
 set "OUTPUT=%~3"
 set "FRESH=%~4"
 
-if "%MAX_PAGES%"=="" set "MAX_PAGES=2000"
-if "%MAX_DEPTH%"=="" set "MAX_DEPTH=3"
+rem Do sau TUY CHINH: truyen tham so thu hai, vi du "run-crawl.bat 10000 5".
+if "%MAX_PAGES%"=="" set "MAX_PAGES=10000"
+if "%MAX_DEPTH%"=="" set "MAX_DEPTH=4"
 if "%OUTPUT%"==""    set "OUTPUT=data/crawled-documents.json"
 
 cd /d "%~dp0search-engine" 2>nul
@@ -80,6 +81,7 @@ echo.
 echo === CRAWL DA DOMAIN ===
 echo So trang toi da : %MAX_PAGES%
 echo Do sau toi da   : %MAX_DEPTH%
+echo Ngon ngu        : CHI tieng Viet va tieng Anh
 echo Tep dau ra      : %OUTPUT%
 
 rem --- Corpus cu: noi tiep hay xoa lam lai ---

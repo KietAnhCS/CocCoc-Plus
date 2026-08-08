@@ -41,8 +41,32 @@ public class ContentParser {
         doc.setTitle(document.title());
         doc.setMetaDescription(extractMetaDescription(document));
         doc.setBodyText(extractBodyText(document));
+        doc.setLanguage(extractDeclaredLanguage(document));
         doc.setCrawledAt(Instant.now());
         return doc;
+    }
+
+    /**
+     * Ngôn ngữ mà trang <b>tự khai</b>, theo thứ tự ưu tiên {@code <html lang>}
+     * → {@code <meta http-equiv=content-language>} → {@code og:locale}.
+     *
+     * <p>Đây mới chỉ là một <b>gợi ý</b>, không phải kết luận: rất nhiều mã
+     * nguồn website để mặc định {@code lang="en"} trên toàn bộ site kể cả
+     * trang tiếng Việt. {@link LanguageFilter} sẽ ghi đè trường này bằng kết
+     * quả nhận diện theo nội dung, và chỉ dùng tới giá trị khai báo khi trang
+     * quá ngắn để có bằng chứng nội dung.
+     */
+    private String extractDeclaredLanguage(Document document) {
+        Element html = document.selectFirst("html");
+        String declared = html != null ? html.attr("lang") : "";
+        if (declared.isBlank()) {
+            Element meta = document.selectFirst("meta[http-equiv=content-language]");
+            if (meta == null) {
+                meta = document.selectFirst("meta[property=og:locale]");
+            }
+            declared = meta != null ? meta.attr("content") : "";
+        }
+        return LanguageFilter.normalizeLanguageTag(declared);
     }
 
     private String extractMetaDescription(Document document) {

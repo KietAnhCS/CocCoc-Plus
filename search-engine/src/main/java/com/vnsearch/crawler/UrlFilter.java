@@ -56,13 +56,26 @@ public class UrlFilter {
             "mp3", "mp4", "avi", "mkv", "mov", "wmv", "flv", "wav", "m4a", "webm");
 
     /**
-     * Tiền tố host của các bản <b>tiếng Trung / tiếng Nhật</b> mà báo Việt Nam
-     * xuất bản trên subdomain riêng.
+     * Tiền tố host của các bản ngoại ngữ <b>không phải tiếng Việt, không phải
+     * tiếng Anh</b> mà báo Việt Nam xuất bản trên subdomain riêng.
      *
-     * <p><b>Đây KHÔNG phải danh sách chặn "ngoại ngữ".</b> Tiêu chí là <b>chữ viết
-     * có dấu cách giữa các từ hay không</b> — một tiêu chí kỹ thuật, không phải
-     * tiêu chí ngôn ngữ. Đo bằng chính {@code VietnameseTokenizer} trên tiêu đề
-     * thật lấy từ corpus:
+     * <p><b>Chính sách corpus: chỉ giữ tiếng Việt và tiếng Anh.</b> Danh sách
+     * này là <b>tuyến phòng thủ thứ nhất</b> — rẻ nhất, vì nó loại URL <i>trước
+     * khi tải</i>, chỉ bằng vài phép so sánh chuỗi. Tuyến thứ hai là
+     * {@link LanguageFilter}, nhìn nội dung thật sau khi tải; nó bắt được mọi
+     * thứ danh sách này bỏ sót, nhưng phải trả giá bằng một lượt tải trang.
+     *
+     * <p><b>Vì sao chúng lọt vào nếu không chặn.</b> {@link #isAllowedDomain}
+     * khớp bằng {@code host.endsWith(domain)}, nên hạt giống {@code nhandan.vn}
+     * kéo theo cả {@code cn.nhandan.vn}. Frontier lại chia lượt <b>công bằng
+     * theo host</b> ({@code BackQueues}, mỗi host một hàng đợi), nên mỗi bản
+     * ngôn ngữ nhận đúng bằng phần của bản tiếng Việt: đo trên phiên crawl
+     * 30.001 trang được <b>2.533 trang (8,4%)</b> thuộc ba host
+     * {@code cn.nhandan.vn}, {@code zh.vietnamplus.vn}, {@code cn.baochinhphu.vn}
+     * — và đó mới chỉ là ba bản tiếng Trung.
+     *
+     * <p><b>Vì sao tiếng Trung và tiếng Nhật là ca tệ nhất trong số này.</b>
+     * Đo bằng chính {@code VietnameseTokenizer} trên tiêu đề thật lấy từ corpus:
      *
      * <pre>
      *   Việt   "Văn hóa là động lực và nguồn lực phát triển quan trọng"
@@ -70,45 +83,39 @@ public class UrlFilter {
      *   Anh    "Viet Nam records best-ever result at International Physics..."
      *          -> 11 token / 63 ký tự   [viet][nam][records][best]...       TỐT
      *   Nga    "Высокие цены на личи: Бакнинь получил более 2,6 трлн..."
-     *          -> 12 token / 56 ký tự                                        TỐT
-     *   Hàn    "올해 첫 5개월 신생업체 9.5만개..."
-     *          -> 10 token / 29 ký tự                                        TỐT
+     *          -> 12 token / 56 ký tự                                       TÁCH ĐƯỢC
      *   Trung  "越南国会常务委员会会议：提交国会审议通过设立广宁市和北宁市决议"
      *          ->  2 token / 31 ký tự   [越南国会常务委员会会议][提交国会审议...]  HỎNG
      * </pre>
      *
-     * <p>Tiếng Anh, Nga, Hàn, Tây Ban Nha, Pháp <b>tách bình thường</b> theo
-     * khoảng trắng và tìm kiếm được — giữ lại chúng là hoàn toàn hợp lý, corpus
-     * đa ngữ không phải khiếm khuyết.
+     * Chữ Trung/Nhật không đặt dấu cách giữa các từ, nên
+     * {@code splitIntoSyllables} trả về nguyên một mệnh đề làm <b>một token 19
+     * ký tự</b> — tài liệu nằm trong chỉ mục, làm tăng {@code N} trong công
+     * thức IDF của mọi term khác, nhưng <b>vĩnh viễn không thể được tìm thấy</b>.
+     * Bản tiếng Nga, Hàn, Pháp thì tách token bình thường; loại chúng là vì
+     * chính sách corpus vi/en, không phải vì tokenizer hỏng.
      *
-     * <p>Tiếng Trung và tiếng Nhật thì khác về <b>bản chất</b>: chúng không đặt
-     * dấu cách giữa các từ, nên {@code splitIntoSyllables} trả về nguyên một mệnh
-     * đề làm <b>một token 19 ký tự</b>. Token đó không bao giờ khớp truy vấn nào —
-     * người dùng phải gõ lại đúng từng ký tự của cả mệnh đề. Những tài liệu này
-     * nằm trong chỉ mục, chiếm chỗ, làm tăng {@code N} trong công thức IDF của mọi
-     * term khác, nhưng <b>vĩnh viễn không thể được tìm thấy</b>. Đó mới là lý do
-     * loại chúng — không phải vì chúng là ngoại ngữ.
+     * <p><b>Danh sách này cố ý ngắn và bảo thủ.</b> Chỉ gồm những tiền tố mà
+     * các toà soạn trong tập hạt giống thật sự dùng. Không có {@code it.},
+     * {@code id.}, {@code my.} — chúng dễ trùng với subdomain nội bộ
+     * ({@code it.} của phòng công nghệ thông tin), mà loại nhầm thì mất trang
+     * tiếng Việt thật. Những ca hiếm để {@link LanguageFilter} dọn.
      *
-     * <p><b>Vì sao chúng lọt vào.</b> {@link #isAllowedDomain} khớp bằng
-     * {@code host.endsWith(domain)}, nên hạt giống {@code nhandan.vn} kéo theo cả
-     * {@code cn.nhandan.vn}. Frontier lại chia lượt <b>công bằng theo host</b>
-     * ({@code BackQueues}, mỗi host một hàng đợi), nên mỗi bản ngôn ngữ nhận đúng
-     * bằng phần của bản tiếng Việt: đo trên phiên crawl 30.001 trang được
-     * <b>2.533 trang (8,4%)</b> thuộc ba host {@code cn.nhandan.vn},
-     * {@code zh.vietnamplus.vn}, {@code cn.baochinhphu.vn}.
-     *
-     * <p>Lọc theo <b>tiền tố host</b> chứ không theo nội dung: rẻ hơn nhiều lần
-     * (không phải tải trang về mới biết), và tiền tố ngôn ngữ là quy ước ổn định
-     * của chính các toà soạn này.
-     *
-     * <p><b>Hạn chế đã biết:</b> cách này chỉ bắt được văn bản CJK nằm trên
-     * subdomain có tiền tố quy ước. Bài tiếng Trung lẫn trong một trang tiếng Việt
-     * thì không bắt được — muốn thế phải lọc theo nội dung sau khi tải, dùng
-     * {@code LanguageDetector}.
+     * <p><b>Không chặn {@code en.} và {@code e.}</b> — đó chính là các bản tiếng
+     * Anh mà corpus muốn có.
      */
-    public static final Set<String> SPACELESS_SCRIPT_HOST_PREFIXES = Set.of(
-            "cn.", "zh.",   // tieng Trung
-            "ja.", "jp.");  // tieng Nhat — cung khong co dau cach giua cac tu
+    public static final Set<String> NON_VI_EN_HOST_PREFIXES = Set.of(
+            "cn.", "zh.",           // tieng Trung
+            "ja.", "jp.",           // tieng Nhat
+            "ko.", "kr.",           // tieng Han
+            "ru.",                  // tieng Nga
+            "fr.",                  // tieng Phap
+            "es.",                  // tieng Tay Ban Nha
+            "de.",                  // tieng Duc
+            "pt.",                  // tieng Bo Dao Nha
+            "ar.",                  // tieng A Rap
+            "th.",                  // tieng Thai
+            "lo.", "km.");          // tieng Lao, tieng Khmer
 
     private final Set<String> allowedDomains;
     private final Set<String> excludedHostPrefixes;
@@ -230,7 +237,7 @@ public class UrlFilter {
     }
 
     /**
-     * Loại các subdomain ngoại ngữ — xem {@link #FOREIGN_LANGUAGE_HOST_PREFIXES}.
+     * Loại các subdomain ngoại ngữ — xem {@link #NON_VI_EN_HOST_PREFIXES}.
      *
      * <p>Khớp theo tiền tố có <b>dấu chấm</b> ({@code "en."} chứ không phải
      * {@code "en"}) để {@code enviro.example.vn} hay {@code endorse.example.vn}

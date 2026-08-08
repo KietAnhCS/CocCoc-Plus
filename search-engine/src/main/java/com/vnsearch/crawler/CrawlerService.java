@@ -26,10 +26,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   seed URLs
  *       |
  *       v
- *   URL Frontier  --->  HTML Downloader  --->  Content Parser  --->  Content Seen? ---> (Yes) vứt
- *       ^                     |                                          |
- *       |                     v                                          | (No)
- *       |               DNS Resolver                                     v
+ *   URL Frontier -> HTML Downloader -> Content Parser -> Language Filter -> Content Seen? -> (Yes) vứt
+ *       ^                 |                             (không vi/en) vứt       |
+ *       |                 v                                                     | (No)
+ *       |           DNS Resolver                                                v
  *       |                                                          Content Storage
  *       |                                                                |
  *       |                                                                v
@@ -55,6 +55,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <tr><td>DNS Resolver</td><td>{@link DnsResolver}</td></tr>
  *   <tr><td>HTML Downloader</td><td>{@link HtmlDownloader}</td></tr>
  *   <tr><td>Content Parser</td><td>{@link ContentParser}</td></tr>
+ *   <tr><td>Language Filter</td><td>{@link LanguageFilter}</td></tr>
  *   <tr><td>Content Seen?</td><td>{@link ContentSeenFilter}</td></tr>
  *   <tr><td>Content Storage</td><td>{@link ContentStorage}</td></tr>
  *   <tr><td>Link Extractor</td><td>{@link LinkExtractor}</td></tr>
@@ -67,6 +68,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@code Link Extractor} nên trang trùng nội dung bị vứt mà không phải bóc
  * liên kết. {@code URL Filter} đứng trước {@code URL Seen?} nên các luật lọc
  * rẻ (độ sâu, domain, đuôi tệp) chạy trước phép tra bộ lọc Bloom.
+ * {@code Language Filter} đứng ngay sau {@code Content Parser} và trước
+ * {@code Content Seen?} vì hai lẽ: nó chỉ cần văn bản đã bóc (không cần vân
+ * tay), và trang ngoại ngữ bị vứt tại đó thì <b>không bóc liên kết</b> — nếu
+ * vẫn bóc, crawler sẽ tiếp tục đi sâu vào vùng ngoại ngữ để rồi vứt tiếp.
  *
  * <p><b>Chống trùng ở hai mức khác nhau.</b> {@link UrlSeenFilter} chặn tải
  * lại cùng một <i>địa chỉ</i>; {@link ContentSeenFilter} chặn lưu lại cùng
@@ -92,6 +97,7 @@ public class CrawlerService {
     private final DnsResolver dnsResolver = new DnsResolver();
     private final HtmlDownloader htmlDownloader = new HtmlDownloader(dnsResolver);
     private final ContentParser contentParser = new ContentParser();
+    private final LanguageFilter languageFilter = new LanguageFilter();
     private final ContentSeenFilter contentSeenFilter = new ContentSeenFilter();
     private final ContentStorage contentStorage = new ContentStorage();
     private final LinkExtractor linkExtractor = new LinkExtractor();
@@ -380,6 +386,14 @@ public class CrawlerService {
 
         WebDocument doc = contentParser.parse(task.url(), html); // Content Parser
 
+        // Language Filter — chỉ giữ tiếng Việt và tiếng Anh. Đặt TRƯỚC
+        // Content Seen? để trang ngoại ngữ không tốn một lần băm SHA-256,
+        // và quan trọng hơn: không bóc liên kết của nó.
+        if (!languageFilter.accept(doc)) {
+            notifyForeignLanguage(task.url(), doc.getLanguage());
+            return;
+        }
+
         // Content Seen? — nhánh "Yes": vứt, KHÔNG bóc liên kết.
         if (contentSeenFilter.seenBefore(doc.getBodyText())) {
             notifyDuplicateContent(task.url());
@@ -466,6 +480,16 @@ public class CrawlerService {
         }
     }
 
+    private void notifyForeignLanguage(String url, String language) {
+        for (CrawlListener listener : listeners) {
+            try {
+                listener.onForeignLanguage(url, language);
+            } catch (Exception e) {
+                log.warn("Listener {} ném ngoại lệ", listener.getClass().getSimpleName(), e);
+            }
+        }
+    }
+
     private void notifyFinished(int totalPages, long elapsedMs) {
         for (CrawlListener listener : listeners) {
             try {
@@ -519,5 +543,9 @@ public class CrawlerService {
 
     public ContentSeenFilter getContentSeenFilter() {
         return contentSeenFilter;
+    }
+
+    public LanguageFilter getLanguageFilter() {
+        return languageFilter;
     }
 }

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -32,6 +33,13 @@ import java.util.Set;
  * </pre>
  * Tham số: {@code [maxPages] [maxDepth] [outputPath] [--fresh]} (đều có mặc định).
  *
+ * <p><b>Chính sách ngôn ngữ: chỉ tiếng Việt và tiếng Anh.</b> Thi hành ở hai
+ * tuyến — {@link UrlFilter#NON_VI_EN_HOST_PREFIXES} loại subdomain ngoại ngữ
+ * trước khi tải, {@link LanguageFilter} nhận diện theo nội dung sau khi tải và
+ * vứt trang không thuộc hai ngôn ngữ này <b>mà không bóc liên kết của nó</b>.
+ * Vì thế tập hạt giống có cả {@link #ENGLISH_SEEDS}: bộ lọc chỉ loại bớt, nó
+ * không tự sinh ra trang tiếng Anh cho corpus.
+ *
  * <p><b>Công crawl không bị phí, nhờ ba cơ chế:</b>
  * <ul>
  *   <li><b>Nối tiếp mặc định.</b> Nếu {@code outputPath} đã tồn tại, corpus cũ
@@ -49,7 +57,7 @@ import java.util.Set;
 public class MultiDomainCrawlRunner {
 
     /** Các báo điện tử lớn của Việt Nam, đủ độc lập để có liên kết chéo thật. */
-    private static final List<String> DEFAULT_SEEDS = List.of(
+    private static final List<String> VIETNAMESE_SEEDS = List.of(
             "https://vnexpress.net/",
             "https://tuoitre.vn/",
             "https://dantri.com.vn/",
@@ -61,6 +69,50 @@ public class MultiDomainCrawlRunner {
             "https://www.vietnamplus.vn/",
             "https://tuyensinhso.vn/",
             "https://hcmiu.edu.vn/");
+
+    /**
+     * Bản <b>tiếng Anh</b> của chính các toà soạn trên, cộng ba tờ tiếng Anh
+     * độc lập.
+     *
+     * <p><b>Vì sao phải có hạt giống riêng cho tiếng Anh.</b> Chính sách corpus
+     * là "tiếng Việt và tiếng Anh", nhưng {@link LanguageFilter} chỉ <i>lọc</i>
+     * chứ không <i>tạo ra</i> trang tiếng Anh: nếu mọi hạt giống đều là báo
+     * tiếng Việt thì crawler gần như không bao giờ chạm tới một trang tiếng
+     * Anh nào, và phần "tiếng Anh" của chính sách thành vô nghĩa.
+     *
+     * <p><b>Vì sao là bản tiếng Anh của báo Việt chứ không phải BBC/Reuters.</b>
+     * Cụm site này <b>trỏ liên kết qua lại thật</b> với phần tiếng Việt (cùng
+     * toà soạn, cùng hệ thống bài liên quan), nên chúng đóng góp cạnh CHÉO cho
+     * đồ thị PageRank. Một tờ báo quốc tế thì gần như không có liên kết nào trỏ
+     * về cụm Việt Nam, nên nó chỉ tạo ra một thành phần liên thông rời — thứ
+     * làm PageRank phân mảnh chứ không làm nó giàu thêm.
+     */
+    private static final List<String> ENGLISH_SEEDS = List.of(
+            "https://e.vnexpress.net/",
+            "https://en.vietnamnet.vn/",
+            "https://en.nhandan.vn/",
+            "https://en.baochinhphu.vn/",
+            "https://en.vietnamplus.vn/",
+            "https://vietnamnews.vn/",
+            // KHONG dung tuoitrenews.vn: chung chi TLS cua site het han, moi
+            // lan tai deu nem CertPathValidatorException (do duoc o phien crawl
+            // 10.017 trang — 0 trang thu duoc tu domain nay). Bo qua loi chung
+            // chi thi phai tat xac thuc TLS cho TOAN BO crawler, cai gia qua
+            // dat cho mot hat giong.
+            "https://english.vov.vn/",
+            "https://vir.com.vn/");
+
+    private static final List<String> DEFAULT_SEEDS = concat(VIETNAMESE_SEEDS, ENGLISH_SEEDS);
+
+    /**
+     * Nhãn subdomain chỉ ngôn ngữ, cắt bỏ khi rút domain được phép.
+     *
+     * <p>Không cắt thì {@code allowedDomains} chứa cả {@code vnexpress.net} lẫn
+     * {@code e.vnexpress.net} — hai mục cho cùng một toà soạn, làm
+     * {@code threadCount} (tính theo số domain) phồng lên vô ích, còn phép
+     * {@code endsWith} trong {@link UrlFilter} thì đằng nào cũng đã bao trùm.
+     */
+    private static final Set<String> LANGUAGE_LABELS = Set.of("www", "e", "en");
 
     public static void main(String[] args) throws IOException {
         int maxPages = args.length > 0 ? Integer.parseInt(args[0]) : 5000;
@@ -84,12 +136,15 @@ public class MultiDomainCrawlRunner {
         for (String seed : DEFAULT_SEEDS) {
             String host = URI.create(seed).getHost();
             if (host != null) {
-                allowedDomains.add(host.startsWith("www.") ? host.substring(4) : host);
+                allowedDomains.add(stripLanguageLabel(host));
             }
         }
 
         System.out.println("=== CRAWL DA DOMAIN ===");
-        System.out.println("Seeds      : " + DEFAULT_SEEDS.size() + " domain");
+        System.out.printf("Seeds      : %d (%d tieng Viet + %d tieng Anh) tren %d domain%n",
+                DEFAULT_SEEDS.size(), VIETNAMESE_SEEDS.size(), ENGLISH_SEEDS.size(),
+                allowedDomains.size());
+        System.out.println("Ngon ngu   : CHI tieng Viet va tieng Anh (LanguageFilter)");
         System.out.println("maxPages   : " + maxPages);
         System.out.println("maxDepth   : " + maxDepth);
         System.out.println("Output     : " + outputPath);
@@ -101,18 +156,16 @@ public class MultiDomainCrawlRunner {
         CrawlConfig config = CrawlConfig.builder()
                 .maxDepth(maxDepth)
                 .maxPages(maxPages)
-                .threadCount(allowedDomains.size() * 2)
+                .threadCount(Math.min(32, distinctSeedHosts() * 2))
                 .allowedDomains(allowedDomains)
-                // Chan rieng ban tieng Trung/Nhat tren subdomain — KHONG chan
-                // ngoai ngu noi chung. Tieng Anh, Nga, Han, Tay Ban Nha, Phap deu
-                // tach duoc theo khoang trang va tim kiem duoc binh thuong, corpus
-                // da ngu la tot. Rieng chu Trung/Nhat khong co dau cach giua cac tu
-                // nen tokenizer tra ve nguyen mot menh de lam MOT token — tai lieu
-                // vao duoc chi muc nhung khong truy van nao khop noi. Xem so lieu
-                // do duoc o Javadoc cua hang so nay.
-                .excludedHostPrefixes(UrlFilter.SPACELESS_SCRIPT_HOST_PREFIXES)
-                // Politeness 1 giây/domain với 11 domain cho thông lượng trần
-                // ~11 trang/giây, tức 30.000 trang cần ~45 phút Ở TỐC ĐỘ TRẦN.
+                // Tuyen phong thu THU NHAT cho chinh sach "chi vi/en": loai
+                // subdomain ngoai ngu TRUOC khi tai, chi bang phep so chuoi.
+                // Tuyen thu hai la LanguageFilter, nhin noi dung that sau khi
+                // tai — no bat duoc moi thu danh sach nay bo sot, nhung phai tra
+                // gia bang mot luot tai trang.
+                .excludedHostPrefixes(UrlFilter.NON_VI_EN_HOST_PREFIXES)
+                // Politeness 1 giây/host với 18 host cho thông lượng trần
+                // ~18 trang/giây, tức 30.000 trang cần ~30 phút Ở TỐC ĐỘ TRẦN.
                 // Thực tế luôn thấp hơn (độ trễ mạng, trang bị robots.txt chặn,
                 // trang lỗi), nên mốc 90 phút cũ đủ sát để có thể cắt ngang phiên
                 // trước khi đạt maxPages — và khi đó số trang thu được là một con
@@ -149,6 +202,46 @@ public class MultiDomainCrawlRunner {
         printStatistics(docs, elapsedMs, outputPath, allowedDomains);
     }
 
+    private static List<String> concat(List<String> a, List<String> b) {
+        List<String> all = new ArrayList<>(a);
+        all.addAll(b);
+        return List.copyOf(all);
+    }
+
+    /** Số host phân biệt trong tập hạt giống — trần thông lượng do politeness. */
+    private static int distinctSeedHosts() {
+        Set<String> hosts = new LinkedHashSet<>();
+        for (String seed : DEFAULT_SEEDS) {
+            String host = URI.create(seed).getHost();
+            if (host != null) {
+                hosts.add(host);
+            }
+        }
+        return hosts.size();
+    }
+
+    /**
+     * {@code e.vnexpress.net} -> {@code vnexpress.net}, {@code www.x.vn} ->
+     * {@code x.vn}; các host khác giữ nguyên.
+     *
+     * <p>Chỉ cắt khi phần còn lại vẫn có ít nhất hai nhãn, để không bao giờ
+     * biến một host thành một hậu tố quá rộng như {@code com.vn} — mà
+     * {@code endsWith} trong {@link UrlFilter} sẽ hiểu là "cho phép mọi trang
+     * .com.vn".
+     */
+    private static String stripLanguageLabel(String host) {
+        int dot = host.indexOf('.');
+        if (dot <= 0) {
+            return host;
+        }
+        String first = host.substring(0, dot).toLowerCase(Locale.ROOT);
+        String rest = host.substring(dot + 1);
+        if (LANGUAGE_LABELS.contains(first) && rest.indexOf('.') > 0) {
+            return rest;
+        }
+        return host;
+    }
+
     /**
      * Số liệu của từng khối trong sơ đồ kiến trúc crawler — đưa thẳng vào
      * báo cáo để chứng minh mỗi khối thật sự có việc để làm.
@@ -165,6 +258,19 @@ public class MultiDomainCrawlRunner {
         System.out.printf("HTML Downloader: tai %d trang, %d lan thu lai, %d that bai%n",
                 downloader.getDownloadedCount(), downloader.getRetryCount(),
                 downloader.getFailedCount());
+
+        LanguageFilter language = crawler.getLanguageFilter();
+        System.out.printf("Language Filter: GIU %d tieng Viet + %d tieng Anh + %d chua ro, VUT %d ngoai ngu%n",
+                language.getAcceptedVietnameseCount(), language.getAcceptedEnglishCount(),
+                language.getAcceptedUndeterminedCount(), language.getRejectedCount());
+        Map<String, Long> rejectedByLanguage = language.getRejectedByLanguage();
+        if (!rejectedByLanguage.isEmpty()) {
+            StringBuilder line = new StringBuilder("                 (");
+            rejectedByLanguage.forEach((code, count) -> line.append(code).append(' ')
+                    .append(count).append(" | "));
+            line.setLength(line.length() - 3);
+            System.out.println(line.append(')'));
+        }
 
         ContentSeenFilter contentSeen = crawler.getContentSeenFilter();
         System.out.printf("Content Seen?  : %d noi dung phan biet, VUT %d ban trung, %d trang than bai rong%n",
@@ -210,6 +316,19 @@ public class MultiDomainCrawlRunner {
         perDomain.entrySet().stream()
                 .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
                 .forEach(e -> System.out.printf("  %-24s %5d trang%n", e.getKey(), e.getValue()));
+
+        // Thanh phan ngon ngu cua corpus - kiem chung chinh sach chi vi/en.
+        Map<String, Integer> perLanguage = new LinkedHashMap<>();
+        for (WebDocument doc : docs) {
+            String lang = doc.getLanguage() == null || doc.getLanguage().isBlank()
+                    ? "(chua gan)" : doc.getLanguage();
+            perLanguage.merge(lang, 1, Integer::sum);
+        }
+        System.out.println("Phan bo theo ngon ngu:");
+        perLanguage.entrySet().stream()
+                .sorted((a, b) -> Integer.compare(b.getValue(), a.getValue()))
+                .forEach(e -> System.out.printf("  %-24s %5d trang (%.1f%%)%n", e.getKey(),
+                        e.getValue(), docs.isEmpty() ? 0 : 100.0 * e.getValue() / docs.size()));
 
         // Lien ket CHEO giua cac domain - chinh la thu lam PageRank co y nghia.
         Set<String> crawledUrls = new LinkedHashSet<>();

@@ -39,10 +39,41 @@ import java.util.function.Supplier;
  *
  * <p>Bản chụp lấy qua {@link Supplier} chứ không phải danh sách truyền sẵn, vì
  * nội dung cần ghi là trạng thái TẠI LÚC ghi, không phải lúc đăng ký listener.
+ *
+ * <p><b>Chu kỳ ghi GIÃN DẦN theo kích thước corpus.</b> Mỗi lần ghi là ghi lại
+ * <i>toàn bộ</i> corpus, nên chi phí một lần ghi tỉ lệ với số tài liệu đang có.
+ * Ghi đều đặn mỗi {@code everyN} trang thì tổng chi phí cả phiên là
+ * {@code O(n²/everyN)} — và đó không phải lo xa, nó đã đo được: thông lượng
+ * crawl <b>tụt 37%</b> giữa phiên (38 → 24 trang/s), vì ở mốc 30.000 tài liệu
+ * mỗi lần ghi đã nặng ~350 MB mà vẫn ghi 10 giây một lần.
+ *
+ * <pre>
+ *   Chu kỳ CỐ ĐỊNH 250 trang          Chu kỳ GIÃN DẦN (+25% mỗi lần)
+ *   ├─ 120 lần ghi cho 30k trang      ├─ ~21 lần ghi cho 30k trang
+ *   ├─ mỗi lần một nặng hơn           ├─ khoảng cách giãn cùng nhịp với
+ *   └─ tổng ≈ O(n²/everyN)            │  chi phí, nên tổng ≈ O(n)
+ *                                      └─ giảm ~12 lần lượng byte ghi
+ * </pre>
+ *
+ * <p>Cái mất đi là gì? Khi corpus lớn, khoảng "có thể mất" cũng lớn hơn: ở mốc
+ * 30.000 trang, điểm kiểm tra cách nhau ~6.000 trang thay vì 250. Đánh đổi này
+ * <b>đúng hướng</b> — điểm kiểm tra sinh ra để khỏi mất <i>cả phiên</i>, và mất
+ * 20% cuối vẫn tốt hơn nhiều so với việc crawl chậm đi 37% khiến phiên dài thêm
+ * và rủi ro hỏng giữa chừng tăng theo.
  */
 public final class CheckpointCrawlListener implements CrawlListener {
 
     private static final Logger log = LoggerFactory.getLogger(CheckpointCrawlListener.class);
+
+    /**
+     * Tỉ lệ giãn: chỉ ghi lại khi corpus đã lớn thêm 25% so với lần ghi trước.
+     *
+     * <p>Chọn 25% vì nó cho tổng chi phí ghi cả phiên xấp xỉ 5 lần kích thước
+     * corpus cuối — chấp nhận được — trong khi vẫn đủ dày để không mất quá nhiều
+     * khi hỏng. Số nhỏ hơn thì ghi dày hơn và chậm hơn; số lớn hơn thì lưới an
+     * toàn thưa dần tới mức gần như không còn tác dụng.
+     */
+    private static final double GROWTH_RATIO = 0.25;
 
     private final Supplier<List<WebDocument>> snapshot;
     private final String path;
@@ -77,7 +108,8 @@ public final class CheckpointCrawlListener implements CrawlListener {
 
     @Override
     public void onPageCrawled(CrawlEvent e) {
-        if (e.pageNumber() % everyN != 0) {
+        if (e.pageNumber() % everyN != 0
+                || !isDueForCheckpoint(e.pageNumber(), lastCheckpointPages, everyN)) {
             return;
         }
         // compareAndSet chứ không phải "kiểm tra rồi đặt": onPageCrawled chạy
@@ -112,6 +144,30 @@ public final class CheckpointCrawlListener implements CrawlListener {
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    /**
+     * Đã đến lúc ghi điểm kiểm tra chưa?
+     *
+     * <p>Điều kiện: số trang crawl thêm kể từ lần ghi trước phải đạt ít nhất
+     * {@link #GROWTH_RATIO} của corpus hiện có. Nhờ vậy khoảng cách giữa hai lần
+     * ghi giãn ra <b>cùng nhịp</b> với chi phí mỗi lần ghi — xem javadoc lớp.
+     *
+     * <p>Lần ghi đầu tiên luôn được phép ({@code lastCheckpointPages == 0}), nếu
+     * không thì phiên crawl ngắn sẽ chẳng có điểm kiểm tra nào.
+     *
+     * <p>Viết thành hàm <b>tĩnh, thuần</b> (chỉ phụ thuộc tham số, không đọc
+     * trạng thái nào) để kiểm thử được trực tiếp. Kiểm thử qua
+     * {@link #onPageCrawled} thì phải dựng luồng nền và tệp tạm — nhiều công sức
+     * cho một phép so sánh số học.
+     *
+     * @param pages          số trang đã crawl tới thời điểm này
+     * @param lastCheckpoint số trang tại điểm kiểm tra thành công gần nhất
+     * @param everyN         khoảng cách tối thiểu giữa hai lần ghi
+     */
+    static boolean isDueForCheckpoint(int pages, int lastCheckpoint, int everyN) {
+        int grown = pages - lastCheckpoint;
+        return grown >= Math.max(everyN, (int) (lastCheckpoint * GROWTH_RATIO));
     }
 
     private void write(int pages) {

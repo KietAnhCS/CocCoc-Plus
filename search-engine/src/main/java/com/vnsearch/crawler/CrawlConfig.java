@@ -63,7 +63,7 @@ public final class CrawlConfig {
     /** Tap domain duoc phep crawl; rong nghia la KHONG gioi han. */
     /**
      * Tien to host bi loai, du domain goc duoc phep — xem
-     * {@link UrlFilter#FOREIGN_LANGUAGE_HOST_PREFIXES}.
+     * {@link UrlFilter#NON_VI_EN_HOST_PREFIXES}.
      */
     public Set<String> excludedHostPrefixes() {
         return excludedHostPrefixes;
@@ -131,7 +131,7 @@ public final class CrawlConfig {
          *
          * <p>Sinh ra de chan cac ban ngoai ngu ma bao Viet Nam dat tren subdomain
          * ({@code en.nhandan.vn}, {@code cn.baochinhphu.vn}...). Xem
-         * {@link UrlFilter#FOREIGN_LANGUAGE_HOST_PREFIXES} — Javadoc o do co con so
+         * {@link UrlFilter#NON_VI_EN_HOST_PREFIXES} — Javadoc o do co con so
          * do duoc ve muc do nghiem trong neu khong chan.
          */
         public Builder excludedHostPrefixes(Set<String> value) {

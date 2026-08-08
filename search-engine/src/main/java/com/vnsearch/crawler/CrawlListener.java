@@ -41,6 +41,21 @@ public interface CrawlListener {
     default void onDuplicateContent(String url) {
     }
 
+    /**
+     * Mot trang bi vut vi KHONG PHAI tieng Viet cung khong phai tieng Anh —
+     * nhanh loai cua khoi {@code Language Filter}.
+     *
+     * <p>Cung khong phai loi: crawler dang lam dung chinh sach corpus. Theo
+     * doi rieng vi ty le loai cao bat thuong cho biet crawler dang di lac vao
+     * mot vung ngoai ngu va nen chan tu som bang
+     * {@code CrawlConfig.excludedHostPrefixes}, re hon nhieu so voi tai ve roi
+     * vut.
+     *
+     * @param language ma ngon ngu nhan dien duoc ("zh", "ja", "other"...)
+     */
+    default void onForeignLanguage(String url, String language) {
+    }
+
     /** Phien crawl ket thuc (du vi ly do gi: du trang, het viec, hay het gio). */
     default void onFinished(int totalPages, long elapsedMs) {
     }

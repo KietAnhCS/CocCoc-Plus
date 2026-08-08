@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Cau hinh log, tach theo profile.
+
+  VI SAO CAN HAI DANG LOG KHAC NHAU.
+
+  Luc phat trien, nguoi doc log la CON NGUOI dang ngoi nhin man hinh: dang van
+  xuoi co mau de doc nhat.
+
+  Luc chay that, nguoi doc log la MAY: mot su co luc 3 gio sang can loc kieu
+  "cho toi moi dong ERROR cua lop SecurityConfig trong 10 phut qua". Voi log van
+  xuoi, phep loc do la mot bieu thuc chinh quy mong manh; voi log JSON, no la
+  mot cau truy van theo truong.
+
+  `logback-spring.xml` (chu khong phai `logback.xml`) la ten BAT BUOC de dung
+  duoc the <springProfile> - Logback thuan khong biet den profile cua Spring.
+-->
+<configuration>
+
+    <!-- Mac dinh (phat trien): dang van xuoi, co mau. -->
+    <springProfile name="!prod">
+        <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder>
+                <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan(%logger{25}) - %msg%n</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+
+    <!-- Chay that: mot dong JSON moi ban ghi. -->
+    <springProfile name="prod">
+        <appender name="JSON" class="ch.qos.logback.core.ConsoleAppender">
+            <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+                <!--
+                  Ten ung dung di kem MOI ban ghi. Khi nhieu dich vu cung do log
+                  vao mot cho, khong co truong nay thi khong tach duoc nguon.
+                -->
+                <customFields>{"application":"vnsearch"}</customFields>
+                <!--
+                  Stack trace duoc rut gon: mot ngoai le cua Spring co the dai
+                  hang tram dong, phan lon la khung cua chinh framework. 30 dong
+                  du de tim ra cho hong trong ma cua minh.
+                -->
+                <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+                    <maxDepthPerThrowable>30</maxDepthPerThrowable>
+                    <rootCauseFirst>true</rootCauseFirst>
+                </throwableConverter>
+            </encoder>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="JSON"/>
+        </root>
+    </springProfile>
+
+    <!--
+      Ha bot on tu Spring luc khoi dong o CA hai profile: muc INFO cua
+      framework chu yeu la thong bao tu dong cau hinh, khong phai thong tin
+      van hanh.
+    -->
+    <logger name="org.springframework" level="WARN"/>
+    <logger name="org.apache.catalina" level="WARN"/>
+
+    <!-- Ma cua du an thi giu INFO: day moi la phan dang doc. -->
+    <logger name="com.vnsearch" level="INFO"/>
+
+</configuration>

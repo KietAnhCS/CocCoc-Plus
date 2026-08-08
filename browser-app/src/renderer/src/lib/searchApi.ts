@@ -87,7 +87,19 @@ export interface ImageResultDto {
 export interface ImageResponseDto {
   query: string
   results: ImageResultDto[]
+  page: number
+  pageSize: number
+  /** TỔNG số ảnh khớp truy vấn — không phải số ảnh trong lô này. */
   totalResults: number
+  /**
+   * Còn lô nữa không.
+   *
+   * Do máy chủ tính, KHÔNG suy từ `results.length === pageSize`. Cách suy đó
+   * sai đúng ở ca biên hay gặp nhất: khi tổng số ảnh chia hết cho pageSize,
+   * lô cuối đầy đủ nên giao diện tưởng còn nữa, gọi thêm một lần rồi nhận về
+   * rỗng — người dùng thấy vòng quay chạy vô ích ở cuối trang.
+   */
+  hasMore: boolean
   /**
    * Số trang đã xét để lấy ảnh.
    *
@@ -119,8 +131,12 @@ function normalizeImage(raw: Partial<ImageResultDto>): ImageResultDto {
   }
 }
 
-export async function searchImages(query: string, size = 30): Promise<ImageResponseDto> {
-  const raw = await getJson<Partial<ImageResponseDto>>('/api/images', { q: query, size })
+export async function searchImages(query: string, page = 1, size = 30): Promise<ImageResponseDto> {
+  const raw = await getJson<Partial<ImageResponseDto>>('/api/images', {
+    q: query,
+    page,
+    size
+  })
   const results = (raw.results ?? [])
     .map(normalizeImage)
     // Bỏ mục không có địa chỉ ảnh: chúng chỉ tạo ra một ô vỡ trong lưới.
@@ -129,7 +145,10 @@ export async function searchImages(query: string, size = 30): Promise<ImageRespo
   return {
     query: raw.query ?? query,
     results,
+    page: raw.page ?? page,
+    pageSize: raw.pageSize ?? size,
     totalResults: raw.totalResults ?? results.length,
+    hasMore: raw.hasMore ?? false,
     pagesScanned: raw.pagesScanned ?? 0,
     timeTakenMs: raw.timeTakenMs ?? 0
   }

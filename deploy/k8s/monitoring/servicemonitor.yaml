@@ -1,0 +1,90 @@
+# ServiceMonitor — cách Prometheus Operator biết phải thu thập ở đâu.
+#
+# VÌ SAO KHÔNG DÙNG ANNOTATION `prometheus.io/scrape`. Hai cách khai báo mục
+# tiêu, và chúng khác nhau ở chỗ ai chịu trách nhiệm:
+#
+#   Annotation trên Pod              ServiceMonitor
+#   ─────────────────────────────    ──────────────────────────────────────
+#   Prometheus quét MỌI Pod rồi lọc  Operator dựng cấu hình từ tài nguyên này
+#   Cấu hình nằm rải rác từng Pod    Cấu hình tập trung, review được
+#   Không kiểm tra được cú pháp      Là một tài nguyên có schema
+#   Gõ sai annotation = im lặng bỏ   Gõ sai tên nhãn = không khớp, thấy ngay
+#
+# Backend và crawler-worker VẪN giữ annotation trong lớp nền — chúng dành cho
+# một Prometheus chạy độc lập, không có operator (chính là bản trong
+# docker-compose). Hai cơ chế cùng tồn tại mà không xung đột: cụm nào có
+# operator thì dùng tệp này, cụm nào không thì dùng annotation.
+
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vnsearch-backend
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: backend
+    # Nhãn NÀY quyết định Prometheus nào nhận tài nguyên. kube-prometheus-stack
+    # mặc định chỉ nhặt ServiceMonitor có nhãn `release` khớp tên bản cài Helm.
+    # Sai nhãn thì tệp này áp thành công, tồn tại trong cụm, và KHÔNG BAO GIỜ
+    # được đọc — hỏng im lặng, đúng loại khó phát hiện nhất.
+    release: kube-prom
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: backend
+  endpoints:
+    - port: http
+      # Actuator đặt ở /actuator/prometheus, KHÔNG phải /metrics mặc định.
+      path: /actuator/prometheus
+      interval: 15s
+      # Ngắn hơn interval: một lần thu thập treo quá lâu sẽ chồng lên lần sau.
+      scrapeTimeout: 10s
+
+---
+# Crawler worker chưa có Service nào — nó không phục vụ request, nên lớp nền
+# cố ý không tạo Service cho nó.
+#
+# Nhưng ServiceMonitor thì chọn mục tiêu THÔNG QUA một Service. Nên ở đây phải
+# tạo một Service chỉ để thu thập số liệu: không có Ingress trỏ tới, không ai
+# gọi, chỉ để Prometheus tìm ra các Pod.
+#
+# Đặt tên có hậu tố `-metrics` để không ai nhầm nó là điểm vào của dịch vụ.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vnsearch-crawler-worker-metrics
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: crawler-worker
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: crawler-worker
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vnsearch-crawler-worker
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: crawler-worker
+    release: kube-prom
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: crawler-worker
+  endpoints:
+    - port: http
+      path: /actuator/prometheus
+      interval: 15s
+      scrapeTimeout: 10s

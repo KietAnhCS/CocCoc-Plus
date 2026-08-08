@@ -1,0 +1,159 @@
+# Quy tắc cảnh báo cho cụm Kubernetes.
+#
+# CÙNG MỘT BỘ QUY TẮC với deploy/monitoring/alerts.yml, chỉ khác vỏ bọc: ở đây
+# chúng được gói trong CRD `PrometheusRule` để Operator nạp, còn ở kia là tệp
+# phẳng cho Prometheus chạy độc lập.
+#
+# Hai bản này phải giữ đồng bộ. CI có bước `diff` chặn chúng lệch nhau — cùng
+# cách mà schema.sql được canh giữa src/main/resources và deploy/k8s/base.
+#
+# Vì sao không dùng chung một tệp: `kustomize` không tham chiếu được tệp nằm
+# ngoài thư mục gốc, và định dạng thì khác nhau (một bên có `groups:` ở cấp
+# cao nhất, một bên nằm dưới `spec:`). Một bước kiểm tra tự động rẻ hơn nhiều
+# so với việc bẻ cong cấu trúc thư mục.
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: vnsearch
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    # Xem ghi chú trong servicemonitor.yaml: sai nhãn này thì tài nguyên tồn
+    # tại nhưng không bao giờ được nạp.
+    release: kube-prom
+spec:
+  groups:
+    - name: vnsearch-kha-dung
+      rules:
+        - alert: VnSearchBackendDown
+          expr: up{job=~".*vnsearch-backend.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Backend {{ $labels.pod }} không phản hồi"
+            description: >-
+              Prometheus không thu thập được số liệu trong 2 phút liên tục.
+            runbook: >-
+              kubectl -n vnsearch logs {{ $labels.pod }} --tail 100
+              — nghi phạm đầu tiên là OutOfMemoryError, vì chỉ mục đảo nằm
+              hoàn toàn trong RAM.
+
+        - alert: VnSearchEmptyIndex
+          expr: vnsearch_index_documents == 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Chỉ mục rỗng trên {{ $labels.pod }}"
+            description: >-
+              Mọi truy vấn đang trả về 0 kết quả trong khi mọi thang đo kỹ
+              thuật đều xanh. Khởi động lại Pod KHÔNG sửa được — đây là vấn đề
+              dữ liệu.
+
+        # Chỉ có trên Kubernetes: Pod khởi động lại liên tục là dấu hiệu cấu
+        # hình probe sai hoặc thiếu bộ nhớ. Đây đúng là cái bẫy mà startupProbe
+        # trong backend.yaml sinh ra để tránh, nên cần một cảnh báo canh nó.
+        - alert: VnSearchPodCrashLooping
+          expr: >-
+            increase(kube_pod_container_status_restarts_total{namespace="vnsearch"}[15m]) > 3
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Pod {{ $labels.pod }} khởi động lại {{ $value }} lần trong 15 phút"
+            runbook: >-
+              1) kubectl -n vnsearch describe pod {{ $labels.pod }} — xem
+                 Last State và Exit Code.
+              2) Exit 137 = bị giết vì hết bộ nhớ, nâng limits.memory.
+              3) Probe thất bại lúc khởi động = failureThreshold của
+                 startupProbe quá chặt cho lần lập chỉ mục đầu tiên.
+
+    - name: vnsearch-hieu-nang
+      rules:
+        - alert: VnSearchSearchLatencyHigh
+          expr: >-
+            histogram_quantile(0.99,
+              sum by (le, job) (
+                rate(http_server_requests_seconds_bucket{uri="/api/search"}[5m])
+              )
+            ) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Độ trễ p99 của /api/search vượt SLO 500 ms"
+            description: "p99 hiện tại: {{ $value | humanizeDuration }}."
+
+        - alert: VnSearchHighErrorRate
+          expr: >-
+            sum(rate(http_server_requests_seconds_count{status=~"5.."}[5m]))
+            /
+            sum(rate(http_server_requests_seconds_count[5m]))
+            > 0.05
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Trên 5% request trả về lỗi 5xx"
+            description: "Tỷ lệ lỗi: {{ $value | humanizePercentage }}."
+
+    - name: vnsearch-crawl-va-kafka
+      rules:
+        - alert: VnSearchCrawlBusFailing
+          expr: increase(vnsearch_crawl_bus_publish_failures[5m]) > 0
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Bus sự kiện crawl đang mất thông điệp"
+            description: >-
+              Crawler trông vẫn bình thường nhưng các Modular Service không
+              nhận được gì — frontier sẽ cạn dần và phiên crawl tự chết.
+            runbook: >-
+              kubectl -n vnsearch get pods -l app.kubernetes.io/component=kafka
+
+        - alert: VnSearchKafkaConsumerLagHigh
+          expr: sum by (consumergroup, topic) (kafka_consumergroup_lag) > 10000
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Nhóm {{ $labels.consumergroup }} chậm {{ $value }} thông điệp"
+            runbook: >-
+              KEDA lẽ ra đã tự nhân bản. Nếu chưa:
+              kubectl -n vnsearch get scaledobject vnsearch-crawler-worker
+              — kiểm tra ScaledObject có ở trạng thái Ready không.
+              Nhớ trần: số bản sao hiệu dụng không vượt quá số phân hoạch (12).
+
+        - alert: VnSearchDeadLetterGrowing
+          expr: increase(kafka_topic_partition_current_offset{topic=~".*\\.DLT"}[15m]) > 10
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Dead-letter topic {{ $labels.topic }} đang lớn lên"
+            description: >-
+              {{ $value }} thông điệp đã thử lại hết số lần cho phép mà vẫn
+              hỏng. Chúng không mất — phát lại được sau khi sửa nguyên nhân.
+
+        # Chỉ có trên Kubernetes: Kafka chạm đầy đĩa thì NGỪNG NHẬN GHI, và
+        # crawler mất trang một cách im lặng. Cảnh báo ở 80% để còn kịp mở rộng
+        # ổ đĩa trước khi chạm trần.
+        - alert: VnSearchKafkaDiskFilling
+          expr: >-
+            kubelet_volume_stats_used_bytes{namespace="vnsearch", persistentvolumeclaim=~"data-vnsearch-kafka-.*"}
+            /
+            kubelet_volume_stats_capacity_bytes{namespace="vnsearch", persistentvolumeclaim=~"data-vnsearch-kafka-.*"}
+            > 0.8
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Ổ đĩa Kafka đã dùng {{ $value | humanizePercentage }}"
+            runbook: >-
+              1) Giảm retention.ms của topic vnsearch.pages (đang 7 ngày) —
+                 nhưng nhớ đó là cửa sổ để CHẠY LẠI, rút ngắn là mất năng lực
+                 tua offset bóc lại liên kết.
+              2) Hoặc mở rộng PVC nếu StorageClass cho phép.

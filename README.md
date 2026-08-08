@@ -1,19 +1,19 @@
 # VnSearch
 
-Máy tìm kiếm tiếng Việt tự cài đặt từ đầu — crawler, chỉ mục đảo, xếp hạng, và
-một trình duyệt mini để tra cứu.
+A Vietnamese search engine built from scratch — crawler, inverted index, ranking,
+and a mini browser to query it.
 
-Mọi cấu trúc dữ liệu và thuật toán lõi đều **tự viết**, không dùng thư viện tìm
-kiếm có sẵn: chỉ mục đảo, nén VByte, PageRank, Trie, Bloom Filter, MinHeap, và
-bộ tách từ tiếng Việt.
+Every core data structure and algorithm is **hand-written**, with no off-the-shelf
+search library: inverted index, VByte compression, PageRank, Trie, Bloom filter,
+MinHeap, and a Vietnamese word segmenter.
 
 ```
 ┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Crawler    │───▶│    Chỉ mục   │───▶│   Xếp hạng   │───▶│   REST API   │
+│   Crawler    │───▶│    Index     │───▶│   Ranking    │───▶│   REST API   │
 │              │    │              │    │              │    │              │
 │ UrlFrontier  │    │ InvertedIndex│    │ TF-IDF/BM25  │    │ /api/search  │
 │ BloomFilter  │    │ VByte + delta│    │ PageRank     │    │ /api/suggest │
-│ robots.txt   │    │ Tách từ VN   │    │ MinHeap top-K│    │ /api/admin   │
+│ robots.txt   │    │ VN segmenter │    │ MinHeap top-K│    │ /api/admin   │
 └──────────────┘    └──────────────┘    └──────────────┘    └──────┬───────┘
                                                                     │
                                                             ┌───────▼───────┐
@@ -24,44 +24,44 @@ bộ tách từ tiếng Việt.
 
 ---
 
-## Chạy nhanh nhất — Docker
+## Quick start — Docker
 
-Cần: Docker Desktop.
+Requires Docker Desktop.
 
 ```bash
-# 1. Tạo tệp cấu hình từ mẫu
+# 1. Create your config file from the template
 cp .env.example .env
 
-# 2. Sinh khoá quản trị và dán vào .env
+# 2. Generate an admin key and paste it into .env
 openssl rand -hex 32
 #   PowerShell: -join ((1..64) | % { '{0:x}' -f (Get-Random -Max 16) })
 
-# 3. Chạy
+# 3. Run
 docker compose up -d --build
 ```
 
-Backend phục vụ ở `http://localhost:8080`. Lần khởi động đầu mất vài chục giây
-để lập chỉ mục — `docker compose logs -f backend` để theo dõi.
+The backend serves on `http://localhost:8080`. First boot takes a few tens of
+seconds to build the index — follow it with `docker compose logs -f backend`.
 
 ```bash
 curl "http://localhost:8080/api/health"
 curl "http://localhost:8080/api/search?q=máy+tính&size=3"
 ```
 
-> **Nếu `docker compose up` dừng ngay với thông báo "Thieu ADMIN_API_KEY"** —
-> đó là hành vi cố ý, không phải lỗi. Bước 2 ở trên chưa được làm.
-> Xem [Vì sao khoá là bắt buộc](#vì-sao-khoá-quản-trị-là-bắt-buộc).
+> **If `docker compose up` stops immediately with "Thieu ADMIN_API_KEY"** — that
+> is deliberate, not a bug. Step 2 above has not been done.
+> See [Why the admin key is mandatory](#why-the-admin-key-is-mandatory).
 
 ---
 
-## Chạy trên máy thật (không Docker)
+## Running without Docker
 
-Cần: JDK 17+, Node.js 22+.
+Requires JDK 17+ and Node.js 22+.
 
 ### Backend
 
 ```bash
-# Đặt khoá quản trị cho phiên terminal hiện tại
+# Set the admin key for the current terminal session
 export ADMIN_API_KEY=$(openssl rand -hex 32)          # Linux/macOS
 $env:ADMIN_API_KEY = "..."                             # PowerShell
 
@@ -69,84 +69,144 @@ cd search-engine
 ./mvnw spring-boot:run
 ```
 
-Không cần cơ sở dữ liệu: ứng dụng tự lùi về corpus mẫu đi kèm repo
-(`data/seed-documents.json`), nên vừa clone về là chạy được ngay.
+No database required: the app falls back to the sample corpus shipped with the
+repo (`data/seed-documents.json`), so a fresh clone runs as-is.
 
 ### Frontend
 
 ```bash
 run-frontend.bat            # Windows
-# hoặc: cd browser-app && npm install && npm run dev
+# or: cd browser-app && npm install && npm run dev
 ```
 
-### Crawl corpus riêng
+### Crawling your own corpus
 
 ```bash
-run-crawl.bat 5000 3        # 5.000 trang, độ sâu 3
+run-crawl.bat 5000 3        # 5,000 pages, depth 3
+```
+
+---
+
+## Kubernetes
+
+A three-node [kind](https://kind.sigs.k8s.io/) cluster, ingress, and the full
+stack in one command:
+
+```bash
+bash deploy/kind/up.sh
+# then add to your hosts file:  127.0.0.1 vnsearch.local
+curl http://vnsearch.local/api/health
+```
+
+Manifests use Kustomize with a shared base and two overlays:
+
+| | `overlays/dev` | `overlays/prod` |
+|---|---|---|
+| Replicas | 1 | 3, spread across nodes |
+| Autoscaling | off (no metrics-server in kind) | HPA, 2–6 pods at 70% CPU |
+| Secrets | placeholder file in Git | created out-of-band, never committed |
+| Image | local build, `kind load` | pinned tag from GHCR |
+| Scorer | `tfidf` | `bm25` |
+
+The backend runs as non-root with a read-only root filesystem under a
+`restricted` Pod Security namespace, has startup/readiness/liveness probes, a
+PodDisruptionBudget, and a NetworkPolicy restricting Postgres to backend pods
+only.
+
+```bash
+kubectl apply -k deploy/k8s/overlays/dev     # or overlays/prod
+bash deploy/kind/down.sh                     # tear the cluster down
 ```
 
 ---
 
 ## API
 
-| Endpoint | Cần khoá? | Mô tả |
+| Endpoint | Key required? | Description |
 |---|:---:|---|
-| `GET /api/search?q=&page=&size=` | — | Tìm kiếm |
-| `GET /api/suggest?q=&limit=` | — | Gợi ý theo tiền tố (Trie) |
-| `GET /api/health` | — | Sống/chết. Trả `503` khi chỉ mục rỗng |
-| `GET /actuator/prometheus` | — | Số liệu cho Prometheus |
-| `POST /api/admin/crawl` | ✅ | Khởi động một phiên crawl |
-| `GET /api/admin/crawl/{id}/status` | ✅ | Trạng thái phiên crawl |
-| `POST /api/admin/reindex` | ✅ | Lập lại chỉ mục |
-| `GET /api/admin/stats` | ✅ | Thống kê chi tiết |
+| `GET /api/search?q=&page=&size=` | — | Search |
+| `GET /api/suggest?q=&limit=` | — | Prefix suggestions (Trie) |
+| `GET /api/health` | — | Liveness. Returns `503` when the index is empty |
+| `GET /actuator/prometheus` | — | Prometheus metrics |
+| `POST /api/admin/crawl` | ✅ | Start a crawl job |
+| `GET /api/admin/crawl/{id}/status` | ✅ | Crawl job status |
+| `POST /api/admin/reindex` | ✅ | Rebuild the index |
+| `GET /api/admin/stats` | ✅ | Detailed statistics |
 
-Endpoint cần khoá thì gửi header `X-API-Key`:
+Protected endpoints take an `X-API-Key` header:
 
 ```bash
 curl -H "X-API-Key: $ADMIN_API_KEY" http://localhost:8080/api/admin/stats
 ```
 
-Ví dụ đầy đủ: [`docs/api-examples.http`](docs/api-examples.http)
+Full examples: [`docs/api-examples.http`](docs/api-examples.http)
 
 ---
 
-## Vì sao khoá quản trị là bắt buộc
+## Why the admin key is mandatory
 
-`POST /api/admin/crawl` khiến máy chủ **đi tải một URL do người gọi chỉ định**,
-rồi đưa nội dung vào chỉ mục công khai đọc được qua `GET /api/search`. Để mở là
-một lỗ hổng SSRF hoàn chỉnh kèm sẵn kênh rút dữ liệu — trên máy ảo đám mây, một
-request tới `169.254.169.254` trả về khoá IAM tạm thời.
+`POST /api/admin/crawl` makes the server **fetch a URL chosen by the caller**
+and put the contents into an index that `GET /api/search` reads publicly. Leaving
+it open is a complete SSRF vulnerability with an exfiltration channel attached —
+on a cloud VM, a request to `169.254.169.254` returns temporary IAM credentials.
 
-Nên ứng dụng **cố ý không khởi động** khi thiếu khoá. Phương án còn lại — tự
-sinh khoá rồi in ra log — tạo ra một hệ thống *có vẻ* đang chạy bình thường
-trong khi không ai biết khoá là gì. Hỏng to còn hơn hỏng âm thầm.
+So the app **deliberately refuses to start** without a key. The alternative —
+generating a key and printing it to the log — produces a system that *looks*
+healthy while nobody knows the key. Fail loudly rather than fail silently.
 
-Ba lớp bảo vệ độc lập, mỗi lớp chặn một thứ khác nhau:
+Four independent layers, each blocking something different:
 
-| Lớp | Chặn gì | Cài ở đâu |
+| Layer | Blocks | Implemented in |
 |---|---|---|
-| API key (so sánh hằng thời gian) | Người lạ | `ApiKeyAuthFilter` |
-| Chặn dải IP nội bộ **sau khi phân giải DNS** | URL trỏ vào mạng trong, kể cả khi đã có khoá | `SeedUrlValidator` |
-| Chặn trên `maxPages` / `maxDepth` | Một request hợp lệ làm cạn tài nguyên | `AdminController` |
-| Giới hạn tần suất (token bucket) | Gọi đúng cách nhưng quá nhanh | `RateLimitFilter` |
+| API key (constant-time comparison) | Strangers | `ApiKeyAuthFilter` |
+| Private IP ranges blocked **after DNS resolution**, on every fetch and every redirect hop | URLs pointing into the internal network, even with a valid key | `SeedUrlValidator` + `HtmlDownloader` |
+| Caps on `maxPages` / `maxDepth` | A single valid request exhausting resources | `AdminController` |
+| Rate limiting (token bucket) | Correct calls arriving too fast | `RateLimitFilter` |
 
 ---
 
-## Phát triển
+## Development
 
 ```bash
-cd search-engine && ./mvnw test       # 399 test
+cd search-engine && ./mvnw clean verify   # 399 tests + coverage gate + static analysis
 cd browser-app  && npm run typecheck && npm run lint
 ```
 
-CI chạy cả ba việc trên mỗi lần push — xem [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+`verify` (not `test`) is what CI runs — it is the only phase that executes the
+coverage and static-analysis gates.
 
-### Cấu hình
+### CI/CD
 
-Mọi biến môi trường đều có trong [`.env.example`](.env.example). Chỉ
-`ADMIN_API_KEY` là bắt buộc; phần còn lại có mặc định hợp lý.
+Four workflows, all in [`.github/workflows/`](.github/workflows/):
 
-Đổi mô hình chấm điểm sang BM25 (MRR cao hơn — xem
+| Workflow | Trigger | What it does |
+|---|---|---|
+| `ci.yml` | push to `main`, every PR | Tests, JaCoCo coverage gate, SpotBugs, frontend typecheck/lint, Docker build, Trivy image scan |
+| `codeql.yml` | push, PR, weekly | CodeQL SAST for Java and TypeScript |
+| `release.yml` | tag `v*.*.*` | Multi-arch image to GHCR with SBOM + provenance, cosign keyless signature, blocking CRITICAL CVE scan, GitHub Release |
+| `pr-title.yml` | PR opened/edited | Enforces Conventional Commits in the PR title |
+
+Four quality gates block a merge, each catching a different kind of breakage:
+
+```
+399 tests           → per-unit logic errors
+JaCoCo coverage     → new code with no tests          (line ≥ 68%, branch ≥ 65%)
+SpotBugs            → bugs no test path reaches       (0 findings)
+Ranking quality     → search got worse, tests stayed green
+```
+
+The last one is search-specific: the other three can all be green while results
+returned to users have degraded. See `RankingQualityTest`.
+
+Dependency updates are automated via [`dependabot.yml`](.github/dependabot.yml)
+for Maven, npm, and GitHub Actions.
+
+### Configuration
+
+Every environment variable is documented in [`.env.example`](.env.example). Only
+`ADMIN_API_KEY` is required; everything else has a sensible default.
+
+Switch the scoring model to BM25 (higher MRR — see
 [`docs/EVALUATION.md`](docs/EVALUATION.md)):
 
 ```bash
@@ -155,32 +215,43 @@ APP_RANKING_SCORER=bm25
 
 ---
 
-## Tài liệu
+## Documentation
 
-| Tệp | Nội dung |
+Documentation is written in Vietnamese.
+
+| File | Contents |
 |---|---|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Kiến trúc tổng thể, luồng dữ liệu |
-| [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Báo cáo cấu trúc dữ liệu & giải thuật |
-| [`docs/Math/`](docs/Math/README.md) | Giải thích toán học từng khối, kèm sơ đồ tư duy |
-| [`docs/EVALUATION.md`](docs/EVALUATION.md) | Đo chất lượng tìm kiếm (MRR, P@k, nDCG) |
-| [`docs/SO-SANH-PHUONG-AN.md`](docs/SO-SANH-PHUONG-AN.md) | So sánh các phương án thiết kế |
-| [`docs/DANH-GIA-DU-AN.md`](docs/DANH-GIA-DU-AN.md) | Rà soát chất lượng theo chuẩn doanh nghiệp |
-| [`docs/CHAM-DIEM-STARTUP.md`](docs/CHAM-DIEM-STARTUP.md) | Chấm DSA · CI/CD · Bảo mật · Tối ưu theo thước đo startup |
-| [`docs/FRONTEND.md`](docs/FRONTEND.md) | Trình duyệt mini (Electron + React) |
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Overall architecture and data flow |
+| [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Data structures and algorithms report |
+| [`docs/Math/`](docs/Math/README.md) | Per-component mathematics, with mind maps |
+| [`docs/EVALUATION.md`](docs/EVALUATION.md) | Search quality measurement (MRR, P@k, nDCG) |
+| [`docs/SO-SANH-PHUONG-AN.md`](docs/SO-SANH-PHUONG-AN.md) | Design alternatives compared |
+| [`docs/DANH-GIA-DU-AN.md`](docs/DANH-GIA-DU-AN.md) | Quality review against enterprise standards |
+| [`docs/CHAM-DIEM-STARTUP.md`](docs/CHAM-DIEM-STARTUP.md) | DSA / CI-CD / security / performance scored against a startup bar |
+| [`docs/FRONTEND.md`](docs/FRONTEND.md) | The mini browser (Electron + React) |
 
 ---
 
-## Cấu trúc thư mục
+## Repository layout
 
 ```
-search-engine/          Backend Spring Boot (Java 17)
+search-engine/          Spring Boot backend (Java 17)
   src/main/java/com/vnsearch/
-    crawler/            Tải trang, lọc URL, hàng đợi hai tầng
-    index/              Chỉ mục đảo, nén VByte, tách từ tiếng Việt
-    query/              Phân tích truy vấn, hợp nhất posting list
-    ranking/            TF-IDF, BM25, PageRank, sinh đoạn trích
+    crawler/            Fetching, URL filtering, two-tier frontier
+    index/              Inverted index, VByte compression, VN segmenter
+    query/              Query parsing, posting-list merging
+    ranking/            TF-IDF, BM25, PageRank, snippet generation
     datastructure/      Trie, BloomFilter, MinHeap, LRUCache, SparseMatrix
-    eval/               Bộ đo chất lượng tìm kiếm
-browser-app/            Trình duyệt mini (Electron + React + TypeScript)
-docs/                   Tài liệu
+    eval/               Search quality harness
+browser-app/            Mini browser (Electron + React + TypeScript)
+deploy/
+  k8s/                  Kustomize base + dev/prod overlays
+  kind/                 Local three-node cluster
+docs/                   Documentation
+.github/workflows/      CI, CodeQL, release, PR title checks
 ```
+
+The Vietnamese dictionary is generated from
+[`coccoc-tokenizer`](https://github.com/coccoc/coccoc-tokenizer) (LGPL-3.0),
+which is **not** vendored here — clone it separately if you need to regenerate
+`vietnamese-words.txt`. See `docs/DSA-REPORT.md` §2.8.

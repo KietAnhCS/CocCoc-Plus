@@ -1,0 +1,91 @@
+# Prometheus — chặng còn thiếu trong chuỗi quan sát.
+#
+# VÌ SAO TỆP NÀY TỒN TẠI. `docs/CHAM-DIEM-STARTUP.md` mô tả đúng vấn đề:
+#
+#     Ứng dụng ──▶ /actuator/prometheus ──▶  ???  ──▶  ???  ──▶  ???
+#        ✅              ✅                Prometheus  Grafana  Cảnh báo
+#                                            ❌          ❌       ❌
+#
+# Ứng dụng đã phơi số liệu từ lâu, nhưng không có ai THU THẬP. Một thang đo
+# không được thu thập là một thang đo không tồn tại: nó chỉ là một con số hiện
+# ra khi có người gõ curl, và không ai gõ curl lúc 3 giờ sáng.
+#
+# Ba tệp khép lại chuỗi đó: tệp này (thu thập), alerts.yml (phát hiện), và
+# grafana/ (nhìn).
+
+global:
+  # 15 giây: đủ dày để thấy một đợt tải nhấp nhô, đủ thưa để không tự biến
+  # mình thành tải. Với 4 mục tiêu thì đây là chi phí không đáng kể.
+  scrape_interval: 15s
+
+  # Chu kỳ tính lại quy tắc cảnh báo. Bằng scrape_interval là hợp lý: tính lại
+  # dày hơn tần suất có dữ liệu mới thì chỉ tốn CPU để ra đúng kết quả cũ.
+  evaluation_interval: 15s
+
+  # Nhãn gắn vào MỌI chuỗi. Cần khi nhiều môi trường đổ về một Prometheus —
+  # không có nó thì cảnh báo không nói được nó đến từ dev hay production.
+  external_labels:
+    environment: local
+    project: vnsearch
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: [alertmanager:9093]
+
+scrape_configs:
+  # --- Backend: nguồn số liệu nghiệp vụ ------------------------------------
+  #
+  # metrics_path KHÔNG phải mặc định /metrics. Spring Boot Actuator đặt ở
+  # /actuator/prometheus, và quên dòng này là cách phổ biến nhất để có một
+  # mục tiêu mãi mãi ở trạng thái DOWN mà không hiểu vì sao.
+  - job_name: vnsearch-backend
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [vnsearch-backend:8080]
+        labels:
+          component: backend
+
+  # --- Crawler worker: cùng ảnh, khác vai ----------------------------------
+  #
+  # Tách thành job riêng chứ không gộp vào job trên: hai tiến trình có hồ sơ
+  # hoàn toàn khác nhau (một cái phục vụ truy vấn, một cái tiêu thụ Kafka), nên
+  # trộn chúng vào một job làm mọi phép tổng hợp trở nên vô nghĩa.
+  #
+  # `honor_labels` không bật: nhãn `component` ở đây phải thắng.
+  - job_name: vnsearch-crawler-worker
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: [vnsearch-crawler-worker:8080]
+        labels:
+          component: crawler-worker
+
+  # --- Kafka: độ trễ tiêu thụ ----------------------------------------------
+  #
+  # Vì sao cần một exporter riêng thay vì đọc thẳng từ broker: Kafka phơi số
+  # liệu qua JMX, không phải HTTP. kafka-exporter dịch JMX sang định dạng
+  # Prometheus.
+  #
+  # Thang đo quan trọng nhất ở đây là `kafka_consumergroup_lag` — số thông điệp
+  # một consumer group còn nợ. Nó vừa là tín hiệu cảnh báo, vừa là tín hiệu để
+  # CO GIÃN: xem KEDA ScaledObject trong deploy/k8s/base/crawler-worker.yaml.
+  # Đây là điểm khác biệt bản chất so với co giãn theo CPU: một worker chờ mạng
+  # có CPU thấp trong khi hàng đợi đang dài ra.
+  - job_name: kafka
+    static_configs:
+      - targets: [kafka-exporter:9308]
+        labels:
+          component: kafka
+
+  # --- Bản thân Prometheus -------------------------------------------------
+  #
+  # Ai canh người canh gác. Nếu Prometheus quá tải hoặc hết bộ nhớ thì mọi cảnh
+  # báo khác im lặng — và im lặng thì trông y hệt "mọi thứ đều ổn".
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+        labels:
+          component: monitoring

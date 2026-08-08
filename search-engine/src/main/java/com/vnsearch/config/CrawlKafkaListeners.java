@@ -132,5 +132,8 @@ public class CrawlKafkaListeners {
             containerFactory = "crawlListenerContainerFactory")
     public void onImage(ImageFound image) {
         analytics.onImage(image);
+        // Kho anh KHONG duoc nap o day — no co consumer group rieng, xem
+        // ImageStoreListener. Dung chung group nay se khien hai ben CHIA NHAU
+        // luong thay vi moi ben nhan du.
     }
 }

@@ -26,6 +26,45 @@
 		     chặn, không phải sửa lỗi. -->
 		<jacoco.line.minimum>0.68</jacoco.line.minimum>
 		<jacoco.branch.minimum>0.65</jacoco.branch.minimum>
+
+		<!-- ĐÈ phiên bản Testcontainers mà Spring Boot 3.3.4 quản lý (1.19.8).
+		     ============================================================
+		     Bản 1.19.8 đi kèm docker-java 3.3.6, và client đó nói một phiên
+		     bản Docker API mà daemon hiện tại (Engine 29.x) không còn nhận.
+		     Triệu chứng rất dễ dẫn sai đường:
+
+		         docker version          -> 29.6.1, hoàn toàn bình thường
+		         Testcontainers          -> "Could not find a valid Docker
+		                                     environment"
+
+		     Thực chất daemon TRẢ LỜI, nhưng trả HTTP 400 kèm một khối Info
+		     rỗng, và Testcontainers dịch điều đó thành "không tìm thấy
+		     Docker". Đọc thông báo lỗi theo nghĩa đen sẽ đi tìm sai chỗ —
+		     biến môi trường, tên pipe, quyền truy cập — trong khi nguyên
+		     nhân là lệch phiên bản API.
+
+		     Nâng phiên bản là cách sửa đúng; ghim DOCKER_API_VERSION chỉ là
+		     vá tạm và sẽ hỏng lại ở lần nâng Docker sau. -->
+		<testcontainers.version>1.21.4</testcontainers.version>
+
+		<!-- Nhóm test bị LOẠI trong lần chạy thường ngày.
+		     ============================================================
+		     Phải là một PROPERTY chứ không phải giá trị viết thẳng vào
+		     cấu hình surefire. Lý do là một hành vi của Maven đã làm mất
+		     nguyên một cổng chặn ở đây:
+
+		     Cấu hình plugin trong một <profile> được HỢP NHẤT với cấu hình
+		     ở <build>, không thay thế nó. Một thẻ rỗng
+		     `<excludedGroups></excludedGroups>` trong profile KHÔNG xoá
+		     được giá trị của lớp dưới — Maven giữ nguyên `kafka-it`.
+
+		     Kết quả: `mvnw verify -Pkafka-it` có cả
+		         <groups>kafka-it</groups>          (chỉ chạy nhóm này)
+		         <excludedGroups>kafka-it</excludedGroups>  (loại nhóm này)
+		     Loại trừ thắng, nên nó chạy 0 bài test và in BUILD SUCCESS.
+
+		     Property thì ghi đè được, vì profile đặt lại chính property đó. -->
+		<test.excluded.groups>kafka-it</test.excluded.groups>
 	</properties>
 
 	<dependencies>
@@ -86,9 +125,51 @@
 			<version>42.7.4</version>
 		</dependency>
 
+		<!-- Bus sự kiện giữa crawler và các Modular Service (Analytics, Image
+		     Download, URL Extractor).
+
+		     VÌ SAO KAFKA CHỨ KHÔNG PHẢI MỘT HÀNG ĐỢI CÔNG VIỆC. Ba service đó
+		     KHÔNG chia nhau một khối lượng công việc — mỗi service muốn đọc
+		     TOÀN BỘ luồng trang, chỉ khác nhau ở việc nó làm gì với trang ấy.
+		     Đó là phát tán một-tới-nhiều, và trong Kafka nó miễn phí: mỗi
+		     service là một consumer group riêng, giữ offset riêng trên cùng
+		     một topic. Với một hàng đợi công việc (RabbitMQ) thì mỗi thông
+		     điệp chỉ đến đúng một consumer, nên phải nhân bản thông điệp ra ba
+		     hàng đợi và tự giữ cho chúng đồng bộ.
+
+		     Hệ quả thứ hai, quan trọng không kém: thêm một service thứ tư
+		     KHÔNG phải sửa crawler. Nó chỉ cần một group.id mới.
+
+		     VÌ SAO KHÔNG THAY URL FRONTIER BẰNG KAFKA. Frontier phải hoãn theo
+		     host (politeness) và sắp theo mức ưu tiên. Một topic Kafka trả
+		     thông điệp theo đúng thứ tự ghi trong mỗi phân hoạch và không có
+		     khái niệm "khoan, hãy đưa cái này cho tôi sau một giây nữa". Xem
+		     docs/Math/10-kafka/00-SO-DO-TU-DUY.md. -->
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<!-- Test tích hợp Kafka: dựng broker thật trong Docker.
+		     KHÔNG chạy trong `mvnw test` thường ngày — xem hồ sơ `kafka-it` ở
+		     dưới. Một broker thật mất khoảng 15 giây để khởi động, và bắt mọi
+		     lập trình viên trả cái giá đó cho mỗi lần chạy test là cách chắc
+		     chắn nhất khiến họ ngừng chạy test. -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>kafka</artifactId>
+			<scope>test</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
 			<scope>test</scope>
 		</dependency>
 
@@ -115,6 +196,23 @@
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
+					<!-- LOẠI test tích hợp Kafka khỏi lần chạy thường ngày.
+					     ============================================================
+					     Các bài gắn @Tag("kafka-it") dựng một broker THẬT bằng
+					     Testcontainers: khoảng 15 giây khởi động, và cần Docker
+					     đang chạy trên máy.
+
+					     Bắt mọi lập trình viên trả cái giá đó cho MỖI lần
+					     `mvnw test` là cách chắc chắn nhất khiến họ ngừng chạy
+					     test — và một bộ test không được chạy là một bộ test
+					     không tồn tại (chính lập luận mở đầu ci.yml).
+
+					     Chạy chúng bằng:   ./mvnw verify -Pkafka-it
+					     CI chạy chúng ở một job riêng, song song với job chính.
+
+					     Giá trị đến từ property `test.excluded.groups` — xem
+					     phần <properties> để biết vì sao KHÔNG viết thẳng. -->
+					<excludedGroups>${test.excluded.groups}</excludedGroups>
 					<systemPropertyVariables>
 						<!-- Khoa GIA. SecurityConfig co y khong cho ung dung khoi dong
 						     khi thieu khoa, nen moi bai test dung @SpringBootTest deu
@@ -266,5 +364,60 @@
 			</plugin>
 		</plugins>
 	</build>
+
+	<profiles>
+		<!-- Hồ sơ CHỈ để chạy test tích hợp Kafka.
+
+		     ./mvnw verify -Pkafka-it
+
+		     Nó đảo ngược đúng một thứ: thay vì LOẠI nhóm `kafka-it`, nó chỉ
+		     chạy nhóm đó. Nhờ vậy job CI tương ứng mất khoảng một phút thay vì
+		     chạy lại toàn bộ 482 bài test đã chạy ở job chính.
+
+		     Hai cổng chặn nặng (JaCoCo, SpotBugs) cũng được tắt ở đây: chúng đã
+		     chạy ở job chính, và độ phủ đo trên MỘT nhóm test nhỏ thì chắc chắn
+		     dưới ngưỡng — bật lên chỉ tạo một bản build đỏ vô nghĩa. -->
+		<profile>
+			<id>kafka-it</id>
+			<properties>
+				<jacoco.skip>true</jacoco.skip>
+				<spotbugs.skip>true</spotbugs.skip>
+				<!-- Rỗng: bỏ hẳn phần loại trừ, để <groups> bên dưới quyết
+				     định. Ghi đè được vì đây là property — xem giải thích ở
+				     khối <properties> đầu tệp. -->
+				<test.excluded.groups></test.excluded.groups>
+			</properties>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-surefire-plugin</artifactId>
+						<configuration>
+							<groups>kafka-it</groups>
+
+							<!-- BẮT BUỘC. Mẫu tên mặc định của surefire là
+							     `*Test.java`, `Test*.java`, `*Tests.java`,
+							     `*TestCase.java` — hậu tố `IT` KHÔNG nằm trong đó
+							     (nó thuộc về failsafe, một plugin khác).
+
+							     Thiếu khối này thì KafkaCrawlBusIT không bao giờ
+							     được nạp, và lệnh `mvnw verify -Pkafka-it` in ra:
+
+							         Tests run: 0, Failures: 0, Errors: 0
+							         BUILD SUCCESS
+
+							     Đây là lỗi đã xảy ra thật khi viết tệp này. Nó
+							     nguy hiểm hơn một bản build đỏ: một cổng chặn
+							     luôn xanh vì không kiểm gì cả trông y hệt một
+							     cổng chặn đang hoạt động tốt. -->
+							<includes>
+								<include>**/*IT.java</include>
+							</includes>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
 
 </project>

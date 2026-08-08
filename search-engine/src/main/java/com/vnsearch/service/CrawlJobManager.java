@@ -8,6 +8,7 @@ import com.vnsearch.crawler.UrlFilter;
 import com.vnsearch.crawler.bus.CrawlEventBus;
 import com.vnsearch.crawler.bus.DiscoveredUrl;
 import com.vnsearch.crawler.bus.OutlinksExtracted;
+import com.vnsearch.crawler.modular.ImageStore;
 import com.vnsearch.model.WebDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -100,11 +101,15 @@ public class CrawlJobManager {
      */
     private final CrawlEventBus sharedBus;
 
+    /** Kho anh dung chung — do vao o che do in-process. */
+    private final ImageStore imageStore;
+
     /** Sự kiện quay về mà không tìm thấy job tương ứng — xem {@link #resolve}. */
     private final AtomicLong unroutableEvents = new AtomicLong();
 
-    public CrawlJobManager(ObjectProvider<CrawlEventBus> busProvider) {
+    public CrawlJobManager(ObjectProvider<CrawlEventBus> busProvider, ImageStore imageStore) {
         this.sharedBus = busProvider.getIfAvailable();
+        this.imageStore = imageStore;
         if (sharedBus != null) {
             log.info("CrawlJobManager dung bus dung chung: {}",
                     sharedBus.getClass().getSimpleName());
@@ -200,7 +205,7 @@ public class CrawlJobManager {
         // sharedBus null ở chế độ mặc định -> CrawlerService tự dựng bus
         // in-process và tự đăng ký ba Modular Service. Không có nhánh if nào
         // cần thiết ở đây: constructor đã nhận null làm "về mặc định".
-        CrawlerService crawler = new CrawlerService(sharedBus);
+        CrawlerService crawler = new CrawlerService(sharedBus, imageStore);
         crawler.setJobId(jobId); // TRƯỚC khi crawl, để mọi sự kiện mang đúng id
         crawler.addListener(new ConsoleCrawlListener(25)); // Observer
         CrawlJob job = new CrawlJob(crawler);

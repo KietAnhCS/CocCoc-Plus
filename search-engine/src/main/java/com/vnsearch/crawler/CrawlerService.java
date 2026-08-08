@@ -9,6 +9,7 @@ import com.vnsearch.crawler.frontier.CrawlTask;
 import com.vnsearch.crawler.frontier.UrlFrontier;
 import com.vnsearch.crawler.modular.CrawlAnalyticsService;
 import com.vnsearch.crawler.modular.ImageDownloadService;
+import com.vnsearch.crawler.modular.ImageStore;
 import com.vnsearch.crawler.modular.UrlExtractorService;
 import com.vnsearch.model.WebDocument;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -144,6 +145,16 @@ public class CrawlerService {
      */
     private volatile String jobId = java.util.UUID.randomUUID().toString();
 
+    /**
+     * Kho ảnh dùng chung, hoặc {@code null} khi chạy từ dòng lệnh.
+     *
+     * <p>Không phải {@code final} theo kiểu bắt buộc phải có: công cụ dòng
+     * lệnh ({@code MultiDomainCrawlRunner}) không có ngữ cảnh Spring và cũng
+     * không cần phục vụ {@code /api/images}. Ở đó ảnh vẫn được bóc và đếm,
+     * chỉ là không giữ lại.
+     */
+    private final ImageStore imageStore;
+
     /** Chỉ khác null ở chế độ in-process — giữ để lấy số liệu cho báo cáo. */
     private volatile UrlExtractorService urlExtractorService;
     private volatile ImageDownloadService imageDownloadService;
@@ -198,6 +209,7 @@ public class CrawlerService {
     public CrawlerService() {
         this.bus = new InProcessCrawlEventBus();
         this.ownsBus = true;
+        this.imageStore = null;
     }
 
     /**
@@ -211,6 +223,14 @@ public class CrawlerService {
      * @param bus bus đã cấu hình sẵn; {@code null} nghĩa là quay về chế độ mặc định
      */
     public CrawlerService(CrawlEventBus bus) {
+        this(bus, null);
+    }
+
+    /**
+     * @param imageStore kho ảnh dùng chung; {@code null} thì ảnh chỉ được đếm
+     *                   rồi bỏ, không giữ lại để phục vụ {@code /api/images}
+     */
+    public CrawlerService(CrawlEventBus bus, ImageStore imageStore) {
         if (bus == null) {
             this.bus = new InProcessCrawlEventBus();
             this.ownsBus = true;
@@ -218,6 +238,7 @@ public class CrawlerService {
             this.bus = bus;
             this.ownsBus = false;
         }
+        this.imageStore = imageStore;
     }
 
     /**
@@ -255,6 +276,14 @@ public class CrawlerService {
                 .subscribeOutlinks(this::acceptOutlinks)
                 // Hai service gặp nhau qua bus, không gọi thẳng nhau
                 .subscribeImages(analytics::onImage);
+
+        // Kho ảnh là bên nhận THỨ HAI của cùng một kênh — Analytics đếm, kho
+        // thì giữ bản ghi. Tách làm hai bên đăng ký chứ không nhét cả hai việc
+        // vào Analytics: đếm và lưu là hai trách nhiệm, và tắt một cái không
+        // được làm hỏng cái kia.
+        if (imageStore != null) {
+            localBus.subscribeImages(imageStore::add);
+        }
 
         this.urlExtractorService = extractor;
         this.imageDownloadService = images;

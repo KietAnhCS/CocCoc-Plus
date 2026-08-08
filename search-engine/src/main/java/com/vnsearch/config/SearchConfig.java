@@ -2,6 +2,7 @@ package com.vnsearch.config;
 
 import com.vnsearch.index.Tokenizer;
 import com.vnsearch.index.VietnameseTokenizer;
+import com.vnsearch.crawler.modular.ImageStore;
 import com.vnsearch.ranking.PageRankService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -38,5 +39,24 @@ public class SearchConfig {
     @Bean
     public PageRankService pageRankService() {
         return new PageRankService();
+    }
+
+    /**
+     * Kho anh dung chung — nguon du lieu cho {@code GET /api/images}.
+     *
+     * <p>Khai o day, KHONG danh @Component tren chinh lop do: cac lop trong
+     * package {@code crawler} deu la POJO thuan, khong biet gi ve Spring. Nho
+     * vay chung chay duoc tu cong cu dong lenh
+     * ({@code MultiDomainCrawlRunner}) va test duoc bang JUnit thuan. Viec noi
+     * day thuoc ve tang cau hinh — cung nguyen tac ma
+     * {@code CrawlEventBus} da theo.
+     *
+     * <p>MOT ban duy nhat cho ca ung dung, va do la dieu bat buoc: o che do
+     * in-process thi {@code CrawlJobManager} do anh vao day, con o che do Kafka
+     * thi {@code CrawlKafkaListeners} do vao. Hai duong ghi, mot kho doc.
+     */
+    @Bean
+    public ImageStore imageStore() {
+        return new ImageStore();
     }
 }

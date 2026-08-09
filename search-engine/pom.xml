@@ -5,7 +5,7 @@
 	<parent>
 		<groupId>org.springframework.boot</groupId>
 		<artifactId>spring-boot-starter-parent</artifactId>
-		<version>3.3.4</version>
+		<version>3.5.16</version>
 		<relativePath/>
 	</parent>
 	<groupId>com.vnsearch</groupId>
@@ -27,10 +27,11 @@
 		<jacoco.line.minimum>0.68</jacoco.line.minimum>
 		<jacoco.branch.minimum>0.65</jacoco.branch.minimum>
 
-		<!-- ĐÈ phiên bản Testcontainers mà Spring Boot 3.3.4 quản lý (1.19.8).
+		<!-- KHÔNG còn phải đè phiên bản Testcontainers.
 		     ============================================================
-		     Bản 1.19.8 đi kèm docker-java 3.3.6, và client đó nói một phiên
-		     bản Docker API mà daemon hiện tại (Engine 29.x) không còn nhận.
+		     Ghi lại vì bài học vẫn còn giá trị. Spring Boot 3.3.4 quản lý
+		     Testcontainers 1.19.8, và bản đó đi kèm docker-java 3.3.6 — một
+		     client nói phiên bản Docker API mà Engine 29.x không còn nhận.
 		     Triệu chứng rất dễ dẫn sai đường:
 
 		         docker version          -> 29.6.1, hoàn toàn bình thường
@@ -43,9 +44,10 @@
 		     biến môi trường, tên pipe, quyền truy cập — trong khi nguyên
 		     nhân là lệch phiên bản API.
 
-		     Nâng phiên bản là cách sửa đúng; ghim DOCKER_API_VERSION chỉ là
-		     vá tạm và sẽ hỏng lại ở lần nâng Docker sau. -->
-		<testcontainers.version>1.21.4</testcontainers.version>
+		     Chỗ này từng có <testcontainers.version>1.21.4</testcontainers.version>
+		     để vá. Spring Boot 3.5.16 nay quản lý ĐÚNG 1.21.4, nên phép đè
+		     thành thừa — và một phép đè thừa là một phép đè sẽ GHIM phiên bản
+		     lại khi BOM tiến lên. Bỏ đi thì Spring Boot tự lo. -->
 
 		<!-- Nhóm test bị LOẠI trong lần chạy thường ngày.
 		     ============================================================

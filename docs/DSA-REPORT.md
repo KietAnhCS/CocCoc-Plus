@@ -1326,7 +1326,7 @@ có test nào đỏ — chỉ là kết quả tìm kiếm sai một cách khó h
 
 ## 5. Kiểm thử
 
-**280 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
+**521 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
 
 ```bash
 cd search-engine
@@ -1562,7 +1562,7 @@ corpus cố định.
 ```bash
 cd search-engine
 
-# 1. Bộ test đầy đủ (390 test)
+# 1. Bộ test đầy đủ (521 test)
 #    KHÔNG cần đặt ADMIN_API_KEY: pom.xml đã cấp một khoá giả cho surefire.
 #    Chỉ khi chạy ỨNG DỤNG mới cần đặt biến đó — xem README.md.
 ./mvnw.cmd test

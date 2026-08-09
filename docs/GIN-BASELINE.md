@@ -30,7 +30,7 @@ mà `docs/EVALUATION.md` dùng, sinh bởi cùng một `KnownItemQueryGenerator`
 
 | | Chỉ mục đảo tự cài | PostgreSQL GIN |
 |---|---|---|
-| Tách từ | `VietnameseTokenizer` — Longest Matching, sinh bản không dấu, lọc 91 từ dừng | `to_tsvector('simple', …)` — cắt theo khoảng trắng |
+| Tách từ | `VietnameseTokenizer` — ghép từ bằng quy hoạch động, sinh bản không dấu, lọc 91 từ dừng | `to_tsvector('simple', …)` — cắt theo khoảng trắng |
 | Lưu trữ | `LinkedHashMap<String, List<Posting>>` trong RAM | `tsvector` + chỉ mục GIN trên đĩa |
 | Xếp hạng | TF-IDF cosine + PageRank + title bonus (0.6/0.3/0.1) | `ts_rank(tsv, plainto_tsquery(...))` |
 | Truy cập | Gọi phương thức trực tiếp trong cùng tiến trình | JDBC qua TCP tới `localhost:5432` |
@@ -79,7 +79,7 @@ báo cáo sai lệch đáng kể nếu không sửa.
 
 ## 3. Nhận xét
 
-**Về chất lượng**, chỉ mục tự cài đạt MRR cao hơn (0.8758 so với 0.8330, hơn 5.1%). Nguyên nhân chính không nằm ở cấu trúc dữ liệu mà ở khâu XỬ LÝ NGÔN NGỮ: chỉ mục tự cài ghép từ ghép tiếng Việt bằng thuật toán Longest Matching, sinh thêm bản không dấu, và loại từ dừng tiếng Việt; trong khi cấu hình `simple` của PostgreSQL chỉ cắt theo khoảng trắng nên "máy tính" bị tách thành hai token rời rạc.
+**Về chất lượng**, chỉ mục tự cài đạt MRR cao hơn (0.8758 so với 0.8330, hơn 5.1%). Nguyên nhân chính không nằm ở cấu trúc dữ liệu mà ở khâu XỬ LÝ NGÔN NGỮ: chỉ mục tự cài ghép từ ghép tiếng Việt bằng quy hoạch động cực đại trọng số trên từ điển 49.793 mục, sinh thêm bản không dấu, và loại từ dừng tiếng Việt; trong khi cấu hình `simple` của PostgreSQL chỉ cắt theo khoảng trắng nên "máy tính" bị tách thành hai token rời rạc.
 
 **Về tốc độ**, PostgreSQL GIN nhanh hơn (1.24 ms so với 1.62 ms) dù phải qua mạng và tầng SQL — một kết quả đáng chú ý cho thấy chỉ mục tự cài còn nhiều dư địa tối ưu.
 
@@ -90,7 +90,7 @@ mục 2:
 
 | Chỉ mục tự cài CÓ | GIN (cấu hình `simple`) KHÔNG CÓ |
 |---|---|
-| Ghép từ ghép tiếng Việt (Longest Matching) | Chỉ cắt theo khoảng trắng |
+| Ghép từ ghép tiếng Việt (QHĐ cực đại trọng số) | Chỉ cắt theo khoảng trắng |
 | Chỉ mục kép có dấu / không dấu | Không |
 | Lọc từ dừng tiếng Việt | Không |
 | Lưu vị trí token → tìm theo cụm từ | Có `phraseto_tsquery` nhưng không dùng ở đây |
@@ -124,7 +124,7 @@ nén posting list (delta encoding, variable-byte), tránh boxing `Integer`
 trong phép giao, chuyển ma trận thưa sang CSR sau khi dựng xong.
 
 **Rằng chất lượng tiếng Việt của hệ thống đã tốt.** MRR cao ở đây chỉ nói
-hệ thống tìm lại được bài đã biết. Từ điển tách từ chỉ có 154 mục, và độ
+hệ thống tìm lại được bài đã biết. Độ
 chính xác tách từ **chưa được đo** — xem mục 6.1 của `docs/DSA-REPORT.md`.
 
 ## 6. Cách chạy lại

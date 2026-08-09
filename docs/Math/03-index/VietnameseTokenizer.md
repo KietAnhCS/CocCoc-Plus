@@ -14,9 +14,8 @@
 >
 > - Lớp nay cài đặt interface **`Tokenizer`** — đã có thể làm thí nghiệm ablation "tokenizer nào tốt hơn", xoá bất đối xứng với `RelevanceScorer`.
 > - Tokenizer là **một bean dùng chung** (`SearchConfig`), nên bất biến "cùng tokenizer lúc index và lúc query" được đảm bảo ở tầng cấu hình.
-> - Hạn chế lớn nhất **vẫn còn**: từ điển từ ghép chỉ 154 mục.
+> - **Bước ghép từ đã được thay hoàn toàn.** Longest Matching tham lam trên `HashSet` 154 mục nay là **quy hoạch động cực đại trọng số** (`MaxWeightSegmenter`) trên `SyllableTrie` **49.793 mục** — xem §9. Mọi đoạn mô tả Longest Matching bên dưới là **lịch sử**, không phải mã hiện tại.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 
@@ -335,16 +334,51 @@ vì `MAX_COMPOUND_LENGTH = 4` là hằng số.
 
 ---
 
-## 9. Hạn chế đã biết — trần chất lượng của toàn hệ thống
+## 9. Trần chất lượng cũ — và cách nó đã được gỡ
 
-> **Đây là hạn chế lớn nhất của cả dự án, và nó nằm ở đây.**
+> **Đây từng là hạn chế lớn nhất của cả dự án.** Bản trước ghi ở đây: *"Từ điển
+> `vietnamese-bigrams.txt` chỉ có **154 mục** (131 cụm 2 tiếng, 11 cụm 3 tiếng,
+> 12 cụm 4 tiếng). Thuật toán cài đúng, nhưng chạy trên từ điển nhỏ này thì
+> nhiều cụm từ phổ biến không được ghép — `bóng đá` bị tách thành `bóng` +
+> `đá`."* Kèm nhận định *"một từ điển tiếng Việt đầy đủ cần 30.000–70.000 mục"*.
 >
-> Từ điển `vietnamese-bigrams.txt` chỉ có **154 mục** (131 cụm 2 tiếng, 11 cụm 3 tiếng, 12 cụm 4 tiếng). Thuật toán cài **đúng**, nhưng chạy trên từ điển nhỏ này thì nhiều cụm từ phổ biến không được ghép:
+> **Trần đó đã được gỡ, bằng HAI thay đổi bắt buộc đi cùng nhau.**
+
+| | Trước | Nay |
+|---|---|---|
+| Từ điển | `vietnamese-bigrams.txt` — **154 mục** | `vietnamese-words.txt` — **49.793 mục** (40.390 từ ghép) |
+| Cấu trúc | `HashSet<String>` | **`SyllableTrie`** (mảng phẳng) |
+| Từ điển trả lời được | có / không | có / không **+ trọng số** |
+| Thuật toán ghép | Longest Matching **tham lam** | **QHĐ cực đại trọng số** (`MaxWeightSegmenter`) |
+| Tốc độ ghép từ | 3.718.748 âm tiết/giây | **17.853.690 âm tiết/giây** (nhanh **4,80 lần**) |
+| Bộ nhớ từ điển | ~0,02 MB | 2,0 MB |
+| Nạp từ điển | ~1 ms | 143 ms, **một lần / tiến trình** |
+
+`bóng đá` nay ghép đúng. Dấu vân tay tokenizer hiện tại:
+
+```
+VietnameseTokenizer(MaxWeightDP, maxSyllables=4, dict=49793 (40390 tu ghep), stopwords=91)
+```
+
+> **Vì sao hai thay đổi BẮT BUỘC đi cùng nhau.** Khiếm khuyết của tham lam —
+> không rút lại được quyết định — hầu như **không lộ ra** khi từ điển còn nhỏ:
+> muốn chọn sai thì trước hết phải có nhiều lựa chọn. Mở rộng từ điển mà **giữ**
+> tham lam sẽ làm chất lượng **tệ đi** ở một lớp câu, chứ không tốt lên.
 >
-> - `máy tính` **có** trong từ điển → ghép đúng.
-> - `bóng đá` **không có** → bị tách thành `bóng` + `đá`.
->
-> Một từ điển tiếng Việt đầy đủ cần **30.000–70.000 mục**. Đây là khoảng cách giữa "thuật toán đúng" và "hệ thống tốt", và nó **giới hạn trần chất lượng** của mọi thứ phía sau: chỉ mục, xếp hạng, gợi ý.
+> Ví dụ kinh điển — `nhà hàng xóm`: cả `[nhà_hàng][xóm]` lẫn `[nhà][hàng_xóm]`
+> đều **hợp lệ về từ điển**, nên tham lam không có cách nào phân biệt và phải
+> đoán bằng heuristic "dài hơn thì đúng hơn" — ở đây heuristic đó sai. Quy hoạch
+> động chấm điểm **cả câu**: 13,05 so với 13,13, và chọn cách thứ hai.
+
+Chi tiết thuật toán và số đo: [`DSA-REPORT.md` §2.8](../../DSA-REPORT.md) ·
+[`SO-SANH-PHUONG-AN.md` §2](../../SO-SANH-PHUONG-AN.md).
+
+### Hạn chế còn lại của bước tách từ
+
+- **Trọng số lấy từ tần suất trong từ điển**, chưa ước lượng từ chính corpus đã
+  crawl — làm vậy sẽ hợp với miền dữ liệu hơn.
+- **Độ chính xác tách từ vẫn chưa được đo** trên một tập chuẩn. Muốn đo cần vài
+  trăm câu đã tách từ thủ công. Đây là khoảng trống lớn nhất còn lại.
 
 Các hạn chế khác:
 

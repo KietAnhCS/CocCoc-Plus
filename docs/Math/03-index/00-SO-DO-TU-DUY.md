@@ -31,7 +31,7 @@ flowchart LR
     G1 --> G1D["TermDictionary<br/>Flyweight kho chuỗi"]
 
     G2 --> G2A["Tokenizer<br/>giao diện Strategy"]
-    G2 --> G2B["VietnameseTokenizer<br/>Longest Matching"]
+    G2 --> G2B["VietnameseTokenizer<br/>QHĐ cực đại trọng số"]
 
     G3 --> G3A["CompressedPostings<br/>CSR cộng delta"]
     G3 --> G3B["VByteCodec<br/>variable-byte"]
@@ -70,7 +70,7 @@ flowchart LR
 | 3 | `Posting` | 1 | Một mục: `docId` + `termFrequency` + danh sách `positions` |
 | 4 | `TermDictionary` | 1 | Flyweight — kho chuỗi dùng chung, 7 triệu `String` xuống còn 136.768 |
 | 5 | `Tokenizer` | 2 | Giao diện Strategy cho bộ tách từ |
-| 6 | `VietnameseTokenizer` | 2 | Tách từ tiếng Việt bằng Longest Matching, sinh cả bản không dấu |
+| 6 | `VietnameseTokenizer` | 2 | Tách từ tiếng Việt bằng quy hoạch động cực đại trọng số, sinh cả bản không dấu |
 | 7 | `CompressedPostings` | 3 | Dạng nén của một posting list: bỏ `tf`, tổng tích luỹ kiểu CSR, delta theo đoạn |
 | 8 | `VByteCodec` | 3 | Mã hoá variable-byte cho dãy số nguyên tăng dần |
 | 9 | `IndexPersistence` | 3 | Lưu/nạp chỉ mục ra file JSON, có **kiểm tra số hiệu phiên bản** |
@@ -91,7 +91,7 @@ flowchart TD
     DOC["Danh sách WebDocument<br/>từ crawler hoặc JsonDocumentStore"]
     SORT["IndexBuilder<br/>SẮP XẾP theo docId TĂNG DẦN<br/>đây là tiền đề BẮT BUỘC"]
     ADD["InvertedIndex.addDocument<br/>ném ngoại lệ nếu gọi sai thứ tự"]
-    TOK["VietnameseTokenizer<br/>NFC, lowercase, tách tiếng,<br/>Longest Matching, bỏ stopword,<br/>sinh bản không dấu"]
+    TOK["VietnameseTokenizer<br/>NFC, lowercase, tách tiếng,<br/>ghép từ bằng QHĐ, bỏ stopword,<br/>sinh bản không dấu"]
     INTERN["TermDictionary.intern<br/>Flyweight"]
     IDX["index<br/>Map từ term sang posting list"]
 
@@ -338,8 +338,8 @@ flowchart TD
     S1["BƯỚC 1 - Chuẩn hoá Unicode về NFC<br/>Tiếng Việt có 2 cách gõ dấu:<br/>tổ hợp NFD hoặc dựng sẵn NFC.<br/>Không chuẩn hoá thì cùng một từ<br/>tạo ra 2 chuỗi Unicode khác nhau"]
     S2["BƯỚC 2 - Lowercase và bỏ dấu câu<br/>regex được BIÊN DỊCH SẴN thành hằng số"]
     S3["BƯỚC 3 - Tách theo khoảng trắng<br/>ra danh sách các tiếng"]
-    S4["BƯỚC 4 - Longest Matching<br/>tại mỗi vị trí thử ghép 4 rồi 3 rồi 2 tiếng,<br/>tra từ điển 154 từ ghép.<br/>Khớp thì gộp thành 1 token nối bằng gạch dưới"]
-    S5["BƯỚC 5 - Loại stopword<br/>chỉ áp dụng cho token 1 tiếng<br/>từ điển 99 từ dừng"]
+    S4["BƯỚC 4 - Ghép từ bằng QUY HOẠCH ĐỘNG<br/>MaxWeightSegmenter: đường đi dài nhất trên DAG.<br/>Đi SyllableTrie một lượt phủ cả 4 độ dài,<br/>cắt nhánh khi mất tiền tố. Từ điển 49.793 mục.<br/>Chọn cách tách tối ưu TOÀN CÂU, không tham lam"]
+    S5["BƯỚC 5 - Loại stopword<br/>chỉ áp dụng cho token 1 tiếng<br/>từ điển 91 từ dừng"]
     S6["BƯỚC 6 - Sinh bản không dấu<br/>xử lý riêng chữ đ rồi NFD rồi bỏ dấu tổ hợp"]
     OUT["Danh sách Token gồm<br/>term, noDiacriticTerm, position"]
 
@@ -355,8 +355,9 @@ Văn bản thô
    1. chuẩn hoá Unicode về NFC          (tránh 2 cách gõ dấu cho cùng một từ)
    2. lowercase + bỏ dấu câu            (regex biên dịch sẵn)
    3. tách theo khoảng trắng            → danh sách "tiếng"
-   4. Longest Matching 4→3→2 tiếng      (từ điển 154 từ ghép)
-   5. loại stopword (chỉ token 1 tiếng) (từ điển 99 từ dừng)
+   4. ghép từ bằng QUY HOẠCH ĐỘNG        (SyllableTrie, từ điển 49.793 mục)
+      cực đại trọng số trên DAG          → tối ưu TOÀN CÂU, không tham lam
+   5. loại stopword (chỉ token 1 tiếng) (từ điển 91 từ dừng)
    6. sinh bản không dấu                (xử lý riêng "đ", rồi NFD, rồi bỏ \p{M})
    │
    ▼
@@ -440,7 +441,7 @@ Bước 6, thêm bản không dấu:
 
 Vì vậy cả `InvertedIndex` lẫn `QueryParser` đều **nhận** tokenizer qua constructor thay vì tự tạo lấy một cái.
 
-Giao diện `Tokenizer` (Strategy) tồn tại chính vì lý do này, và cho thêm một lợi ích: **đo được** câu hỏi *"tokenizer nào tốt hơn"* bằng thí nghiệm ablation. Trước đây `RelevanceScorer` cho phép đo *"mô hình tính điểm nào tốt hơn"*, nhưng tokenizer thì không đo được — dù nó thực tế là **trần chất lượng** của cả hệ thống (từ điển từ ghép hiện chỉ có 154 mục). Giao diện này xoá bỏ sự bất đối xứng đó.
+Giao diện `Tokenizer` (Strategy) tồn tại chính vì lý do này, và cho thêm một lợi ích: **đo được** câu hỏi *"tokenizer nào tốt hơn"* bằng thí nghiệm ablation. Trước đây `RelevanceScorer` cho phép đo *"mô hình tính điểm nào tốt hơn"*, nhưng tokenizer thì không đo được — dù nó thực tế là **trần chất lượng** của cả hệ thống (từ điển từ ghép nay có 40.390 mục trên tổng 49.793). Giao diện này xoá bỏ sự bất đối xứng đó.
 
 ---
 
@@ -896,7 +897,7 @@ Ngoài ra còn ba lớp bảo vệ khác đã nhắc ở trên: `addDocument` é
 | `SearchIndex` | phụ thuộc lớp cụ thể | Không giả lập được trong test, không so sánh được hai cài đặt |
 | `TermDictionary` | mỗi lần gặp là một `String` mới | ~7 triệu object `String` thay vì 136.768 |
 | `VietnameseTokenizer` | tách theo khoảng trắng | "máy tính" thành hai token vô nghĩa; mất luôn tính năng tìm không dấu |
-| `Tokenizer` (giao diện) | dùng lớp cụ thể | Không đo được ablation *"tokenizer nào tốt hơn"* — mà từ điển 154 mục hiện đang là **trần chất lượng** của cả hệ thống |
+| `Tokenizer` (giao diện) | dùng lớp cụ thể | Không đo được ablation *"tokenizer nào tốt hơn"* — mà bộ tách từ chính là **trần chất lượng** của cả hệ thống |
 | `VByteCodec` + `CompressedPostings` | ghi thẳng ra JSON | File chỉ mục lớn hơn nhiều lần; xem ba mốc đo ở §8.3 |
 | `IndexPersistence` | không có | Phải crawl + index lại **mỗi lần** khởi động ứng dụng |
 | `PostingCursor` | vật chất hoá `List<Integer>` | 64 KB rác GC mỗi lần giao, và **mất hẳn** khả năng nhảy cóc |
@@ -910,7 +911,8 @@ Ngoài ra còn ba lớp bảo vệ khác đã nhắc ở trên: `addDocument` é
 test/java/com/vnsearch/index/
 │
 ├── InvertedIndexTest.java        → bất biến thứ tự bị ÉP, TF/DF, chỉ mục kép có và không dấu
-├── VietnameseTokenizerTest.java  → Longest Matching, stopword, bẫy chữ "đ", NFC/NFD
+├── VietnameseTokenizerTest.java  → ghép từ, stopword, bẫy chữ "đ", NFC/NFD
+├── MaxWeightSegmenterTest.java   → quy hoạch động, ca nhập nhằng chồng lấp
 ├── VByteCodecTest.java           → round-trip, các biên 127/128/16383, từ chối số âm
 ├── CompressedPostingsTest.java   → round-trip, ép bất biến tf bằng số vị trí
 ├── PostingCursorTest.java        → galloping đúng ở mọi vị trí, giá trị NO_MORE
@@ -957,6 +959,6 @@ Hay sap xep danh sach tai lieu truoc khi index.
 | Định luật Zipf/Heaps, vì sao đúng 136.768 term | [TermDictionary.md](TermDictionary.md) |
 | Thao tác bit, đóng gói hai giá trị vào một `long` | [VByteCodec.md](VByteCodec.md) |
 | Con số nén thật, chứng minh một trường là thừa | [CompressedPostings.md](CompressedPostings.md) |
-| Longest Matching, Unicode NFC/NFD, bẫy chữ `đ` | [VietnameseTokenizer.md](VietnameseTokenizer.md) |
+| Ghép từ bằng QHĐ, Unicode NFC/NFD, bẫy chữ `đ` | [VietnameseTokenizer.md](VietnameseTokenizer.md) |
 | **Chỉ mục được dùng thế nào** — two-pointer, filter-and-refine | [04-query/](../04-query/) |
 | Điểm BM25 dùng `avgdl` và `tf` ra sao | [05-ranking/BM25Scorer.md](../05-ranking/BM25Scorer.md) |

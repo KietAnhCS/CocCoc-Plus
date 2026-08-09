@@ -239,7 +239,7 @@ Phần lớn dự án dùng `record` bất biến (`Posting`, `Token`, `Task`, `
 
 Đây là ví dụ tốt về việc **chọn kiểu theo bản chất dữ liệu**: `Posting` không bao giờ đổi nên là `record`; `PoolEntry` sinh ra để **được sửa** nên là class có trường thay đổi được.
 
-> **Nhưng trường `public` là quá tay.** Jackson làm việc tốt với getter/setter, và trường `public` phá vỡ đóng gói không cần thiết. Đây là một điểm trừ nhỏ về OOP — xem [CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md).
+> **Nhưng trường `public` là quá tay.** Jackson làm việc tốt với getter/setter, và trường `public` phá vỡ đóng gói không cần thiết. Đây là một điểm trừ nhỏ về đóng gói, được giữ lại có ý thức vì lớp này chỉ phục vụ công cụ dòng lệnh.
 
 ---
 

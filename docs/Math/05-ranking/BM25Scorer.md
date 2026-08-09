@@ -16,7 +16,6 @@
 > - Nhận `SearchIndex` (interface) và dùng `getTermFrequency` chung thay vì bản sao binary search riêng.
 > - Constructor kiểm tra `k1 >= 0` và `b ∈ [0,1]`.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

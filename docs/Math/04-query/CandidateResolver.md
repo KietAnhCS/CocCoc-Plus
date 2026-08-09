@@ -16,7 +16,6 @@
 > - Đường ống lọc (**Chain of Responsibility**) nay lo các ràng buộc *sau* truy hồi: `DomainFilter`, `MaxCandidatesFilter`.
 > - Ranh giới phân công: ràng buộc **có posting list** → cây; ràng buộc trên **siêu dữ liệu** → đường ống lọc.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

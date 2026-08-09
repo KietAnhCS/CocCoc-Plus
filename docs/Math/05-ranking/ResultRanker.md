@@ -17,7 +17,6 @@
 > - **Đã sửa lỗ hổng XSS** — snippet nay thoát ký tự HTML trước khi bọc `<mark>`.
 > - Lớp nay chỉ còn hai việc: chấm điểm và lấy top-K.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

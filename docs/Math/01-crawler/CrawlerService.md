@@ -17,7 +17,6 @@
 > - Log dùng **SLF4J** thay `System.out`.
 > - **Mỗi khối trong sơ đồ kiến trúc crawler nay là một lớp riêng.** `CrawlerService` chỉ còn *điều phối* — nó không tự tải, tự lọc, tự lưu nữa. Xem bảng ánh xạ ở §0.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

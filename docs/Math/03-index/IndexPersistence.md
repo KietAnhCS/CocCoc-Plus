@@ -15,7 +15,6 @@
 > - Nhận `Tokenizer` (interface) thay vì lớp cụ thể.
 > - Trạng thái dẫn xuất nay tính lại qua `InvertedIndex.recomputeDerivedState()` — gom về một chỗ nên thêm trạng thái mới chỉ sửa một nơi.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

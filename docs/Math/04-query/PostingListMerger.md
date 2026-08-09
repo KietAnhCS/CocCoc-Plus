@@ -16,7 +16,6 @@
 > - `matchesPhrase` đã sửa hai chỗ lãng phí: lấy `positions` một lần ngoài vòng lặp, và dùng `Collections.binarySearch` thay `List.contains`.
 > - Lớp nay là `final` với constructor `private`.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

@@ -16,7 +16,6 @@
 > - `PageRankService` gọi `freeze()` trước vòng lặp, nên 53 vòng power iteration đều chạy trên CSR.
 > - Thêm `density()` và `estimatedBytes()` để báo cáo; `set()` sau `freeze()` ném `IllegalStateException`.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

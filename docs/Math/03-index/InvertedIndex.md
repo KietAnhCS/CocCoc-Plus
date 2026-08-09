@@ -18,7 +18,6 @@
 > - Đã thêm **Flyweight** (`TermDictionary.intern`) cho khoá term, và lớp cài đặt interface `SearchIndex`.
 > - Trạng thái dẫn xuất gom vào `recomputeDerivedState()` — một chỗ duy nhất.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

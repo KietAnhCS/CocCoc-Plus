@@ -15,7 +15,6 @@
 > - Nhận `SearchIndex` (interface) và dùng `getTermFrequency` chung — đã hết ba bản sao binary search.
 > - Việc kết hợp với PageRank/tiêu đề nay do **Decorator** đảm nhiệm, không còn công thức cộng tuyến tính chôn cứng.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

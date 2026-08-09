@@ -16,7 +16,6 @@
 > - Đã thêm **Floyd heapify $O(n)$** qua constructor `MinHeap(Collection, Comparator)`.
 > - `topK` gom $k$ phần tử đầu rồi heapify một lần: $O(k)$ thay vì $O(k\log k)$.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 

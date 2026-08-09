@@ -138,6 +138,20 @@ jobs:
         working-directory: browser-app
         run: npm run lint
 
+      # Cổng chặn thứ ba của frontend, và là cổng duy nhất kiểm HÀNH VI.
+      #
+      # `typecheck` chỉ nói kiểu dữ liệu khớp nhau; `lint` chỉ nói phong cách
+      # nhất quán. Cả hai đều xanh trên một hàm trả về kết quả sai. Trước bước
+      # này, hơn 5.000 dòng TypeScript — trong đó có chính sách điều hướng, tức
+      # một RANH GIỚI BẢO MẬT — không có gì canh cả.
+      #
+      # Xem `src/main/urlPolicy.test.ts`: nó ghim lại việc `file://` và
+      # `javascript:` phải bị từ chối. Nới lỏng phép kiểm tra đó "cho tiện" sẽ
+      # làm build đỏ ngay tại pull request.
+      - name: Test (Vitest)
+        working-directory: browser-app
+        run: npm test
+
   image:
     name: Dựng ảnh Docker và quét lỗ hổng
     runs-on: ubuntu-latest

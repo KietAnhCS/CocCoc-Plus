@@ -1,11 +1,12 @@
 import { BrowserWindow, WebContentsView, type Input, type WebContents } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
+import { HOME_URL, clampZoomFactor, resolveNavigable } from './urlPolicy'
 
 const CHROME_HEIGHT = 122
 const SIDE_RAIL_WIDTH = 48
 
-export const HOME_URL = 'vnsearch://home'
+export { HOME_URL }
 
 export interface TabState {
   id: string
@@ -63,8 +64,38 @@ export class TabManager {
         preload: join(__dirname, '../preload/index.js'),
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false
+        // BẬT sandbox. Trước đây là `false`, và đó là mặc định nguy hiểm nhất
+        // trong tệp này: khung nhìn NÀY là khung duy nhất có preload, tức là
+        // khung duy nhất chạm được tới IPC. Tắt sandbox nghĩa là nếu có một lỗ
+        // hổng XSS trong giao diện, mã của kẻ tấn công chạy trong một tiến
+        // trình có toàn quyền Node — đọc được tệp, mở được tiến trình con.
+        //
+        // Không có gì phải đánh đổi: preload ở đây chỉ dùng `ipcRenderer` và
+        // `contextBridge`, cả hai đều có sẵn trong preload đã sandbox. Đã kiểm
+        // tra cả `@electron-toolkit/preload` — nó chỉ đụng tới `electron` và
+        // `process.platform`/`versions`/`env`, đều được phép.
+        sandbox: true
       }
+    })
+
+    // Vỏ giao diện KHÔNG được rời khỏi trang của chính nó.
+    //
+    // Đây là khung có preload. Nếu một liên kết trong giao diện (hoặc một lỗi
+    // lập trình) khiến nó điều hướng sang một trang ngoài, thì trang ngoài đó
+    // thừa hưởng luôn cầu nối IPC. Nội dung web phải sống trong các tab, và
+    // các tab thì không có preload.
+    this.chromeView.webContents.on('will-navigate', (event, url) => {
+      const current = this.chromeView.webContents.getURL()
+      if (url !== current) {
+        event.preventDefault()
+        this.createTab(url)
+      }
+    })
+    // `target="_blank"` trong vỏ giao diện cũng vậy: mở thành tab, không mở
+    // thành một cửa sổ mới nằm ngoài mọi ràng buộc ở trên.
+    this.chromeView.webContents.setWindowOpenHandler(({ url }) => {
+      this.createTab(url)
+      return { action: 'deny' }
     })
     this.window.contentView.addChildView(this.chromeView)
     this.layoutChrome()
@@ -160,7 +191,21 @@ export class TabManager {
       return
     }
 
-    const target = /^[a-z]+:\/\//i.test(url) ? url : `https://${url}`
+    // Danh sách CHO PHÉP http/https — xem `urlPolicy.ts` về lỗ hổng `file://`
+    // mà phép kiểm tra này vá. URL đến đây từ BA nguồn và không nguồn nào đáng
+    // tin: thanh địa chỉ, `window.open` của trang đang mở, và liên kết bị chặn
+    // ở vỏ giao diện.
+    const target = resolveNavigable(url)
+    if (target === null) {
+      entry.state = { ...entry.state, loading: false, title: 'Địa chỉ không được phép mở' }
+      this.emit()
+      return
+    }
+    if (target === HOME_URL) {
+      this.navigate(id, HOME_URL)
+      return
+    }
+
     const view = entry.view ?? this.createView(entry)
     entry.state = { ...entry.state, url: target, loading: true }
     this.layoutAll()
@@ -181,7 +226,10 @@ export class TabManager {
   }
 
   setZoom(id: string, factor: number): void {
-    this.tabs.get(id)?.view?.webContents.setZoomFactor(factor)
+    // Ép về dải hợp lệ: giá trị này đến từ renderer qua IPC nên có thể là NaN,
+    // 0 hay số âm — và `setZoomFactor(0)` làm nội dung biến mất hẳn, không có
+    // cách nào phục hồi bằng giao diện.
+    this.tabs.get(id)?.view?.webContents.setZoomFactor(clampZoomFactor(factor))
   }
 
   setPanelWidth(px: number): void {

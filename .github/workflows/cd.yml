@@ -78,9 +78,28 @@ jobs:
     outputs:
       digest: ${{ steps.day.outputs.digest }}
       the: ${{ steps.phien-ban.outputs.the }}
+      kho: ${{ steps.kho.outputs.duong-dan }}
 
     steps:
       - uses: actions/checkout@v4
+
+      # Đường dẫn kho ảnh, ĐÃ HẠ VỀ CHỮ THƯỜNG.
+      #
+      # `github.repository_owner` giữ nguyên cách viết hoa của tài khoản GitHub
+      # (`KietAnhCS`), nhưng Docker BẮT BUỘC tên kho phải viết thường. Dùng
+      # thẳng biến đó làm buildx từ chối ngay ở bước dựng:
+      #
+      #     ERROR: failed to build: invalid tag
+      #     "ghcr.io/KietAnhCS/search-engine:sha-...":
+      #     repository name must be lowercase
+      #
+      # Tính MỘT lần ở đây rồi dùng lại cho cả bốn chỗ (dựng, ký, quét, ghim
+      # ảnh vào overlay) — bốn chỗ tự hạ chữ thường riêng là bốn cơ hội để một
+      # chỗ bị quên.
+      - id: kho
+        name: Xác định đường dẫn kho ảnh
+        run: |
+          echo "duong-dan=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/search-engine" >> "$GITHUB_OUTPUT"
 
       - id: phien-ban
         name: Xác định thẻ phiên bản
@@ -110,7 +129,7 @@ jobs:
           context: ./search-engine
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/search-engine:${{ steps.phien-ban.outputs.the }}
+            ${{ steps.kho.outputs.duong-dan }}:${{ steps.phien-ban.outputs.the }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # SBOM và provenance: danh sách mọi thư viện trong ảnh, và bằng chứng
@@ -133,7 +152,7 @@ jobs:
           DIGEST: ${{ steps.day.outputs.digest }}
         run: |
           cosign sign --yes \
-            "ghcr.io/${{ github.repository_owner }}/search-engine@${DIGEST}"
+            "${{ steps.kho.outputs.duong-dan }}@${DIGEST}"
 
       # Quét CVE, và ở ĐÂY thì mức CRITICAL THẬT SỰ chặn.
       #
@@ -144,7 +163,7 @@ jobs:
       - name: Quét CVE, CHẶN nếu có mức CRITICAL
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ghcr.io/${{ github.repository_owner }}/search-engine:${{ steps.phien-ban.outputs.the }}
+          image-ref: ${{ steps.kho.outputs.duong-dan }}:${{ steps.phien-ban.outputs.the }}
           format: table
           exit-code: '1'
           ignore-unfixed: true
@@ -196,7 +215,7 @@ jobs:
         working-directory: deploy/k8s/overlays/${{ github.event.inputs.moi-truong == 'production' && 'prod' || 'dev' }}
         run: |
           kubectl kustomize edit set image \
-            "ghcr.io/kietanhcs/search-engine=ghcr.io/${{ github.repository_owner }}/search-engine@${{ needs.dung-anh.outputs.digest }}" \
+            "ghcr.io/kietanhcs/search-engine=${{ needs.dung-anh.outputs.kho }}@${{ needs.dung-anh.outputs.digest }}" \
             2>/dev/null || \
           sed -i "s|newTag:.*|digest: ${{ needs.dung-anh.outputs.digest }}|" kustomization.yaml
 

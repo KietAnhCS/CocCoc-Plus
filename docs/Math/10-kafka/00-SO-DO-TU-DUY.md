@@ -115,9 +115,7 @@ việc mà Kafka không làm được:
 | Sắp theo mức ưu tiên, không theo thứ tự ghi | **Không.** Mỗi phân hoạch trả đúng thứ tự đã ghi |
 
 Và cái giá nếu vẫn làm: xoá mất `MinHeap` tự cài cùng cấu trúc hai tầng
-Mercator — chính là **luận điểm DSA của đồ án**. Đây đúng là cái bẫy mà
-[`DANH-GIA-DU-AN.md`](../../DANH-GIA-DU-AN.md) cảnh báo với Elasticsearch:
-đem một thư viện ngoài thế chỗ phần mình viết ra để chứng minh.
+Mercator — chính là **luận điểm DSA của đồ án**. Đây đúng là cái bẫy quen thuộc khi nghĩ tới Elasticsearch: đem một thư viện ngoài thế chỗ phần mình viết ra để chứng minh.
 
 > Ô cam trong sơ đồ là ô **giữ nguyên**.
 
@@ -276,7 +274,7 @@ tiếp mỏng đến mức nhàm chán.
 
 Ràng buộc đó **mua được ba thứ**:
 
-1. **Test chạy không cần broker.** 490 bài test chạy trong khoảng 30 giây.
+1. **Test chạy không cần broker.** 521 bài test chạy trong khoảng 43 giây.
 2. **Đồ án vẫn chạy trên một máy.** `run-crawl.bat` không đổi một dòng.
 3. **Nó ép kiến trúc phải đúng.** Muốn cùng một service chạy được ở hai chế độ
    thì nó buộc phải sạch khỏi hạ tầng.
@@ -414,21 +412,7 @@ cd search-engine
 
 ---
 
-## 10. Tự chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Căn cứ |
-|---|---:|---|
-| Chọn công cụ có lập luận | 9,0 | Ghi rõ cả phương án **bị bác bỏ** và lý do (§2.1, §3) |
-| Đặt ranh giới dịch vụ | 9,0 | Cắt sau Duplicate Detection — ba việc thật sự độc lập |
-| Giữ được phần lõi học thuật | 9,5 | MinHeap + Mercator **không bị đụng tới** |
-| Tính đúng khi phân tán | 8,5 | Phân hoạch theo host giải cả chống trùng lẫn politeness; giới hạn (bộ lọc mất khi khởi động lại) đã nêu rõ |
-| Kiểm thử | 9,0 | 490 test không cần broker + 7 test tích hợp; bộ tích hợp **đã bắt được một lỗi thật** (xem §7b) |
-| Quan sát được | 9,0 | Chuỗi đủ: phơi → thu thập → vẽ → cảnh báo, 7 quy tắc có runbook |
-| Vận hành được | 8,0 | Co giãn theo **độ dài hàng đợi** chứ không phải CPU; DLT; NetworkPolicy |
-| Chi phí được nói thẳng | 9,0 | §7 — không giấu chỗ nào |
-| **Trung bình** | **8,8** | |
-
-**Chỗ còn yếu, nói trước khi bị hỏi:**
+## 10. Giới hạn đã biết của kiến trúc này
 
 1. **Kafka một node, không sao lưu.** Đủ cho đồ án; cụm thật cần tối thiểu ba
    node hoặc một dịch vụ quản trị sẵn. Đã ghi ngay đầu `kafka.yaml`.

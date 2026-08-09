@@ -142,7 +142,7 @@ jobs:
       # chưa vá) sẽ bị vô hiệu hoá trong vòng một tuần. Ở đây thì chặn là đúng —
       # ranh giới cuối trước khi ảnh chạm vào một cụm thật.
       - name: Quét CVE, CHẶN nếu có mức CRITICAL
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ghcr.io/${{ github.repository_owner }}/search-engine:${{ steps.phien-ban.outputs.the }}
           format: table

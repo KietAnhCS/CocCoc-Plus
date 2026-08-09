@@ -1,21 +1,39 @@
 # Kiểm tra tự động mỗi lần đẩy mã lên hoặc mở pull request.
 #
-# VÌ SAO CẦN. Dự án có 399 bài test viết rất tốt, nhưng trước tệp này không ai
+# VÌ SAO CẦN. Dự án có 521 bài test viết rất tốt, nhưng trước tệp này không ai
 # chạy chúng tự động. Hệ quả đã xảy ra thật: một thay đổi bảo mật làm 9 bài test
 # đỏ và ứng dụng không khởi động được, và lỗi đó tồn tại trong cây làm việc mà
 # không có gì báo. Một bộ test không được chạy là một bộ test không tồn tại.
 #
-# BỐN CỔNG CHẶN, mỗi cổng bắt một loại hỏng khác nhau:
+# BỐN CỔNG CHẶN của job `backend`, mỗi cổng bắt một loại hỏng khác nhau:
 #
 #   Cổng                 Bắt được gì                        Hỏng thì sao
 #   ──────────────────── ────────────────────────────────── ────────────
-#   399 bài test         Logic từng khối sai                Build đỏ
+#   521 bài test         Logic từng khối sai                Build đỏ
 #   Độ phủ (JaCoCo)      Mã mới không có test               Build đỏ
 #   Phân tích tĩnh       Lỗi mà test không chạy tới         Build đỏ
 #   Chất lượng xếp hạng  Tìm kiếm tệ đi mà test vẫn xanh    Build đỏ
 #
 # Cổng thứ tư là cổng đặc thù của một hệ thống tìm kiếm: ba cổng đầu đều có thể
 # xanh trong khi kết quả trả về cho người dùng đã tệ đi. Xem RankingQualityTest.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# MỘT ĐIỀU KIỆN NGẦM MÀ CI TỪNG VẤP PHẢI SUỐT NHIỀU NGÀY
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# `run: ./mvnw ...` chỉ chạy được nếu tệp `mvnw` có BIT THỰC THI trong Git
+# (mode 100755). Windows không theo dõi bit này, nên một tệp commit từ Windows
+# mặc định là 100644, và trên runner Linux nó cho:
+#
+#     ./mvnw: Permission denied          (exit code 126)
+#
+# Kiểu hỏng này đặc biệt khó nhận ra: nó KHÔNG phải lỗi mã nguồn, chạy trên máy
+# lập trình viên thì hoàn toàn bình thường, và thông báo lỗi không hề nhắc tới
+# Git hay quyền tệp trong kho. Sửa một lần bằng:
+#
+#     git update-index --chmod=+x search-engine/mvnw
+#
+# Cùng lý do áp dụng cho deploy/kind/up.sh và down.sh.
 name: CI
 
 on:
@@ -193,7 +211,7 @@ jobs:
       # trong vòng một tuần. Kết quả đẩy lên tab Security để theo dõi; việc chặn
       # phát hành nằm ở release.yml, nơi mức CRITICAL mới thực sự chặn.
       - name: Quét lỗ hổng bằng Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: vnsearch-backend:ci
           format: sarif

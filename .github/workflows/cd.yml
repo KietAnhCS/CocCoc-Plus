@@ -4,8 +4,8 @@
 # VÌ SAO TỆP NÀY TỒN TẠI
 # ═══════════════════════════════════════════════════════════════════════════
 #
-# `docs/DANH-GIA-DU-AN.md` chấm CI/CD 4,0/10 với lý do ghi rõ: "Chưa commit →
-# chưa chạy; KHÔNG CÓ CD". Hai chữ cái trong "CI/CD" là hai việc khác nhau:
+# Hai chữ cái trong "CI/CD" là hai việc hoàn toàn khác nhau, và trước tệp này
+# dự án chỉ có chữ đầu:
 #
 #   CI  — mã có đúng không?          -> ci.yml, đã có
 #   CD  — mã có TỚI ĐƯỢC người dùng? -> tệp này

@@ -319,7 +319,14 @@ public class SearchEngineFacade {
                 // nguon su that cua corpus — khong con ban nao trong bo nho.
                 ContentStorage.saveToJson(docs, crawledDataPath);
                 index = indexBuilder.build(docs);
-                IndexPersistence.save((InvertedIndex) index, indexDataPath);
+                // Dung persistIndex() chu khong ep kieu `(InvertedIndex) index`.
+                // Ngoai viec bo mot phep ep kieu co the nem ClassCastException,
+                // thay doi nay con dat viec ghi chi muc dung chinh sach loi da
+                // ghi o Javadoc persistIndex(): tep chi muc la CACHE DAN XUAT.
+                // Corpus vua duoc ghi ra dia o dong tren moi la nguon su that;
+                // dia day vao dung luc nay khong duoc phep bien mot phien crawl
+                // da thanh cong thanh mot job bao that bai.
+                persistIndex();
                 refreshDerivedState();
             } catch (IOException e) {
                 throw new java.io.UncheckedIOException(e);
@@ -367,7 +374,7 @@ public class SearchEngineFacade {
             }
         }
         index = indexBuilder.build(docs);
-        IndexPersistence.save((InvertedIndex) index, indexDataPath);
+        persistIndex();
         refreshDerivedState();
     }
 

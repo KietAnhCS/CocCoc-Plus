@@ -56,11 +56,17 @@ public class PageRankService {
             return new PageRankResult(Map.of(), 0);
         }
 
-        Map<Integer, Integer> docIdToIndex = new HashMap<>();
+        // CHI can mot bang tra: url -> chi so. Truoc day o day con mot bang thu
+        // hai (docId -> chi so) duoc dung day du nhung KHONG BAO GIO doc — phep
+        // anh xa nguoc lai chi la `docIds.get(idx)`, va do la mot ArrayList nen
+        // tra cuu da la O(1) san.
+        //
+        // SpotBugs bat duoc no (UC_USELESS_OBJECT), nhung chi tren CI: may phat
+        // trien chay JDK 21 con CI chay JDK 17, va hai ban phan tich cho ket qua
+        // khac nhau tren cung mot ma nguon.
         Map<String, Integer> urlToIndex = new HashMap<>();
         for (int idx = 0; idx < n; idx++) {
             int docId = docIds.get(idx);
-            docIdToIndex.put(docId, idx);
             urlToIndex.put(documents.get(docId).getUrl(), idx);
         }
 

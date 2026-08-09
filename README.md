@@ -196,8 +196,8 @@ Four independent layers, each blocking something different:
 ## Development
 
 ```bash
-cd search-engine && ./mvnw clean verify   # 399 tests + coverage gate + static analysis
-cd browser-app  && npm run typecheck && npm run lint
+cd search-engine && ./mvnw clean verify   # 521 tests + coverage gate + static analysis
+cd browser-app  && npm run typecheck && npm run lint && npm test   # 53 tests
 ```
 
 `verify` (not `test`) is what CI runs — it is the only phase that executes the
@@ -209,7 +209,7 @@ Five workflows, all in [`.github/workflows/`](.github/workflows/):
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push to `main`, every PR | Tests, JaCoCo coverage gate, SpotBugs, frontend typecheck/lint, Docker build, Trivy image scan, **Kafka integration tests**, **infrastructure validation** |
+| `ci.yml` | push to `main`, every PR | Tests, JaCoCo coverage gate, SpotBugs, frontend typecheck/lint/**Vitest**, Docker build, Trivy image scan, **Kafka integration tests**, **infrastructure validation** |
 | `cd.yml` | after CI passes on `main`; manual | Build + sign image, deploy to staging automatically and to production behind an approval, `--dry-run=server` first, automatic rollback if the rollout fails |
 | `codeql.yml` | push, PR, weekly | CodeQL SAST for Java and TypeScript |
 | `release.yml` | tag `v*.*.*` | Multi-arch image to GHCR with SBOM + provenance, cosign keyless signature, blocking CRITICAL CVE scan, GitHub Release |
@@ -226,11 +226,16 @@ drifting apart.
 Four quality gates block a merge, each catching a different kind of breakage:
 
 ```
-399 tests           → per-unit logic errors
+521 tests           → per-unit logic errors
 JaCoCo coverage     → new code with no tests          (line ≥ 68%, branch ≥ 65%)
 SpotBugs            → bugs no test path reaches       (0 findings)
 Ranking quality     → search got worse, tests stayed green
 ```
+
+The frontend has three gates of its own — `typecheck`, `lint` and **53 Vitest
+cases**. The last one is the only one that checks *behaviour*: it pins down the
+main-process navigation policy, which is a security boundary (`file://` and
+`javascript:` must be refused — see `src/main/urlPolicy.ts`).
 
 The last one is search-specific: the other three can all be green while results
 returned to users have degraded. See `RankingQualityTest`.
@@ -258,16 +263,23 @@ Documentation is written in Vietnamese.
 
 | File | Contents |
 |---|---|
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Overall architecture and data flow |
-| [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Data structures and algorithms report |
-| [`docs/Math/`](docs/Math/README.md) | Per-component mathematics, with mind maps |
-| [`docs/Math/10-kafka/`](docs/Math/10-kafka/00-SO-DO-TU-DUY.md) | Kafka and the Modular Services — where the pipeline is cut, and why the URL Frontier is **not** replaced |
-| [`docs/DEVOPS.md`](docs/DEVOPS.md) | Infrastructure, the observability chain, CI/CD |
-| [`docs/EVALUATION.md`](docs/EVALUATION.md) | Search quality measurement (MRR, P@k, nDCG) |
-| [`docs/SO-SANH-PHUONG-AN.md`](docs/SO-SANH-PHUONG-AN.md) | Design alternatives compared |
-| [`docs/DANH-GIA-DU-AN.md`](docs/DANH-GIA-DU-AN.md) | Quality review against enterprise standards |
-| [`docs/CHAM-DIEM-STARTUP.md`](docs/CHAM-DIEM-STARTUP.md) | DSA / CI-CD / security / performance scored against a startup bar |
+Docs are organised by **the question they answer**, not by source folder:
+
+| Document | Answers |
+|---|---|
+| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How do the pieces fit into one working system? |
+| [`docs/BACKEND.md`](docs/BACKEND.md) | How is the Spring Boot app assembled — beans, config, request lifecycle? |
+| [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) | Where does it run, and who watches it? Docker, Kubernetes, monitoring |
+| [`docs/DEVOPS.md`](docs/DEVOPS.md) | How does code get from a laptop to a cluster? CI/CD, the seven gates |
+| [`docs/SECURITY.md`](docs/SECURITY.md) | What is it defended against, and **what is still open**? |
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | The mini browser (Electron + React) |
+| [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Big-O and measured numbers |
+| [`docs/Math/`](docs/Math/README.md) | One page per class — formulas, worked examples, mind maps |
+| [`docs/Math/09-design-patterns/`](docs/Math/09-design-patterns/README.md) | One page per design pattern, and the bug each one fixed |
+| [`docs/Math/10-kafka/`](docs/Math/10-kafka/00-SO-DO-TU-DUY.md) | Kafka and the Modular Services — where the pipeline is cut, and why the URL Frontier is **not** replaced |
+| [`docs/EVALUATION.md`](docs/EVALUATION.md) | Search quality measurement (MRR, P@k, nDCG) |
+| [`docs/SO-SANH-PHUONG-AN.md`](docs/SO-SANH-PHUONG-AN.md) | 13 problems, the alternatives rejected, and why |
+| [`docs/GIN-BASELINE.md`](docs/GIN-BASELINE.md) | Head-to-head against PostgreSQL GIN |
 
 ---
 

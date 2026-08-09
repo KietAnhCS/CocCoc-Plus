@@ -34,6 +34,25 @@
 #     git update-index --chmod=+x search-engine/mvnw
 #
 # Cùng lý do áp dụng cho deploy/kind/up.sh và down.sh.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# VÌ SAO CI CHẠY JDK 21 TRONG KHI MÃ NHẮM JAVA 17
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Hai con số này KHÁC NHAU một cách có chủ ý:
+#
+#   java.version = 17   (pom.xml)  -> BYTECODE sinh ra nhắm Java 17,
+#                                     nên ảnh Docker chạy trên JRE 17 vẫn đúng
+#   java-version = 21   (tệp này)  -> JVM CHẠY Maven, SpotBugs, JaCoCo
+#
+# Vì sao phải là 21: máy phát triển chạy JDK 21, và SpotBugs cho kết quả KHÁC
+# NHAU giữa hai bản JDK trên cùng một mã nguồn. Chuyện đã xảy ra thật —
+# `./mvnw verify` trên máy báo 0 bug, còn CI (khi đó dùng JDK 17) báo 1 bug
+# UC_USELESS_OBJECT trong PageRankService. Bug đó CÓ THẬT, nhưng việc chỉ một
+# bên thấy nó nghĩa là "xanh trên máy" không nói lên điều gì về CI.
+#
+# Nguyên tắc: JVM chạy công cụ phân tích phải GIỐNG NHAU hai bên. Còn phiên bản
+# bytecode đích thì thuộc về pom.xml, không thuộc về tệp này.
 name: CI
 
 on:
@@ -54,7 +73,7 @@ permissions:
 
 jobs:
   backend:
-    name: Backend (Java 17)
+    name: Backend (Java 21)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,10 +83,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cài đặt JDK 17
+      - name: Cài đặt JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: temurin
           # Tự lưu đệm kho thư viện Maven giữa các lần chạy. Không có dòng
           # này thì mỗi lần chạy đều tải lại toàn bộ phụ thuộc.
@@ -250,10 +269,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Cài đặt JDK 17
+      - name: Cài đặt JDK 21
         uses: actions/setup-java@v4
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: temurin
           cache: maven
 

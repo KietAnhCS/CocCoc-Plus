@@ -74,18 +74,27 @@ flowchart LR
         DS[("Trie / BloomFilter / MinHeap<br/>LRUCache / SparseMatrix<br/>VByteCodec / PostingCursor / TermDictionary")]
     end
 
+    subgraph Bus["Bus sự kiện + Modular Services (crawler/bus, crawler/modular)"]
+        EB["CrawlEventBus (interface)<br/>InProcess ↔ Kafka"]
+        MS1[CrawlAnalyticsService]
+        MS2[ImageDownloadService]
+        MS3[UrlExtractorService]
+        IS[("ImageStore — nguồn cho /api/images")]
+    end
+
     subgraph Eval["Bộ đánh giá chất lượng (eval/)"]
         Harness[EvaluationHarness]
         Metrics["EvaluationMetrics: P@k, MAP, nDCG, MRR"]
         Known[KnownItemQueryGenerator]
         Pool["PoolBuilder — TREC pooling"]
+        Sig["SignificanceTest — kiểm định ý nghĩa"]
     end
 
     Web[(World Wide Web)]
     Data[("data/*.json")]
     PG[("PostgreSQL — kho tài liệu thô")]
 
-    UI -->|"REST /api/search, /api/suggest"| Ctl
+    UI -->|"REST /api/search /suggest /images /feed"| Ctl
     Ctl --> Facade
     Facade --> Cache
     Facade --> Svc
@@ -107,31 +116,54 @@ flowchart LR
     Idx --> Data
     Crawl --> PG
     PG -->|"DocumentStore — nạp lúc khởi động, DỰNG LẠI chỉ mục"| Idx
+    Crawl -->|"PageEvent / DiscoveredUrl<br/>OutlinksExtracted / ImageFound"| EB
+    EB --> MS1
+    EB --> MS2
+    EB --> MS3
+    MS2 --> IS
+    IS -->|"GET /api/images"| Ctl
     Known --> Idx
     Harness --> Resolve
     Harness --> Rank
     Harness --> Metrics
+    Metrics --> Sig
     Pool --> Harness
 ```
 
-### Tám interface là "khớp nối" của sơ đồ trên
+> **Bus sự kiện là điểm cắt duy nhất giữa crawler và ba Modular Service.**
+> `CrawlEventBus` có hai cài đặt thay thế nhau được: `InProcessCrawlEventBus`
+> (mặc định — cùng tiến trình, không cần broker) và `KafkaCrawlEventBus` (ba
+> service chạy ở tiến trình riêng, co giãn độc lập). Đổi giữa hai chế độ chỉ là
+> một khoá cấu hình `app.crawler.bus`. Vì sao Kafka mà không phải hàng đợi công
+> việc, và vì sao URL Frontier **không** bị thay:
+> [`Math/10-kafka/`](Math/10-kafka/00-SO-DO-TU-DUY.md).
 
-Mỗi mũi tên đi qua một trong tám interface tự định nghĩa, chứ không đi thẳng
-tới lớp cụ thể. Đây là thứ làm sơ đồ này **thay được từng mảnh**:
+### Mười hai interface là "khớp nối" của sơ đồ trên
+
+Mỗi mũi tên đi qua một trong mười hai interface tự định nghĩa, chứ không đi
+thẳng tới lớp cụ thể. Đây là thứ làm sơ đồ này **thay được từng mảnh**:
 
 | Interface | Tách *cái gì* khỏi *làm thế nào* | Cài đặt hiện có |
 |---|---|---|
-| `RelevanceScorer` | "chấm điểm liên quan" | `TfIdfScorer`, `BM25Scorer`, 2 Decorator |
-| `Tokenizer` | "tách từ" | `VietnameseTokenizer` |
 | `SearchIndex` | "tra posting list" | `InvertedIndex` |
+| `Tokenizer` | "tách từ" | `VietnameseTokenizer` |
+| `RelevanceScorer` | "chấm điểm liên quan" | `TfIdfScorer`, `BM25Scorer`, 2 Decorator |
 | `DocumentStore` | "nạp corpus" | `PostgresDocumentStore`, `JsonDocumentStore` ×2 |
 | `CandidateFilter` | "thu hẹp ứng viên" | `DomainFilter`, `MaxCandidatesFilter` |
 | `QueryNode` (`sealed`) | "đánh giá một mệnh đề" | `TermNode`, `PhraseNode`, `AndNode`, `OrNode`, `NotNode` |
 | `PostingCursor` | "duyệt posting list" | `ArrayPostingCursor` |
-| `CrawlListener` | "phản ứng với sự kiện crawl" | `ConsoleCrawlListener` |
+| `CrawlListener` | "phản ứng với sự kiện crawl" | `ConsoleCrawlListener`, `ProgressBarCrawlListener`, `CheckpointCrawlListener` |
+| `CrawlEventBus` | "phát tán sự kiện đi đâu" | `InProcessCrawlEventBus`, `KafkaCrawlEventBus` |
+| `PageEventHandler` | "làm gì với một trang đã crawl" | 3 Modular Service |
+| `Prioritizer` | "URL này ưu tiên mức mấy" | `DefaultPrioritizer` |
+| `FrontQueueSelector` | "chọn hàng đợi ưu tiên nào" | `WeightedRandomSelector`, `StrictPrioritySelector` |
+
+**Bốn interface cuối** ra đời cùng lúc với URL Frontier hai tầng và bus sự kiện
+Kafka — chúng là phần mà các bản tài liệu trước bỏ sót.
 
 Phân tích từng mẫu thiết kế:
 [`Math/09-design-patterns/`](Math/09-design-patterns/README.md).
+Chi tiết lắp ráp Spring: [`BACKEND.md`](BACKEND.md).
 
 ### Hai lưu ý kiến trúc quan trọng nhất
 
@@ -331,7 +363,7 @@ trong khối `synchronized` nên tính chất đó được khôi phục, đồn
 flowchart LR
     Doc[WebDocument] --> Join["ghép title + metaDescription + bodyText"]
     Join --> Tok["VietnameseTokenizer.tokenize()"]
-    Tok -->|"Longest Matching ≤ 4 tiếng<br/>+ bỏ stopword<br/>+ sinh bản không dấu"| Tokens["List&lt;Token(term, noDiacriticTerm, position)&gt;"]
+    Tok -->|"ghép từ bằng QHĐ, ≤ 4 tiếng<br/>+ bỏ stopword<br/>+ sinh bản không dấu"| Tokens["List&lt;Token(term, noDiacriticTerm, position)&gt;"]
     Tokens --> Group["gom vị trí theo term"]
     Group --> Append["APPEND Posting vào cuối posting list"]
     Append --> Idx["LinkedHashMap&lt;String, List&lt;Posting&gt;&gt;"]
@@ -789,10 +821,16 @@ vào** gói nào.
 | `query/filter/` | **`CandidateFilter`** + `DomainFilter`, `MaxCandidatesFilter` | `index/`, `query/`, `model/` |
 | `ranking/` | `RelevanceScorer` (giao diện), `TfIdfScorer`, `BM25Scorer`, **`ScorerFactory`**, `PageRankService`, `ResultRanker`, **`SnippetBuilder`**, **`QuerySyllables`** | `index/`, `datastructure/`, `model/` |
 | `ranking/decorator/` | **`PageRankBoostScorer`**, **`TitleBoostScorer`** | `ranking/`, `index/`, `model/` |
-| `eval/` | `EvaluationMetrics`, `KnownItemQueryGenerator`, `EvaluationHarness`, `PoolBuilder`, hai runner | `query/`, `ranking/`, `index/` |
+| `crawler/bus/` | **`CrawlEventBus`** + `InProcessCrawlEventBus` / `KafkaCrawlEventBus`; bốn thông điệp `PageEvent`, `DiscoveredUrl`, `OutlinksExtracted`, `ImageFound`; **`PageEventHandler`** | `model/` |
+| `crawler/modular/` | Ba Modular Service: `CrawlAnalyticsService`, `ImageDownloadService`, `UrlExtractorService`; kho ảnh `ImageStore` + `ImageStorage`, `ImageQuality` | `crawler/bus/` |
+| `eval/` | `EvaluationMetrics`, `KnownItemQueryGenerator`, `EvaluationHarness`, `PoolBuilder`, **`SignificanceTest`**, bốn runner CLI | `query/`, `ranking/`, `index/` |
 | `storage/` | **`DocumentStore`** (giao diện) + `JsonDocumentStore`, `PostgresDocumentStore`; `DocumentRepository` (JDBC), hai runner | `model/`, JDBC |
 | `service/` | `SearchEngineFacade` (chỉ điều phối) + **`IndexBuilder`**, **`SuggestionService`**, **`CrawlJobManager`** + **`CrawlStatus`**, **`LanguageDetector`** | Gần như tất cả gói trên |
-| `controller/` | Ba REST controller + `GlobalExceptionHandler` + `CorsConfig` + `SearchConfig` | Chỉ `service/` và `model/` |
+| `config/` | **11 lớp** — `SecurityConfig`, `ApiKeyAuthFilter`, `RateLimitFilter`, `CorsConfig`, `GlobalExceptionHandler`, `SearchConfig`, `MetricsConfig`, `KafkaCrawlConfig`, `CrawlKafkaListeners`, `ImageStoreListener`, `ImageStorePreloader` | tất cả |
+| `controller/` | **Sáu** REST controller: `SearchController`, `SuggestController`, `ImageSearchController`, `FeedController`, `HealthController`, `AdminController` | Chỉ `service/` và `model/` |
+
+> Bảng đầy đủ hơn — kèm số lớp mỗi gói và mô tả từng lớp cấu hình — nằm ở
+> [`BACKEND.md` §2](BACKEND.md) và [`BACKEND.md` §4](BACKEND.md).
 
 Điểm đáng chú ý: **`datastructure/` không phụ thuộc gì cả**. Đó là lý do
 `MinHeapTest`, `TrieTest`, `BloomFilterTest`… chạy trong vài chục
@@ -807,16 +845,20 @@ năng mới ở gói nào. Chi tiết:
 
 ### Hợp đồng REST
 
-| Endpoint | Tham số | Ghi chú |
-|---|---|---|
-| `GET /api/search` | `q`, `page` (mặc định 1), `size` (mặc định 20, chặn trong [1, 100]) | Trả `SearchResponse` gồm `totalResults`, `timeTakenMs`, `droppedTerms` (các term hệ thống đã tự bỏ để tìm được kết quả), và danh sách kết quả kèm `score` / `pageRankScore` để bật chế độ debug trên UI |
-| `GET /api/suggest` | `prefix`, `limit` (mặc định 10, chặn trong [1, 50]) | Trả `{"suggestions": [...]}` |
-| `POST /api/admin/crawl` | body `{seedUrls, maxDepth, maxPages}` | Trả `jobId` ngay, crawl chạy nền |
-| `GET /api/admin/crawl/{jobId}/status` | — | `status`, `pagesCrawled`, `queueSize` |
-| `POST /api/admin/reindex` | — | Dựng lại chỉ mục + PageRank + Trie + xoá cache |
-| `GET /api/admin/stats` | — | `totalDocuments`, `totalTerms`, `indexSizeBytes`, `cacheHitRate`, `bloomFilterBits` |
+| Endpoint | Quyền | Tham số | Ghi chú |
+|---|:---:|---|---|
+| `GET /api/search` | công khai | `q`, `page` (mặc định 1, **trần 1.000**), `size` (mặc định 20, chặn trong [1, 100]) | Trả `SearchResponse` gồm `totalResults`, `timeTakenMs`, `droppedTerms` (các term hệ thống đã tự bỏ để tìm được kết quả), và danh sách kết quả kèm `score` / `pageRankScore` để bật chế độ debug trên UI |
+| `GET /api/suggest` | công khai | `q`, `limit` (mặc định 8) | Trả `{"suggestions": [...]}` |
+| `GET /api/images` | công khai | `q`, `page`, `size` | Trả `results[]`, `hasMore`, `pagesScanned` — nguồn là `ImageStore` |
+| `GET /api/feed` | công khai | `page`, `size` | **Duyệt** chỉ mục theo `docId`, không qua truy vấn |
+| `GET /api/health` | công khai | — | `200` khi chỉ mục có tài liệu, **`503` khi rỗng** |
+| `POST /api/admin/crawl` | `X-API-Key` | body `{seedUrls, maxDepth, maxPages}` | Trả `jobId` ngay, crawl chạy nền |
+| `GET /api/admin/crawl/{jobId}/status` | `X-API-Key` | — | `status`, `pagesCrawled`, `queueSize` |
+| `POST /api/admin/reindex` | `X-API-Key` | — | Dựng lại chỉ mục + PageRank + Trie + xoá cache |
+| `GET /api/admin/stats` | `X-API-Key` | — | `totalDocuments`, `totalTerms`, `indexSizeBytes`, `cacheHitRate`, `bloomFilterBits`, `scorer` |
 
-Ví dụ gọi thật: xem `docs/api-examples.http`.
+Ví dụ gọi thật: xem `docs/api-examples.http`. Phân quyền và lý do từng lựa chọn:
+[`SECURITY.md` §5](SECURITY.md).
 
 ---
 
@@ -853,8 +895,9 @@ tiếp:
    toàn để bảo vệ hệ thống khỏi truy vấn bất thường, **không phải** một tối
    ưu xếp hạng. Cách chuẩn của ngành là **WAND** hoặc **MaxScore**. Javadoc
    của lớp nói rõ điều này.
-10. **Từ điển từ ghép chỉ 154 mục** (cần 30.000–70.000). Đây là **trần chất
-    lượng của toàn hệ thống** — và là dữ liệu, không phải mã nguồn.
+10. **Chưa có migration cho lược đồ CSDL.** `schema.sql` được áp bằng tay và có
+    hai bản (`src/main/resources/db/` và `deploy/k8s/base/`) mà CI phải canh cho
+    khỏi lệch. Flyway hoặc Liquibase là bước hợp lý tiếp theo.
 
 ### Những hạn chế đã được khắc phục
 
@@ -871,6 +914,11 @@ Ghi lại để đối chiếu với các bản tài liệu cũ:
 | `Trie` không thread-safe | `ReentrantReadWriteLock` |
 | Snippet có lỗ hổng XSS | `SnippetBuilder.escapeHtml` |
 | Kết hợp tín hiệu sai thang đo 1000× | Decorator, nhân + log thay vì cộng |
+| **Tách từ tham lam (Longest Matching)** | **`MaxWeightSegmenter` — quy hoạch động cực đại trọng số trên DAG** |
+| **Từ điển từ ghép chỉ 154 mục** | **`vietnamese-words.txt` — 49.793 mục, trong đó 40.390 từ ghép** |
+| Crawler chốt cứng vào ba service | `CrawlEventBus` — đổi in-process ↔ Kafka bằng một khoá cấu hình |
+| `navigate()` của Electron nhận mọi scheme | `urlPolicy.ts` — danh sách cho phép `http`/`https` |
+| Frontend không có test nào | 53 bài Vitest, chạy trong CI |
 
 Phân tích đầy đủ hơn về những điểm vỡ ở quy mô lớn: mục 13 của
 `docs/Math/`. Số liệu đo và Big-O: `DSA-REPORT.md`. Từng mẫu thiết
@@ -880,13 +928,19 @@ kế và lỗi mà nó sửa: [`Math/09-design-patterns/`](Math/09-design-patter
 
 ## Tài liệu liên quan
 
-| Tài liệu | Nội dung |
+Tài liệu được chia theo **câu hỏi cần trả lời**, không theo thư mục mã nguồn:
+
+| Câu hỏi | Tài liệu |
 |---|---|
-| [`Math/`](Math/README.md) | **Nên đọc trước** — toàn bộ lý thuyết, kèm ví dụ tính tay |
-| [`Math/`](Math/README.md) | Từng thuật toán theo thứ tự pipeline, kèm mã giả |
-| [`Math/`](Math/README.md) | **Một trang cho mỗi file nguồn** — công thức, chứng minh, ví dụ tính tay |
-| [`Math/09-design-patterns/`](Math/09-design-patterns/README.md) | **12 trang học OOP** — mỗi design pattern một trang |
-| [`DSA-REPORT.md`](DSA-REPORT.md) | Big-O và số liệu đo thực nghiệm |
-| [`EVALUATION.md`](EVALUATION.md) | Kết quả đánh giá chất lượng (sinh tự động) |
-| [`GIN-BASELINE.md`](GIN-BASELINE.md) | Đối chứng với PostgreSQL GIN (sinh tự động) |
-| [`api-examples.http`](api-examples.http) | Ví dụ gọi REST API |
+| *Thuật toán bên trong hoạt động ra sao?* | [`Math/`](Math/README.md) — **một trang cho mỗi lớp**, kèm ví dụ tính tay |
+| *Mẫu thiết kế nào, sửa lỗi gì?* | [`Math/09-design-patterns/`](Math/09-design-patterns/README.md) — 12 trang, mỗi mẫu một trang |
+| *Big-O và số đo thực nghiệm?* | [`DSA-REPORT.md`](DSA-REPORT.md) |
+| **Ứng dụng Spring được lắp ra sao?** | [`BACKEND.md`](BACKEND.md) |
+| **Chạy ở đâu, ai canh nó?** | [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md) |
+| **Mã đi từ máy tới cụm bằng cách nào?** | [`DEVOPS.md`](DEVOPS.md) |
+| **Chống lại cái gì, bằng cách nào?** | [`SECURITY.md`](SECURITY.md) |
+| *Giao diện Electron?* | [`FRONTEND.md`](FRONTEND.md) |
+| *Chất lượng tìm kiếm đo bằng gì?* | [`EVALUATION.md`](EVALUATION.md) |
+| *So với PostgreSQL GIN thì sao?* | [`GIN-BASELINE.md`](GIN-BASELINE.md) |
+| *Phương án nào đã bị bác bỏ, vì sao?* | [`SO-SANH-PHUONG-AN.md`](SO-SANH-PHUONG-AN.md) |
+| *Gọi API thật thế nào?* | [`api-examples.http`](api-examples.http) |

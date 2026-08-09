@@ -13,7 +13,47 @@ Người dùng gõ `ngân hàng`. Snippet trả về bôi sáng cả chữ **ng�
 
 Nguyên nhân: cả `ngân` lẫn `ngàn` khi bỏ dấu đều thành `ngan`.
 
+```mermaid
+flowchart LR
+    subgraph CO["có dấu — nhiều âm tiết PHÂN BIỆT"]
+        A1["ngân"]
+        A2["ngàn"]
+        A3["ngăn"]
+        A4["ngán"]
+    end
+    B["ngan"]
+    A1 --> B
+    A2 --> B
+    A3 --> B
+    A4 --> B
+```
+
+```
+   Ánh xạ bỏ dấu là NHIỀU-MỘT — và không có đường quay lại
+
+     ngân ─┐
+     ngàn ─┼──▶  ngan        so khớp xảy ra Ở ĐÂY
+     ngăn ─┤              (trên ẢNH, không trên bản gốc)
+     ngán ─┘                      │
+                                  ▼
+                    "ngân hàng" bôi sáng cả "ngàn"
+
+   Mất thông tin ở bước bỏ dấu ⇒ KHÔNG THỂ khôi phục ở bước sau.
+```
+
 Đây không phải lỗi cẩu thả — nó là **hệ quả toán học** của việc so khớp trên **ảnh của một ánh xạ nhiều-một**. Và cách sửa cũng phải là một quyết định toán học, không phải một `if` vá tạm.
+
+```mermaid
+flowchart TD
+    P["Vấn đề: so khớp trên ảnh mất thông tin"]
+    S1["Cách 1: bỏ hẳn tìm không dấu<br/>✗ mất tính năng người dùng cần"]
+    S2["Cách 2: vá bằng if từng ca<br/>✗ vô hạn ca, không bao giờ hết"]
+    S3["Cách 3: giữ CẢ HAI dạng<br/>khớp bản có dấu trước, không dấu sau<br/>✓ đã chọn"]
+
+    P --> S1
+    P --> S2
+    P --> S3
+```
 
 ---
 

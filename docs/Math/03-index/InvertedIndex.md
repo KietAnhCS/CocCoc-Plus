@@ -23,6 +23,37 @@
 
 ## 📌 Hiểu trong 30 giây
 
+```mermaid
+flowchart LR
+    subgraph XUOI["CHỈ MỤC XUÔI — cách văn bản vốn được lưu"]
+        direction TB
+        D1["doc 3"] --> W1["máy_tính, giá, rẻ"]
+        D2["doc 7"] --> W2["laptop, máy_tính"]
+        D3["doc 11"] --> W3["điện_thoại, giá"]
+    end
+
+    subgraph DAO["CHỈ MỤC ĐẢO — lật ngược quan hệ"]
+        direction TB
+        T1["máy_tính"] --> P1["doc 3, doc 7"]
+        T2["giá"] --> P2["doc 3, doc 11"]
+        T3["laptop"] --> P3["doc 7"]
+    end
+
+    XUOI -->|"lật"| DAO
+```
+
+```
+   CHỈ MỤC XUÔI                      CHỈ MỤC ĐẢO
+   ─────────────                     ────────────
+   doc 3  → máy_tính, giá, rẻ        máy_tính → [3, 7]
+   doc 7  → laptop, máy_tính         giá      → [3, 11]
+   doc 11 → điện_thoại, giá          laptop   → [7]
+
+   "tìm doc chứa máy_tính"           "tìm doc chứa máy_tính"
+   duyệt HẾT N tài liệu              tra 1 lần vào bảng băm
+        O(N)                              O(1)
+```
+
 Chỉ mục **xuôi** (`doc → danh sách từ`) là thứ tự tự nhiên — đó chính là cách văn bản được lưu. Nhưng muốn tìm tài liệu chứa `máy_tính` phải duyệt hết **mọi** tài liệu:
 
 $$5011 \text{ tài liệu} \times 1043 \text{ token} = \mathbf{5{,}2 \text{ triệu}} \text{ phép so sánh} \quad\text{cho MỖI truy vấn}$$

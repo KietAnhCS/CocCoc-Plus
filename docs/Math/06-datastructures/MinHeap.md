@@ -39,6 +39,59 @@ Bí quyết: nó **không** giữ mảng sắp hoàn toàn, chỉ giữ một đ
 
 Và mẹo cài đặt hay nhất: heap là một **cây**, nhưng được lưu trong **mảng phẳng** không cần con trỏ nào — quan hệ cha/con chỉ là phép tính chỉ số.
 
+```mermaid
+flowchart TD
+    A["3<br/>i=0"]
+    B["7<br/>i=1"]
+    C["5<br/>i=2"]
+    D["12<br/>i=3"]
+    E["9<br/>i=4"]
+    F["11<br/>i=5"]
+
+    A --> B
+    A --> C
+    B --> D
+    B --> E
+    C --> F
+```
+
+Cùng một heap đó, nhìn ở dạng mảng — **không có con trỏ nào tồn tại**:
+
+```
+   chỉ số :   0    1    2    3    4    5
+            ┌────┬────┬────┬────┬────┬────┐
+   mảng   : │  3 │  7 │  5 │ 12 │  9 │ 11 │
+            └────┴────┴────┴────┴────┴────┘
+              │    │    │
+              │    │    └── con của i=2 là 5,6
+              │    └─────── con của i=1 là 3,4
+              └──────────── gốc, LUÔN là nhỏ nhất
+
+   cha(i) = (i-1)/2      con trái(i) = 2i+1      con phải(i) = 2i+2
+```
+
+**Hai đường đi duy nhất trong heap** — mọi thao tác đều là một trong hai:
+
+```mermaid
+flowchart LR
+    subgraph UP["siftUp — dùng khi INSERT"]
+        direction TB
+        U1["thêm vào CUỐI mảng"] --> U2["so với CHA"] --> U3{"nhỏ hơn cha?"}
+        U3 -->|"có"| U4["đổi chỗ, lên tiếp"] --> U2
+        U3 -->|"không"| U5["dừng"]
+    end
+
+    subgraph DOWN["siftDown — dùng khi EXTRACT-MIN"]
+        direction TB
+        D1["đưa phần tử CUỐI lên gốc"] --> D2["so với 2 CON"] --> D3{"lớn hơn con nhỏ nhất?"}
+        D3 -->|"có"| D4["đổi chỗ, xuống tiếp"] --> D2
+        D3 -->|"không"| D5["dừng"]
+    end
+```
+
+Cả hai đều đi **dọc theo một đường từ gốc xuống lá**, mà cây nhị phân hoàn chỉnh
+$n$ node thì cao $\lfloor \log_2 n \rfloor$ — đó chính là chỗ $O(\log n)$ đến từ.
+
 ---
 
 ## 1. Cây nhị phân hoàn chỉnh trải phẳng

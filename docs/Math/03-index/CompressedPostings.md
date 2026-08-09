@@ -10,6 +10,42 @@
 
 ## 📌 Hiểu trong 30 giây
 
+```mermaid
+flowchart TD
+    P["danh sách Posting<br/>mỗi cái là một OBJECT Java"]
+    S["tách thành BA mảng song song<br/>kiểu CSR"]
+    A1["docIds[]<br/>tăng dần ⇒ delta + VByte"]
+    A2["termFreqs[]<br/>số nhỏ ⇒ VByte"]
+    A3["positions[]<br/>tăng dần TRONG mỗi doc<br/>+ mảng offset prefix-sum"]
+
+    P --> S --> A1
+    S --> A2
+    S --> A3
+```
+
+```
+   TRƯỚC — 1,59 triệu object Posting, mỗi cái một List<Integer>
+
+   [Posting]──▶[Posting]──▶[Posting]  …   mỗi object: header 16B
+      │            │            │          + con trỏ + List riêng
+      ▼            ▼            ▼
+   [List]       [List]       [List]        341,5 MB
+
+   SAU — ba mảng nguyên thuỷ, không object nào
+
+   docIds   : ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪   đã nén VByte
+   termFreqs: ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪   đã nén VByte
+   positions: ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪   đã nén VByte
+   offsets  : ▪  ▪   ▪    ▪              prefix sum — biết mỗi doc bắt đầu ở đâu
+
+                                          94,7 MB   (÷ 3,6)
+```
+
+**Mảng `offsets` là mấu chốt của kiểu CSR.** Không có nó thì không biết vùng
+`positions` của tài liệu thứ $i$ nằm ở đâu; có nó thì vị trí bắt đầu là
+`offsets[i]` và độ dài là `offsets[i+1] - offsets[i]` — tra trong $O(1)$ mà
+không tốn một con trỏ nào.
+
 `VByteCodec` biết nén **một** danh sách số nguyên tăng dần. Nhưng một posting
 list không phải một danh sách — nó là **ba** loại dữ liệu trộn vào nhau:
 
@@ -239,7 +275,7 @@ Chạy lại:
 ```bash
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \
   -Dexec.mainClass=com.vnsearch.index.IndexPersistence \
-  -Dexec.args="data/crawled-multi.json"
+  -Dexec.args="data/crawled-documents.json"
 ```
 
 > **Vì sao ba mốc chứ không phải hai.** Gộp cả hai thay đổi rồi báo một con số

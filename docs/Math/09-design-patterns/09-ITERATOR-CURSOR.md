@@ -20,6 +20,43 @@ while (cursor.docId() != PostingCursor.NO_MORE) {
 }
 ```
 
+```mermaid
+flowchart LR
+    U["Người dùng<br/>PostingListMerger"]
+    C["PostingCursor<br/>interface"]
+    A["ArrayPostingCursor<br/>mảng int[]"]
+    B["cursor trên<br/>CompressedPostings"]
+
+    U -->|"docId() · next() · advance(target)"| C
+    C -.->|"một cài đặt"| A
+    C -.->|"cài đặt khác"| B
+```
+
+**`advance(target)` là thứ phân biệt Cursor với Iterator thường.** Iterator chỉ
+có `next()`; muốn tới docId 5000 phải đi qua 4999 phần tử. Cursor nhảy thẳng.
+
+```mermaid
+flowchart TD
+    subgraph IT["Iterator thường — next() từng bước"]
+        I1["docId 3"] --> I2["7"] --> I3["11"] --> I4["…"] --> I5["4005 bước"]
+    end
+
+    subgraph CU["Cursor — advance(target) nhảy cóc"]
+        C1["docId 3"] -->|"galloping"| C2["nhảy 1,2,4,8,16…"] --> C3["48 bước"]
+    end
+```
+
+```
+   Tìm docId 5000 trong posting list 4005 phần tử
+
+   next() từng bước :  ████████████████████████████████  4005 bước
+   advance() nhảy   :  █                                    48 bước
+                        ↑ galloping search — xem ArrayPostingCursor.md
+```
+
+Con số 4005 → 48 không phải ước lượng: đó là phép đo ghi trong
+[`ArrayPostingCursor.md`](../06-datastructures/ArrayPostingCursor.md).
+
 Câu thần chú: **"Duyệt mà không cần biết dữ liệu nằm ở đâu — và nhảy được khi cần."**
 
 ---

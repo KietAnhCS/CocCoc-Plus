@@ -26,7 +26,68 @@ Duyệt tuyến tính là $O(M \cdot L)$ với $M$ = số cụm. Với $M = 30\,
 
 **Trie** đưa nó về $O(L)$ — **hoàn toàn không phụ thuộc $M$**. Gõ 4 ký tự thì đi 4 bước, dù kho có 30 nghìn hay 30 triệu cụm.
 
+```mermaid
+flowchart TD
+    R(("gốc"))
+    C["c"]
+    O["o"]
+    N["n"]
+    G["g"]
+    NG["' ' → nghệ…"]
+    TY["' ' → ty…"]
+    B["b"]
+    BO["o"]
+    BON["n"]
+    BONG["g"]
+
+    R --> C --> O --> N --> G
+    G --> NG
+    G --> TY
+    R --> B --> BO --> BON --> BONG
+```
+
+```
+   Gõ "cong" — đi đúng 4 bước, bất kể kho có 30 nghìn hay 30 triệu cụm
+
+        (gốc)
+          │ c        ◀── bước 1
+          ●
+          │ o        ◀── bước 2
+          ●
+          │ n        ◀── bước 3
+          ●
+          │ g        ◀── bước 4
+          ●  ← tới đây rồi DFS xuống lấy mọi hậu duệ
+         ╱ ╲
+   "công nghệ"  "công ty"  …
+```
+
+**So sánh chi phí, cùng một truy vấn:**
+
+```
+   duyệt tuyến tính  O(M·L)  ████████████████████████  600.000 phép so
+   Trie              O(L)    ▏                              4 bước
+                             ▲
+                             M = 30.000 cụm KHÔNG xuất hiện trong công thức
+```
+
 Nhưng bài toán tiếng Việt thêm một lớp khó: người dùng gõ `cong` (không dấu) mà gợi ý phải ra `công nghệ` (có dấu). Trie khớp **từng ký tự chính xác**, nên `c-o-n-g` không bao giờ đi tới được nhánh `c-ô-n-g`. Lớp này giải bằng một mẹo gọn: **tách khoá tra cứu khỏi chuỗi hiển thị**.
+
+```mermaid
+flowchart LR
+    IN["người dùng gõ<br/>cong"]
+    K["KHOÁ TRA CỨU<br/>đã bỏ dấu: c-o-n-g"]
+    T["đi trong Trie<br/>theo khoá"]
+    NODE["nút tại 'cong'"]
+    DISP["CHUỖI HIỂN THỊ<br/>lưu trong nút: 'công nghệ'"]
+    OUT["gợi ý hiện ra<br/>công nghệ"]
+
+    IN --> K --> T --> NODE --> DISP --> OUT
+```
+
+Một nút giữ **hai thứ khác nhau**: đường đi tới nó là chuỗi **không dấu**, còn
+thứ hiện ra cho người dùng là chuỗi **có dấu** cất trong nút. Nhờ vậy chỉ cần
+**một** cây, không phải hai.
 
 ---
 

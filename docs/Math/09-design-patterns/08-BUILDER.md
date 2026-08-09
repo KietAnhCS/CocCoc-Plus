@@ -21,6 +21,39 @@ CrawlConfig config = CrawlConfig.builder()
         .build();          // ← kiểm tra MỌI ràng buộc tại đây, rồi đóng băng
 ```
 
+```mermaid
+flowchart LR
+    B0["CrawlConfig.builder()<br/>đối tượng CÓ THỂ SỬA"]
+    B1[".maxPages(5000)"]
+    B2[".maxDepth(4)"]
+    B3[".threadCount(12)"]
+    B4[".allowedDomains(...)"]
+    CHK{"build()<br/>kiểm tra MỌI ràng buộc"}
+    OK["CrawlConfig<br/>BẤT BIẾN, đã hợp lệ"]
+    ERR["IllegalArgumentException<br/>hỏng NGAY, không hỏng lúc crawl"]
+
+    B0 --> B1 --> B2 --> B3 --> B4 --> CHK
+    CHK -->|"hợp lệ"| OK
+    CHK -->|"sai"| ERR
+```
+
+```
+   GIAI ĐOẠN DỰNG                  │  GIAI ĐOẠN DÙNG
+   (có thể sửa, chưa kiểm tra)     │  (bất biến, đã hợp lệ)
+   ────────────────────────────────┼──────────────────────────
+   builder()                       │
+     .maxPages(5000)               │
+     .maxDepth(4)          ────────┼──▶  CrawlConfig
+     .threadCount(12)              │       không setter nào
+     .build()  ◀── ranh giới ──────┤       chia sẻ giữa 12 luồng
+                  kiểm tra ở ĐÂY   │       không cần đồng bộ
+```
+
+**Vì sao ranh giới đó quan trọng với crawler cụ thể này.** `CrawlConfig` được
+**12 luồng đọc đồng thời** suốt phiên crawl. Bất biến nghĩa là không cần một
+phép đồng bộ nào — và cũng không thể có chuyện luồng thứ 7 sửa `maxDepth` giữa
+chừng khiến luồng thứ 3 thấy giá trị khác.
+
 Câu thần chú: **"Dựng thì linh hoạt, dựng xong thì đóng băng."**
 
 ---

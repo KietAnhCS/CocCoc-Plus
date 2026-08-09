@@ -13,6 +13,45 @@ Crawler đã có [BloomFilter](BloomFilter.md) để không tải lại cùng m�
 
 Lớp này băm phần thân bài rồi đối chiếu với tập vân tay đã thấy. Trùng thì vứt trang, và vứt **trước** khi bóc liên kết.
 
+```mermaid
+flowchart TD
+    U1["vnexpress.net/bai-viet-123"]
+    U2["vnexpress.net/bai-viet-123?utm_source=fb"]
+    U3["m.vnexpress.net/bai-viet-123"]
+    B["cùng một THÂN BÀI"]
+    H["SHA-256(thân bài đã chuẩn hoá)"]
+    S{"vân tay đã thấy?"}
+    KEEP["giữ — lưu vân tay"]
+    DROP["vứt trang<br/>TRƯỚC khi bóc liên kết"]
+
+    U1 --> B
+    U2 --> B
+    U3 --> B
+    B --> H --> S
+    S -->|"chưa"| KEEP
+    S -->|"rồi"| DROP
+```
+
+```
+   HAI MỨC CHỐNG TRÙNG — rất dễ nhầm là một
+
+   ┌─ mức 1: URL Seen? ─────────────┐   ┌─ mức 2: Content Seen? ───────┐
+   │ so sánh ĐỊA CHỈ                │   │ so sánh NỘI DUNG              │
+   │ Bloom filter, 1,1 MB           │   │ SHA-256, tập vân tay          │
+   │ chạy TRƯỚC khi tải             │   │ chạy SAU khi tải, TRƯỚC khi   │
+   │                                │   │ bóc liên kết                  │
+   │ bắt: cùng URL crawl 2 lần      │   │ bắt: 2 URL khác, 1 bài viết   │
+   └────────────────────────────────┘   └───────────────────────────────┘
+        ▲                                      ▲
+        rẻ, chặn trước khi tốn mạng            đắt hơn, nhưng bắt được
+                                               thứ mức 1 không thấy
+```
+
+**Vì sao vứt trước khi bóc liên kết.** Một trang trùng có cùng tập outlink với
+bản gốc — bóc chúng ra chỉ để rồi bị `URL Seen?` loại hết là công vô ích. Quan
+trọng hơn: nó làm **phình đồ thị PageRank** bằng những cạnh trùng lặp, khiến
+trang đích được tính thêm uy tín một cách giả tạo.
+
 ---
 
 ## 1. Vì sao khử trùng theo URL là chưa đủ

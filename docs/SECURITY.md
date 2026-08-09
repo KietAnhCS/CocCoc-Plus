@@ -55,7 +55,6 @@ mindmap
       CVE thư viện
       CVE ảnh nền
 ```
-
 ```
    ┌─────────────── HAI HƯỚNG, HAI LOẠI PHÒNG THỦ ───────────────┐
    │                                                              │
@@ -79,7 +78,6 @@ mindmap
 chất công việc của crawler là *gửi request tới địa chỉ do người khác chỉ định*.
 
 ### 2.1. Bốn đường vào, và cả bốn đều phải chặn
-
 ```
    ①  Seed URL từ POST /api/admin/crawl
           → SeedUrlValidator
@@ -92,7 +90,6 @@ chất công việc của crawler là *gửi request tới địa chỉ do ngư�
 ```
 
 Đường ② là đường tinh vi nhất và là lỗ hổng thật đã được vá:
-
 ```
    seed: https://trang-cua-toi.com/     ✅ IP công cộng, qua kiểm tra
               │  HTTP 302
@@ -191,7 +188,6 @@ provided.equals(expectedKey)                    // SAI
 `String.equals` thoát ra **ngay tại ký tự đầu tiên khác nhau**, nên thời gian
 chạy rò rỉ *độ dài tiền tố đúng* của khoá đoán. Đo đủ chênh lệch này qua nhiều
 request, kẻ tấn công đoán được từng ký tự một:
-
 ```
    không gian tìm kiếm:  62^32  →  62 × 32
 ```
@@ -223,7 +219,6 @@ có giới hạn nào thì **một vòng lặp `curl` đơn giản cũng đủ l
 không cần lỗi nào cả, chỉ cần gọi API đúng cách nhưng quá nhanh.
 
 ### 4.1. Token bucket, không phải đếm theo cửa sổ cố định
-
 ```
    Cửa sổ cố định:  |....120....||....120....|   ← 240 req quanh ranh giới
                               ^^ biên
@@ -260,7 +255,6 @@ trên bộ nhớ là điều bắt buộc, còn độ chính xác của hạn m�
 ---
 
 ## 5. Phân quyền theo đường dẫn
-
 ```
    CÔNG KHAI                        CẦN X-API-Key
    ─────────────────────────        ─────────────────────────
@@ -378,7 +372,6 @@ ngữ cảnh của giao diện.
 ngay trên máy người dùng**.
 
 ### 9.1. Hai loại khung, hai mức tin cậy
-
 ```
    chromeView (vỏ giao diện)         tab views (nội dung web ngoài)
    ├─ preload: CÓ                    ├─ preload: KHÔNG
@@ -412,7 +405,6 @@ const target = /^[a-z]+:\/\//i.test(url) ? url : `https://${url}`
 ```
 
 Nó chỉ hỏi *"có scheme không"*, không hỏi *"scheme NÀO"*. Hệ quả:
-
 ```
    file:///C:/Users/<tên>/.ssh/id_rsa    → mở tệp cục bộ trong tab
    file://<máy-chủ-mạng>/ổ-chia-sẻ/      → chạm vào SMB nội bộ
@@ -464,7 +456,6 @@ Chi tiết mạng và một lỗi NetworkPolicy đã suýt xảy ra:
 ---
 
 ## 11. Quản lý bí mật
-
 ```
    .env             ← .gitignore chặn (dòng 16), KHÔNG BAO GIỜ commit
    .env.example     ← commit, chỉ chứa mô tả và lệnh sinh khoá
@@ -503,8 +494,6 @@ flowchart LR
     img["Ảnh Docker"] --> tr["Trivy<br/>CVE hệ thống"]
     tr --> cd["CD: CRITICAL thì CHẶN"]
     cd --> sign["cosign keyless<br/>+ SBOM + provenance"]
-
-    style cd fill:#e8590c,color:#fff
 ```
 
 **Vì sao cần cả SpotBugs lẫn CodeQL** — chúng trả lời hai câu hỏi khác nhau:

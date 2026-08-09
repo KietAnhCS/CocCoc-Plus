@@ -19,6 +19,41 @@ $$O\!\left(m \log \frac{n}{m}\right) = 5 \times \log_2 800 \approx \mathbf{48}\ 
 
 **Nhanh hơn hơn 80 lần.** Kỹ thuật: **galloping search** (còn gọi là exponential search).
 
+```
+   List ngắn (5 phần tử)   :  ▪    ▪      ▪         ▪            ▪
+   List dài  (4.000 pt)    :  ▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪
+
+   two-pointer  : bước qua TỪNG phần tử của list dài  ──▶ 4.005 bước
+                  ················································
+
+   galloping    : nhảy 1→2→4→8→16→… rồi lùi tìm nhị phân ──▶ 48 bước
+                   ↷    ↷      ↷          ↷
+```
+
+```mermaid
+flowchart TD
+    S["advance(target)"]
+    G1["nhảy bước 1"]
+    G2["nhảy bước 2"]
+    G4["nhảy bước 4"]
+    G8["nhảy bước 8… nhân đôi mãi"]
+    OVER{"đã vượt qua target?"}
+    BIN["tìm nhị phân trong khoảng<br/>vừa nhảy qua"]
+    DONE["dừng tại vị trí ≥ target"]
+
+    S --> G1 --> OVER
+    OVER -->|"chưa"| G2 --> OVER
+    OVER -->|"chưa"| G4 --> OVER
+    OVER -->|"chưa"| G8 --> OVER
+    OVER -->|"rồi"| BIN --> DONE
+```
+
+**Hai pha, mỗi pha một việc:** pha nhảy tìm **một khoảng chắc chắn chứa đáp
+án** với chi phí $O(\log d)$ (với $d$ là khoảng cách thật), pha nhị phân thu
+hẹp khoảng đó cũng $O(\log d)$. Điểm hay là $d$ **nhỏ** khi hai list gần nhau —
+galloping tự thích nghi, còn tìm nhị phân thuần thì luôn trả giá $\log n$ đầy
+đủ dù đáp án nằm ngay bên cạnh.
+
 ---
 
 ## 1. Hai vấn đề đo được

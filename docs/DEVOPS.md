@@ -8,7 +8,6 @@
 > sao — đó là [`BACKEND.md`](BACKEND.md).
 
 **Hai chữ cái trong "CI/CD" là hai việc hoàn toàn khác nhau:**
-
 ```
    CI  —  mã có ĐÚNG không?          →  ci.yml, codeql.yml
    CD  —  mã có TỚI ĐƯỢC người dùng? →  cd.yml, release.yml
@@ -66,7 +65,6 @@ mindmap
       Dependabot 5 hệ sinh thái
       gộp bản vá nhỏ
 ```
-
 ```
    git push / pull request
             │
@@ -74,7 +72,7 @@ mindmap
    ┌────────────────────── ci.yml — 5 job SONG SONG ──────────────────────┐
    │                                                                       │
    │  backend          frontend        image        kafka-it   infra       │
-   │  ├ 521 test       ├ typecheck     ├ build      ├ broker   ├ kubeconform│
+   │  ├ 528 test       ├ typecheck     ├ build      ├ broker   ├ kubeconform│
    │  ├ JaCoCo         ├ lint          └ Trivy      │  THẬT    ├ promtool  │
    │  ├ SpotBugs       └ 53 Vitest        (SARIF)   └ 1 phút   ├ amtool    │
    │  └ ranking                                                └ chống lệch│
@@ -128,7 +126,7 @@ vài Pod bản cũ. Ở đó, **xếp hàng chờ** mới là hành vi đúng.
 
 | # | Cổng | Bắt được gì | Job | Hỏng thì |
 |---|---|---|---|---|
-| 1 | **521 test Java** | Logic từng khối sai | `backend` | Build đỏ |
+| 1 | **528 test Java** | Logic từng khối sai | `backend` | Build đỏ |
 | 2 | **Độ phủ (JaCoCo)** | Mã mới không có test — line ≥ 68 %, branch ≥ 65 % | `backend` | Build đỏ |
 | 3 | **SpotBugs** | Lỗi mà test không chạy tới — hiện **0 bug** | `backend` | Build đỏ |
 | 4 | **Chất lượng xếp hạng** | Tìm kiếm tệ đi mà test vẫn xanh | `backend` | Build đỏ |
@@ -150,7 +148,6 @@ Pha `verify` mới chạy `jacoco:check` và `spotbugs:check`. Chạy `test` là
 cổng 2 và 3 — và một cổng chặn không được chạy thì không tồn tại.
 
 ### 3.2. Ba cổng của frontend
-
 ```
 typecheck   →  kiểu dữ liệu có khớp nhau không
 lint        →  phong cách có nhất quán không
@@ -211,7 +208,6 @@ vấn đề, mỗi cái đáng ghi lại.
 `ImageFound.isDownloaded()` — Jackson coi mọi phương thức `isXxx()` là thuộc
 tính, nên nó ghi thêm trường `"downloaded"` vào JSON. Trường đó không ứng với
 component nào của record, nên consumer đọc lại thì ném:
-
 ```
 UnrecognizedPropertyException: Unrecognized field "downloaded"
 ```
@@ -228,7 +224,6 @@ liệt kê **chính xác** tập trường được phép xuất hiện trong m�
 ### ② Một cổng chặn luôn xanh vì không kiểm gì cả
 
 Hồ sơ `kafka-it` in ra:
-
 ```
 Tests run: 0, Failures: 0, Errors: 0
 BUILD SUCCESS
@@ -255,7 +250,6 @@ Sửa bằng cách đưa giá trị ra một property (`test.excluded.groups`) �
 Testcontainers 1.19.8 (bản Spring Boot 3.3.4 khi đó quản lý) đi kèm docker-java 3.3.6,
 và client đó nói một phiên bản API mà Docker Engine 29.x không còn nhận. Triệu
 chứng dẫn sai đường hoàn toàn:
-
 ```
 $ docker version
 29.6.1                                    ← hoàn toàn bình thường
@@ -340,9 +334,6 @@ flowchart TB
     ap --> cho["rollout status --timeout=5m"]
     cho -->|thất bại| lui["rollout undo"]
     cho -->|xong| ktra["curl /api/health"]
-
-    style prd fill:#e8590c,color:#fff
-    style lui fill:#ffe3e3
 ```
 
 ### Sáu quyết định đáng giải thích
@@ -423,7 +414,7 @@ giây thay vì bằng phút:
 ```bash
 # --- Backend: cổng 1–4 ---
 cd search-engine
-./mvnw -B clean verify            # 521 test + JaCoCo + SpotBugs + ranking
+./mvnw -B clean verify            # 528 test + JaCoCo + SpotBugs + ranking
 ./mvnw verify -Pkafka-it          # cổng 6 — cần Docker
 
 # --- Frontend: cổng 5 ---
@@ -441,9 +432,8 @@ diff -u search-engine/src/main/resources/db/schema.sql deploy/k8s/base/schema.sq
 ```
 
 Kết quả mong đợi trên cây mã hiện tại:
-
 ```
-Tests run: 521, Failures: 0, Errors: 0
+Tests run: 528, Failures: 0, Errors: 0
 All coverage checks have been met.
 BugInstance size is 0
 BUILD SUCCESS — khoảng 43 giây
@@ -487,7 +477,6 @@ Cấu hình đang áp trên `main`:
 | Cấm force-push / xoá nhánh | ✅ | `main` không bị viết lại lịch sử |
 
 Kiểm chứng bằng cách thử đẩy thẳng:
-
 ```
 remote: error: GH006: Protected branch update failed for refs/heads/main.
 remote: - Changes must be made through a pull request.

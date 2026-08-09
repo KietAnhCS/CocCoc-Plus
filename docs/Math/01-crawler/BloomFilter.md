@@ -20,6 +20,53 @@ Crawl 5.011 trang thu về **394.940 outlink**. Trước **mỗi** lần fetch p
 
 Chênh **~95 lần**. Bí quyết: Bloom Filter **không lưu URL nào cả**. Nó chỉ lưu một mảng bit, và mỗi URL để lại "dấu chân" là $k$ bit được bật. Vì thế bộ nhớ **hoàn toàn không phụ thuộc độ dài chuỗi** — URL dài 200 ký tự và URL dài 20 ký tự tốn đúng như nhau.
 
+```mermaid
+flowchart LR
+    U["URL<br/>https://vnexpress.net/abc"]
+    H1["hàm băm 1"]
+    H2["hàm băm 2"]
+    HK["… hàm băm 7"]
+    B["mảng bit<br/>9.585.059 bit = 1,1 MB"]
+
+    U --> H1 --> B
+    U --> H2 --> B
+    U --> HK --> B
+```
+
+```
+   THÊM một URL — bật k = 7 bit
+
+   URL ──băm──▶ vị trí 12, 847, 2001, 5533, 6104, 8890, 9412
+                     │    │     │      │      │      │     │
+                     ▼    ▼     ▼      ▼      ▼      ▼     ▼
+   mảng bit: 0 0 1 0 1 0 0 1 0 0 1 0 0 1 0 0 0 1 0 0 1 0 0 0 …
+                 ▲     ▲       ▲       ▲       ▲       ▲
+                 những bit này được bật lên 1
+
+   HỎI một URL — kiểm tra đúng k bit đó
+      có BẤT KỲ bit nào = 0  ⇒  CHẮC CHẮN chưa gặp   (không âm tính giả)
+      TẤT CẢ k bit đều = 1   ⇒  CÓ LẼ đã gặp          (có dương tính giả)
+```
+
+**Phép đánh đổi bất đối xứng** — và đây là lý do Bloom filter dùng được ở đúng
+chỗ này:
+
+```mermaid
+flowchart TD
+    Q["Bloom hỏi: URL này gặp chưa?"]
+    A["trả lời CHƯA GẶP"]
+    B["trả lời ĐÃ GẶP"]
+    A1["luôn ĐÚNG<br/>không bao giờ bỏ sót"]
+    B1["có thể SAI ~1%<br/>⇒ bỏ qua nhầm một URL chưa crawl"]
+
+    Q --> A --> A1
+    Q --> B --> B1
+```
+
+Sai theo hướng "đã gặp" chỉ làm crawler **bỏ lỡ ~1% URL** — chấp nhận được khi
+web vốn vô hạn. Sai theo hướng ngược lại sẽ gây **vòng lặp vô hạn**, và Bloom
+filter **không bao giờ** sai theo hướng đó.
+
 Cái giá: đôi khi nó nói "có thể đã thấy rồi" cho một URL **chưa** từng gặp. Nhưng — và đây là điểm quyết định — nó **không bao giờ** nói "chưa thấy" cho URL **đã** gặp.
 
 ---

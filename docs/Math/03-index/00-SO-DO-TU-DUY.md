@@ -43,7 +43,6 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
                           INVERTED INDEX — 11 file
                                      │
@@ -107,7 +106,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 List<WebDocument>
       │
@@ -156,7 +154,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 data/index.json ──► IndexPersistence.load (kiểm tra version) ──► InvertedIndex
                                                                        │
@@ -179,7 +176,6 @@ truy vấn ──► QueryParser (CÙNG tokenizer) ──► getPostings(term) �
 ## 3. Hình dạng thật của chỉ mục trong bộ nhớ
 
 Đây là hình quan trọng nhất trang này. Nhìn được hình này là hiểu được toàn bộ tầng chỉ mục.
-
 ```
 InvertedIndex
 │
@@ -203,7 +199,6 @@ InvertedIndex
 ```
 
 ### Vì sao gọi là chỉ mục "đảo"?
-
 ```
 CHỈ MỤC XUÔI (forward index) — cách nghĩ tự nhiên nhất:
 
@@ -250,7 +245,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
                    BẤT BIẾN: posting list sắp xếp tăng dần theo docId
                                         │
@@ -267,7 +261,6 @@ flowchart TD
 ### 4.1 Bất biến này được giữ **miễn phí** — không có phép sort nào
 
 Nhờ đúng **hai điều kiện**:
-
 ```
    điều kiện 1:  addDocument() luôn được gọi theo docId TĂNG DẦN
    điều kiện 2:  mỗi lần chỉ APPEND vào cuối posting list
@@ -294,7 +287,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 Người gọi ──► IndexBuilder (tự sort)  ──► InvertedIndex.addDocument ──► chỉ mục đúng
     │                                            │
@@ -309,7 +301,6 @@ Người gọi ──► IndexBuilder (tự sort)  ──► InvertedIndex.addDo
 **Vì sao phải ép mà không chỉ ghi vào tài liệu là đủ?**
 
 Vì hậu quả của việc quên là một **lỗi im lặng**:
-
 ```
    quên sort trước khi index
             ↓
@@ -348,7 +339,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 Văn bản thô
    │
@@ -367,7 +357,6 @@ List<Token{term, noDiacriticTerm, position}>
 </details>
 
 ### 5.2 Chạy tay một câu — hiểu là hiểu ở đây
-
 ```
 ĐẦU VÀO:  "Máy tính của công ty rất tốt."
 
@@ -407,7 +396,6 @@ Bước 6, thêm bản không dấu:
 > **Chú ý `position`:** nó **không** tăng khi gặp stopword. Nhờ vậy `position` là "chỉ số token thứ mấy trong tài liệu **sau khi đã lọc**" — đúng thứ mà phrase search cần: hai term nằm cạnh nhau khi `position` của term sau bằng `position` của term trước cộng 1.
 
 ### 5.3 Chỉ mục kép: có dấu và không dấu
-
 ```
               một token "máy_tính" tại position 0
                             │
@@ -429,7 +417,6 @@ Bước 6, thêm bản không dấu:
 ### 5.4 Bất biến song hành — vi phạm là lỗi im lặng
 
 > **Lúc lập chỉ mục và lúc truy vấn PHẢI dùng CÙNG một cài đặt tokenizer** — cùng thuật toán **và** cùng từ điển.
-
 ```
    Lúc index sinh ra  :  "máy_tính"
    Lúc query sinh ra  :  "máy"  +  "tính"        ← vì dùng từ điển khác
@@ -461,7 +448,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 TRƯỚC — mỗi lần gặp là một String mới:
     doc0: "công_nghệ" → String@1a2b
@@ -515,7 +501,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 Posting list = 3 loại dữ liệu, chỉ 1 loại tăng dần:
 
@@ -541,7 +526,6 @@ vì hàm đó **gom vị trí trước rồi mới dựng Posting**. Nên trư�
 Nhưng "thừa" là một **bất biến**, và bất biến thì phải **ép**. Nếu về sau ai đó dựng một `Posting` với `tf` khác số vị trí, dữ liệu sẽ bị **giải nén sai một cách im lặng**, và lỗi chỉ lộ ra ở điểm BM25 lệch — hàng tháng sau. Vì vậy `CompressedPostings.of` kiểm tra và **ném ngoại lệ ngay tại chỗ sai**, kèm giải thích đầy đủ.
 
 ### 7.3 Ý tưởng 2 — tổng tích luỹ, chính là kỹ thuật `rowPtr` của CSR
-
 ```
    tf mỗi posting   :  [ 3,   1,   2,   5 ]           ◄── KHÔNG tăng dần, VByte chịu
                           │    │    │    │
@@ -558,7 +542,6 @@ Mảng `offsets` có `count + 1` phần tử chứ không phải `count`: **ph�
 > 🔗 **Đây chính là** kỹ thuật `rowPtr` mà [`SparseMatrix.freeze()`](../06-datastructures/SparseMatrix.md) dùng để nén ma trận liên kết cho PageRank. Cùng một ý tưởng xuất hiện **hai lần ở hai chỗ hoàn toàn không liên quan** trong đồ án — đó là dấu hiệu nó là một **kỹ thuật nền tảng**, không phải thủ thuật riêng lẻ.
 
 ### 7.4 `VByteCodec` — cơ chế từng bit
-
 ```
 BƯỚC 1 — DELTA (mã hoá hiệu):
 
@@ -602,7 +585,6 @@ BẢNG PHẠM VI:
 **Hiệu quả trên dữ liệu thật:** posting list của term `công_nghệ` có **1.639 mục** trải đều trên **5.011 tài liệu**, nên hiệu trung bình là $5011/1639 \approx 3$. Với delta ≈ 3, mỗi `docId` chỉ tốn **1 byte** thay vì 4 byte → **tiết kiệm 75 %**. Danh sách vị trí còn dày hơn nữa nên tỷ lệ nén còn tốt hơn.
 
 ### 7.5 Vì sao `positions` phải nén **theo đoạn**
-
 ```
    positions của 3 posting:   doc3: [10, 88]     doc17: [4]     doc40: [0, 9, 12]
 
@@ -659,7 +641,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 InvertedIndex ──save()──► data/index.json ──load()──► version == 2 ?
                                                           │
@@ -678,7 +659,6 @@ InvertedIndex ──save()──► data/index.json ──load()──► versio
 ### 8.1 Vì sao cần trường `version`
 
 Khi định dạng đổi từ v1 sang v2, những file chỉ mục cũ còn nằm trên đĩa vẫn được nạp thử, và Jackson ném ra:
-
 ```
 MismatchedInputException: Cannot deserialize value of type
 CompressedPostings from Array value
@@ -691,7 +671,6 @@ Một số hiệu phiên bản biến lỗi khó hiểu đó thành **một câu
 ### 8.2 Trạng thái dẫn xuất phải tính lại ở **mọi** đường vào
 
 Nạp từ file **không** đi qua `addDocument`, nên mọi trạng thái dẫn xuất phải được tính lại thủ công:
-
 ```
    quên tính lại totalTokens
             ↓
@@ -707,7 +686,6 @@ Vì vậy `recomputeDerivedState()` gom **mọi** trạng thái dẫn xuất v�
 File chỉ mục cũ vừa **không nén**, vừa **thụt dòng** (`INDENT_OUTPUT`). Nếu gộp cả hai thay đổi rồi báo một con số, ta sẽ **quy nhầm công của việc bỏ thụt dòng cho phần nén**.
 
 Nên `IndexPersistence.main` đo **ba mốc**, tách bạch đóng góp của từng thay đổi:
-
 ```
    A.  thụt dòng  +  không nén      ← định dạng CŨ
    B.  gói chặt   +  không nén      ← đo riêng đóng góp của việc BỎ THỤT DÒNG
@@ -723,7 +701,7 @@ Chạy lại phép đo bất cứ lúc nào:
 ```bash
 MAVEN_OPTS=-Xmx4g ./mvnw -q compile exec:java \
   -Dexec.mainClass=com.vnsearch.index.IndexPersistence \
-  -Dexec.args="data/crawled-multi.json"
+  -Dexec.args="data/crawled-documents.json"
 ```
 
 ---
@@ -751,7 +729,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 CÁCH CŨ: vật chất hoá thành List<Integer>
     → autobox: 16 byte/docId thay vì 4 → 64 KB rác GC mỗi lần gọi, × k term
@@ -765,7 +742,6 @@ CÁCH MỚI: PostingCursor duyệt thẳng trên dữ liệu gốc
 </details>
 
 ### 9.2 Vì sao nhảy cóc lại quan trọng đến thế
-
 ```
    Bài toán: giao một list RẤT NGẮN (5 mục) với một list RẤT DÀI (4.000 mục)
 
@@ -778,7 +754,6 @@ CÁCH MỚI: PostingCursor duyệt thẳng trên dữ liệu gốc
 Tình huống này **rất phổ biến**: truy vấn `"máy tính" AND "Nguyễn Văn A"` có một term cực hiếm và một term cực phổ biến.
 
 ### 9.3 Galloping search — hai pha
-
 ```
    MỤC TIÊU: nhảy tới posting đầu tiên có docId >= target
 
@@ -836,7 +811,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 TRƯỚC:  CandidateResolver ─┐
         TfIdfScorer       ─┼──► InvertedIndex   (lớp CỤ THỂ)
@@ -906,7 +880,6 @@ Ngoài ra còn ba lớp bảo vệ khác đã nhắc ở trên: `addDocument` é
 ---
 
 ## 14. Bản đồ kiểm thử
-
 ```
 test/java/com/vnsearch/index/
 │
@@ -937,11 +910,10 @@ cd search-engine
 # --- Đo kích thước ba định dạng file chỉ mục trên corpus thật ---
 MAVEN_OPTS=-Xmx4g ./mvnw -q compile exec:java \
   -Dexec.mainClass=com.vnsearch.index.IndexPersistence \
-  -Dexec.args="data/crawled-multi.json"
+  -Dexec.args="data/crawled-documents.json"
 ```
 
 `InvertedIndex.main` còn cố tình gọi sai thứ tự `docId` ở cuối để **cho thấy bất biến thật sự được ép**:
-
 ```
 Ep bat bien: addDocument phai duoc goi theo docId TANG DAN de giu bat bien
 'posting list sap xep theo docId'. docId truoc = 1, docId hien tai = 0.

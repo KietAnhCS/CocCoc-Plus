@@ -29,6 +29,48 @@ Bắt đầu từ trang 00 nếu bạn muốn hiểu nền tảng trước.
 
 ---
 
+## 🗺️ Bản đồ: mẫu nào nằm ở tầng nào của hệ thống
+
+```mermaid
+flowchart TD
+    API["Tầng REST<br/>controller/"]
+    FAC["SearchEngineFacade<br/>FACADE"]
+    Q["Tầng truy vấn"]
+    R["Tầng xếp hạng"]
+    IDX["Tầng chỉ mục"]
+    CR["Tầng crawler"]
+    ST["Tầng lưu trữ"]
+
+    API --> FAC
+    FAC --> Q & R & IDX & CR & ST
+
+    Q -.-> P4["COMPOSITE<br/>QueryNode sealed"]
+    Q -.-> P5["CHAIN OF RESP.<br/>CandidateFilter"]
+    R -.-> P2["FACTORY<br/>ScorerFactory"]
+    R -.-> P3["DECORATOR<br/>2 lớp bọc"]
+    R -.-> P1["STRATEGY<br/>RelevanceScorer"]
+    IDX -.-> P10["FLYWEIGHT<br/>TermDictionary"]
+    IDX -.-> P9["ITERATOR/CURSOR<br/>PostingCursor"]
+    CR -.-> P8["BUILDER<br/>CrawlConfig"]
+    CR -.-> P7["OBSERVER<br/>CrawlListener"]
+    CR -.-> P6["STATE<br/>CrawlStatus"]
+    ST -.-> P1b["STRATEGY<br/>DocumentStore"]
+```
+
+```
+   controller/  ──▶  SearchEngineFacade  ◀── FACADE
+                            │
+      ┌────────┬────────────┼────────────┬──────────┐
+      ▼        ▼            ▼            ▼          ▼
+   query/   ranking/     index/      crawler/   storage/
+      │        │            │            │          │
+  COMPOSITE  FACTORY    FLYWEIGHT     BUILDER   STRATEGY
+  CHAIN      DECORATOR  ITERATOR      OBSERVER
+             STRATEGY   /CURSOR       STATE
+```
+
+---
+
 ## 🗺️ Lộ trình đọc
 
 **Nếu bạn mới học design pattern** — theo độ khó tăng dần:

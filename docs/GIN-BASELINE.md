@@ -137,7 +137,7 @@ docker compose up -d
 cd search-engine
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd compile exec:java \
   -Dexec.mainClass=com.vnsearch.storage.PostgresImportRunner \
-  -Dexec.args="data/crawled-multi.json"
+  -Dexec.args="data/crawled-documents.json"
 
 # 3. Chạy phép đối chứng → ghi lại chính file này
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd compile exec:java \

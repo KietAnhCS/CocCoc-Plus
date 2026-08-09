@@ -10,6 +10,20 @@
 
 Composite cho phép **đối xử với một object đơn lẻ và một nhóm object y hệt nhau**, bằng cách để cả hai cài chung một interface.
 
+```mermaid
+flowchart TD
+    A["AndNode<br/>nút TRONG"]
+    O["OrNode<br/>nút TRONG"]
+    T3["TermNode<br/>giá_rẻ · LÁ"]
+    T1["TermNode<br/>máy_tính · LÁ"]
+    T2["TermNode<br/>laptop · LÁ"]
+
+    A --> O
+    A --> T3
+    O --> T1
+    O --> T2
+```
+
 ```
 (máy tính OR laptop) AND giá rẻ
 
@@ -20,6 +34,73 @@ Composite cho phép **đối xử với một object đơn lẻ và một nhóm 
   TermNode   TermNode
  (máy_tính)  (laptop)
 ```
+
+Cấu trúc lớp làm nên điều đó — chú ý `QueryNode` là `sealed`:
+
+```mermaid
+classDiagram
+    class QueryNode {
+        <<sealed interface>>
+        +evaluate(index) Set~Integer~
+    }
+    class TermNode {
+        LÁ
+    }
+    class PhraseNode {
+        LÁ
+    }
+    class AndNode {
+        -children
+    }
+    class OrNode {
+        -children
+    }
+    class NotNode {
+        -child
+    }
+
+    QueryNode <|.. TermNode
+    QueryNode <|.. PhraseNode
+    QueryNode <|.. AndNode
+    QueryNode <|.. OrNode
+    QueryNode <|.. NotNode
+    AndNode o--> QueryNode : chứa nhiều
+    OrNode o--> QueryNode : chứa nhiều
+    NotNode o--> QueryNode : chứa một
+```
+
+**`sealed` là điểm khác biệt so với Composite trong sách.** Danh sách nút được
+đóng lại ở compile-time, nên `switch` trên `QueryNode` được trình biên dịch
+kiểm tra tính đầy đủ: thêm một loại nút mới mà quên xử lý ở đâu đó là **lỗi
+biên dịch**, không phải lỗi lúc chạy.
+
+### Một lời gọi `evaluate` lan xuống cây
+
+```mermaid
+sequenceDiagram
+    participant C as CandidateResolver
+    participant A as AndNode
+    participant O as OrNode
+    participant T1 as TermNode máy_tính
+    participant T2 as TermNode laptop
+    participant T3 as TermNode giá_rẻ
+
+    C->>A: evaluate(index)
+    A->>O: evaluate(index)
+    O->>T1: evaluate(index)
+    T1-->>O: {3, 7, 11}
+    O->>T2: evaluate(index)
+    T2-->>O: {7, 42}
+    Note over O: HỢP → {3, 7, 11, 42}
+    O-->>A: {3, 7, 11, 42}
+    A->>T3: evaluate(index)
+    T3-->>A: {7, 11, 99}
+    Note over A: GIAO → {7, 11}
+    A-->>C: {7, 11}
+```
+
+Người gọi chỉ viết một dòng; toàn bộ đệ quy nằm trong cấu trúc, không nằm
+trong lời gọi.
 
 Người gọi chỉ viết `root.evaluate(index)` — không cần biết `root` là một term đơn hay một cây sâu 5 tầng.
 

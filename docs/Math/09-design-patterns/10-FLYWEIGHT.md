@@ -10,10 +10,50 @@
 
 Khi rất nhiều object có **cùng nội dung**, Flyweight giữ **một instance chuẩn tắc** cho mỗi nội dung phân biệt và cho tất cả cùng trỏ vào đó.
 
+```mermaid
+flowchart LR
+    subgraph TRUOC["TRƯỚC — mỗi lần xuất hiện một object"]
+        direction TB
+        P1["Posting doc 3"] --> S1["String 'máy_tính'"]
+        P2["Posting doc 7"] --> S2["String 'máy_tính'"]
+        P3["Posting doc 11"] --> S3["String 'máy_tính'"]
+    end
+
+    subgraph SAU["SAU — TermDictionary giữ bản chuẩn tắc"]
+        direction TB
+        Q1["Posting doc 3"] --> T["String 'máy_tính'<br/>DUY NHẤT"]
+        Q2["Posting doc 7"] --> T
+        Q3["Posting doc 11"] --> T
+    end
+
+    TRUOC -->|"Flyweight"| SAU
+```
+
 ```
 ❌ Trước: 7.000.000 object String  ─┐
                                     ├─ cho 136.768 giá trị PHÂN BIỆT
 ✅ Sau:     136.768 object String  ─┘
+
+   tỉ lệ chia sẻ trung bình ≈ 51 lần / một chuỗi
+```
+
+**Vì sao con số chênh nhau tới 51 lần** — đó là định luật Zipf ở dạng thực
+dụng: một số ít term xuất hiện ở rất nhiều tài liệu.
+
+```
+   số lần xuất hiện
+        │
+   10^6 │█
+        │█
+   10^4 │██▄
+        │████▄▄
+   10^2 │████████▄▄▄▄
+        │███████████████▄▄▄▄▄▄▄▄▄
+     1  │████████████████████████████████████████
+        └────────────────────────────────────────▶ term xếp theo tần suất
+         "của" "và"            …                  term hiếm
+         ▲                                        ▲
+         chia sẻ hàng trăm nghìn lần               chia sẻ 1 lần
 ```
 
 Câu thần chú: **"Nội dung giống nhau thì dùng chung một object."**

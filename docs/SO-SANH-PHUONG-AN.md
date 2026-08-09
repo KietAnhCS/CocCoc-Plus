@@ -13,6 +13,62 @@
 
 ## Cách đọc tài liệu này
 
+### Bản đồ 13 bài toán và phương án đã chọn
+
+```mermaid
+mindmap
+  root((13 bài toán<br/>đã cân nhắc<br/>phương án))
+    Thu thập
+      chống trùng URL
+        Bloom filter · chọn
+        HashSet · loại vì 108MB
+      lịch trình crawl
+        Mercator 2 tầng · chọn
+        heap đơn · loại vì xung đột
+    Chỉ mục
+      tách từ tiếng Việt
+        QHĐ cực đại trọng số · chọn
+        longest-match tham lam · loại
+      nén posting list
+        VByte + delta · chọn
+        GZIP · loại vì không tra ngẫu nhiên
+      lưu chỉ mục
+        JSON + cache dẫn xuất · chọn
+    Truy vấn
+      giao posting list
+        two-pointer · chọn
+        HashSet · loại vì chậm 2,7 lần
+      cấu trúc truy vấn
+        cây Composite sealed · chọn
+    Xếp hạng
+      mô hình điểm
+        TF-IDF và BM25 · CẢ HAI, đổi bằng cấu hình
+      kết hợp tín hiệu
+        Decorator nhân · chọn
+        cộng tuyến tính · loại vì lỗi thang đo
+      top-K
+        MinHeap · chọn
+        sắp xếp hết · loại
+    Hạ tầng
+      lưu trữ
+        JSON + PostgreSQL tuỳ chọn
+      phân tán
+        Kafka cắt sau Duplicate Detection
+      chưa cài
+        RRF · nói thẳng là chưa có
+```
+
+```
+   Cách đọc: mỗi bài toán có ÍT NHẤT một phương án bị BÁC BỎ,
+   và lý do bác bỏ là phần đáng đọc hơn cả phương án được chọn.
+
+   bài toán ──┬──▶ phương án A  ✗  vì …
+              ├──▶ phương án B  ✓  ĐÃ CHỌN
+              └──▶ phương án C  ✗  vì …
+```
+
+---
+
 ### Nguyên tắc: "tối ưu" luôn là **tối ưu dưới ràng buộc**
 
 Không có thuật toán nào tốt nhất một cách tuyệt đối. Câu hỏi đúng không phải

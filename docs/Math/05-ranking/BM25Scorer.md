@@ -34,6 +34,46 @@ Và một vấn đề thứ ba: IDF của TF-IDF **hoá âm** khi term xuất hi
 
 Kết quả đo trên 200 truy vấn known-item: BM25 thuần đạt **MRR 0,8989** so với TF-IDF thuần **0,8537** — hơn **5,3 %**.
 
+```
+   Điểm đóng góp của term khi tần suất f tăng
+
+   TF-IDF:  1 + log f          BM25:  f(k₁+1) / (f + k₁)
+   ─────────────────────       ────────────────────────────
+   điểm                        điểm
+     │           ╱                │      ╭──────────────  ← tiệm cận k₁+1 = 2,2
+     │        ╱                   │    ╭─╯
+     │     ╱                      │  ╭─╯
+     │  ╱                         │╭─╯
+     │╱                           ╯
+     └──────────────▶ f           └──────────────▶ f
+       TĂNG VÔ HẠN                  BÃO HOÀ
+
+   nhồi 1.000 lần từ khoá        nhồi 1.000 lần cũng chỉ
+   ⇒ điểm cứ tăng                 tiến tới 2,2, không hơn
+```
+
+```mermaid
+flowchart TD
+    F["tần suất term f trong tài liệu"]
+    S["hàm bão hoà<br/>f(k₁+1) / (f + K)"]
+    K["K = k₁·(1 − b + b·|d|/avgdl)"]
+    B["tham số b<br/>điều khiển mức phạt độ dài"]
+    OUT["điểm đóng góp<br/>chặn trên bởi k₁+1"]
+
+    F --> S --> OUT
+    B --> K --> S
+```
+
+**Hai tham số, hai việc tách bạch** — đây là điều TF-IDF không có:
+
+| | Điều khiển | Đặt 0 thì sao | Mặc định |
+|---|---|---|---|
+| $k_1$ | Tốc độ bão hoà | Mọi term đóng góp như nhau, bất kể xuất hiện mấy lần | `1.2` |
+| $b$ | Mức phạt tài liệu dài | Bỏ qua độ dài hoàn toàn | `0.75` |
+
+TF-IDF trong dự án này chia cứng cho $\sqrt{|d|}$ — tương đương một giá trị $b$
+cố định **không chỉnh được**. BM25 biến hằng số ẩn đó thành tham số.
+
 ---
 
 ## 1. Công thức đầy đủ

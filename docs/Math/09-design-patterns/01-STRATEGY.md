@@ -10,6 +10,26 @@
 
 Bạn có nhiều **cách khác nhau để làm cùng một việc**. Strategy tách mỗi cách thành một lớp riêng, tất cả cài chung một interface, và cho phép **đổi cách lúc chạy** mà nơi sử dụng không cần biết.
 
+```mermaid
+classDiagram
+    class NguoiDung {
+        +lamViec()
+    }
+    class ChienLuoc {
+        <<interface>>
+        +thucHien()
+        +name()
+    }
+    class CachA
+    class CachB
+    class CachC
+
+    NguoiDung --> ChienLuoc : phụ thuộc TRỪU TƯỢNG
+    ChienLuoc <|.. CachA
+    ChienLuoc <|.. CachB
+    ChienLuoc <|.. CachC
+```
+
 ```
    Người dùng ──gọi──> [ interface Chiến lược ]
                               △
@@ -18,6 +38,43 @@ Bạn có nhiều **cách khác nhau để làm cùng một việc**. Strategy t
 ```
 
 Câu thần chú: **"Cùng một câu hỏi, nhiều câu trả lời — người hỏi không cần biết ai trả lời."**
+
+### Bốn trục Strategy trong VnSearch, nhìn một lượt
+
+```mermaid
+mindmap
+  root((Strategy<br/>4 trục))
+    RelevanceScorer
+      TfIdfScorer
+      BM25Scorer
+      đổi bằng app.ranking.scorer
+      mục đích: ablation có giá trị khoa học
+    Tokenizer
+      VietnameseTokenizer
+      xoá một bất đối xứng
+      cùng bộ tách cho index và query
+    SearchIndex
+      InvertedIndex
+      phụ thuộc trừu tượng
+      không phụ thuộc cụ thể
+    DocumentStore
+      PostgresDocumentStore
+      JsonDocumentStore
+      biến if-else thành DANH SÁCH
+```
+
+```
+                        Strategy — 4 trục
+                               │
+   ┌───────────────┬───────────┴───────────┬───────────────┐
+   │               │                       │               │
+RelevanceScorer  Tokenizer            SearchIndex   DocumentStore
+   │               │                       │               │
+TfIdfScorer     Vietnamese…          InvertedIndex   Postgres…
+BM25Scorer                                           Json… (×2)
+   │                                                       │
+"đổi 1 biến số"                              "if-else → danh sách"
+```
 
 ---
 

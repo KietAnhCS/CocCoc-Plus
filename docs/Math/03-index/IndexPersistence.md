@@ -24,6 +24,56 @@ Dựng chỉ mục mất **6,8–9,5 giây**; crawl lại corpus mất **3,2 ph�
 
 Lớp này chỉ 46 dòng và **không chứa thuật toán mới nào**. Nó có mặt trong tập tài liệu này vì hai lý do: nó minh hoạ một **đánh đổi thiết kế** rõ ràng, và nó là nơi một **bất biến bị phá vỡ nếu bất cẩn** (đã phân tích ở [InvertedIndex §7](InvertedIndex.md)).
 
+```mermaid
+flowchart TD
+    S["Khởi động"]
+    Q1{"data/index.json<br/>tồn tại?"}
+    LOAD["nạp thẳng<br/>≈ 3 giây"]
+    Q2{"corpus đã crawl?"}
+    B1["dựng lại từ corpus<br/>≈ 26 giây"]
+    Q3{"corpus seed?"}
+    B2["dựng từ ~40 tài liệu mẫu"]
+    EMPTY["chỉ mục rỗng<br/>/api/health trả 503"]
+    P["persistIndex()<br/>ghi ra đĩa cho lần sau"]
+
+    S --> Q1
+    Q1 -->|"có"| LOAD
+    Q1 -->|"không"| Q2
+    Q2 -->|"có"| B1 --> P
+    Q2 -->|"không"| Q3
+    Q3 -->|"có"| B2 --> P
+    Q3 -->|"không"| EMPTY
+```
+
+```
+   CHUỖI DỰ PHÒNG 4 TẦNG — mỗi tầng đều kiểm docs.isEmpty()
+
+   ① index.json      ──▶ nạp thẳng            3 giây   ◀── đường nhanh
+   ② PostgreSQL      ──▶ dựng lại            26 giây
+   ③ corpus JSON     ──▶ dựng lại            26 giây
+   ④ seed 40 bài     ──▶ dựng lại           tức thì   ◀── vừa clone là chạy
+   ─────────────────────────────────────────────────
+   ⑤ không gì cả     ──▶ chỉ mục rỗng, health 503
+```
+
+⚠️ **Cái giá của đường nhanh, phải biết trước.** Tầng ① được **ưu tiên tuyệt
+đối**. Sau một phiên crawl bằng dòng lệnh, corpus mới hơn `index.json` nhưng
+backend vẫn nạp chỉ mục **cũ** — không lỗi, không cảnh báo từ ứng dụng, chỉ là
+trang vừa crawl không tìm ra.
+
+```
+   data/crawled-documents.json   12:08  ◀── mới
+   data/index.json               10:46  ◀── nhưng cái này được nạp
+
+   chữa:  POST /api/admin/reindex
+```
+
+**Vì sao tệp rỗng cũng phải bị loại.** Một phiên crawl hỏng để lại `index.json`
+159 byte. Nếu tầng ① chỉ hỏi "tệp có tồn tại không" thì nó nạp tệp rỗng rồi
+`return` — che mất cả corpus phía sau. Trong Docker, hậu quả là container vào
+**vòng lặp khởi động lại vô hạn** vì health check mãi trả 503. Nay mỗi tầng đều
+kiểm `docs.isEmpty()`.
+
 ---
 
 ## 1. Toàn bộ lớp
@@ -73,9 +123,9 @@ record IndexData(Map<String, CompressedPostings> index,   // ← đã nén, xem 
 |---|---|
 | `data/index.json` — thụt dòng + **không nén** (định dạng cũ) | **341,5 MB** |
 | `data/index.json` — gói + **nén VByte** (đang dùng) | **94,7 MB** |
-| `data/crawled-multi.json` (chỉ tài liệu thô) | **62 MB** |
+| `data/crawled-documents.json` (chỉ tài liệu thô) | **62 MB** |
 
-**Vì sao `index.json` vẫn lớn hơn `crawled-multi.json`:** nó chứa **cả hai** —
+**Vì sao `index.json` vẫn lớn hơn `crawled-documents.json`:** nó chứa **cả hai** —
 toàn văn `WebDocument` **và** posting list của 136.768 term (5,2 triệu cặp
 (term, doc) kèm vị trí). Đây là cái giá của việc gộp mọi thứ vào một file.
 
@@ -272,7 +322,7 @@ Thêm nguồn thứ tư (S3, MongoDB, Redis) = **thêm một lớp**, không s�
 |---|---|---|
 | 1 | PostgreSQL | 1,0 giây đọc + 6,8 giây index |
 | 2 | **`index.json`** | **vài giây, không index lại** |
-| 3 | `crawled-multi.json` | vài giây đọc + 6,8 giây index |
+| 3 | `crawled-documents.json` | vài giây đọc + 6,8 giây index |
 | 4 | `seed-documents.json` | tức thì (~40 tài liệu) |
 
 Tầng 4 là chi tiết đáng khen về trải nghiệm: người vừa clone repo về chạy được ngay, không cần crawl mạng thật, không cần cài PostgreSQL. Nhiều đồ án bỏ qua điều này và người chấm không chạy nổi.

@@ -18,6 +18,45 @@ Muốn đo chất lượng tìm kiếm thì phải có **đáp án đúng** (qre
 | Cho truy vấn → hỏi *"tài liệu nào liên quan?"* | Cho tài liệu → **sinh truy vấn từ chính nó** |
 | Cần người gán nhãn | **Ground truth hiển nhiên** là tài liệu đó |
 
+```mermaid
+flowchart LR
+    D["chọn ngẫu nhiên<br/>tài liệu d"]
+    T["rút vài term<br/>từ chính d"]
+    F["lọc theo CỬA SỔ df<br/>không quá hiếm, không quá phổ biến"]
+    Q["truy vấn q"]
+    R["chạy tìm kiếm"]
+    C{"d nằm ở hạng mấy?"}
+    M["MRR = 1 / hạng"]
+
+    D --> T --> F --> Q --> R --> C --> M
+```
+
+```
+   Vòng khép kín — không cần một người gán nhãn nào
+
+        tài liệu d  ────rút term────▶  truy vấn q
+             ▲                              │
+             │                              ▼
+             └────── đáp án đúng ◀──── chạy tìm kiếm
+                    (chính là d)
+```
+
+**Vì sao phải có cửa sổ df** — đây là chỗ tinh tế nhất:
+
+```
+   df = 1        term chỉ xuất hiện ở ĐÚNG d
+                 ⇒ truy vấn tầm thường, hệ thống nào cũng đạt 100%
+                 ⇒ phép đo VÔ NGHĨA
+
+   df quá cao    term như "của", "và"
+                 ⇒ truy vấn không phân biệt nổi d với hàng nghìn bài khác
+                 ⇒ phép đo cũng vô nghĩa, theo chiều ngược lại
+
+   ├──────────┼════════════════════┼──────────┤
+   df = 1     df_min          df_max      df = N
+              └── cửa sổ dùng được ──┘
+```
+
 Nó mô phỏng đúng một tình huống thật rất phổ biến: *người dùng nhớ mang máng một bài báo rồi gõ vài từ khoá để tìm lại*.
 
 Nhưng có một cái bẫy chết người: nếu chọn từ khoá sai cách, bài đánh giá trở nên **hoàn toàn vô nghĩa** — và §2 là về cái bẫy đó.

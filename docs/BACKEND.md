@@ -17,9 +17,9 @@
 > | *Chống lại cái gì, bằng cách nào?* | [`SECURITY.md`](SECURITY.md) |
 > | *Giao diện Electron?* | [`FRONTEND.md`](FRONTEND.md) |
 
-**Số liệu đo trên cây mã hiện tại:** 21.156 dòng Java (main), 7.928 dòng test,
-145 lớp, 12 interface, 30 record, 6 REST controller, 11 lớp cấu hình.
-`./mvnw -B clean verify` → **521 test xanh**, SpotBugs **0 bug**, ~43 giây.
+**Số liệu đo trên cây mã hiện tại:** 21.162 dòng Java (main), 7.928 dòng test,
+145 lớp, 12 interface, 32 record, 6 REST controller, 11 lớp cấu hình.
+`./mvnw -B clean verify` → **528 test xanh**, SpotBugs **0 bug**, ~43 giây.
 
 ---
 
@@ -75,7 +75,6 @@ mindmap
 ```
 
 Sơ đồ dạng chữ, cho nơi không dựng được Mermaid:
-
 ```
                         ┌──────────────────────────────┐
    HTTP ───────────────▶│  controller/   (6 endpoint)  │
@@ -132,7 +131,7 @@ gì. Đó chính là thứ làm mỗi tầng kiểm thử được độc lập,
 | `ranking/` | 8 | `RelevanceScorer`, `TfIdfScorer`, `BM25Scorer`, `ScorerFactory`, `PageRankService`, `ResultRanker`, `SnippetBuilder`, `QuerySyllables` | `index/`, `datastructure/` |
 | `ranking/decorator/` | 2 | `PageRankBoostScorer`, `TitleBoostScorer` — **Decorator** | `ranking/` |
 | `crawler/` | 20 | `CrawlerService` + một lớp cho mỗi khối trong sơ đồ crawler: `DnsResolver`, `HtmlDownloader`, `ContentParser`, `LinkExtractor`, `UrlFilter`, `UrlSeenFilter`, `ContentSeenFilter`, `RobotsTxtParser`, `UrlCanonicalizer`, `LanguageFilter`, `SeedUrlValidator`, `CrawlConfig` (**Builder**), `CrawlListener` + 3 cài đặt | `datastructure/`, `model/`, Jsoup |
-| `crawler/frontier/` | 8 | URL Frontier hai tầng kiểu Mercator: `UrlFrontier`, `FrontQueues`, `BackQueues`, `Prioritizer`+`DefaultPrioritizer`, `FrontQueueSelector`+`WeightedRandomSelector`/`StrictPrioritySelector`, `CrawlTask` | `datastructure/` (MinHeap) |
+| `crawler/frontier/` | 9 | URL Frontier hai tầng kiểu Mercator: `UrlFrontier`, `FrontQueues`, `BackQueues`, `Prioritizer`+`DefaultPrioritizer`, `FrontQueueSelector`+`WeightedRandomSelector`/`StrictPrioritySelector`, `CrawlTask` | `datastructure/` (MinHeap) |
 | `crawler/bus/` | 8 | `CrawlEventBus` + `InProcessCrawlEventBus` / `KafkaCrawlEventBus`; 4 thông điệp `PageEvent`, `DiscoveredUrl`, `OutlinksExtracted`, `ImageFound`; `PageEventHandler` | `model/` |
 | `crawler/modular/` | 6 | Ba Modular Service — `CrawlAnalyticsService`, `ImageDownloadService`, `UrlExtractorService`; kho ảnh `ImageStore` + `ImageStorage`, `ImageQuality` | `crawler/bus/` |
 | `eval/` | 9 | `EvaluationMetrics`, `EvaluationHarness`, `KnownItemQueryGenerator`, `PoolBuilder`, `SignificanceTest`, 4 runner CLI | `query/`, `ranking/`, `index/` |
@@ -212,8 +211,6 @@ flowchart TB
     end
 
     rl --> ak --> secc
-    style rl fill:#e8590c,color:#fff
-    style ak fill:#e8590c,color:#fff
 ```
 
 | Lớp | Việc | Chi tiết đáng nhớ |
@@ -245,9 +242,9 @@ flowchart TB
 | Endpoint | Quyền | Tham số | Trả về |
 |---|:---:|---|---|
 | `GET /api/search` | công khai | `q`, `page` (mặc định 1, trần **1.000**), `size` (mặc định 20, trong [1,100]) | `SearchResponse`: `totalResults`, `page`, `pageSize`, `timeTakenMs`, `results[]`, `droppedTerms[]` |
-| `GET /api/suggest` | công khai | `q`, `limit` (mặc định 8) | `{"suggestions": [...]}` |
-| `GET /api/images` | công khai | `q`, `page`, `size` | `ImageResponse`: `results[]`, `hasMore`, `pagesScanned`, `totalResults` |
-| `GET /api/feed` | công khai | `page`, `size` | Duyệt chỉ mục theo `docId` — **không** qua truy vấn |
+| `GET /api/suggest` | công khai | `prefix` (**bắt buộc** — không phải `q`), `limit` (mặc định 10) | `{"suggestions": [...]}` |
+| `GET /api/images` | công khai | `q`, `page` (mặc định 1, trần 100), `size` (mặc định 30, trần 100) | `ImageResponse`: `results[]`, `hasMore`, `pagesScanned`, `totalResults` |
+| `GET /api/feed` | công khai | `seed` (mặc định 0 — hạt giống hoán vị), `page` (mặc định 1, trần 100), `size` (mặc định 12, trần 50) | Duyệt chỉ mục theo `docId` — **không** qua truy vấn |
 | `GET /api/health` | công khai | — | `200` khi chỉ mục có tài liệu, **`503` khi rỗng** |
 | `POST /api/admin/crawl` | `X-API-Key` | `{seedUrls, maxDepth, maxPages}` | `jobId`, crawl chạy nền |
 | `GET /api/admin/crawl/{jobId}/status` | `X-API-Key` | — | `status`, `pagesCrawled`, `queueSize` |
@@ -259,7 +256,6 @@ flowchart TB
 ### 5.1. Vì sao `/api/health` phải tách khỏi `/api/admin/stats`
 
 Hai thứ phục vụ hai đối tượng khác nhau:
-
 ```
 /api/health        "hệ thống có phục vụ được không"   → CÔNG KHAI
 /api/admin/stats   chi tiết vận hành                   → CẦN XÁC THỰC
@@ -283,7 +279,6 @@ dùng nhập vào.
 ---
 
 ## 6. Tầng service: điều phối
-
 ```
 SearchEngineFacade  ─ chỉ ĐIỀU PHỐI, không chứa một thuật toán nào
    ├── IndexBuilder        dựng chỉ mục (tách từ SONG SONG, nạp tuần tự)
@@ -315,7 +310,6 @@ vừa áp dụng (lưu thân bài ở dạng nén). Đổi lại là một lần
 `/api/admin/reindex`, thao tác không nằm trên đường chạy của truy vấn.
 
 ### 6.2. Chuỗi nguồn dữ liệu lúc khởi động
-
 ```
 1. data/index.json          chỉ mục dựng sẵn  ─── đường nhanh nhất
       │ hỏng / sai phiên bản / RỖNG → bỏ qua, không làm sập ứng dụng
@@ -340,14 +334,46 @@ vừa áp dụng (lưu thân bài ở dạng nén). Đổi lại là một lần
 
 ### 6.3. Ghi chỉ mục ra đĩa — đoạn từng thiếu, và nó tốn bao nhiêu
 
-`loadCorpus()` có một đường nhanh: tệp chỉ mục tồn tại thì nạp thẳng. Nhưng
-**không có chỗ nào ghi tệp đó ra** — chỉ `reindex()` và `startCrawl()` mới ghi.
-Với một hệ thống chỉ crawl bằng dòng lệnh (đúng cách đang dùng), tệp chỉ mục
-**không bao giờ tồn tại**, và đường nhanh không bao giờ chạy.
+**Triệu chứng.** `loadCorpus()` có một đường nhanh: tệp chỉ mục tồn tại thì nạp
+thẳng. Nhưng khi đó **không có chỗ nào ghi tệp ấy ra** — chỉ `reindex()` và
+`startCrawl()` mới ghi. Với một hệ thống chỉ crawl bằng dòng lệnh (đúng cách
+đang dùng), tệp chỉ mục **không bao giờ tồn tại**, và đường nhanh không bao giờ
+chạy.
 
 Đo trên corpus 30.017 trang: khởi động mất **58,5 giây**, lặp lại y hệt ở mọi
 lần khởi động sau. Bằng chứng gián tiếp nằm ngay trong `getStats()`:
-`indexSizeBytes` luôn bằng 0.
+`indexSizeBytes` luôn bằng 0 — tức tệp chỉ mục không tồn tại.
+
+**Cách chữa.** Thêm `persistIndex()` và gọi nó ở **cả ba** đường vào của chỉ
+mục, không chỉ hai: `loadCorpus()` (dòng 189), `startCrawl()` (dòng 329) và
+`reindex()` (dòng 377). Từ lần khởi động thứ hai trở đi, đường nhanh mới thật
+sự có tác dụng.
+
+**Kết quả đo lại**, corpus 31.030 trang — lớn hơn lần đo trên:
+
+| | Trước | Sau |
+|---|---:|---:|
+| Khởi động (đã có `index.json`) | 58,5 giây | **3,2 giây** |
+| `indexSizeBytes` | luôn 0 | 402 MB |
+
+**Một hệ quả phải biết, nếu không sẽ mất buổi đi tìm.** Tệp chỉ mục bây giờ
+tồn tại thật, và `loadCorpus()` **ưu tiên** nó hơn corpus. Sau một phiên crawl
+bằng dòng lệnh, `crawled-documents.json` mới hơn `index.json`, nhưng backend
+vẫn nạp chỉ mục **cũ** — không một dòng lỗi nào, chỉ là các trang vừa crawl
+không tìm ra. Triệu chứng nghe rất khó tin: *"crawl xong 30.000 trang mà tìm gì
+cũng không thấy"*.
+
+Hai chỗ đã chặn sẵn: `run-backend.bat` so ngày sửa hai tệp và in `[CANH BAO]`,
+còn cách chữa là gọi reindex một lần:
+
+```bash
+curl -X POST -H "X-API-Key: $ADMIN_API_KEY" http://localhost:8080/api/admin/reindex
+```
+
+> **Vì sao lỗi ghi không được phép làm hỏng khởi động.** Chỉ mục dựng sẵn là
+> *cache dẫn xuất*, không phải nguồn sự thật — corpus mới là. Đĩa đầy hay không
+> có quyền ghi thì ứng dụng vẫn phải phục vụ được, chỉ là lần sau khởi động
+> chậm. Vì vậy `persistIndex()` bắt hết ngoại lệ tại chỗ thay vì để nó nổi lên.
 
 ---
 
@@ -427,7 +453,6 @@ thì kết quả trả về có thể ghép chỉ mục **cũ** với điểm Pa
 **Xếp hạng hai giai đoạn.** Sinh snippet phải tách toàn bộ `bodyText` (trung
 bình hơn 1.000 token). Làm cho mọi ứng viên rồi mới cắt top-N thì với 500 ứng
 viên có 490 snippet bị vứt đi ngay sau khi tạo:
-
 ```
 Trước: O(c × |d|) = 500 × 1043 = 521.500
 Sau  : O(K × |d|) =  10 × 1043 =  10.430      ← nhanh 50 lần
@@ -441,7 +466,6 @@ gợi ý tốt nhất, nhưng học cả truy vấn không ra gì là học luô
 ## 9. Trạng thái sống ở đâu
 
 Đây là câu hỏi quyết định khả năng nhân bản, nên nó xứng đáng một mục riêng.
-
 ```
    TRONG BỘ NHỚ TIẾN TRÌNH (mất khi khởi động lại)
    ├── InvertedIndex        posting list + tài liệu + thân bài đã nén

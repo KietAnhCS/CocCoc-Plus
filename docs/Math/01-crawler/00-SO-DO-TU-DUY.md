@@ -14,24 +14,33 @@
 
 ---
 
-## 1. Bản đồ toàn cảnh — 25 file chia thành 5 nhóm
+## 1. Bản đồ toàn cảnh — 43 file chia thành 6 nhóm
 
-Crawler nhìn thì rối, nhưng thật ra chỉ có **5 nhóm việc**. Nhớ được 5 nhóm này là nhớ được cả tầng crawler.
+Crawler nhìn thì rối, nhưng thật ra chỉ có **6 nhóm việc**. Nhớ được 6 nhóm này là nhớ được cả tầng crawler.
+
+> **Về con số 43.** Package `crawler/` có 20 file ở thư mục gốc, cộng ba thư
+> mục con: `frontier/` (9), `bus/` (8), `modular/` (6). Nhóm 1–5 là **lõi
+> crawl tuần tự**, chạy trong mọi chế độ. Nhóm 6 là **tầng phân tán**, chỉ đổi
+> cách các mảnh nói chuyện với nhau chứ không đổi thuật toán nào.
 
 ```mermaid
 flowchart LR
-    ROOT["CRAWLER<br/>25 file"]
+    ROOT["CRAWLER<br/>43 file"]
 
-    ROOT --> G1["NHÓM 1<br/>Điều phối<br/>5 file"]
+    ROOT --> G1["NHÓM 1<br/>Điều phối<br/>7 file"]
     ROOT --> G2["NHÓM 2<br/>Frontier - hàng đợi<br/>9 file"]
     ROOT --> G3["NHÓM 3<br/>Tải trang<br/>2 file"]
-    ROOT --> G4["NHÓM 4<br/>Xử lý nội dung<br/>4 file"]
-    ROOT --> G5["NHÓM 5<br/>Lọc và nhớ URL<br/>5 file"]
+    ROOT --> G4["NHÓM 4<br/>Xử lý nội dung<br/>5 file"]
+    ROOT --> G5["NHÓM 5<br/>Lọc và nhớ URL<br/>6 file"]
+    ROOT --> G6["NHÓM 6<br/>Bus và Modular Services<br/>14 file"]
 
     G1 --> G1A["CrawlerService<br/>nhạc trưởng"]
     G1 --> G1B["CrawlConfig<br/>cấu hình bất biến"]
-    G1 --> G1C["CrawlListener<br/>ConsoleCrawlListener"]
+    G1 --> G1C["CrawlListener + 3 cài đặt<br/>Console, ProgressBar, Checkpoint"]
     G1 --> G1D["MultiDomainCrawlRunner<br/>hàm main chạy thật"]
+
+    G6 --> G6A["bus/ - 8 file<br/>CrawlEventBus + 2 cài đặt<br/>4 thông điệp"]
+    G6 --> G6B["modular/ - 6 file<br/>3 service + kho ảnh"]
 
     G2 --> G2A["UrlFrontier<br/>vỏ ngoài, giữ khoá"]
     G2 --> G2B["Tầng trước<br/>Prioritizer, FrontQueues<br/>2 bộ chọn"]
@@ -45,40 +54,58 @@ flowchart LR
     G4 --> G4B["ContentSeenFilter<br/>vân tay SHA-256"]
     G4 --> G4C["ContentStorage<br/>kho tài liệu"]
     G4 --> G4D["LinkExtractor<br/>bóc thẻ a href"]
+    G4 --> G4E["LanguageFilter<br/>giữ vi và en"]
 
     G5 --> G5A["UrlCanonicalizer<br/>dạng chuẩn tắc"]
     G5 --> G5B["UrlFilter<br/>4 luật rẻ"]
     G5 --> G5C["RobotsTxtParser<br/>luật đắt, chạm mạng"]
     G5 --> G5D["UrlSeenFilter<br/>bọc BloomFilter"]
     G5 --> G5E["UrlStorage<br/>file chỉ ghi thêm"]
+    G5 --> G5F["SeedUrlValidator<br/>chống SSRF ở cửa vào"]
 ```
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
-                              CRAWLER — 25 file
+                              CRAWLER — 43 file
                                      │
    ┌──────────────┬──────────────────┼──────────────────┬──────────────────┐
    │              │                  │                  │                  │
 NHÓM 1         NHÓM 2             NHÓM 3            NHÓM 4             NHÓM 5
 Điều phối      Frontier           Tải trang         Nội dung           Lọc URL
-(5 file)       (9 file)           (2 file)          (4 file)           (5 file)
+(7 file)       (9 file)           (2 file)          (5 file)           (6 file)
    │              │                  │                  │                  │
 CrawlerService UrlFrontier        DnsResolver       ContentParser     UrlCanonicalizer
 CrawlConfig    CrawlTask          HtmlDownloader    ContentSeenFilter UrlFilter
 CrawlListener  Prioritizer                          ContentStorage    RobotsTxtParser
 ConsoleCrawl…  DefaultPrioritizer                   LinkExtractor     UrlSeenFilter
-MultiDomain…   FrontQueues                                            UrlStorage
-               FrontQueueSelector
-               WeightedRandomSelector
+ProgressBar…   FrontQueues                          LanguageFilter    UrlStorage
+Checkpoint…    FrontQueueSelector                                     SeedUrlValidator
+MultiDomain…   WeightedRandomSelector
                StrictPrioritySelector
                BackQueues
+
+                                     │
+                          ┌──────────┴──────────┐
+                              NHÓM 6 — phân tán
+                                  (14 file)
+                          ┌──────────┴──────────┐
+                          │                     │
+                    bus/ (8 file)        modular/ (6 file)
+                    ─────────────        ────────────────
+                    CrawlEventBus        UrlExtractorService
+                    InProcess…Bus        ImageDownloadService
+                    KafkaCrawlEventBus   CrawlAnalyticsService
+                    PageEventHandler     ImageStore
+                    PageEvent            ImageStorage
+                    DiscoveredUrl        ImageQuality
+                    OutlinksExtracted
+                    ImageFound
 ```
 
 </details>
 
-### Bảng tra nhanh — cả 25 file, mỗi file một câu
+### Bảng tra nhanh — cả 43 file, mỗi file một câu
 
 | # | File | Nhóm | Nó làm gì (một câu) |
 |---|---|---|---|
@@ -107,6 +134,38 @@ MultiDomain…   FrontQueues                                            UrlStora
 | 23 | `RobotsTxtParser` | 5 | Tự parse `robots.txt`, so khớp tiền tố đường dẫn dài nhất |
 | 24 | `UrlSeenFilter` | 5 | Bọc `BloomFilter` — hỏi "URL này gặp chưa" một cách **nguyên tử** |
 | 25 | `UrlStorage` | 5 | Ghi bền danh sách URL đã gặp, để phiên sau nạp lại đi tiếp |
+| 26 | `ProgressBarCrawlListener` | 1 | Observer vẽ thanh tiến độ, tiết chế vẽ lại tối thiểu 100 ms |
+| 27 | `CheckpointCrawlListener` | 1 | Observer ghi corpus định kỳ — mất điện giữa chừng không mất cả phiên |
+| 28 | `LanguageFilter` | 4 | Giữ lại **vi** và **en**, loại phần còn lại — xem `DSA-REPORT` §3.5 |
+| 29 | `SeedUrlValidator` | 5 | Chặn SSRF ngay cửa vào: URL seed từ `/api/admin/crawl` không được trỏ vào mạng nội bộ |
+| **30** | **`bus/CrawlEventBus`** | **6** | Giao diện bus — **một đường mã, hai chế độ**. Cả `memory` lẫn `kafka` đều cài nó |
+| 31 | `bus/InProcessCrawlEventBus` | 6 | Cài đặt mặc định: gọi thẳng trong cùng tiến trình, không cần broker |
+| 32 | `bus/KafkaCrawlEventBus` | 6 | Cài đặt phân tán: đẩy lên topic, **khoá phân hoạch = host** |
+| 33 | `bus/PageEventHandler` | 6 | Giao diện phía nhận — mỗi Modular Service cài một bản |
+| 34 | `bus/PageEvent` | 6 | Thông điệp: một trang đã tải và phân tích xong |
+| 35 | `bus/DiscoveredUrl` | 6 | Thông điệp: một URL mới, dành cho **vòng lặp crawl** |
+| 36 | `bus/OutlinksExtracted` | 6 | Thông điệp: **tập đầy đủ** outlink của một trang, dành cho **PageRank** |
+| 37 | `bus/ImageFound` | 6 | Thông điệp: một ảnh với siêu dữ liệu (`alt`, `declaredWidth/Height`) |
+| 38 | `modular/UrlExtractorService` | 6 | Bóc liên kết → UrlFilter → UrlSeen → Frontier |
+| 39 | `modular/ImageDownloadService` | 6 | Xử lý ảnh; **mặc định chỉ lấy siêu dữ liệu**, không tải nội dung |
+| 40 | `modular/CrawlAnalyticsService` | 6 | Thang đo Prometheus. `host` **không** được làm nhãn — nổ cardinality |
+| 41 | `modular/ImageStore` | 6 | `Map: pageUrl → đúng MỘT ảnh`, trần 50.000 trang |
+| 42 | `modular/ImageStorage` | 6 | Ghi/đọc `data/crawled-documents.images.json` |
+| 43 | `modular/ImageQuality` | 6 | Chọn tấm ảnh đại diện — **4 bậc**, xem [`11-images/`](../11-images/ImageQuality.md) |
+
+### Vì sao `urls.discovered` và `outlinks` **không** gộp làm một
+
+Hai thông điệp số 35 và 36 nhìn thì giống nhau — đều là "URL lấy từ trang này".
+Gộp lại là sai, và đây là chỗ dễ nhầm nhất của nhóm 6:
+
+| | `DiscoveredUrl` | `OutlinksExtracted` |
+|---|---|---|
+| Dùng cho | Vòng lặp crawl — *đi tiếp chỗ nào* | PageRank — *đồ thị liên kết* |
+| Tập URL | Đã lọc: bỏ URL đã gặp, quá sâu, ngoài domain | **Đầy đủ**, không lọc gì |
+| Bỏ một phần tử thì sao | Crawl thiếu một trang | **Đồ thị sai**, PageRank sai theo |
+
+Lọc chung một tập là hỏng PageRank: một liên kết trỏ tới trang **đã crawl rồi**
+vẫn là một cạnh thật của đồ thị, dù vòng lặp crawl không cần đi lại.
 
 ---
 
@@ -148,7 +207,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
   seed URLs
       │
@@ -183,7 +241,6 @@ flowchart TD
 ### Hai mức chống trùng — rất dễ nhầm là một
 
 Đây là chỗ nhiều người hiểu sai nhất khi đọc sơ đồ crawler:
-
 ```
 ┌────────────────────┬──────────────────────────┬──────────────────────────┐
 │                    │  UrlSeenFilter           │  ContentSeenFilter       │
@@ -265,7 +322,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 MultiDomainCrawlRunner ─┐
                         ├──► CrawlerService ──┬──► UrlFrontier ──► UrlCanonicalizer
@@ -319,7 +375,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 UrlFrontier (Facade)
    ├──► CrawlTask
@@ -382,7 +437,6 @@ sequenceDiagram
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 Worker                                                          Kết quả
   │
@@ -466,7 +520,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 MultiDomainCrawlRunner.DEFAULT_SEEDS ──┐
 CrawlJobManager.start(seedUrls) ───────┤  List<String> URL thô
@@ -521,7 +574,6 @@ CrawlConfig.builder()...build() ───────┘  cấu hình bất bi�
 Đây là phần phức tạp nhất (9 file), và cũng là phần thú vị nhất, vì nó hoà giải **hai yêu cầu xung đột nhau**.
 
 ### 5.1 Vấn đề: hai yêu cầu cãi nhau
-
 ```
 ┌───────────────────────────────────────────────────────────────────┐
 │  ƯU TIÊN  muốn:  "lấy URL TỐT NHẤT trước, bất kể nó thuộc host nào" │
@@ -588,7 +640,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
    URL vào
       │
@@ -649,7 +700,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 VẤN ĐỀ 1  bỏ đói mức thấp          ──►  GIẢI  WeightedRandomSelector 16:8:4:2:1
 VẤN ĐỀ 2  host nhiều hơn hàng đợi  ──►  GIẢI  nạp lại khi cạn (Mercator)
@@ -683,13 +733,11 @@ Cho `BackQueues` có **3 hàng đợi**, politeness **1000 ms**, dùng `StrictPr
 | `u4 = c.com/1` | 2 | `c.com` | **2** |
 
 **Trạng thái tầng trước sau khi thêm:**
-
 ```
 f0 = [u1, u2]      f1 = [u3]      f2 = [u4]      f3 = []      f4 = []
 ```
 
 **Gọi `nextUrl()` lần đầu — `refillFrom()` chạy trước:**
-
 ```
 slot 0 đang rỗng → kéo u1 (host a.vn)
                    chưa host nào có chủ → GẮN slot 0 cho a.vn, đẩy u1 vào b0   ✓
@@ -729,7 +777,6 @@ KẾT QUẢ:
 2. **Vì sao lần 2, khi `b1` cạn, ta KHÔNG huỷ liên kết `b1 ↔ b.com`?** Vì `availableAt` của hàng đợi đó chính là **đồng hồ lịch sự** của `b.com`. Huỷ liên kết là mất đồng hồ, và một URL mới của chính `b.com` có thể được tải **ngay tức thì** — vi phạm đúng cái thứ mà cả tầng này sinh ra để bảo vệ. Hàng đợi cạn chỉ **rời khỏi heap** và vào danh sách chờ nạp, chứ vẫn giữ nguyên host.
 
 ### 5.6 `DefaultPrioritizer` — vì sao đếm theo BẬC chứ không cộng ĐIỂM
-
 ```
    level = depth                                  ← gốc là độ sâu BFS
    level = level − 1   nếu host kết thúc bằng .vn  (yêu cầu đề bài)
@@ -800,7 +847,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 URL thô  →  absUrl  →  http(s)?  ──không──►  BỎ (mailto:, javascript:)
                           │có
@@ -848,7 +894,6 @@ Bốn phép được áp dụng, tất cả đều **an toàn** theo RFC 3986, n
 > **Con số thật:** trong phiên crawl 5.011 trang đầu tiên, việc thiếu phép chuẩn hoá này tạo ra **23 cặp trang trùng nhau** chỉ khác đúng một dấu `/` ở cuối.
 
 ### 6.2 `UrlSeenFilter` + `UrlStorage` — cặp đôi làm nên tính bền
-
 ```
         ┌───────────────────── UrlSeenFilter.markSeenIfNew ─────────────────────┐
         │  synchronized {                                                        │
@@ -913,7 +958,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 ExecutorService (threadCount worker)
      ├── worker 1 ─┐
@@ -969,7 +1013,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 while (pagesCrawled < maxPages) {
     task = frontier.nextUrl()
@@ -1049,7 +1092,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 STRATEGY     ├─ Prioritizer          → đổi chính sách ưu tiên
              ├─ FrontQueueSelector   → đổi chính sách chống bỏ đói
@@ -1141,7 +1183,6 @@ Bảng này để trả lời câu hỏi *"file này có thật sự cần khôn
 ---
 
 ## 11. Bản đồ kiểm thử
-
 ```
 test/java/com/vnsearch/crawler/
 │
@@ -1186,11 +1227,10 @@ cd search-engine
 # --- Chạy crawl thật: [maxPages] [maxDepth] [outputPath] ---
 ./mvnw -q compile exec:java \
   -Dexec.mainClass=com.vnsearch.crawler.MultiDomainCrawlRunner \
-  -Dexec.args="5000 3 data/crawled-multi.json"
+  -Dexec.args="5000 3 data/crawled-documents.json"
 ```
 
 `MultiDomainCrawlRunner` in ra **thống kê theo từng khối** — chính là bằng chứng mỗi khối trong sơ đồ thật sự có việc để làm:
-
 ```
 === THONG KE THEO TUNG KHOI ===
 DNS Resolver   : N host trong cache, ty le trung XX%, N host chet bi loai som
@@ -1216,4 +1256,6 @@ Ngoài ra nó còn in **phân bố theo domain** (kiểm chứng crawler không 
 | Nghịch lý ngày sinh cho SHA-256 | [ContentSeenFilter.md](ContentSeenFilter.md) |
 | Quan hệ tương đương và dạng chuẩn tắc của URL | [UrlCanonicalizer.md](UrlCanonicalizer.md) |
 | Khớp tiền tố dài nhất, máy trạng thái hai cờ | [RobotsTxtParser.md](RobotsTxtParser.md) |
+| **Nhóm 6 — bus và chế độ phân tán** | [Sơ đồ tư duy Kafka](../10-kafka/00-SO-DO-TU-DUY.md) |
+| **Nhóm 6 — kho ảnh và cách chọn ảnh đại diện** | [Sơ đồ tư duy tầng ảnh](../11-images/00-SO-DO-TU-DUY.md) |
 | **Dữ liệu crawl được đi tiếp về đâu** | [Sơ đồ tư duy tầng chỉ mục](../03-index/00-SO-DO-TU-DUY.md) |

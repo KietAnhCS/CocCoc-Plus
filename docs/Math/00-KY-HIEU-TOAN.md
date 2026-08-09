@@ -1,6 +1,53 @@
 # 00 — Từ điển ký hiệu toán
 
-> **Đọc trang này trước tiên.** Mọi ký hiệu lạ xuất hiện trong các tài liệu còn lại đều được giải thích ở đây, bằng tiếng Việt thường, kèm ví dụ số lấy từ chính corpus 5.011 trang của dự án. Khi gặp ký hiệu không hiểu ở tài liệu nào, quay lại đây tra.
+> **Đọc trang này trước tiên.** Mọi ký hiệu lạ xuất hiện trong các tài liệu còn lại đều được giải thích ở đây, bằng tiếng Việt thường, kèm ví dụ số lấy từ chính corpus của dự án. Khi gặp ký hiệu không hiểu ở tài liệu nào, quay lại đây tra.
+>
+> *(Ví dụ số trong trang này lấy từ mốc corpus 5.011 trang — xem bảng quy chiếu
+> các mốc ở đầu [`DSA-REPORT.md`](../DSA-REPORT.md).)*
+
+### Ký hiệu nào dùng ở tầng nào
+
+```mermaid
+mindmap
+  root((Ký hiệu<br/>theo tầng))
+    Chỉ mục
+      N tổng tài liệu
+      V số term phân biệt
+      df t số tài liệu chứa t
+      d độ dài tài liệu
+    Xếp hạng
+      tf t d tần suất
+      idf t độ hiếm
+      k1 và b của BM25
+      cosine góc hai vector
+    PageRank
+      PR p điểm uy tín
+      d hệ số tắt 0,85
+      nnz số ô khác 0
+      ρ độ thưa
+    Độ phức tạp
+      O lớn
+      m và n độ dài hai list
+      K số kết quả top
+    Đánh giá
+      P@k · R@k · F1
+      MAP · nDCG · MRR
+```
+
+```
+   TẦNG            KÝ HIỆU HAY GẶP
+   ─────           ───────────────
+   chỉ mục      :  N, V, df(t), |d|
+   xếp hạng     :  tf(t,d), idf(t), k₁, b, cos θ
+   PageRank     :  PR(p), d = 0,85, nnz, ρ
+   độ phức tạp  :  O(·), m, n, K, L
+   đánh giá     :  P@k, R@k, F1, MAP, nDCG, MRR
+
+   ⚠ Chữ `d` mang HAI nghĩa tuỳ ngữ cảnh:
+       d  trong tf(t,d)     = một tài liệu
+       d  trong PageRank    = hệ số tắt 0,85
+     Đây là quy ước chuẩn của ngành, tài liệu giữ nguyên để khớp sách vở.
+```
 
 ---
 

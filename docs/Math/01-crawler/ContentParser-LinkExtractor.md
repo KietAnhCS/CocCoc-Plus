@@ -15,6 +15,48 @@ Một trang tin tức 200 KB HTML chứa: menu, quảng cáo, script theo dõi, 
 
 Nó cũng là nơi **đồ thị web được sinh ra**: mỗi thẻ `<a href>` trở thành một cạnh, và tập hợp 239.691 cạnh này chính là đầu vào của PageRank.
 
+```mermaid
+flowchart LR
+    H["HTML thô<br/>200 KB"]
+    D["cây DOM<br/>Jsoup"]
+    CP["ContentParser<br/>lấy NỘI DUNG"]
+    LE["LinkExtractor<br/>lấy CẠNH"]
+    T["title · meta · bodyText<br/>≈ 3 KB"]
+    G["outlink tuyệt đối<br/>đã chuẩn hoá, đã khử trùng"]
+    IDX["→ chỉ mục"]
+    PR["→ đồ thị PageRank"]
+
+    H --> D
+    D --> CP --> T --> IDX
+    D --> LE --> G --> PR
+```
+
+```
+   Một trang tin 200 KB HTML
+
+   ┌─────────────────────────────────┐
+   │ menu, quảng cáo, script, CSS    │  ◀── boilerplate
+   │ ┌─────────────────────────────┐ │
+   │ │  NỘI DUNG THẬT  ≈ 3 KB      │ │  ◀── thứ duy nhất cần lấy
+   │ └─────────────────────────────┘ │
+   │ chân trang, liên kết liên quan  │  ◀── boilerplate
+   └─────────────────────────────────┘
+        1,5%  nội dung   |   98,5%  vỏ
+```
+
+**Vì sao lấy nhầm boilerplate lại phá hỏng công thức xếp hạng.** TF-IDF chia
+cho $\sqrt{|d|}$ để chuẩn hoá độ dài. Nếu $|d|$ bao gồm cả menu và chân trang —
+vốn **giống hệt nhau ở mọi trang cùng site** — thì:
+
+```
+   |d| thật     ≈    500 token   ⇒  √|d| ≈ 22
+   |d| kèm vỏ   ≈ 12.000 token   ⇒  √|d| ≈ 110      ◀── mẫu số phình 5 lần
+
+   ⇒ mọi tài liệu cùng site bị chia cho một hằng số lớn như nhau
+   ⇒ phép chuẩn hoá mất tác dụng phân biệt, và term trong vỏ
+     làm nhiễu IDF của toàn corpus
+```
+
 ### Vì sao là HAI lớp chứ không phải một
 
 Trước đây cả hai việc nằm trong một lớp `HtmlExtractor`. Sơ đồ kiến trúc crawler tách chúng thành hai khối — `Content Parser` và `Link Extractor` — và **thứ tự giữa chúng có ý nghĩa**, vì ở giữa còn một khối thứ ba:

@@ -22,6 +22,43 @@ Nhưng nó **không** phải bản dịch máy móc. Bài toán khác nên cấu
 | Quan hệ | 1 node ↔ 1 cụm từ | **1 node ↔ NHIỀU bookmark** |
 | Xếp hạng | có (theo `frequency`) | không |
 
+```mermaid
+flowchart TD
+    subgraph JAVA["Trie.java — 1 node ↔ 1 cụm từ"]
+        direction TB
+        J["node 'công nghệ'"]
+        J --> JD["display: 'công nghệ'<br/>frequency: 8.421"]
+    end
+
+    subgraph TS["BookmarkTrie.ts — 1 node ↔ NHIỀU bookmark"]
+        direction TB
+        T["node 'công nghệ'"]
+        T --> B1["bookmarkIds:<br/>bm-3, bm-17, bm-42"]
+    end
+```
+
+```
+   CÙNG cấu trúc cây, KHÁC ở nút lá
+
+   Trie.java                        BookmarkTrie.ts
+   ─────────                        ───────────────
+   c─ô─n─g─ ─n─g─h─ệ                c─ô─n─g─ ─n─g─h─ệ
+                   │                                │
+                   ▼                                ▼
+        ┌──────────────────┐          ┌────────────────────────┐
+        │ display  : chuỗi │          │ bookmarkIds : string[] │
+        │ frequency: 8421  │          │  ["bm-3","bm-17",…]    │
+        └──────────────────┘          └────────────────────────┘
+          MỘT giá trị                    NHIỀU giá trị
+          ⇒ cần xếp hạng                 ⇒ không cần xếp hạng,
+            theo frequency                  trả hết là xong
+```
+
+**Vì sao khác biệt đó là tất yếu, không phải tuỳ hứng.** Hai cụm từ khác nhau
+thì là hai nút khác nhau — nên một nút chỉ ứng với một cụm. Nhưng **hai
+bookmark hoàn toàn có thể trùng tiêu đề** ("Trang chủ", "Tin mới"), mà chúng là
+hai mục riêng biệt người dùng lưu. Ép về một giá trị là làm mất bookmark.
+
 ---
 
 ## 1. Vì sao node phải lưu MỘT DANH SÁCH id

@@ -19,6 +19,65 @@ PageRank (Brin & Page, 1998) trả lời câu hỏi thứ hai bằng một ý t�
 
 Định nghĩa này **tự tham chiếu** — muốn biết trang A quan trọng thì phải biết trang B quan trọng, mà muốn biết B thì lại phải biết A. Toàn bộ phần toán của tài liệu này là để cho thấy vòng lặp đó **có nghiệm**, nghiệm đó **duy nhất**, và ta **tìm được nó** bằng cách lặp 53 lần.
 
+```mermaid
+flowchart LR
+    A["A"]
+    B["B"]
+    C["C"]
+    D["D"]
+
+    A --> B
+    A --> C
+    B --> C
+    C --> A
+    D --> C
+```
+
+```
+   Vòng tự tham chiếu, nhìn thẳng vào mặt nó:
+
+        A ──▶ B          PR(A) cần PR(C)
+        │     │          PR(C) cần PR(A)   ◀── vòng!
+        │     ▼
+        └──▶  C  ◀── D
+              │
+              └──▶ A     (C trỏ ngược lại A)
+
+   Không giải được bằng cách "tính A trước rồi tính C".
+   Giải bằng LẶP: đoán bừa, rồi cải thiện dần cho tới khi ĐỨNG YÊN.
+```
+
+**Cách lặp hội tụ, nhìn bằng số** — mỗi vòng sai số co lại theo hệ số $d = 0{,}85$:
+
+```mermaid
+flowchart LR
+    I0["vòng 0<br/>đoán đều<br/>PR = 1/N cho mọi trang"]
+    I1["vòng 1<br/>diff lớn"]
+    I2["vòng 10<br/>diff nhỏ dần"]
+    I3["vòng 53<br/>diff < 1e-6<br/>DỪNG"]
+
+    I0 --> I1 --> I2 --> I3
+```
+
+```
+   sai số
+     │█
+     │ █
+     │  ▀▄        mỗi vòng nhân với d = 0,85
+     │    ▀▀▄▄    ⇒ giảm theo cấp số nhân C·d^k
+     │        ▀▀▀▄▄▄▄
+     │               ▀▀▀▀▀▀▄▄▄▄▄▄▄▄▄
+   ε ├─────────────────────────────────▬▬▬  ngưỡng 1e-6
+     └────────────────────────────────────▶ số vòng lặp
+     0        10        30           53
+                                      ▲
+                            đo thật trên corpus hiện tại
+```
+
+Chính hệ số $d < 1$ là thứ đảm bảo **hội tụ**, và cũng là thứ đảm bảo nghiệm
+**duy nhất** — hai điều được chứng minh đầy đủ ở các mục dưới bằng định lý
+Perron–Frobenius.
+
 ---
 
 ## 1. Mô hình người lướt web ngẫu nhiên

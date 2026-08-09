@@ -19,6 +19,49 @@ Allow: /admin/public
 
 Vấn đề thú vị nằm ở chỗ **nhiều luật có thể cùng khớp một đường dẫn**. Với `/admin/public/x`, cả `Disallow: /admin` lẫn `Allow: /admin/public` đều khớp. **Luật nào thắng?**
 
+```
+   Đường dẫn cần quyết định:  /admin/public/x
+
+   luật 1:  Disallow: /admin           khớp,  dài  6 ký tự
+   luật 2:  Allow:    /admin/public    khớp,  dài 13 ký tự  ◀── DÀI HƠN ⇒ THẮNG
+
+            /admin/public/x
+            ├─────┤                    luật 1 phủ tới đây
+            ├────────────┤             luật 2 phủ tới đây — CỤ THỂ HƠN
+```
+
+**Quy tắc: khớp tiền tố DÀI NHẤT thắng.** Trực giác đằng sau: luật dài hơn là
+luật **cụ thể hơn**, và cái cụ thể bao giờ cũng là ngoại lệ có chủ ý của cái
+tổng quát.
+
+```mermaid
+flowchart TD
+    P["đường dẫn /admin/public/x"]
+    C["thu mọi luật KHỚP tiền tố"]
+    L1["Disallow /admin · dài 6"]
+    L2["Allow /admin/public · dài 13"]
+    M{"chọn luật DÀI NHẤT"}
+    R["Allow ⇒ được phép tải"]
+
+    P --> C --> L1 & L2 --> M --> R
+```
+
+Máy trạng thái đọc tệp — chỗ dễ sai nhất là **khối `User-agent` nào đang mở**:
+
+```mermaid
+stateDiagram-v2
+    [*] --> NgoaiKhoi
+    NgoaiKhoi --> TrongKhoiCuaTa : User-agent khớp * hoặc tên ta
+    NgoaiKhoi --> TrongKhoiKhac : User-agent của bot khác
+    TrongKhoiCuaTa --> TrongKhoiCuaTa : Allow / Disallow → GHI NHẬN
+    TrongKhoiKhac --> TrongKhoiKhac : Allow / Disallow → BỎ QUA
+    TrongKhoiCuaTa --> NgoaiKhoi : dòng trống
+    TrongKhoiKhac --> NgoaiKhoi : dòng trống
+```
+
+Bỏ qua trạng thái này là đọc nhầm luật của bot khác thành luật của mình — lỗi
+im lặng, và hậu quả là crawl vào chỗ bị cấm.
+
 Câu trả lời của chuẩn Robots Exclusion Protocol: **luật có đường dẫn dài nhất (cụ thể nhất) thắng**. Đây là nguyên tắc **longest-prefix-match**, cùng họ với cách bộ định tuyến IP chọn tuyến đường.
 
 ---

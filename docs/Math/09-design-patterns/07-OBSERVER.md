@@ -10,12 +10,51 @@
 
 Observer tách việc **quan sát** một quá trình khỏi việc **thực thi** nó. Người thực thi **phát sự kiện**; ai quan tâm thì **tự đăng ký**.
 
+```mermaid
+flowchart LR
+    CS["CrawlerService<br/>CHỦ THỂ<br/>không biết ai đang nghe"]
+    L1["ConsoleCrawlListener<br/>in log từng dòng"]
+    L2["ProgressBarCrawlListener<br/>vẽ thanh tiến độ"]
+    L3["CheckpointCrawlListener<br/>ghi corpus định kỳ"]
+
+    CS -->|"sự kiện"| L1
+    CS -->|"sự kiện"| L2
+    CS -->|"sự kiện"| L3
 ```
-                        ┌──> ConsoleCrawlListener  (in log)
-CrawlerService ──phát──>├──> CrawlJobManager       (cập nhật trạng thái job)
-   (chủ thể)            ├──> MetricsCollector      (thu số liệu)
-                        └──> WebSocketPusher       (đẩy UI thời gian thực)
+
 ```
+                        ┌──> ConsoleCrawlListener     (in log từng dòng)
+CrawlerService ──phát──>├──> ProgressBarCrawlListener (vẽ thanh tiến độ)
+   (chủ thể)            └──> CheckpointCrawlListener  (ghi corpus định kỳ)
+```
+
+### Ba cài đặt thật, ba lý do khác nhau
+
+```mermaid
+mindmap
+  root((CrawlListener<br/>3 cài đặt))
+    ConsoleCrawlListener
+      in từng dòng
+      hợp khi chạy trong CI
+      log giữ lại đọc sau
+    ProgressBarCrawlListener
+      MIN_REPAINT_MS = 100
+      tiết chế vẽ lại
+      hợp khi chạy tay
+    CheckpointCrawlListener
+      ghi corpus định kỳ
+      mất điện giữa chừng
+      không mất cả phiên
+```
+
+Điểm đáng chú ý: cả ba **cùng nghe một sự kiện** nhưng làm ba việc hoàn toàn
+khác nhau — và `CrawlerService` không có một dòng `if` nào phân biệt chúng.
+Thêm cái thứ tư là thêm một lớp, không sửa `CrawlerService`.
+
+`ProgressBarCrawlListener` cho thấy vì sao Observer đáng giá ở đây: nó cần
+**trạng thái riêng** (thời điểm vẽ lần cuối, để tiết chế xuống 10 lần/giây).
+Nhồi logic đó vào `CrawlerService` là bắt lớp điều phối giữ hộ trạng thái hiển
+thị — thứ nó không nên biết là có tồn tại.
 
 Câu thần chú: **"Tôi la lên, ai quan tâm thì nghe. Tôi không cần biết có ai nghe không."**
 

@@ -30,6 +30,53 @@ Lớp này làm **ba việc** và mỗi việc có một bài học riêng:
 
 Việc thứ ba từng là một **lỗi hiệu năng nghiêm trọng** đã được phát hiện và sửa — quá trình đó được ghi lại ngay trong comment của code.
 
+```mermaid
+flowchart TD
+    C["c ứng viên<br/>ví dụ 5.011"]
+    S["① chấm điểm từng ứng viên<br/>scorer đã lắp Decorator"]
+    H["② MinHeap giữ đúng K phần tử<br/>O(c log K)"]
+    K["K kết quả, ví dụ 10"]
+    SN["③ sinh snippet<br/>CHỈ cho K, không phải c"]
+    OUT["SearchResponse"]
+
+    C --> S --> H --> K --> SN --> OUT
+```
+
+**Vì sao MinHeap giữ $K$ chứ không sắp xếp cả $c$:**
+
+```
+   sắp xếp hết rồi lấy 10 :  O(c log c) = 5011 × log 5011 ≈ 61.000
+   MinHeap giữ đúng 10    :  O(c log K) = 5011 × log 10   ≈ 16.600
+                                                            ▲
+                                                       nhanh ~3,7 lần
+```
+
+Mẹo của heap top-K: giữ một **min-heap kích thước K**, gốc là phần tử **tệ
+nhất trong nhóm dẫn đầu**. Ứng viên mới chỉ cần so với gốc — thua thì bỏ ngay,
+không tốn gì.
+
+```mermaid
+flowchart LR
+    NEW["ứng viên mới<br/>điểm = 0,42"]
+    Q{"lớn hơn GỐC<br/>của min-heap?"}
+    DROP["bỏ — O(1)"]
+    REP["thay gốc rồi siftDown<br/>O(log K)"]
+
+    NEW --> Q
+    Q -->|"không"| DROP
+    Q -->|"có"| REP
+```
+
+**Và chỗ lỗi hiệu năng đã sửa:** trước đây snippet được sinh cho **cả $c$ ứng
+viên** rồi mới cắt lấy $K$ — tức là làm 5.011 lần công việc để dùng 10 kết
+quả. Đổi thứ tự hai bước ② và ③ là toàn bộ bản vá.
+
+```
+   TRƯỚC :  chấm điểm → sinh snippet cho 5.011 → top-K → 10
+                        ▲ lãng phí 99,8%
+   SAU   :  chấm điểm → top-K → sinh snippet cho 10
+```
+
 ---
 
 ## 1. Công thức kết hợp

@@ -39,7 +39,6 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
                             QUERY — 12 file
                                    │
@@ -106,7 +105,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 chuỗi truy vấn
       │
@@ -148,7 +146,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
         Ràng buộc này CÓ posting list tương ứng không?
                           │
@@ -171,7 +168,6 @@ flowchart TD
 ### 5.1 Vấn đề của cấu trúc phẳng
 
 Bản cũ lưu **ba danh sách phẳng** (`mustTerms`, `phrases`, `excludedTerms`), tức đã **mã hoá sẵn** giả định *"mọi mustTerm nối với nhau bằng AND"*. Cấu trúc đó **không biểu diễn được**:
-
 ```
    (máy tính OR laptop) AND giá rẻ
    NOT (quảng cáo OR khuyến mãi)
@@ -182,7 +178,6 @@ Bản cũ lưu **ba danh sách phẳng** (`mustTerms`, `phrases`, `excludedTerms
 ### 5.2 Hình dạng cây
 
 Cây cho truy vấn `(máy tính OR laptop) AND giá rẻ`:
-
 ```
                   AndNode
                  /       \
@@ -219,7 +214,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 QueryNode (sealed)  — bất biến: evaluate() luôn trả danh sách docId TĂNG DẦN
    │
@@ -246,7 +240,6 @@ Giao **không bao giờ lớn hơn** tập nhỏ hơn. Nên bắt đầu từ co
 Điểm hay: ước lượng kích thước dùng `QueryNode.estimatedSize` nên **không phải đánh giá thật** để biết nên sắp thế nào — với `TermNode` đó chỉ là một phép tra document frequency **O(1)**.
 
 ### 5.5 `NotNode` — vì sao không đánh giá độc lập được
-
 ```
    Truy vấn:  NOT quảng_cáo      trên corpus 5.011 tài liệu
                     ↓
@@ -279,7 +272,6 @@ Ba lý do:
 3. **Không có hằng số ẩn** của việc băm.
 
 ### 6.2 Galloping search — khi hai danh sách lệch nhau nhiều
-
 ```
    Giao một danh sách RẤT NGẮN (5 mục) với một danh sách RẤT DÀI (4.000 mục):
 
@@ -300,7 +292,6 @@ Ba lý do:
 `CandidateResolver.resolve` từng có **ba tầng lọc chôn cứng** trong thân hàm 104 dòng. Hậu quả: thêm một bộ lọc mới (theo ngày đăng, ngôn ngữ, độ dài) phải **sửa thân hàm** — vi phạm nguyên tắc Mở/Đóng. Và không test riêng được từng tầng, cũng không đo được *"tầng nào loại bao nhiêu ứng viên, tốn bao nhiêu ms"*.
 
 ### 7.2 Thứ tự lọc quan trọng — nguyên tắc "rẻ và loại nhiều trước"
-
 ```
    1. Giao posting list    5011  →  ~50     (rẻ nhất, loại nhiều nhất)
    2. Khớp cụm từ           ~50  →  ~20     (ĐẮT: binary search mỗi tài liệu)
@@ -340,7 +331,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 VẤN ĐỀ  : AND ngầm định + truy vấn dài  →  giao rỗng  →  không có kết quả
 VÍ DỤ   : "máy tính xách tay giá rẻ cho sinh viên"
@@ -357,7 +347,6 @@ GIỮ     : chấm điểm vẫn dùng tần suất term của truy vấn GỐC
 ## 9. Vì sao `CandidateResolver` phải là một lớp riêng
 
 Logic này trước đây nằm trong `SearchEngineFacade` dưới dạng **phương thức private**, nên bộ đánh giá chất lượng **không gọi lại được** và buộc phải viết một **bản sao**.
-
 ```
    Hai bản sao  →  chắc chắn trôi lệch nhau theo thời gian
                         ↓

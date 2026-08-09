@@ -10,12 +10,50 @@
 
 Factory tách **việc quyết định tạo ra object nào** khỏi **việc sử dụng object đó**.
 
+```mermaid
+flowchart LR
+    subgraph TRUOC["TRƯỚC"]
+        U1["SearchEngineFacade"]
+        N1["new TfIdfScorer()"]
+        U1 -->|"buộc chặt vào<br/>LỚP CỤ THỂ"| N1
+    end
+
+    subgraph SAU["SAU"]
+        U2["SearchEngineFacade"]
+        F["ScorerFactory"]
+        I["RelevanceScorer<br/>interface"]
+        U2 -->|"create()"| F
+        F -->|"trả về"| I
+        F -.->|"nội bộ mới quyết định"| D{"app.ranking.scorer"}
+        D -->|"tfidf"| S1["TfIdfScorer"]
+        D -->|"bm25"| S2["BM25Scorer"]
+    end
+```
+
 ```
 Trước:  Người dùng ──new TfIdfScorer()──> object      (buộc chặt vào lớp cụ thể)
 Sau:    Người dùng ──factory.create()──> RelevanceScorer
                           │
                           └── nội bộ mới quyết định là TF-IDF hay BM25
 ```
+
+### Factory ở đây làm hai việc, không phải một
+
+```mermaid
+flowchart TD
+    CFG["Cấu hình<br/>scorer · beta · gamma"]
+    F["ScorerFactory.create()"]
+    B["① CHỌN scorer cơ sở<br/>tfidf hay bm25"]
+    W["② BỌC các Decorator<br/>tuỳ beta, gamma"]
+    OUT["RelevanceScorer<br/>đã lắp xong"]
+
+    CFG --> F --> B --> W --> OUT
+```
+
+Việc ② là chỗ Factory gặp Decorator: nơi duy nhất trong hệ thống biết **thứ tự
+bọc** và biết **bỏ qua lớp bọc khi trọng số bằng 0**. Gộp hai việc vào một chỗ
+là có chủ ý — nếu tách ra, người gọi lại phải biết thứ tự bọc, tức là biết
+đúng cái mà Factory sinh ra để giấu.
 
 Câu thần chú: **"Chỉ đúng một chỗ trong hệ thống được phép biết tên lớp cụ thể."**
 

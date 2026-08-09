@@ -22,6 +22,41 @@ cho **136.768** giá trị phân biệt. Tỷ lệ trùng lặp $\approx \mathbf
 
 Giải pháp: giữ **một instance chuẩn tắc** cho mỗi nội dung, và cho tất cả cùng trỏ vào đó.
 
+```mermaid
+flowchart TD
+    IN["tokenizer tạo String mới<br/>'máy_tính' lần thứ 51"]
+    Q{"TermDictionary<br/>đã có chuỗi này?"}
+    RET["trả về instance CŨ<br/>String mới thành rác GC"]
+    ADD["cất vào từ điển<br/>trả về chính nó"]
+
+    IN --> Q
+    Q -->|"có — 50/51 lần"| RET
+    Q -->|"chưa"| ADD
+```
+
+```
+   TRƯỚC — mỗi lần gặp là một object
+
+   heap:  ["máy_tính"] ["máy_tính"] ["máy_tính"] … × 51
+            ▲            ▲            ▲
+          doc 3        doc 7        doc 11
+
+   SAU — một object, 51 tham chiếu
+
+   heap:  ["máy_tính"]
+            ▲   ▲   ▲
+            │   │   └── doc 11
+            │   └────── doc 7
+            └────────── doc 3
+
+   7.000.000 object  ──▶  136.768 object      (÷ 51)
+```
+
+**Vì sao không dùng `String.intern()` của JDK.** Nó cất chuỗi vào **string
+pool của JVM** — một vùng có vòng đời gắn với cả tiến trình, không giải phóng
+được khi chỉ mục bị vứt đi. `TermDictionary` là một `HashMap` bình thường:
+xoá chỉ mục là toàn bộ từ điển thành rác thu hồi được. Chi tiết ở mục dưới.
+
 ---
 
 ## 1. Chi phí bộ nhớ của một `String`

@@ -1,32 +1,94 @@
-### VnSearch REST API — vi du (dung voi extension "REST Client" cua VS Code,
-### hoac copy tung lenh curl tuong ung o duoi moi block).
-### Backend phai dang chay: cd search-engine && ./mvnw.cmd spring-boot:run
+### VnSearch REST API — ví dụ chạy được ngay
+###
+### Dùng với extension "REST Client" của VS Code (bấm "Send Request" phía trên
+### mỗi khối), hoặc copy lệnh curl tương ứng ở dòng chú thích bên dưới.
+###
+### Backend phải đang chạy:
+###     run-backend.bat                 (Windows)
+###     cd search-engine && ./mvnw spring-boot:run
+###
+### Toàn bộ khoá cấu hình: xem docs/CONFIGURATION.md
 
 @baseUrl = http://localhost:8080
 
-### 1. Tim kiem co ban
+### KHOÁ QUẢN TRỊ — bắt buộc cho mọi lệnh /api/admin/**
+###
+### Mọi request tới /api/admin/** đều trả 401 nếu thiếu header X-API-Key —
+### tức toàn bộ mục QUẢN TRỊ bên dưới. (Mục CÁC CA LỖI ở cuối tệp có cả 400 và
+### 404, cùng một request CỐ Ý bỏ khoá để thấy 401.) Lấy giá trị thật trong tệp
+### .env ở gốc repo (run-backend.bat tự sinh và ghi vào đó), rồi dán vào dòng
+### dưới. KHÔNG commit giá trị thật.
+###
+###     PowerShell : (Get-Content .env | Select-String '^ADMIN_API_KEY=').Line.Split('=',2)[1]
+###     bash       : grep ^ADMIN_API_KEY= .env | cut -d= -f2
+@adminKey = dan-khoa-tu-tep-.env-vao-day
+
+
+### ───────────────────────────────────────────────────────────────────────────
+### CÔNG KHAI — không cần khoá
+### ───────────────────────────────────────────────────────────────────────────
+
+### 1. Tìm kiếm cơ bản
 GET {{baseUrl}}/api/search?q=công nghệ&page=1&size=10
 # curl -G "http://localhost:8080/api/search" --data-urlencode "q=công nghệ" --data-urlencode "page=1" --data-urlencode "size=10"
 
-### 2. Tim kiem khong dau (van phai ra ket qua co dau nho co che dual-index)
+### 2. Tìm kiếm không dấu (vẫn phải ra kết quả có dấu, nhờ cơ chế chỉ mục kép)
 GET {{baseUrl}}/api/search?q=cong nghe&page=1&size=5
-# curl -G "http://localhost:8080/api/search" --data-urlencode "q=cong nghe" --data-urlencode "page=1" --data-urlencode "size=5"
+# curl -G "http://localhost:8080/api/search" --data-urlencode "q=cong nghe" --data-urlencode "size=5"
 
-### 3. Tim kiem cum tu chinh xac (phrase search)
+### 3. Tìm cụm từ chính xác (phrase search)
 GET {{baseUrl}}/api/search?q="trình duyệt web"&page=1&size=5
 # curl -G "http://localhost:8080/api/search" --data-urlencode 'q="trình duyệt web"'
 
-### 4. Tim kiem co loai tru tu (-tu)
+### 4. Loại trừ từ bằng dấu trừ
 GET {{baseUrl}}/api/search?q=tin tức -thể thao&page=1&size=5
 # curl -G "http://localhost:8080/api/search" --data-urlencode "q=tin tức -thể thao"
 
-### 5. Goi y tu khoa (autocomplete)
-GET {{baseUrl}}/api/suggest?prefix=công&limit=5
-# curl -G "http://localhost:8080/api/suggest" --data-urlencode "prefix=công" --data-urlencode "limit=5"
+### 5. Gợi ý từ khoá (autocomplete, tra tiền tố trên Trie)
+###
+### CHÚ Ý: tham số tên là `prefix`, KHÔNG phải `q`. Đây là endpoint duy nhất
+### lệch khỏi quy ước — gõ ?q= sẽ nhận 400 "Thieu tham so bat buoc: prefix".
+GET {{baseUrl}}/api/suggest?prefix=bóng&limit=5
+# curl -G "http://localhost:8080/api/suggest" --data-urlencode "prefix=bóng" --data-urlencode "limit=5"
 
-### 6. Bat dau mot phien crawl moi (chi seed vnexpress.net, gioi han nho de test nhanh)
+### 6. Tìm kiếm ảnh
+###
+### Nguồn là ImageStore — mỗi trang đóng góp đúng MỘT ảnh, chọn lúc crawl bằng
+### ImageQuality. Phản hồi có `pagesScanned` (số trang đã quét, tối đa 300) và
+### `hasMore`. Xem docs/Math/11-images/
+GET {{baseUrl}}/api/images?q=hà nội&page=1&size=10
+# curl -G "http://localhost:8080/api/images" --data-urlencode "q=hà nội" --data-urlencode "size=10"
+
+### 7. Bảng tin — duyệt chỉ mục KHÔNG qua truy vấn
+###
+### `seed` là hạt giống của phép hoán vị docId. Cùng seed thì cùng thứ tự, nên
+### lô page=2 nối đúng vào đuôi page=1. Đổi seed là xáo lại từ đầu.
+GET {{baseUrl}}/api/feed?seed=12345&page=1&size=12
+# curl -G "http://localhost:8080/api/feed" --data-urlencode "seed=12345" --data-urlencode "size=12"
+
+### 8. Lô tiếp theo của bảng tin — GIỮ NGUYÊN seed
+GET {{baseUrl}}/api/feed?seed=12345&page=2&size=12
+# curl -G "http://localhost:8080/api/feed" --data-urlencode "seed=12345" --data-urlencode "page=2"
+
+### 9. Kiểm tra sống — trả 503 khi chỉ mục rỗng
+GET {{baseUrl}}/api/health
+# curl -i "http://localhost:8080/api/health"
+
+### 10. Thang đo Prometheus
+GET {{baseUrl}}/actuator/prometheus
+# curl "http://localhost:8080/actuator/prometheus"
+
+
+### ───────────────────────────────────────────────────────────────────────────
+### QUẢN TRỊ — BẮT BUỘC có header X-API-Key
+### ───────────────────────────────────────────────────────────────────────────
+
+### 11. Bắt đầu một phiên crawl mới
+###
+### Trả `jobId` ngay lập tức, crawl chạy nền. Giới hạn nhỏ để thử cho nhanh.
 POST {{baseUrl}}/api/admin/crawl
 Content-Type: application/json
+X-API-Key: {{adminKey}}
 
 {
   "seedUrls": ["https://vnexpress.net/"],
@@ -34,25 +96,55 @@ Content-Type: application/json
   "maxPages": 20
 }
 
-# curl -X POST "http://localhost:8080/api/admin/crawl" -H "Content-Type: application/json" \
+# curl -X POST "http://localhost:8080/api/admin/crawl" \
+#   -H "Content-Type: application/json" \
+#   -H "X-API-Key: $ADMIN_API_KEY" \
 #   -d '{"seedUrls":["https://vnexpress.net/"],"maxDepth":2,"maxPages":20}'
 
-### 7. Xem trang thai job crawl (thay {jobId} bang gia tri tra ve o buoc 6)
+### 12. Trạng thái job crawl — thay {jobId} bằng giá trị trả về ở bước 11
 GET {{baseUrl}}/api/admin/crawl/{jobId}/status
-# curl "http://localhost:8080/api/admin/crawl/{jobId}/status"
+X-API-Key: {{adminKey}}
 
-### 8. Reindex lai toan bo (chay lai PageRank tren du lieu da crawl gan nhat)
+# curl -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/crawl/JOB_ID/status"
+
+### 13. Lập lại chỉ mục toàn bộ
+###
+### Đọc lại corpus từ đĩa, dựng lại chỉ mục + PageRank + Trie, xoá cache, rồi
+### ghi index.json. Đây là lệnh phải chạy SAU MỖI PHIÊN CRAWL bằng dòng lệnh —
+### nếu không, backend vẫn nạp chỉ mục cũ và các trang vừa crawl không tìm ra.
+### Trên corpus 31.030 trang mất khoảng 32 giây. Xem docs/BACKEND.md §6.3
 POST {{baseUrl}}/api/admin/reindex
-# curl -X POST "http://localhost:8080/api/admin/reindex"
+X-API-Key: {{adminKey}}
 
-### 9. Xem thong ke he thong
+# curl -X POST -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/reindex"
+
+### 14. Thống kê hệ thống
+###
+### Trả totalDocuments, totalTerms, indexSizeBytes, cacheHitRate, bloomFilterBits
+### và `scorer` — dùng trường cuối để xác nhận mô hình chấm điểm đang chạy.
 GET {{baseUrl}}/api/admin/stats
-# curl "http://localhost:8080/api/admin/stats"
+X-API-Key: {{adminKey}}
 
-### 10. Loi: thieu tham so bat buoc (mong doi 400)
+# curl -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/stats"
+
+
+### ───────────────────────────────────────────────────────────────────────────
+### CÁC CA LỖI — chạy để thấy hệ thống phản ứng đúng
+### ───────────────────────────────────────────────────────────────────────────
+
+### 15. Thiếu tham số bắt buộc (mong đợi 400)
 GET {{baseUrl}}/api/search
 # curl -i "http://localhost:8080/api/search"
 
-### 11. Loi: job crawl khong ton tai (mong doi 404)
+### 16. Dùng `q` thay vì `prefix` cho /api/suggest (mong đợi 400)
+GET {{baseUrl}}/api/suggest?q=bóng
+# curl -i "http://localhost:8080/api/suggest?q=bóng"
+
+### 17. Gọi endpoint quản trị mà KHÔNG có khoá (mong đợi 401)
+GET {{baseUrl}}/api/admin/stats
+# curl -i "http://localhost:8080/api/admin/stats"
+
+### 18. Job crawl không tồn tại (mong đợi 404)
 GET {{baseUrl}}/api/admin/crawl/khong-ton-tai/status
-# curl -i "http://localhost:8080/api/admin/crawl/khong-ton-tai/status"
+X-API-Key: {{adminKey}}
+# curl -i -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/crawl/khong-ton-tai/status"

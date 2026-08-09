@@ -33,6 +33,49 @@ $$w(t,d) = \underbrace{\text{tf}(t,d)}_{\text{quan trọng với }d} \times \und
 
 Từ `của` có TF cao trong mọi tài liệu nhưng IDF gần 0 → trọng số ~0. Từ `blockchain` có TF thấp nhưng IDF cao → trọng số lớn. Đúng trực giác.
 
+```mermaid
+flowchart LR
+    T["term t trong tài liệu d"]
+    TF["TF<br/>xuất hiện nhiều trong d ?<br/>⇒ d NÓI VỀ nó"]
+    IDF["IDF<br/>xuất hiện ở ít tài liệu ?<br/>⇒ nó PHÂN BIỆT được"]
+    W["trọng số w(t,d)<br/>= TF × IDF"]
+
+    T --> TF --> W
+    T --> IDF --> W
+```
+
+```
+   Vì sao phải NHÂN hai đại lượng, không dùng một cái
+
+                        IDF thấp              IDF cao
+                     (từ phổ biến)         (từ hiếm)
+                  ┌────────────────────┬────────────────────┐
+      TF cao      │  "của", "và"       │  "blockchain"      │
+   (nhiều trong d)│  w ≈ 0  ✓ đúng     │  w LỚN  ✓ đúng     │
+                  ├────────────────────┼────────────────────┤
+      TF thấp     │  w ≈ 0  ✓ đúng     │  w vừa  ✓ đúng     │
+   (ít trong d)   │                    │                    │
+                  └────────────────────┴────────────────────┘
+                   chỉ dùng TF  ⇒ ô trên-trái sai
+                   chỉ dùng IDF ⇒ ô dưới-phải sai
+```
+
+**Hình học của cosine** — vì sao phải chuẩn hoá độ dài:
+
+```
+              chiều "máy_tính"
+                    ▲
+                    │      ↗ d₁ (bài ngắn về máy tính)
+                    │    ↗
+                    │  ↗  θ nhỏ ⇒ cosine lớn ⇒ liên quan
+                    │↗ ────────▶ q (truy vấn)
+                    └──────────────────────▶ chiều "giá"
+
+   Không chuẩn hoá: một bài DÀI có mọi toạ độ lớn ⇒ luôn thắng,
+                    dù nó chỉ nhắc "máy tính" đúng một lần giữa 10.000 từ.
+   Cosine đo GÓC, không đo độ dài ⇒ bài dài không còn lợi thế giả tạo.
+```
+
 ---
 
 ## 1. TF — vì sao lấy logarit

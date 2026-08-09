@@ -12,11 +12,63 @@
 
 Thay vì lưu trạng thái bằng một `String` hay `int` rồi kiểm tra bằng `if`, ta biến **mỗi trạng thái thành một object biết chính nó đi được đi đâu**.
 
+```mermaid
+stateDiagram-v2
+    [*] --> STARTED : tạo job
+    STARTED --> RUNNING : worker nhận
+    STARTED --> FAILED : hỏng trước khi chạy
+    RUNNING --> DONE : crawl xong
+    RUNNING --> FAILED : ngoại lệ
+    DONE --> [*]
+    FAILED --> [*]
+```
+
 ```
   STARTED ──→ RUNNING ──→ DONE
      │           │
      └───────────┴──────→ FAILED
 ```
+
+**Bảng chuyển trạng thái đầy đủ** — mỗi ô là một câu trả lời của
+`canTransitionTo`, và nó nằm **ngay trong hằng số enum tương ứng**, không nằm
+trong một `switch` tập trung:
+
+| từ ↓ \ sang → | `STARTED` | `RUNNING` | `DONE` | `FAILED` |
+|---|:---:|:---:|:---:|:---:|
+| **`STARTED`** | ✗ | ✓ | ✗ | ✓ |
+| **`RUNNING`** | ✗ | ✗ | ✓ | ✓ |
+| **`DONE`** | ✗ | ✗ | ✗ | ✗ |
+| **`FAILED`** | ✗ | ✗ | ✗ | ✗ |
+
+Hai hàng cuối toàn ✗ — đó chính là định nghĩa của **trạng thái cuối**, và
+`isTerminal()` chỉ là cách đọc lại điều đó cho dễ.
+
+### Vì sao không dùng `String status`
+
+```mermaid
+flowchart LR
+    subgraph S1["String status"]
+        direction TB
+        A1["status = RUNNING"]
+        A2["gõ sai runnning<br/>biên dịch VẪN QUA"]
+        A3["DONE quay về RUNNING<br/>KHÔNG AI CHẶN"]
+    end
+
+    subgraph S2["enum + canTransitionTo"]
+        direction TB
+        B1["CrawlStatus.RUNNING"]
+        B2["gõ sai ⇒ LỖI BIÊN DỊCH"]
+        B3["DONE.canTransitionTo(RUNNING)<br/>⇒ false, chặn tại chỗ"]
+    end
+
+    S1 -->|"thay bằng"| S2
+```
+
+Điểm mấu chốt không phải "enum đẹp hơn String", mà là: với `String`, **luật
+chuyển trạng thái không tồn tại ở đâu cả** — nó nằm rải rác trong các câu `if`
+mà không ai đảm bảo là đầy đủ. Với enum kiểu này, mỗi trạng thái **tự mang
+theo luật của nó**, và thêm một trạng thái mới buộc phải khai báo nó đi được
+đâu.
 
 Câu thần chú: **"Mỗi trạng thái tự biết mình chuyển đi đâu được."**
 

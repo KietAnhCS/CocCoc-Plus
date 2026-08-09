@@ -18,6 +18,45 @@ Nhưng hai tính chất của dữ liệu bị bỏ phí hoàn toàn:
 
 Khai thác cả hai cho ra kỹ thuật nén kinh điển của ngành truy hồi thông tin: **delta encoding + variable-byte**.
 
+```mermaid
+flowchart LR
+    A["docId gốc<br/>3, 7, 11, 4002"]
+    B["① DELTA<br/>3, 4, 4, 3991"]
+    C["② VARIABLE-BYTE<br/>1B, 1B, 1B, 2B"]
+    D["5 byte<br/>thay vì 16"]
+
+    A --> B --> C --> D
+```
+
+```
+   ① DELTA — lưu HIỆU thay vì giá trị tuyệt đối
+
+      gốc   :   3      7      11        4002
+                └──┬───┘──┬───┘────┬─────┘
+      delta :   3      4      4        3991
+                ▲
+                số nhỏ hơn nhiều ⇒ mở đường cho bước ②
+
+   ② VARIABLE-BYTE — số nhỏ dùng ít byte
+
+      mỗi byte:  [C][d d d d d d d]
+                  ▲   └── 7 bit dữ liệu
+                  └────── bit TIẾP TỤC: 1 = còn byte nữa
+
+      3     → 1 byte    0000_0011
+      4     → 1 byte    0000_0100
+      3991  → 2 byte    1001_1111  0001_0111
+                        ▲          ▲
+                        còn tiếp   byte cuối
+
+   Kết quả: 16 byte (4 × int)  →  5 byte
+```
+
+**Vì sao hai bước phải đi cùng nhau.** Variable-byte một mình không giúp gì
+nhiều: docId thật có thể lên tới hàng chục nghìn, vẫn cần 3 byte. Delta một
+mình cũng không giúp: hiệu nhỏ nhưng vẫn lưu trong `int` 4 byte. Chỉ khi
+**delta làm số nhỏ đi** thì **variable-byte mới có gì để tiết kiệm**.
+
 **Đo trên posting list mô phỏng thật (1.639 mục, hiệu trung bình ≈ 3):**
 
 ```

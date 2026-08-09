@@ -66,6 +66,52 @@ Ba câu hỏi phải trả lời, và câu thứ ba khó nhất:
 2. **Làm sao không duyệt lại đỉnh cũ?** → Bloom Filter (xem [BloomFilter](BloomFilter.md)).
 3. **Khi nào thì dừng?** → **Đây là phần riêng của lớp này, và nó tinh tế hơn vẻ ngoài rất nhiều.**
 
+```mermaid
+flowchart TD
+    W["12 luồng worker"]
+    F["UrlFrontier<br/>hàng đợi dùng chung"]
+    E{"frontier rỗng?"}
+    B{"còn luồng nào<br/>ĐANG xử lý?"}
+    S["ngủ ngắn rồi hỏi lại"]
+    CNT["tăng bộ đếm<br/>xác nhận rỗng"]
+    K{"đủ 3 lần<br/>xác nhận liên tiếp?"}
+    STOP["DỪNG cả phiên"]
+
+    W --> F --> E
+    E -->|"không"| W
+    E -->|"có"| B
+    B -->|"còn"| S --> E
+    B -->|"không còn"| CNT --> K
+    K -->|"chưa"| S
+    K -->|"rồi"| STOP
+```
+
+```
+   VÌ SAO "frontier rỗng" KHÔNG đủ để dừng
+
+   thời điểm t:  frontier rỗng           ⇒ tưởng xong
+                 nhưng luồng #7 đang tải một trang
+                       │
+                       ▼
+   thời điểm t+1: luồng #7 bóc được 40 outlink mới
+                  frontier lại đầy
+                       │
+                  ⇒ nếu đã dừng ở t thì MẤT 40 URL đó
+
+   Phải hỏi ĐỒNG THỜI hai điều:
+     ① frontier rỗng          ②  KHÔNG luồng nào đang xử lý
+   và xác nhận 3 lần liên tiếp để loại trừ ca đúng-lúc-giao-nhau.
+```
+
+**Vì sao 3 lần xác nhận chứ không 1.** Hai điều kiện ① và ② không đọc được
+nguyên tử cùng lúc — giữa lúc đọc ① và đọc ② vẫn có khe hở. Ba lần xác nhận
+liên tiếp, mỗi lần cách nhau một khoảng ngủ, đưa xác suất nhầm xuống mức mà
+tài liệu này tính ra là $\approx 10^{-15}$.
+
+Ở chế độ bus phân tán, hai hằng số này nới rộng hẳn (`IDLE_CONFIRMATIONS_BUS = 15`,
+`IDLE_SLEEP_MS_BUS = 1000`) vì thông điệp có thể đang nằm trên đường truyền —
+một trạng thái không tồn tại khi chạy trong một tiến trình.
+
 Với một thread, câu 3 dễ: hàng đợi rỗng là hết việc. Với nhiều thread, **hàng đợi rỗng KHÔNG đồng nghĩa với hết việc** — một worker khác có thể đang fetch một trang và sắp thêm 78 outlink mới vào frontier ngay giây tới.
 
 ---
@@ -395,7 +441,7 @@ CrawlerService.CrawlConfig config = new CrawlerService.CrawlConfig()
 | Số cạnh trong đồ thị PageRank (outlink trỏ **vào** corpus) | **239.691** |
 | — liên kết nội bộ domain | 197.689 (82,5 %) |
 | — **liên kết chéo domain** | **42.002 (17,5 %)** |
-| Kích thước `data/crawled-multi.json` | 62 MB |
+| Kích thước `data/crawled-documents.json` | 62 MB |
 
 **Đọc con số 17,5 % thế nào.** Đây là tỉ lệ quyết định xem PageRank có ý nghĩa hay không. Liên kết **nội bộ** một tờ báo phản ánh cấu trúc điều hướng (menu, chuyên mục, "bài liên quan") chứ không phản ánh uy tín. Chỉ liên kết **chéo** giữa các site độc lập mới là "phiếu bầu" thật.
 

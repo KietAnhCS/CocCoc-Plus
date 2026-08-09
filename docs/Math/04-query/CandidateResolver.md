@@ -29,6 +29,39 @@ Javadoc nói thẳng:
 
 Đây là vấn đề về **tính hợp lệ khoa học**, không phải về code sạch.
 
+```mermaid
+flowchart TD
+    subgraph TRUOC["TRƯỚC — hai đường đi khác nhau"]
+        U1["Người dùng"] --> F1["SearchEngineFacade<br/>logic private"]
+        E1["Bộ đánh giá"] --> C1["BẢN SAO viết lại"]
+        F1 -.->|"trôi lệch<br/>theo thời gian"| C1
+        C1 --> N1["số trong báo cáo đo<br/>một đường KHÁC"]
+    end
+
+    subgraph SAU["SAU — một đường duy nhất"]
+        U2["Người dùng"] --> R["CandidateResolver"]
+        E2["Bộ đánh giá"] --> R
+        R --> N2["số trong báo cáo đo<br/>ĐÚNG thứ người dùng nhận"]
+    end
+
+    TRUOC -->|"tách ra thành lớp công khai"| SAU
+```
+
+```
+   TRƯỚC                                SAU
+   ─────                                ───
+   người dùng ──▶ Facade.private()      người dùng ──┐
+                       ╎ trôi lệch                    ├──▶ CandidateResolver
+   bộ đánh giá ──▶ bản sao ◀╌╌╌╌╌╌╌╌    bộ đánh giá ──┘
+                                                          ▲
+   ⇒ báo cáo đo đường A                   ⇒ báo cáo đo ĐÚNG đường
+     người dùng đi đường B                   người dùng đi
+```
+
+Bài học tổng quát: **thứ gì được đo phải là đúng thứ được phục vụ.** Một bản
+sao "chỉ để test" nghe vô hại, nhưng ngay khi hai bản trôi lệch, mọi con số đo
+được đều nói về một hệ thống không tồn tại.
+
 ---
 
 ## 1. Vấn đề: hai bản sao là hai hệ thống khác nhau

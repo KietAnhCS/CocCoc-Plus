@@ -24,7 +24,7 @@ flowchart LR
 
     M --> M1["tabManager · 393 dòng<br/>vòng đời tab, bố trí view"]
     M --> M2["windowControls · 163 dòng<br/>kéo cửa sổ, phóng to thủ công"]
-    M --> M3["ipcHandlers · 32 dòng<br/>12 kênh"]
+    M --> M3["ipcHandler · 38 dòng<br/>10 kênh"]
     M --> M4["index · 53 dòng<br/>cửa sổ frameless 1280x800"]
 
     P --> P1["contextBridge<br/>window.browser · window.win<br/>16 kênh, hai chiều"]
@@ -36,13 +36,12 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 TRÌNH DUYỆT VnSearch (42 file)
 │
 ├── TIẾN TRÌNH CHÍNH (Node.js) ──── tabManager (393) ★ trái tim
 │                              ├─── windowControls (163)
-│                              ├─── ipcHandlers (32)
+│                              ├─── ipcHandler (38)
 │                              └─── index (53)
 │
 ├── PRELOAD ─────────────────── contextBridge: window.browser + window.win
@@ -84,7 +83,6 @@ flowchart TB
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
    ┌──────────────────────────────────────────────────┐
    │ TabBar 40px │ Toolbar 48px │ BookmarksBar 34px   │  ← chromeView, luôn thấy
@@ -131,7 +129,6 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 Stack<T> (lib/Stack.ts)
    └─► historyStore: backStack + forwardStack cho MỖI tab
@@ -179,7 +176,7 @@ sequenceDiagram
     AB->>TS: navigate(HOME_URL)
     TS->>TM: browser:navigate
     TM->>TM: gỡ + đóng tabView → chromeView lộ ra
-    TM-->>TS: browser:tabUpdate
+    TM-->>TS: browser:tabs
     Note over SR: App.tsx: url=HOME_URL && query≠null → vẽ SearchResultList
     SR->>BE: GET /api/search · q, page=1, size=10
     BE-->>SR: {results, totalResults, timeTakenMs, droppedTerms}
@@ -224,7 +221,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 tabStore ──► historyStore ──► lib/Stack
     └──────► searchViewStore
@@ -242,7 +238,6 @@ overlayStore, themeStore: độc lập hoàn toàn
 **Một chi tiết đáng nhớ: `overlayStore` dùng SỐ ĐẾM, không dùng cờ đúng/sai.**
 
 Vì lớp phủ có thể mở chồng nhau (menu chính mở panel con), nếu dùng cờ thì đóng cái trong cùng sẽ làm trang ngoài lộ ra trong khi cái ngoài vẫn đang mở:
-
 ```
 mở popover ngoài  acquire  0→1  → gỡ trang xuống
 mở panel con      acquire  1→2  → (không đổi)

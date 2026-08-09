@@ -27,6 +27,60 @@ Cách hiển nhiên: nhét một list vào `HashSet` rồi duyệt list kia. Đo
 
 Cách nhanh hơn tận dụng một thứ ta đã có **miễn phí**: posting list đã sắp xếp theo `docId` (xem [InvertedIndex §4](../03-index/InvertedIndex.md)). Với hai danh sách đã sắp xếp, có thể duyệt song song bằng **two-pointer** — mỗi phần tử được xét đúng **một** lần, không băm, không cấp phát.
 
+```
+   A:  3   7   11   15   22
+       ▲
+   B:  7   11   19   22
+       ▲
+                                so 3 < 7   ⇒ tiến con trỏ A
+   A:  3   7   11   15   22
+           ▲
+   B:  7   11   19   22
+       ▲
+                                so 7 = 7   ⇒ GHI 7, tiến CẢ HAI
+   A:  3   7   11   15   22
+               ▲
+   B:  7   11   19   22
+           ▲
+                                so 11 = 11 ⇒ GHI 11, tiến cả hai
+   …
+   kết quả: [7, 11, 22]
+
+   Bất biến vòng lặp: con trỏ nào trỏ vào giá trị NHỎ HƠN thì tiến con trỏ đó.
+   ⇒ không bao giờ bỏ sót một phần tử chung nào.
+```
+
+```mermaid
+flowchart TD
+    S["i = 0, j = 0"]
+    C{"A[i] so B[j]"}
+    EQ["bằng ⇒ ghi vào kết quả<br/>i++, j++"]
+    LT["A[i] nhỏ hơn ⇒ i++"]
+    GT["B[j] nhỏ hơn ⇒ j++"]
+    E{"hết một trong hai list?"}
+    DONE["xong"]
+
+    S --> C
+    C -->|"="| EQ --> E
+    C -->|"<"| LT --> E
+    C -->|">"| GT --> E
+    E -->|"chưa"| C
+    E -->|"rồi"| DONE
+```
+
+**Vì sao HashSet thua dù cũng là $O(m+n)$.** Cùng bậc độ phức tạp không có
+nghĩa là cùng tốc độ:
+
+| | Two-pointer | HashSet |
+|---|---|---|
+| Cấp phát bộ nhớ | **không** | dựng cả một bảng băm |
+| Autoboxing `int` → `Integer` | không | có, hàng trăm nghìn lần |
+| Truy cập bộ nhớ | **tuần tự** — thân thiện cache CPU | ngẫu nhiên — trượt cache liên tục |
+| Đo thật | **10,0 ms** | 27,0 ms |
+
+Yếu tố quyết định là dòng thứ ba: duyệt tuần tự hai mảng cho phép CPU nạp
+trước dữ liệu, còn nhảy ngẫu nhiên trong bảng băm thì không.
+
 ---
 
 ## 1. Two-pointer intersect

@@ -15,6 +15,54 @@ Dự án này đã dính đúng lỗi đó: **23 cặp trang trùng nhau** chỉ
 
 Hậu quả không chỉ là lãng phí băng thông: **các bản sao cùng lọt vào chỉ mục và cùng xuất hiện trong kết quả tìm kiếm**, làm giảm chất lượng thấy rõ — người dùng thấy hai kết quả y hệt nhau ở hạng 1 và 2.
 
+```mermaid
+flowchart LR
+    A["HTTPS://A.com:443/x/?b=1#top"]
+    S1["① hạ chữ thường<br/>scheme + host"]
+    S2["② bỏ cổng mặc định<br/>:443 với https"]
+    S3["③ bỏ fragment<br/>#top"]
+    S4["④ chuẩn hoá dấu / cuối"]
+    B["https://a.com/x/?b=1"]
+
+    A --> S1 --> S2 --> S3 --> S4 --> B
+```
+
+```
+   Bốn phép, và LÝ DO DỪNG LẠI Ở BỐN
+
+   ✓ ① hạ chữ thường scheme+host   HTTPS://A.com → https://a.com
+        an toàn: RFC nói host không phân biệt hoa thường
+   ✓ ② bỏ cổng mặc định            https://a.com:443 → https://a.com
+        an toàn: :443 với https là mặc định, cùng một máy chủ
+   ✓ ③ bỏ fragment                 /x#top → /x
+        an toàn: fragment chỉ dùng phía trình duyệt, không gửi lên server
+   ✓ ④ chuẩn hoá dấu / cuối        /x và /x/ → một dạng
+        an toàn trên thực tế: chính lỗi 23 cặp trùng đã gặp
+
+   ✗ KHÔNG đụng query string       /x?b=1 và /x?b=2 GIỮ NGUYÊN khác nhau
+        KHÔNG an toàn: đổi tham số có thể đổi hẳn trang trả về
+   ✗ KHÔNG sắp xếp tham số         ?a=1&b=2 và ?b=2&a=1 GIỮ NGUYÊN khác nhau
+        KHÔNG an toàn: một số máy chủ phân biệt thứ tự
+```
+
+**Nguyên tắc chọn phép nào được làm:** một phép chuẩn hoá chỉ được phép nếu nó
+**không bao giờ** gộp hai trang thật sự khác nhau. Gộp nhầm gây mất dữ liệu và
+không phát hiện được; bỏ sót chỉ gây trùng lặp — mà trùng lặp còn có
+`ContentSeenFilter` bắt ở tầng sau.
+
+```mermaid
+flowchart TD
+    E["hai URL"]
+    C["canonicalize"]
+    Q{"cùng dạng chuẩn tắc?"}
+    SAME["coi là MỘT trang"]
+    DIFF["coi là hai trang<br/>ContentSeenFilter còn một cơ hội bắt"]
+
+    E --> C --> Q
+    Q -->|"có"| SAME
+    Q -->|"không"| DIFF
+```
+
 ---
 
 ## 1. Bài toán, phát biểu bằng toán học

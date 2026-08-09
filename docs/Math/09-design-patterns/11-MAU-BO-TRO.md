@@ -14,6 +14,50 @@ Cho tầng REST API **một điểm vào duy nhất** cho toàn bộ pipeline `c
 
 ### Bài học: Facade **rất dễ** biến thành God Object
 
+```mermaid
+flowchart TD
+    subgraph TRUOC["TRƯỚC — Facade 420 dòng, 7 trách nhiệm"]
+        direction TB
+        F1["SearchEngineFacade"]
+        F1 --- R1["nạp 4 nguồn dữ liệu"]
+        F1 --- R2["dựng chỉ mục"]
+        F1 --- R3["quản lý job crawl"]
+        F1 --- R4["dựng Trie gợi ý"]
+        F1 --- R5["đoán ngôn ngữ"]
+        F1 --- R6["chọn scorer"]
+        F1 --- R7["giữ cả corpus trong RAM"]
+    end
+
+    subgraph SAU["SAU — Facade CHỈ điều phối"]
+        direction TB
+        F2["SearchEngineFacade"]
+        F2 --> C1["DocumentStore ×3<br/>Strategy"]
+        F2 --> C2["IndexBuilder"]
+        F2 --> C3["CrawlJobManager<br/>+ CrawlStatus · State"]
+        F2 --> C4["SuggestionService"]
+        F2 --> C5["LanguageDetector"]
+        F2 --> C6["ScorerFactory<br/>Factory + Decorator"]
+    end
+
+    TRUOC -->|"tách 6 lớp ra"| SAU
+```
+
+```
+   TRƯỚC                              SAU
+   ─────                              ───
+   ┌───────────────────────┐          ┌──────────────────┐
+   │ SearchEngineFacade    │          │ SearchEngineFacade│  ◀ chỉ điều phối
+   │  420 dòng             │          └────────┬─────────┘
+   │  ┌─ nạp dữ liệu       │                   │
+   │  ├─ dựng chỉ mục      │     tách     ┌────┴────┬────────┬─────────┐
+   │  ├─ quản lý job       │  ─────────▶  ▼         ▼        ▼         ▼
+   │  ├─ dựng Trie         │           Document  Index    Crawl    Scorer
+   │  ├─ đoán ngôn ngữ     │            Store    Builder  Job…     Factory
+   │  ├─ chọn scorer       │
+   │  └─ giữ corpus RAM    │           mỗi lớp MỘT lý do để thay đổi
+   └───────────────────────┘
+```
+
 Đây là điều đáng nói nhất. Bản cũ dài **420 dòng** và gánh **bảy** trách nhiệm:
 
 | Trách nhiệm cũ trong Facade | Nay ở đâu | Mẫu |

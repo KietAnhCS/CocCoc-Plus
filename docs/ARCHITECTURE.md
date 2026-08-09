@@ -255,7 +255,7 @@ flowchart TD
     Lang -->|"Không phải vi/en"| Drop
     Lang -->|"vi hoặc en"| Seen{"<b>Content Seen?</b><br/>SHA-256 thân bài"}
     Seen -->|"Đã thấy → bản trùng"| Drop
-    Seen -->|"Chưa thấy"| Store["<b>Content Storage</b><br/>ContentStorage → crawled-multi.json"]
+    Seen -->|"Chưa thấy"| Store["<b>Content Storage</b><br/>ContentStorage → crawled-documents.json"]
     Store --> Links["<b>Link Extractor</b><br/>outlink tuyệt đối, đã chuẩn hoá"]
     Links --> Filter{"<b>URL Filter</b> (mức rẻ)<br/>độ sâu / scheme / domain / đuôi tệp"}
     Filter -->|"Loại"| Drop
@@ -637,7 +637,6 @@ tra cứu vẫn $O(1)$.
 này lại sai ở tầng khác".
 
 Bản đầu tiên bỏ dấu mọi từ trước khi so khớp. Kết quả:
-
 ```
 Truy vấn: "ngân hàng"
 Snippet:  Nhiều <mark>ngân</mark> <mark>hàng</mark> cắt giảm cả <mark>ngàn</mark> nhân sự
@@ -755,7 +754,7 @@ flowchart TD
     IndexJson -->|không| Chain["duyệt List&lt;DocumentStore&gt;"]
     Chain --> PG{"PostgresDocumentStore<br/>isAvailable()?"}
     PG -->|có| Build0["IndexBuilder.build()"]
-    PG -->|không| Crawled{"JsonDocumentStore<br/>crawled-multi.json?"}
+    PG -->|không| Crawled{"JsonDocumentStore<br/>crawled-documents.json?"}
     Crawled -->|có| Build1["IndexBuilder.build() — tokenize lại"]
     Crawled -->|không| SeedJson{"JsonDocumentStore<br/>seed-documents.json?"}
     SeedJson -->|có| Build2["dùng seed ~40 tài liệu<br/>— để vừa clone repo là chạy được"]
@@ -848,17 +847,30 @@ năng mới ở gói nào. Chi tiết:
 | Endpoint | Quyền | Tham số | Ghi chú |
 |---|:---:|---|---|
 | `GET /api/search` | công khai | `q`, `page` (mặc định 1, **trần 1.000**), `size` (mặc định 20, chặn trong [1, 100]) | Trả `SearchResponse` gồm `totalResults`, `timeTakenMs`, `droppedTerms` (các term hệ thống đã tự bỏ để tìm được kết quả), và danh sách kết quả kèm `score` / `pageRankScore` để bật chế độ debug trên UI |
-| `GET /api/suggest` | công khai | `q`, `limit` (mặc định 8) | Trả `{"suggestions": [...]}` |
-| `GET /api/images` | công khai | `q`, `page`, `size` | Trả `results[]`, `hasMore`, `pagesScanned` — nguồn là `ImageStore` |
-| `GET /api/feed` | công khai | `page`, `size` | **Duyệt** chỉ mục theo `docId`, không qua truy vấn |
+| `GET /api/suggest` | công khai | `prefix` (**bắt buộc** — không phải `q`), `limit` (mặc định 10) | Trả `{"suggestions": [...]}` |
+| `GET /api/images` | công khai | `q`, `page` (mặc định 1, trần 100), `size` (mặc định 30, trần 100) | Trả `results[]`, `hasMore`, `pagesScanned` — nguồn là `ImageStore` |
+| `GET /api/feed` | công khai | `seed` (mặc định 0), `page` (mặc định 1, trần 100), `size` (mặc định 12, trần 50) | **Duyệt** chỉ mục theo `docId`, không qua truy vấn |
 | `GET /api/health` | công khai | — | `200` khi chỉ mục có tài liệu, **`503` khi rỗng** |
 | `POST /api/admin/crawl` | `X-API-Key` | body `{seedUrls, maxDepth, maxPages}` | Trả `jobId` ngay, crawl chạy nền |
 | `GET /api/admin/crawl/{jobId}/status` | `X-API-Key` | — | `status`, `pagesCrawled`, `queueSize` |
 | `POST /api/admin/reindex` | `X-API-Key` | — | Dựng lại chỉ mục + PageRank + Trie + xoá cache |
 | `GET /api/admin/stats` | `X-API-Key` | — | `totalDocuments`, `totalTerms`, `indexSizeBytes`, `cacheHitRate`, `bloomFilterBits`, `scorer` |
 
-Ví dụ gọi thật: xem `docs/api-examples.http`. Phân quyền và lý do từng lựa chọn:
-[`SECURITY.md` §5](SECURITY.md).
+**Hai chỗ dễ gõ sai, nói trước cho đỡ mất thời gian:**
+
+- `/api/suggest` nhận **`prefix`**, không phải `q`. Đây là endpoint duy nhất
+  lệch khỏi quy ước `q` của các endpoint còn lại, vì nó không chạy truy vấn mà
+  tra tiền tố trên Trie — tham số được đặt tên theo đúng việc nó làm. Gõ `?q=`
+  sẽ nhận `400 Thieu tham so bat buoc: prefix`.
+- `/api/feed` có tham số **`seed`** không hiển nhiên. Bảng tin trả về các tài
+  liệu theo một **hoán vị ngẫu nhiên** của `docId`; `seed` chính là hạt giống
+  của hoán vị đó. Cùng `seed` thì cùng thứ tự, nên lô `page=2` nối đúng vào
+  đuôi `page=1`. Đổi `seed` (hoặc bỏ trống, mặc định `0`) là xáo lại từ đầu.
+  Nhờ vậy máy chủ **không phải nhớ gì** giữa các lần gọi — xem
+  `FeedController.java:107`.
+
+Ví dụ gọi thật: xem [`api-examples.http`](api-examples.http). Phân quyền và lý
+do từng lựa chọn: [`SECURITY.md` §5](SECURITY.md).
 
 ---
 

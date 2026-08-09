@@ -10,7 +10,59 @@ Tài liệu này quét **toàn bộ mã nguồn** của dự án và tổng hợ
 - **Chủ đề DSA** mà đoạn code đó thể hiện
 - **Hạn chế đã biết**, nói thẳng
 
-**36 tài liệu** phân tích mã nguồn, chia theo 7 nhóm, cộng **14 tài liệu** về design pattern và OOP ở nhóm 9.
+**44 tài liệu** phân tích mã nguồn, chia theo 11 nhóm, cộng **14 tài liệu** về design pattern và OOP ở nhóm 9.
+
+### Bản đồ 12 nhóm — đi theo đường dữ liệu
+
+```mermaid
+flowchart TD
+    KH["00 · Từ điển ký hiệu toán<br/>đọc trước tiên nếu chưa quen"]
+
+    subgraph DUONG["ĐƯỜNG ĐI CỦA DỮ LIỆU"]
+        direction LR
+        C["01 · crawler"]
+        I["03 · index"]
+        Q["04 · query"]
+        R["05 · ranking"]
+        C --> I --> Q --> R
+    end
+
+    subgraph NEN["NỀN TẢNG — dùng lại ở mọi tầng"]
+        DS["06 · datastructures<br/>6 cấu trúc tự cài"]
+        DP["09 · design-patterns<br/>11 mẫu"]
+    end
+
+    subgraph MO["MỞ RỘNG"]
+        K["10 · kafka"]
+        IM["11 · images"]
+    end
+
+    subgraph VH["ĐO ĐẠC & VẬN HÀNH"]
+        E["07 · eval"]
+        DO["12 · devops"]
+        SE["13 · security"]
+    end
+
+    F["08 · frontend<br/>DSA phía trình duyệt"]
+
+    KH --> DUONG
+    NEN -.->|"nền cho"| DUONG
+    DUONG --> MO
+    DUONG --> VH
+    DUONG --> F
+```
+
+```
+   00 ký hiệu toán  ◀── đọc trước tiên
+
+   ĐƯỜNG DỮ LIỆU :  01 crawler ──▶ 03 index ──▶ 04 query ──▶ 05 ranking
+                         │                                        │
+   NỀN TẢNG      :  06 datastructures  ·  09 design-patterns  ────┘
+                         │
+   MỞ RỘNG       :  10 kafka  ·  11 images
+   ĐO & VẬN HÀNH :  07 eval   ·  12 devops  ·  13 security
+   GIAO DIỆN     :  08 frontend
+```
 
 > 🗺️ **Mỗi nhóm đều mở đầu bằng một SƠ ĐỒ TƯ DUY** — vẽ ra mối liên hệ giữa các file của cả tầng đó thành hình, kèm bảng tra nhanh từng file và bảng *"xoá file này thì hỏng gì"*. **Đọc sơ đồ tư duy của nhóm trước, rồi mới vào các trang đi sâu.** Mọi sơ đồ đều có sẵn bản chữ (ASCII) bấm mở được, phòng khi trình xem không hiển thị Mermaid.
 
@@ -28,7 +80,7 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
-| 🗺️ [**Sơ đồ tư duy — toàn tầng crawler**](01-crawler/00-SO-DO-TU-DUY.md) | cả 25 file `crawler/` | **Bắt đầu từ đây.** Mối liên hệ giữa các file vẽ ra thành hình: bản đồ 5 nhóm, đồ thị phụ thuộc, vòng đời một URL qua 8 cửa, frontier hai tầng chạy tay từng bước, bảng "xoá file này thì hỏng gì" |
+| 🗺️ [**Sơ đồ tư duy — toàn tầng crawler**](01-crawler/00-SO-DO-TU-DUY.md) | cả 43 file `crawler/` (20 gốc + 9 frontier + 8 bus + 6 modular) | **Bắt đầu từ đây.** Mối liên hệ giữa các file vẽ ra thành hình: bản đồ 5 nhóm, đồ thị phụ thuộc, vòng đời một URL qua 8 cửa, frontier hai tầng chạy tay từng bước, bảng "xoá file này thì hỏng gì" |
 | [BloomFilter](01-crawler/BloomFilter.md) | `datastructure/BloomFilter.java` | **Suy dẫn $p \approx (1-e^{-kn/m})^k$**, tối ưu $k^*=(m/n)\ln 2$ bằng đạo hàm, double hashing Kirsch–Mitzenmacher, 1,1 MB vs 108 MB |
 | [UrlFrontier](01-crawler/UrlFrontier.md) | `crawler/frontier/` (9 lớp) | **Mercator hai tầng**, chống bỏ đói bằng chọn ngẫu nhiên có trọng số, $O(D) \to O(\log n)$, trần thông lượng $=H$ |
 | [CrawlerService](01-crawler/CrawlerService.md) | `crawler/CrawlerService.java` | BFS đa luồng, **phát hiện kết thúc phân tán**, $P(\text{nhầm}) \approx 10^{-15}$, ba lớp bảo vệ |
@@ -43,7 +95,7 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
-| 🗺️ [**Sơ đồ tư duy — toàn tầng chỉ mục**](03-index/00-SO-DO-TU-DUY.md) | cả 11 file `index/` | **Bắt đầu từ đây.** Hai đường đi của dữ liệu, hình dạng thật của chỉ mục trong bộ nhớ, một bất biến mở khoá bốn kỹ thuật, ba tầng ý tưởng nén, galloping search vẽ ra |
+| 🗺️ [**Sơ đồ tư duy — toàn tầng chỉ mục**](03-index/00-SO-DO-TU-DUY.md) | cả 14 file `index/` | **Bắt đầu từ đây.** Hai đường đi của dữ liệu, hình dạng thật của chỉ mục trong bộ nhớ, một bất biến mở khoá bốn kỹ thuật, ba tầng ý tưởng nén, galloping search vẽ ra |
 | [VietnameseTokenizer](03-index/VietnameseTokenizer.md) | `index/VietnameseTokenizer.java` | **QHĐ cực đại trọng số**, NFC/NFD Unicode, bẫy chữ `đ`, hai biến đếm độc lập |
 | [InvertedIndex](03-index/InvertedIndex.md) | `index/InvertedIndex.java` | **Bất biến quan trọng nhất dự án**, binary search, chỉ mục kép có/không dấu, `>>>` chống tràn |
 | [IndexPersistence](03-index/IndexPersistence.md) | `index/IndexPersistence.java` | Trạng thái dẫn xuất phải cập nhật ở **mọi** đường vào, chuỗi dự phòng 4 tầng |
@@ -86,7 +138,7 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
-| 🗺️ [**Sơ đồ tư duy — toàn tầng đánh giá**](07-eval/00-SO-DO-TU-DUY.md) | cả 7 file `eval/` | **Bắt đầu từ đây.** Lấy đâu ra "đáp án đúng", hai phương pháp bù nhau, **vì sao một bảng số chưa đủ để nói A tốt hơn B** |
+| 🗺️ [**Sơ đồ tư duy — toàn tầng đánh giá**](07-eval/00-SO-DO-TU-DUY.md) | cả 9 file `eval/` | **Bắt đầu từ đây.** Lấy đâu ra "đáp án đúng", hai phương pháp bù nhau, **vì sao một bảng số chưa đủ để nói A tốt hơn B** |
 | [EvaluationMetrics](07-eval/EvaluationMetrics.md) | `eval/EvaluationMetrics.java` | **P/R/F1/AP/MAP/nDCG/MRR** — công thức, ví dụ tính tay, vì sao trung bình điều hoà |
 | [KnownItemQueryGenerator](07-eval/KnownItemQueryGenerator.md) | `eval/KnownItemQueryGenerator.java` | **Lật ngược bài toán**, bẫy $\text{df}=1$, cửa sổ df, tính tái lập |
 | [PoolBuilder](07-eval/PoolBuilder.md) | `eval/PoolBuilder.java` | **TREC pooling**, giảm 150.330 → ~900 lượt phán xét (167×) |
@@ -95,7 +147,7 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
-| 🗺️ [**Sơ đồ tư duy — toàn tầng frontend**](08-frontend/00-SO-DO-TU-DUY.md) | cả 42 file `browser-app/src/` | **Bắt đầu từ đây.** Ba tiến trình nói chuyện ra sao, vỏ nằm dưới trang nằm trên, DSA tự cài nằm ở đâu, bản đồ 9 store, bảng "xoá file này thì hỏng gì" |
+| 🗺️ [**Sơ đồ tư duy — toàn tầng frontend**](08-frontend/00-SO-DO-TU-DUY.md) | cả 50 file `browser-app/src/` | **Bắt đầu từ đây.** Ba tiến trình nói chuyện ra sao, vỏ nằm dưới trang nằm trên, DSA tự cài nằm ở đâu, bản đồ 9 store, bảng "xoá file này thì hỏng gì" |
 | [Stack](08-frontend/Stack.md) | `lib/Stack.ts`, `store/historyStore.ts` | **Hai ngăn xếp + bất biến back/forward**, cờ một lần dùng cắt vòng phản hồi |
 | [BookmarkTrie](08-frontend/BookmarkTrie.md) | `lib/BookmarkTrie.ts` | **Cùng cấu trúc, hai chuyên biệt hoá** — so sánh chi tiết Java vs TypeScript |
 | 📘 [**FRONTEND.md**](../FRONTEND.md) | cả `browser-app/` | **Tài liệu đầy đủ 17 mục** — kiến trúc, hợp đồng IPC, 5 luồng xử lý, **12 công thức hướng dẫn sửa code**, và **đánh giá kiến trúc theo chuẩn doanh nghiệp có bảng điểm** |
@@ -143,6 +195,28 @@ Detection*, và vì sao `URL Frontier` thì **không** bị thay bằng Kafka.
 | `UrlExtractorService` | Bóc liên kết → URL Filter → URL Seen → Frontier | Tách hai tập URL: tập cho **vòng lặp crawl** khác tập cho **PageRank** |
 | `ImageDownloadService` | Bóc ảnh khỏi DOM | **Mới hoàn toàn.** Mặc định chỉ lấy siêu dữ liệu — ba lý do: băng thông, SSRF, bản quyền |
 | `CrawlAnalyticsService` | Thang đo Prometheus | **Mới hoàn toàn.** Vì sao `host` **không** được làm nhãn Prometheus (nổ cardinality) |
+
+### 11. Thu thập và tìm kiếm ảnh — [`11-images/`](11-images/)
+
+Một trang báo có 40 thẻ `<img>`, 39 tấm là logo và icon. **Chọn tấm nào, và
+chọn lúc nào?**
+
+| Tài liệu | Nguồn | Nội dung chính |
+|---|---|---|
+| 🗺️ [**Sơ đồ tư duy — toàn tầng ảnh**](11-images/00-SO-DO-TU-DUY.md) | 6 file `crawler/modular/` + `ImageSearchController` | **Bắt đầu từ đây.** Quyết định **lọc lúc crawl chứ không lúc tìm** và bảng đánh đổi, 4 bước phục vụ truy vấn, bất biến "kết quả không phụ thuộc thứ tự thông điệp", **một lỗi chỉ chế độ Kafka mới thấy** |
+| [**ImageQuality**](11-images/ImageQuality.md) | `crawler/modular/ImageQuality.java` | **Bốn bậc thay cho điểm cộng dồn** — vì sao cộng tuyến tính là sai *về nguyên tắc*; ước lượng bề rộng từ URL bằng 3 nguồn; **suy dẫn ngưỡng 200px từ đo đạc**; vì sao bậc "không biết" nằm giữa chứ không nằm đáy (60,7% corpus) |
+
+### 12. CI/CD và hạ tầng — [`12-devops/`](12-devops/)
+
+| Tài liệu | Nguồn | Nội dung chính |
+|---|---|---|
+| 🗺️ [**Sơ đồ tư duy — từ commit tới cụm**](12-devops/00-SO-DO-TU-DUY.md) | `.github/workflows/`, `deploy/`, `Dockerfile` | **Bắt đầu từ đây.** Bảy cổng chặn và **thứ tự đặt chúng**, Docker nhiều tầng, Kustomize base/overlays, chuỗi quan sát 4 chặng |
+
+### 13. Bảo mật — [`13-security/`](13-security/)
+
+| Tài liệu | Nguồn | Nội dung chính |
+|---|---|---|
+| 🗺️ [**Sơ đồ tư duy — các lớp phòng thủ**](13-security/00-SO-DO-TU-DUY.md) | `config/`, `SeedUrlValidator`, `urlPolicy.ts`, CSP | **Bắt đầu từ đây.** Chuỗi filter Spring Security, vì sao **từ chối khởi động** khi thiếu khoá, chống SSRF, sandbox Electron |
 
 ## 🎓 Tra cứu theo chủ đề DSA
 
@@ -307,7 +381,7 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 - **Runner / script**: `MultiDomainCrawlRunner`, `EvaluationRunner`, `QrelsEvaluationRunner`, `PostgresImportRunner`, `GinBaselineRunner` — điều phối và sinh báo cáo, không có thuật toán riêng
 - **Lớp keo dán**: `SearchEngineFacade` (phân tích ở [11-MAU-BO-TRO §1](09-design-patterns/11-MAU-BO-TRO.md)), `EvaluationHarness` (ở [PoolBuilder §2](07-eval/PoolBuilder.md))
 - **Truy cập CSDL**: `DocumentRepository` — CRUD JDBC chuẩn, phần GIN đã có `docs/GIN-BASELINE.md` riêng
-- **Frontend**: `tabManager.ts`, `ipcHandlers.ts`, các store Zustand — bố cục UI và IPC
+- **Frontend**: `tabManager.ts`, `ipcHandler.ts`, các store Zustand — bố cục UI và IPC
 - **Interface thuần và lớp thực thi mẫu thiết kế**: `Tokenizer`, `SearchIndex`, `DocumentStore`, `CandidateFilter`, `QueryNode` + 5 nút, `PostingCursor`, `CrawlListener`, `ScorerFactory`, `CrawlStatus`, `CrawlConfig`, hai Decorator, hai Filter, `IndexBuilder`, `SuggestionService`, `CrawlJobManager`, `LanguageDetector`, `SnippetBuilder` — chúng **không chứa toán học mới**, nhưng mỗi cái có một trang riêng trong [`09-design-patterns/`](09-design-patterns/README.md) phân tích **vấn đề thiết kế** mà nó giải
 
 **Đối chiếu nhanh — mọi file `.java` có nội dung thuật toán đều đã có trang:**

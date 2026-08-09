@@ -12,6 +12,41 @@
 
 Decorator **bọc** một object và thêm hành vi vào, nhưng **giữ nguyên interface** — nên người dùng không phân biệt được object gốc với object đã bọc.
 
+```mermaid
+classDiagram
+    class RelevanceScorer {
+        <<interface>>
+        +score(qtf, docId, index) double
+        +name() String
+    }
+    class BM25Scorer {
+        điểm cơ sở
+    }
+    class TfIdfScorer {
+        điểm cơ sở
+    }
+    class ScorerDecorator {
+        <<abstract ý niệm>>
+        -inner : RelevanceScorer
+    }
+    class PageRankBoostScorer {
+        -weight = beta 0.30
+    }
+    class TitleBoostScorer {
+        -weight = gamma 0.10
+    }
+
+    RelevanceScorer <|.. BM25Scorer
+    RelevanceScorer <|.. TfIdfScorer
+    RelevanceScorer <|.. ScorerDecorator
+    ScorerDecorator <|-- PageRankBoostScorer
+    ScorerDecorator <|-- TitleBoostScorer
+    ScorerDecorator o--> RelevanceScorer : BỌC một cái cùng kiểu
+```
+
+Chính mũi tên cuối cùng — decorator vừa **là** `RelevanceScorer` vừa **chứa
+một** `RelevanceScorer` — là toàn bộ mẫu này.
+
 ```
 new TitleBoostScorer(
     new PageRankBoostScorer(
@@ -27,6 +62,51 @@ new TitleBoostScorer(
 ```
 
 Câu thần chú: **"Bọc thêm một lớp áo, vẫn là cùng một người."**
+
+### Một lời gọi `score()` đi vào rồi đi ra như thế nào
+
+```mermaid
+sequenceDiagram
+    participant R as ResultRanker
+    participant T as TitleBoostScorer
+    participant P as PageRankBoostScorer
+    participant B as BM25Scorer
+
+    R->>T: score(qtf, docId, index)
+    T->>P: score(...)  ủy quyền XUỐNG trước
+    P->>B: score(...)  ủy quyền XUỐNG trước
+    B-->>P: base = 12,1
+    Note over P: nhân LÊN khi quay ra<br/>12,1 × (1 + 0,30·p̂)
+    P-->>T: 14,3
+    Note over T: 14,3 × (1 + 0,10·[tiêu đề khớp])
+    T-->>R: 15,7
+```
+
+Đi **xuống** thì không ai tính gì; mọi phép nhân xảy ra lúc **quay ra**. Nhờ
+vậy mỗi lớp chỉ cần biết đúng một việc của nó, và thứ tự bọc không đổi kết quả
+(phép nhân giao hoán).
+
+### `beta = 0` tắt hẳn một tầng, không phải nhân với 1
+
+```mermaid
+flowchart LR
+    F["ScorerFactory"]
+    Q1{"beta > 0 ?"}
+    Q2{"gamma > 0 ?"}
+    B["scorer cơ sở"]
+    P["bọc PageRankBoostScorer"]
+    T["bọc TitleBoostScorer"]
+    OUT["scorer cuối"]
+
+    F --> B --> Q1
+    Q1 -->|"có"| P --> Q2
+    Q1 -->|"không"| Q2
+    Q2 -->|"có"| T --> OUT
+    Q2 -->|"không"| OUT
+```
+
+Đặt `app.ranking.beta=0` thì lớp bọc **không được tạo ra** — không tốn một
+phép gọi hàm nào. Đây là cách sạch nhất để đo đóng góp của từng tín hiệu.
 
 ---
 

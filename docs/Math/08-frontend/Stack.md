@@ -18,6 +18,48 @@ backStack:  [trang1, trang2, trang3]     currentUrl: trang4     forwardStack: []
                                     ↑ đỉnh
 ```
 
+```mermaid
+flowchart LR
+    B["backStack<br/>trang1, trang2, trang3"]
+    C["currentUrl<br/>trang4"]
+    F["forwardStack<br/>rỗng"]
+
+    B -->|"BACK: pop → current<br/>current → push vào forward"| C
+    C -->|"FORWARD: pop → current<br/>current → push vào back"| F
+```
+
+**Ba thao tác, ba tác động khác nhau lên hai ngăn xếp** — bảng này là toàn bộ
+bất biến:
+
+| Thao tác | backStack | currentUrl | forwardStack |
+|---|---|---|---|
+| **Đi tới URL mới** | push current | ← URL mới | **XOÁ SẠCH** |
+| **Back** | pop → current | ← giá trị pop | push current cũ |
+| **Forward** | push current cũ | ← giá trị pop | pop |
+
+```
+   TRẠNG THÁI ĐẦU
+   back: [1, 2, 3]   current: 4   forward: []
+
+   ── Back ──▶
+   back: [1, 2]      current: 3   forward: [4]
+
+   ── Back ──▶
+   back: [1]         current: 2   forward: [4, 3]
+
+   ── Đi tới trang 9 (URL MỚI) ──▶
+   back: [1, 2]      current: 9   forward: []        ◀── forward BỊ XOÁ
+                                            ▲
+                     đây là hàng dễ quên nhất, và cũng là hàng
+                     mà người dùng nhận ra ngay nếu làm sai:
+                     "sao bấm Forward lại về một trang lạ hoắc?"
+```
+
+**Vì sao đi tới URL mới phải xoá `forwardStack`.** Lịch sử là một **đường
+thẳng**, không phải cây. Khi người dùng lùi lại rồi rẽ sang nhánh khác, nhánh
+cũ **không còn tồn tại** trên đường đi hiện tại — giữ nó lại là để dành một
+đường tiến tới nơi mà người dùng chưa từng đi.
+
 - **Back**: pop `backStack`, đẩy `currentUrl` sang `forwardStack`.
 - **Forward**: đối xứng.
 - **Đi tới trang mới**: push `currentUrl` vào `backStack`, và **xoá sạch** `forwardStack`.

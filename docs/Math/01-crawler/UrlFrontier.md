@@ -32,6 +32,61 @@ Riêng lẻ thì mỗi bài toán đều dễ: bài 1 dùng heap, bài 2 dùng m
 
 Lời giải của Mercator (Heydon & Najork, 1999) là **không ghép**: dùng hai tầng hàng đợi, mỗi tầng lo đúng một bài toán và không biết gì về bài toán kia.
 
+```mermaid
+flowchart TD
+    IN["addUrl(url, depth, backlinks)"]
+    PRI["Prioritizer<br/>mức 0..4"]
+
+    subgraph TANG1["TẦNG TRƯỚC — chỉ lo ƯU TIÊN, không biết host là gì"]
+        F0["f0 · mức cao nhất"]
+        F1["f1"]
+        F2["f2"]
+        F3["f3"]
+        F4["f4 · thấp nhất"]
+    end
+
+    SEL["WeightedRandomSelector<br/>trọng số 16:8:4:2:1"]
+
+    subgraph TANG2["TẦNG SAU — chỉ lo LỊCH SỰ, không biết ưu tiên là gì"]
+        B0["b0 · chỉ host A"]
+        B1["b1 · chỉ host B"]
+        BN["… tới b127"]
+    end
+
+    HEAP["MinHeap theo availableAt"]
+    OUT["nextUrl()"]
+
+    IN --> PRI --> F0 & F1 & F2 & F3 & F4 --> SEL
+    SEL --> B0 & B1 & BN --> HEAP --> OUT
+```
+
+```
+   Vì sao KHÔNG gộp được vào một cấu trúc
+
+   ƯU TIÊN muốn : "lấy URL tốt nhất, bất kể host nào"
+   LỊCH SỰ cấm  : "không chạm cùng host 2 lần trong 1 giây,
+                   bất kể URL đó tốt tới đâu"
+                              │
+                    nhét chung ⇒ một bên phải nhường
+                              │
+                    tách HAI TẦNG ⇒ mỗi bên làm trọn vẹn
+
+   ┌─ TẦNG TRƯỚC ─────────┐      ┌─ TẦNG SAU ──────────────┐
+   │ f0 f1 f2 f3 f4       │      │ b0(hostA) b1(hostB) …   │
+   │ chia theo ƯU TIÊN    │ ───▶ │ chia theo HOST          │
+   │ KHÔNG biết host      │      │ KHÔNG biết ưu tiên      │
+   └──────────────────────┘      └─────────────────────────┘
+        ▲                              ▲
+        chọn ngẫu nhiên có trọng số    MinHeap theo thời điểm rảnh
+        16:8:4:2:1 ⇒ chống bỏ đói
+```
+
+**Vì sao chọn ngẫu nhiên có trọng số chứ không luôn lấy mức cao nhất.** Lấy
+tuyệt đối theo ưu tiên thì mức 4 có thể **không bao giờ** được chạm tới — web
+sinh URL mức 0–1 nhanh hơn tốc độ crawler tiêu thụ. Trọng số 16:8:4:2:1 vẫn ưu
+ái mức cao gấp 16 lần, nhưng xác suất mức thấp được chọn **luôn dương**, nên
+mọi URL cuối cùng đều tới lượt.
+
 ---
 
 ## 0. Mỗi khối trong sơ đồ là một lớp

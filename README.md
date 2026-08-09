@@ -153,7 +153,9 @@ bash deploy/kind/down.sh                     # tear the cluster down
 | Endpoint | Key required? | Description |
 |---|:---:|---|
 | `GET /api/search?q=&page=&size=` | — | Search |
-| `GET /api/suggest?q=&limit=` | — | Prefix suggestions (Trie) |
+| `GET /api/suggest?prefix=&limit=` | — | Prefix suggestions (Trie). Note: `prefix`, **not** `q` |
+| `GET /api/images?q=&page=&size=` | — | Image search, backed by `ImageStore` |
+| `GET /api/feed?seed=&page=&size=` | — | Browse the index without a query. Same `seed` ⇒ same order, so pages join up |
 | `GET /api/health` | — | Liveness. Returns `503` when the index is empty |
 | `GET /actuator/prometheus` | — | Prometheus metrics |
 | `POST /api/admin/crawl` | ✅ | Start a crawl job |
@@ -265,10 +267,17 @@ Documentation is written in Vietnamese.
 |---|---|
 Docs are organised by **the question they answer**, not by source folder:
 
+> **New here? Start with [`docs/README.md`](docs/README.md)** — a roadmap that
+> picks a reading order for you (run it / understand it / study the algorithms
+> / operate it), plus a "want to change X, read Y" lookup table. The docs are
+> written in Vietnamese; this README is the English entry point.
+
 | Document | Answers |
 |---|---|
+| [**`docs/README.md`**](docs/README.md) | **Documentation roadmap — which of the 69 files to read, in what order** |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How do the pieces fit into one working system? |
 | [`docs/BACKEND.md`](docs/BACKEND.md) | How is the Spring Boot app assembled — beans, config, request lifecycle? |
+| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Every config key, its default, and what breaks if you change it |
 | [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) | Where does it run, and who watches it? Docker, Kubernetes, monitoring |
 | [`docs/DEVOPS.md`](docs/DEVOPS.md) | How does code get from a laptop to a cluster? CI/CD, the seven gates |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | What is it defended against, and **what is still open**? |
@@ -277,6 +286,9 @@ Docs are organised by **the question they answer**, not by source folder:
 | [`docs/Math/`](docs/Math/README.md) | One page per class — formulas, worked examples, mind maps |
 | [`docs/Math/09-design-patterns/`](docs/Math/09-design-patterns/README.md) | One page per design pattern, and the bug each one fixed |
 | [`docs/Math/10-kafka/`](docs/Math/10-kafka/00-SO-DO-TU-DUY.md) | Kafka and the Modular Services — where the pipeline is cut, and why the URL Frontier is **not** replaced |
+| [`docs/Math/11-images/`](docs/Math/11-images/00-SO-DO-TU-DUY.md) | Image crawling and search — why filtering happens at crawl time |
+| [`docs/Math/12-devops/`](docs/Math/12-devops/00-SO-DO-TU-DUY.md) | CI/CD in detail — every workflow, every gate, file by file |
+| [`docs/Math/13-security/`](docs/Math/13-security/00-SO-DO-TU-DUY.md) | Every defence layer, and what breaks if you remove it |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | Search quality measurement (MRR, P@k, nDCG) |
 | [`docs/SO-SANH-PHUONG-AN.md`](docs/SO-SANH-PHUONG-AN.md) | 13 problems, the alternatives rejected, and why |
 | [`docs/GIN-BASELINE.md`](docs/GIN-BASELINE.md) | Head-to-head against PostgreSQL GIN |

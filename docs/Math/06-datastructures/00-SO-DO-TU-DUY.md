@@ -35,7 +35,6 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 CẤU TRÚC DỮ LIỆU TỰ CÀI (6)
    │
@@ -92,7 +91,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 TẦNG CRAWLER   ──► BloomFilter (UrlSeenFilter)
                ──► MinHeap     (BackQueues chọn hàng đợi khả dụng sớm nhất)
@@ -152,7 +150,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 MinHeap trên mảng:  con trái = 2i+1 · con phải = 2i+2 · cha = (i−1)/2
                     → toàn bộ cây nằm trong một mảng, KHÔNG một con trỏ nào
@@ -172,7 +169,6 @@ TỐI ƯU 2 — Floyd heapify (dựng heap từ tập có sẵn)
 **Ứng dụng quan trọng nhất — top-K streaming:** giữ heap kích thước đúng `k`, duyệt `n` phần tử, mỗi phần tử so với đỉnh heap. Chi phí `O(n log k)` thay vì `O(n log n)` của sort toàn bộ. Với `n = 500` ứng viên và `k = 10`, đó là khác biệt lớn.
 
 ### 4.2 `LRUCache` — vì sao phải danh sách liên kết ĐÔI
-
 ```
        head (sentinel)                                   tail (sentinel)
             │                                                  │
@@ -208,7 +204,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 VẤN ĐỀ: ma trận ĐẶC cho 5.011 trang = 5011² × 8 B = 191,5 MB
         thực tế chỉ có nnz = 239.691 phần tử khác 0  (độ thưa 0,95 %)
@@ -229,7 +224,6 @@ CHẾ ĐỘ 2 — CHẠY (CSR — Compressed Sparse Row), sau khi gọi freeze()
 > **Kỹ thuật `rowPtr` này xuất hiện LẦN THỨ HAI trong đồ án** — ở [`CompressedPostings`](../03-index/CompressedPostings.md), mảng `offsets` dùng đúng ý tưởng tổng tích luỹ để nén posting list. Cùng một ý tưởng ở hai chỗ hoàn toàn không liên quan là dấu hiệu nó là **kỹ thuật nền tảng**, không phải thủ thuật riêng lẻ.
 
 ### 4.4 `BloomFilter` — chiều sai của cấu trúc
-
 ```
    m = ceil(−n · ln(p) / (ln 2)²)      số bit
    k = round((m / n) · ln 2)            số hàm băm
@@ -249,7 +243,6 @@ CHẾ ĐỘ 2 — CHẠY (CSR — Compressed Sparse Row), sau khi gọi freeze()
 > Nhưng tính chất "không bao giờ false negative" chỉ đúng **khi dùng một luồng**. Đó chính là lý do `UrlSeenFilter` phải bọc `synchronized` — xem [sơ đồ tư duy tầng crawler §6.2](../01-crawler/00-SO-DO-TU-DUY.md).
 
 ### 4.5 `Trie` — gợi ý từ khoá
-
 ```
    Cấu trúc mỗi node:  Map<Character, TrieNode> children
                        boolean isEndOfWord
@@ -270,7 +263,6 @@ CHẾ ĐỘ 2 — CHẠY (CSR — Compressed Sparse Row), sau khi gọi freeze()
 ### 4.6 `ArrayPostingCursor` — galloping search
 
 Xem chi tiết ở [sơ đồ tư duy tầng chỉ mục §9](../03-index/00-SO-DO-TU-DUY.md). Tóm tắt:
-
 ```
    Pha 1 — nhảy theo cấp số nhân 1, 2, 4, 8, … cho tới khi vượt qua mục tiêu
    Pha 2 — binary search trong đoạn vừa khoanh được

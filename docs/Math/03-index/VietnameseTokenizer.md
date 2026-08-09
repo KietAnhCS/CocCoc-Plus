@@ -27,6 +27,48 @@ Tiếng Việt **không** như vậy. `máy tính` là **một từ** (computer)
 
 Hệ quả trực tiếp cho tìm kiếm: nếu index `máy` và `tính` riêng lẻ thì truy vấn `máy tính` sẽ khớp cả bài viết về "máy giặt" có chữ "tính tiền".
 
+```
+   "máy tính để bàn giá rẻ"
+
+   Tách theo KHOẢNG TRẮNG (sai)
+   ├─máy─┤├─tính─┤├─để─┤├─bàn─┤├─giá─┤├─rẻ─┤
+     ▲      ▲
+     machine  to calculate     ⇒ khớp cả bài về "máy giặt" có "tính tiền"
+
+   Tách theo TỪ (đúng)
+   ├──── máy_tính ────┤├─ để_bàn ─┤├─ giá ─┤├─ rẻ ─┤
+              ▲
+           computer
+```
+
+```mermaid
+flowchart LR
+    IN["văn bản thô"]
+    NFC["① chuẩn hoá Unicode<br/>NFC"]
+    SEG["② tách từ<br/>quy hoạch động cực đại trọng số"]
+    OUT1["term có dấu<br/>máy_tính"]
+    OUT2["term KHÔNG dấu<br/>may_tinh"]
+    IDX["chỉ mục KÉP<br/>cả hai đều tra được"]
+
+    IN --> NFC --> SEG
+    SEG --> OUT1 --> IDX
+    SEG --> OUT2 --> IDX
+```
+
+**Vì sao bước ① không bỏ được.** Chữ `ế` có **hai** cách mã hoá Unicode khác
+nhau — một ký tự dựng sẵn (NFC), hoặc `e` cộng hai dấu tổ hợp (NFD). Hai chuỗi
+trông **y hệt nhau trên màn hình** nhưng khác nhau từng byte, nên bảng băm coi
+là hai term khác nhau:
+
+```
+   "tiếng"  dạng NFC :  t i ế n g            5 ký tự
+   "tiếng"  dạng NFD :  t i e ◌́ ◌̂ n g       7 ký tự
+                            └─┬─┘
+                       dấu tổ hợp rời
+
+   Không chuẩn hoá ⇒ hai term, một nửa tài liệu không tìm được.
+```
+
 Lớp này giải bài toán đó bằng **Longest Matching**, cộng thêm hai việc riêng của tiếng Việt: chuẩn hoá Unicode và sinh bản không dấu.
 
 ---

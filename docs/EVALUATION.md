@@ -8,7 +8,7 @@
 ```bash
 cd search-engine
 ./mvnw.cmd exec:java -Dexec.mainClass=com.vnsearch.eval.EvaluationRunner \
-     -Dexec.args="data/crawled-multi.json 200"
+     -Dexec.args="data/crawled-documents.json 200"
 ```
 
 ## Cách đọc tài liệu này

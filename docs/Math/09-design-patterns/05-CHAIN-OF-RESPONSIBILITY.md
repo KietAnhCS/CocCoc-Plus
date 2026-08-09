@@ -10,6 +10,26 @@
 
 Thay vì một hàm dài xử lý nhiều bước, ta biến **mỗi bước thành một object**, xếp chúng thành **một danh sách**, rồi cho dữ liệu chạy qua từng khâu.
 
+```mermaid
+flowchart TD
+    IN["5.011 ứng viên"]
+    F1{"DomainFilter<br/>isApplicable ?"}
+    A1["áp dụng: site:vnexpress.net"]
+    F2{"MaxCandidatesFilter<br/>isApplicable ?"}
+    A2["áp dụng: chặn trên 10.000"]
+    EMPTY{"rỗng ?"}
+    OUT["→ khâu chấm điểm"]
+    STOP["dừng sớm — phần tử hấp thụ"]
+
+    IN --> F1
+    F1 -->|"có"| A1 --> EMPTY
+    F1 -->|"không — bỏ qua hẳn tầng"| F2
+    EMPTY -->|"rỗng"| STOP
+    EMPTY -->|"còn"| F2
+    F2 -->|"có"| A2 --> OUT
+    F2 -->|"không"| OUT
+```
+
 ```
 5011 ứng viên
      │
@@ -23,6 +43,33 @@ Thay vì một hàm dài xử lý nhiều bước, ta biến **mỗi bước th�
 ```
 
 Câu thần chú: **"Thêm một bước = thêm một dòng vào danh sách, không sửa hàm nào."**
+
+### Trước và sau — cùng một logic, hai hình dạng
+
+```mermaid
+flowchart LR
+    subgraph TRUOC["TRƯỚC — hàm 104 dòng"]
+        direction TB
+        H["resolve()"]
+        H --> S1["if domain… 20 dòng"]
+        S1 --> S2["if trần… 15 dòng"]
+        S2 --> S3["if … 18 dòng"]
+        S3 --> S4["phần còn lại"]
+    end
+
+    subgraph SAU["SAU — một DANH SÁCH"]
+        direction TB
+        L["static final List FILTERS"]
+        L --> D1["DomainFilter"]
+        L --> D2["MaxCandidatesFilter"]
+        L --> D3["… thêm ở đây"]
+    end
+
+    TRUOC -->|"tách"| SAU
+```
+
+Điều thay đổi không phải là số dòng mã, mà là **thêm một bước cần sửa gì**:
+bên trái phải mở thân hàm ra sửa, bên phải chỉ thêm một phần tử vào danh sách.
 
 ---
 

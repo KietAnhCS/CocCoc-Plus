@@ -30,7 +30,58 @@ Truy vấn `"trình duyệt web" máy tính -giá` chứa **ba loại thành ph�
 | `mustTerms` | `[máy_tính]` | Phải có (AND ngầm định) |
 | `excludedTerms` | `[giá]` | Tài liệu chứa từ này bị loại |
 
+```mermaid
+flowchart TD
+    Q["&quot;trình duyệt web&quot; máy tính -giá"]
+    R["tách phần trong ngoặc kép<br/>bằng regex"]
+    P["phrases<br/>trình_duyệt_web"]
+    REST["phần còn lại<br/>máy tính -giá"]
+    M["mustTerms<br/>máy_tính"]
+    E["excludedTerms<br/>giá"]
+    T["CÙNG MỘT Tokenizer<br/>với lúc lập chỉ mục"]
+    AST["cây QueryNode"]
+
+    Q --> R
+    R --> P
+    R --> REST --> M
+    REST --> E
+    P & M & E --> T --> AST
+```
+
+```
+   "trình duyệt web"   máy tính   -giá
+    └──────┬───────┘   └───┬──┘    └┬─┘
+        phrases       mustTerms  excludedTerms
+    liên tiếp đúng     AND ngầm    loại bỏ
+      thứ tự             định
+```
+
 Nhưng phần quan trọng nhất của lớp này không phải việc tách. Đó là một **bất biến một dòng** mà nếu vi phạm, hệ thống trả kết quả rỗng một cách hoàn toàn im lặng.
+
+```mermaid
+flowchart LR
+    subgraph DUNG["ĐÚNG — một Tokenizer duy nhất"]
+        direction TB
+        I1["lập chỉ mục<br/>'máy tính' → máy_tính"]
+        Q1["truy vấn<br/>'máy tính' → máy_tính"]
+        R1["KHỚP ✓"]
+        I1 --> R1
+        Q1 --> R1
+    end
+
+    subgraph SAI["SAI — hai bộ tách khác nhau"]
+        direction TB
+        I2["lập chỉ mục<br/>'máy tính' → máy_tính"]
+        Q2["truy vấn<br/>'máy tính' → máy, tính"]
+        R2["KHÔNG khớp ✗<br/>0 kết quả, KHÔNG báo lỗi"]
+        I2 --> R2
+        Q2 --> R2
+    end
+```
+
+Không có ngoại lệ nào được ném, không có log nào. Chỉ là **mọi truy vấn đều
+trả về rỗng** — và người ta sẽ đi tìm lỗi ở chỉ mục, ở scorer, ở mọi nơi trừ
+chỗ thật sự hỏng.
 
 ---
 

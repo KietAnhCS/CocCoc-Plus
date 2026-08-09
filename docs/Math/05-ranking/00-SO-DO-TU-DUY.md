@@ -40,7 +40,6 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
                           RANKING — 10 file
                                  │
@@ -88,7 +87,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 danh sách ứng viên (c tài liệu)
         │
@@ -110,7 +108,6 @@ K kết quả có điểm + đoạn trích bôi sáng
 ### Vì sao phải tách làm **hai giai đoạn** — nhanh hơn 50 lần
 
 Sinh snippet là thao tác **đắt nhất**: nó phải tách **toàn bộ** `bodyText` (trung bình hơn 1.000 token) rồi trượt cửa sổ. Bản cũ chạy bước này cho **mọi** ứng viên rồi mới cắt top-N:
-
 ```
    Trước:  O(c × |d|) = 500 × 1043 = 521.500      ← 490 snippet bị vứt đi ngay sau khi tạo
    Sau  :  O(K × |d|) =  10 × 1043 =  10.430
@@ -136,7 +133,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 application.properties
       │
@@ -189,7 +185,6 @@ Nay chỉ cần đổi một dòng trong `application.properties`.
 | Success@1 | 78,0 % | **85,0 %** |
 
 ### 4.2 Ba chỗ BM25 hơn — giải thích ngắn
-
 ```
 1. BÃO HOÀ CÓ TRẦN
    TF-IDF : tf = 1 + log10(f) vẫn tăng mãi theo số lần lặp
@@ -219,7 +214,6 @@ Theo **định luật Heaps**, số term phân biệt của tài liệu tăng th
 ## 5. Phát hiện quan trọng nhất: lỗi thang đo 1000×
 
 ### 5.1 Công thức cũ và con số đo được
-
 ```
    Công thức cũ, chọn cứng trong ResultRanker:
 
@@ -229,7 +223,6 @@ Theo **định luật Heaps**, số term phân biệt của tài liệu tăng th
 ```
 
 Đo trên corpus 5.011 trang:
-
 ```
    TF-IDF cosine  : trung bình 0,177687     → ×0,6 = 0,106612
    PageRank       : trung bình 0,00035388   → ×0,3 = 0,00010616
@@ -255,7 +248,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 PageRank là PHÂN PHỐI XÁC SUẤT: Σ PR = 1
         ↓
@@ -302,7 +294,6 @@ $$PR(j) = \frac{1-d}{N} + d\left[\sum_{i \to j} \frac{PR(i)}{\text{outDeg}(i)} +
 với `d = 0,85`.
 
 ### Mẹo lưu ma trận — khỏi phải transpose
-
 ```
    Định nghĩa toán học:  M[i][j] = 1/outDeg(i) nếu i → j
                          rồi phải tính  Mᵀ · PR
@@ -326,7 +317,6 @@ Trang không có outlink nào trỏ về một trang **trong corpus đã crawl**
 ## 7. `SnippetBuilder` — cửa sổ trượt
 
 **Bài toán:** trong tài liệu `n` từ, tìm cửa sổ `w` từ liên tiếp chứa **nhiều từ khoá nhất**.
-
 ```
    Ngây thơ    : mỗi vị trí đếm lại từ đầu  →  O(n·w) = 1043 × 25 = 26.075
    Cửa sổ trượt: mỗi bước chỉ 2 phép cập nhật →  O(n)   =              1.068
@@ -343,7 +333,6 @@ Trang không có outlink nào trỏ về một trang **trong corpus đã crawl**
 ### Lỗi
 
 Trước đây **mọi** tiếng đều bị bỏ dấu trước khi so khớp, khiến snippet bôi sáng nhầm:
-
 ```
    Truy vấn: "ngân hàng"
    Văn bản : "cắt giảm cả ngàn nhân sự"
@@ -354,7 +343,6 @@ Trước đây **mọi** tiếng đều bị bỏ dấu trước khi so khớp, 
 ### Nguyên nhân gốc
 
 Bỏ dấu là một **ánh xạ nhiều-một**:
-
 ```
    ngân  ─┐
    ngàn  ─┼──►  ngan

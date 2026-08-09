@@ -52,16 +52,9 @@ flowchart TB
 
     img ==>|"ImageFound"| kafka4{{"vnsearch.images"}}
     kafka4 ==> ana
-
-    style frontier fill:#e8590c,color:#fff
-    style kafka fill:#1c7ed6,color:#fff
-    style kafka2 fill:#1c7ed6,color:#fff
-    style kafka3 fill:#1c7ed6,color:#fff
-    style kafka4 fill:#1c7ed6,color:#fff
 ```
 
 Bản ASCII cho ai đọc trên terminal:
-
 ```
    Seed URLs
        |
@@ -122,7 +115,6 @@ Mercator — chính là **luận điểm DSA của đồ án**. Đây đúng là
 ### 2.2. Phương án đã chọn — cắt sau Duplicate Detection
 
 Nhìn vào những việc xảy ra **sau** khi một trang đã sạch:
-
 ```
 bóc liên kết   ─┐
 tải ảnh        ─┼─ ba việc ĐỘC LẬP NHAU, cùng cần một thứ: trang đã sạch
@@ -163,9 +155,6 @@ flowchart LR
         t1 --> g3["Group C — offset riêng"]
         note2["Mỗi group đọc TOÀN BỘ luồng<br/>→ ba service đều nhận đủ"]
     end
-
-    style note1 fill:#ffe3e3
-    style note2 fill:#d3f9d8
 ```
 
 | Tiêu chí | Kafka | RabbitMQ |
@@ -207,7 +196,6 @@ trùng sập hoàn toàn.**
 | **Phân hoạch theo host** ✅ | Không thêm hệ thống nào, không thêm vòng mạng nào |
 
 ### 4.3. Vì sao cách thứ ba đủ
-
 ```
     Kafka:  thông điệp cùng khoá  ->  cùng phân hoạch
             một phân hoạch        ->  đúng MỘT consumer trong một group
@@ -262,9 +250,6 @@ flowchart TB
 
     inproc --> sv["UrlExtractorService<br/>ImageDownloadService<br/>CrawlAnalyticsService"]
     kfk -.->|"qua broker"| sv
-
-    style bus fill:#1c7ed6,color:#fff
-    style sv fill:#d3f9d8
 ```
 
 **Ba service KHÔNG biết Kafka tồn tại.** Chữ ký của `PageEventHandler.onPage`
@@ -302,7 +287,6 @@ Không có gì miễn phí. Ba chi phí thật của việc tách service:
 và vì sao chế độ in-process **không đủ**.
 
 Lần chạy đầu tiên của `KafkaCrawlBusIT`:
-
 ```
 UnrecognizedPropertyException: Unrecognized field "downloaded"
   (class ImageFound), not marked as ignorable
@@ -328,7 +312,6 @@ sau khi đã mất toàn bộ dữ liệu ảnh của một phiên crawl.
 **Vì sao bộ test in-process không thể thấy.** Ở chế độ đó, `bus.publishImage()`
 truyền thẳng tham chiếu đối tượng sang handler. Không có bước serialize nào.
 Không có gì để hỏng.
-
 ```
 in-process:   ImageFound ──────────────────▶ handler      (không serialize)
 Kafka:        ImageFound ──JSON──▶ broker ──JSON──▶ handler

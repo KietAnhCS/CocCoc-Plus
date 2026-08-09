@@ -39,7 +39,6 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
                     DESIGN PATTERN — 10 mẫu chính
                                 │
@@ -111,7 +110,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 TẦNG CRAWLER   ──► Builder (CrawlConfig) · Observer (CrawlListener)
                    State (CrawlStatus) · Facade (UrlFrontier)
@@ -158,7 +156,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 BỘ BA XẾP HẠNG:
     STRATEGY   ── tách một trục thành giao diện
@@ -197,7 +194,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 BƯỚC 1  VẤN ĐỀ : Facade chọn cứng new TfIdfScorer() → không so sánh được
         GIẢI   : STRATEGY  → đo được BM25 hơn TF-IDF 5,3 % MRR
@@ -212,7 +208,6 @@ BƯỚC 3  VẤN ĐỀ : công thức cộng tuyến tính chôn cứng → Page
 </details>
 
 ### Ranh giới Composite ↔ Chain — câu hỏi khó nhất khi bảo vệ
-
 ```
         Một ràng buộc trong truy vấn — nó CÓ posting list không?
                               │
@@ -243,7 +238,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 DECORATOR — sửa LỖI THANG ĐO
     cũ  : final = α·relevance + β·pageRank      (β = 0,30 danh nghĩa)
@@ -296,7 +290,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 00 OOP căn bản (nền tảng)
    ↓

@@ -13,6 +13,51 @@
 
 Lớp này cài đặt các độ đo trả lời câu hỏi *"kết quả có tốt không?"*, theo đúng chuẩn của ngành.
 
+```mermaid
+flowchart TD
+    Q["Bạn muốn biết điều gì?"]
+    A["Kết quả đầu trang<br/>có sạch không?"]
+    B["Có bỏ sót gì không?"]
+    C["Người dùng phải<br/>cuộn bao xa mới thấy<br/>thứ mình cần?"]
+    D["Thứ hạng có ĐÚNG<br/>không, kể cả giữa các<br/>mức liên quan?"]
+
+    Q --> A --> PK["P@k"]
+    Q --> B --> RK["R@k"]
+    Q --> C --> MRR["MRR"]
+    Q --> D --> NDCG["nDCG"]
+
+    PK --> F1["F1 — gộp P và R<br/>trung bình ĐIỀU HOÀ"]
+    RK --> F1
+    PK --> MAP["MAP — trung bình AP<br/>nhiều tài liệu đúng"]
+```
+
+```
+   Một trang kết quả, ✓ = liên quan
+
+   hạng :  1   2   3   4   5   6   7   8   9  10
+           ✓   ✗   ✓   ✓   ✗   ✗   ✓   ✗   ✗   ✗
+
+   P@5   = 3/5  = 0,60      trong 5 đầu, bao nhiêu phần đúng
+   MRR   = 1/1  = 1,00      1 chia cho hạng của kết quả đúng ĐẦU TIÊN
+   nDCG  = …                thưởng nhiều hơn khi thứ hạng CAO
+
+   Nếu đảo thành:  ✗ ✗ ✗ ✗ ✓ ✓ ✓ …
+   P@5 tụt còn 1/5, MRR tụt còn 1/5 = 0,20
+   ⇒ cùng số tài liệu đúng, nhưng THỨ TỰ khác ⇒ điểm khác hẳn
+```
+
+**Vì sao F1 dùng trung bình điều hoà chứ không phải trung bình cộng:**
+
+```
+   Hệ thống trả về TOÀN BỘ corpus:  P = 0,001   R = 1,00
+
+   trung bình cộng   = (0,001 + 1,00)/2 = 0,50   ◀── nghe như khá tốt!
+   trung bình điều hoà = 2PR/(P+R)      ≈ 0,002  ◀── đúng: hệ thống vô dụng
+```
+
+Trung bình điều hoà **bị kéo về phía giá trị nhỏ**, nên nó không cho phép một
+chỉ số cao che lấp một chỉ số thảm hoạ.
+
 | Độ đo | Trả lời câu hỏi |
 |---|---|
 | **P@k** | Trong $k$ kết quả đầu, bao nhiêu phần là đúng? |

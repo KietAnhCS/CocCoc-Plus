@@ -31,7 +31,54 @@ $$\text{nnz} = 239\,691 \implies \text{độ thưa} = \frac{239\,691}{25\,110\,1
 
 **99,05 % ô là số 0.** Lưu chúng là lãng phí thuần tuý.
 
+```
+   Ma trận 5011 × 5011 — mỗi ký tự dưới đây là một vùng ô
+
+   ┌──────────────────────────────────────────────┐
+   │ ·  ·  ·  ▪  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  · │
+   │ ·  ▪  ·  ·  ·  ·  ·  ·  ▪  ·  ·  ·  ·  ·  · │   ▪ = ô khác 0
+   │ ·  ·  ·  ·  ·  ·  ▪  ·  ·  ·  ·  ·  ·  ·  · │       239.691 ô  (0,95 %)
+   │ ▪  ·  ·  ·  ·  ·  ·  ·  ·  ·  ▪  ·  ·  ·  · │
+   │ ·  ·  ·  ·  ·  ▪  ·  ·  ·  ·  ·  ·  ·  ·  · │   · = số 0
+   │ ·  ·  ▪  ·  ·  ·  ·  ·  ·  ·  ·  ·  ·  ▪  · │       24.870.430 ô (99,05 %)
+   └──────────────────────────────────────────────┘
+            lưu hết = 191,5 MB   │   chỉ lưu ▪ = 3,7 MB
+```
+
+```mermaid
+flowchart LR
+    subgraph DENSE["Ma trận dày — double[5011][5011]"]
+        D1["25.110.121 ô<br/>191,5 MB<br/>nhân: O(N²)"]
+    end
+
+    subgraph SPARSE["Adjacency list theo hàng"]
+        S1["239.691 mục<br/>3,7 MB<br/>nhân: O(nnz)"]
+    end
+
+    DENSE -->|"bỏ 99,05% số 0"| SPARSE
+```
+
 Ma trận thưa chỉ lưu các ô khác 0, và quan trọng hơn — phép nhân ma trận–vector chỉ duyệt chúng, đưa độ phức tạp từ $O(N^2)$ về $O(\text{nnz})$.
+
+**Vì sao độ thưa càng đỡ càng tốt khi $N$ lớn.** Số outlink trung bình mỗi
+trang $\bar{k}$ gần như **không đổi** khi web lớn lên — người ta không đặt thêm
+liên kết chỉ vì có thêm trang. Nên:
+
+$$\rho = \frac{\bar{k}N}{N^2} = \frac{\bar{k}}{N} \propto \frac{1}{N}$$
+
+```
+   độ thưa ρ
+      │
+   1% │▄
+      │ ▀▄
+      │   ▀▀▄▄
+      │       ▀▀▀▄▄▄▄
+      │              ▀▀▀▀▀▀▀▄▄▄▄▄▄▄▄▄▄
+      └───────────────────────────────────▶ N
+      5k        30k        100k       1M
+
+   càng nhiều trang, ma trận càng thưa ⇒ lợi ích càng lớn
+```
 
 ---
 

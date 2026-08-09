@@ -2,14 +2,35 @@
 
 > **Tài liệu này là gì?** Báo cáo kỹ thuật về **toàn bộ cấu trúc dữ liệu tự
 > cài đặt** trong đồ án: độ phức tạp lý thuyết, **lý do chọn** thay vì phương
-> án có sẵn, và **số liệu đo thực nghiệm** trên corpus 5.011 trang thu thập
-> từ 6 báo điện tử Việt Nam.
+> án có sẵn, và **số liệu đo thực nghiệm** trên corpus thu thập từ báo điện tử
+> Việt Nam.
 >
 > **Nguyên tắc xuyên suốt báo cáo:** mỗi khẳng định về hiệu năng đều phải kèm
 > **số đo**, không được là suy đoán. Mục 3 ghi lại bốn lỗi hiệu năng mà **chỉ
 > có đo mới phát hiện được** — đó là phần đáng đọc nhất. Mục 2.8 và 4.7 là thay
 > đổi lớn nhất về chất lượng: bộ tách từ tiếng Việt được viết lại, **nhanh gấp
 > 4,80 lần** và tách khác đi ở **54,0%** tài liệu.
+
+> ### ⚠️ Đọc trước: báo cáo này có **nhiều mốc corpus**, không chỉ một
+>
+> Đây là chỗ dễ tưởng tài liệu mâu thuẫn nhất. Corpus lớn dần qua nhiều phiên
+> crawl, và **số đo cũ không được chép lại theo** — chép lại mà không đo lại
+> thì thành số bịa. Vì vậy mỗi mục ghi rõ nó đo trên mốc nào, và bảng dưới đây
+> là bản quy chiếu:
+>
+> | Mốc | Quy mô | Xuất hiện ở | Vì sao có mốc này |
+> |---|---|---|---|
+> | **A — corpus đầu** | 5.011 trang, JSON 62 MB | Mục 2, phần lớn mục 3 và 4 | Bản đầu tiên đủ lớn để đo có ý nghĩa |
+> | **B — đa ngữ** | 30.001 trang | Mục 3.5 | Crawl lớn đầu tiên; **12.677 trang (42,3%) không phải tiếng Việt** — chính là lỗi mà mục 3.5 mổ xẻ |
+> | **C — sau khi lọc ngôn ngữ** | 30.017 trang *(tải về 31.736)* | Mục 3.5.1, 6.8 | Crawl lại với `LanguageFilter`; 0 trang ngoài chính sách vi/en |
+> | **D — hiện tại** | **31.030 trang**, corpus 384 MB, `index.json` 402 MB, 138.507 term | Số của bản mới nhất | Mốc bạn sẽ thấy khi chạy repo hôm nay |
+>
+> Vài con số nhỏ hơn là **tập con có chủ ý**, không phải mốc riêng: 5.996 tài
+> liệu ở mục 4.7 là tập benchmark tách từ, 2.533 trang ở mục 6.8 là phần tiếng
+> Trung trong mốc B.
+>
+> **Số nào cần đo lại thì đo, đừng suy ra.** Mục 7 ghi đủ lệnh để chạy lại từng
+> phép đo trên corpus hiện có của bạn.
 >
 > **Tài liệu liên quan:** `docs/Math/` (lý thuyết), `docs/Math/`
 > (từng thuật toán kèm mã), `ARCHITECTURE.md` (kiến trúc),
@@ -461,7 +482,6 @@ graph LR
 ```
 
 Cùng nội dung đó ở dạng ASCII (để đọc được cả khi Mermaid không render):
-
 ```
              âm tiết:   nhà      hàng      xóm
                         |         |         |
@@ -713,7 +733,6 @@ Mục này ghi lại hai sai lầm mắc phải **trong lúc làm mục 2.8**. C
 | `keyword.freq` | 142.040 mục | **Truy vấn** người dùng đã gõ vào Cốc Cốc |
 
 Gộp cả hai cho 164.005 từ ghép — nghe như càng nhiều càng tốt. Chạy thử thì:
-
 ```
 nhà hàng xóm                       -> [nhà_hàng_xóm]            (gộp hết làm một)
 tôi đi mua máy tính xách tay mới   -> [đi][mua_máy_tính][xách_tay][mới]
@@ -727,7 +746,6 @@ lại, nên một truy vấn 3 âm tiết bất kỳ đều nuốt trọn ngữ 
 
 **Cách sửa:** chỉ nạp `vndic_multiterm`. Từ điển giảm 164.005 → 40.236 từ ghép,
 và kết quả tốt lên:
-
 ```
 nhà hàng xóm                       -> [nhà][hàng_xóm]           ĐÚNG
 tôi đi mua máy tính xách tay mới   -> [đi][mua][máy_tính][xách_tay][mới]
@@ -927,7 +945,6 @@ bộ nhớ. Ước lượng: **bỏ `bodyText` sẽ giảm 60–70%**.
 Con số đó **chưa từng được đo**. Nên bước đầu tiên không phải là sửa, mà là viết
 `com.vnsearch.eval.MemoryBreakdown` để đo thật, trên corpus **2.518 trang** vừa
 crawl (35 MB JSON, 998 token/trang, 56.041 term phân biệt):
-
 ```
 1. Tài liệu (WebDocument)  :  58,6 MB   19,7%
    trong đó bodyText       :  34,2 MB   11,5%   ← "thủ phạm" bị nghi
@@ -948,7 +965,6 @@ public record Posting(int docId, int termFrequency, List<Integer> positions) { }
 ```
 
 Với 3,8 triệu vị trí, khai báo này trả giá **ba lần** cho cùng một số 4 byte:
-
 ```
    List<Integer>                          int[]
    ├─ Integer      : 16 byte/phần tử      ├─ 4 byte/phần tử
@@ -1006,7 +1022,6 @@ là đúng công cụ. **Hai lựa chọn trái ngược nhau cho hai bài toán
 
 **Kiểm chứng trên hệ thống chạy thật.** Định dạng chỉ mục lên **v3**; tệp v2 cũ bị
 từ chối kèm thông báo nói rõ phải làm gì (cơ chế đã có sẵn từ trước).
-
 ```
 /api/health                         200  {"status":"UP","indexedDocuments":2518}
 /api/search?q=công nghệ             200  965 kết quả, 22 ms
@@ -1086,7 +1101,7 @@ việc thật để làm:
 | Thời gian dựng chỉ mục đảo | **6,8 – 9,5 giây** (biến động giữa các lần chạy) |
 | Số term phân biệt | **136.768** (gồm cả bản không dấu) |
 | Độ dài tài liệu trung bình | **1.043,3 token** |
-| Kích thước `data/crawled-multi.json` | **62 MB** |
+| Kích thước `data/crawled-documents.json` | **62 MB** |
 
 #### Nén chỉ mục — ba mốc, tách bạch hai thay đổi
 
@@ -1112,7 +1127,7 @@ Chạy lại phép đo này:
 ```bash
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \
   -Dexec.mainClass=com.vnsearch.index.IndexPersistence \
-  -Dexec.args="data/crawled-multi.json"
+  -Dexec.args="data/crawled-documents.json"
 ```
 
 Ba kỹ thuật nén và lý do không dùng GZIP: xem `CompressedPostings` Javadoc và
@@ -1326,7 +1341,7 @@ có test nào đỏ — chỉ là kết quả tìm kiếm sai một cách khó h
 
 ## 5. Kiểm thử
 
-**521 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
+**528 test, tất cả xanh** (0 failure, 0 error, 0 skipped). Chạy lại:
 
 ```bash
 cd search-engine
@@ -1562,7 +1577,7 @@ corpus cố định.
 ```bash
 cd search-engine
 
-# 1. Bộ test đầy đủ (521 test)
+# 1. Bộ test đầy đủ (528 test)
 #    KHÔNG cần đặt ADMIN_API_KEY: pom.xml đã cấp một khoá giả cho surefire.
 #    Chỉ khi chạy ỨNG DỤNG mới cần đặt biến đó — xem README.md.
 ./mvnw.cmd test
@@ -1601,37 +1616,37 @@ python tools/build_dict.py \
 # 2b. Đo kích thước chỉ mục theo 3 định dạng (mục 4.2) + kiểm chứng nạp lại
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \
   -Dexec.mainClass=com.vnsearch.index.IndexPersistence \
-  -Dexec.args="data/crawled-multi.json"
+  -Dexec.args="data/crawled-documents.json"
 
 # 2c. Đo BỘ NHỚ của chỉ mục, tách theo thành phần (mục 3.6 và 4.2b).
 #     In cả "đỉnh lúc dựng chỉ mục" lẫn "trạng thái ổn định" — chỉ con số
 #     thứ hai mới dùng để so sánh giữa các phiên bản.
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd -q compile exec:java \
   -Dexec.mainClass=com.vnsearch.eval.MemoryBreakdown \
-  -Dexec.args="data/crawled-multi.json"
+  -Dexec.args="data/crawled-documents.json"
 
 # 3. Dựng lại corpus lớn (~3-5 phút, cần mạng)
 ./mvnw.cmd compile exec:java \
   -Dexec.mainClass=com.vnsearch.crawler.MultiDomainCrawlRunner \
-  -Dexec.args="5000 3 data/crawled-multi.json"
+  -Dexec.args="5000 3 data/crawled-documents.json"
 
 # 4. Đánh giá chất lượng + ablation trọng số → sinh docs/EVALUATION.md
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd compile exec:java \
   -Dexec.mainClass=com.vnsearch.eval.EvaluationRunner \
-  -Dexec.args="data/crawled-multi.json 200"
+  -Dexec.args="data/crawled-documents.json 200"
 
 # 5. Đối chứng với PostgreSQL GIN → sinh docs/GIN-BASELINE.md (cần Docker)
 docker compose up -d                              # từ thư mục gốc
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd compile exec:java \
   -Dexec.mainClass=com.vnsearch.storage.PostgresImportRunner \
-  -Dexec.args="data/crawled-multi.json"
+  -Dexec.args="data/crawled-documents.json"
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd compile exec:java \
   -Dexec.mainClass=com.vnsearch.storage.GinBaselineRunner -Dexec.args="200"
 
 # 6. Sinh pool để gán nhãn liên quan thủ công (cho nDCG/MAP)
 MAVEN_OPTS=-Xmx4g ./mvnw.cmd compile exec:java \
   -Dexec.mainClass=com.vnsearch.eval.QrelsEvaluationRunner \
-  -Dexec.args="pool data/crawled-multi.json"
+  -Dexec.args="pool data/crawled-documents.json"
 ```
 
 > **Lưu ý về tính tái lập.** Các con số **chất lượng** (MRR, Success@k) tái

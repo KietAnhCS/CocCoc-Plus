@@ -17,6 +17,38 @@ Muốn tính **nDCG** (phân biệt "liên quan" với "rất liên quan") và *
 
 $$5\,011 \text{ tài liệu} \times 30 \text{ truy vấn} = \mathbf{150\,330} \text{ lượt đánh giá}$$
 
+```mermaid
+flowchart TD
+    Q["30 truy vấn"]
+    ALL["chấm TOÀN BỘ<br/>150.330 lượt<br/>bất khả thi"]
+    S["nhiều hệ thống chấm điểm<br/>TF-IDF · BM25 · +PR · +title"]
+    TOPK["lấy top-k của MỖI hệ thống"]
+    POOL["HỢP các top-k<br/>≈ 900 lượt"]
+    HUMAN["người gán nhãn<br/>chỉ chấm phần này"]
+
+    Q --> ALL
+    Q --> S --> TOPK --> POOL --> HUMAN
+```
+
+```
+   Ý tưởng TREC pooling: tài liệu mà KHÔNG hệ thống nào
+   xếp vào top-k thì gần như chắc chắn không liên quan.
+
+   hệ thống A top-10 :  ▪▪▪▪▪▪▪▪▪▪
+   hệ thống B top-10 :    ▪▪▪▪▪▪▪▪▪▪
+   hệ thống C top-10 :  ▪▪▪  ▪▪▪▪▪▪▪
+                        └────┬─────┘
+                          HỢP LẠI  ≈ 30 tài liệu / truy vấn
+                             │
+   150.330 lượt  ──────────▶ ≈ 900 lượt        giảm 167 lần
+```
+
+**Cái giá phải trả, nói thẳng:** một tài liệu liên quan mà **mọi** hệ thống
+đều bỏ sót sẽ không bao giờ được gán nhãn, nên nó bị tính là "không liên
+quan". Điều này làm recall tuyệt đối **không đo được** — pooling chỉ cho phép
+**so sánh** các hệ thống với nhau, không cho phép nói "hệ thống này bắt được
+80% tài liệu đúng trong corpus".
+
 Với 10 giây mỗi lượt, đó là **417 giờ** — hơn 10 tuần làm việc toàn thời gian. Không ai làm nổi.
 
 **Cách TREC giải quyết:** chỉ gán nhãn **phần hợp của top-$k$ kết quả** do **nhiều hệ thống khác nhau** trả về.

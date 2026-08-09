@@ -26,6 +26,53 @@ Bài toán thú vị là làm sao mọi thao tác đều $O(1)$. Hai yêu cầu 
 
 Bảng băm không có thứ tự; danh sách có thứ tự nhưng tra chậm. **Lời giải: dùng cả hai cùng lúc.**
 
+```mermaid
+flowchart TD
+    subgraph HM["HashMap — tra theo khoá O(1)"]
+        K1["'bóng đá'"] --> N2
+        K2["'thời tiết'"] --> N3
+        K3["'hà nội'"] --> N4
+    end
+
+    subgraph DLL["Danh sách liên kết đôi — giữ THỨ TỰ dùng"]
+        direction LR
+        H["HEAD<br/>sentinel"] --> N2["nút<br/>bóng đá"] --> N3["nút<br/>thời tiết"] --> N4["nút<br/>hà nội"] --> T["TAIL<br/>sentinel"]
+    end
+```
+
+```
+   HashMap                     Danh sách liên kết đôi
+   ───────                     ──────────────────────
+   "bóng đá"   ──────┐
+   "thời tiết" ────┐ │
+   "hà nội"    ──┐ │ │
+                 │ │ │
+                 ▼ ▼ ▼
+   HEAD ⇄ [bóng đá] ⇄ [thời tiết] ⇄ [hà nội] ⇄ TAIL
+    ▲                                            ▲
+    │                                            │
+   MỚI DÙNG NHẤT                        LÂU NHẤT KHÔNG DÙNG
+                                        ← đuổi từ đây
+```
+
+**Vì sao phải là liên kết ĐÔI.** Khi `get("thời tiết")` trúng, nút đó phải nhảy
+lên đầu — tức là phải **gỡ nó ra khỏi vị trí giữa** trong $O(1)$. Gỡ một nút
+khỏi danh sách đơn cần biết nút **đứng trước**, mà tìm nút đứng trước là
+$O(n)$. Con trỏ `prev` chính là thứ mua lấy $O(1)$.
+
+```mermaid
+sequenceDiagram
+    participant C as Người gọi
+    participant M as HashMap
+    participant L as Danh sách
+
+    C->>M: get("thời tiết")
+    M-->>C: nút (O(1) nhờ băm)
+    Note over L: gỡ nút khỏi giữa<br/>cần prev ⇒ liên kết ĐÔI
+    C->>L: moveToHead(nút)
+    Note over L: HEAD ⇄ [thời tiết] ⇄ [bóng đá] ⇄ [hà nội] ⇄ TAIL
+```
+
 ---
 
 ## 1. Kiến trúc kết hợp

@@ -4,6 +4,61 @@
 
 ---
 
+## 0. Bản đồ: 11 mẫu, mỗi mẫu chữa một loại đau khác nhau
+
+```mermaid
+mindmap
+  root((11 mẫu<br/>trong VnSearch))
+    Đổi CÁCH LÀM lúc chạy
+      Strategy
+        RelevanceScorer
+        Tokenizer
+        DocumentStore
+      Factory
+        ScorerFactory
+    Thêm HÀNH VI mà không sửa lớp cũ
+      Decorator
+        PageRankBoostScorer
+        TitleBoostScorer
+      Chain of Responsibility
+        CandidateFilter
+    Diễn tả CẤU TRÚC LỒNG NHAU
+      Composite
+        cây QueryNode sealed
+      Iterator - Cursor
+        PostingCursor
+    Kiểm soát TRẠNG THÁI và KHỞI TẠO
+      State
+        CrawlStatus
+      Builder
+        CrawlConfig
+    Tách QUAN SÁT khỏi THỰC THI
+      Observer
+        CrawlListener
+    Tiết kiệm BỘ NHỚ
+      Flyweight
+        TermDictionary
+    Mẫu bổ trợ
+      Facade · Adapter · Template Method
+```
+
+```
+                       11 mẫu — nhóm theo LOẠI THAY ĐỔI mà nó làm rẻ đi
+   ┌──────────────────┬──────────────────┬──────────────────┬─────────────────┐
+   │ Đổi CÁCH LÀM     │ Thêm HÀNH VI     │ Cấu trúc LỒNG    │ Trạng thái &    │
+   │ lúc chạy         │ không sửa lớp cũ │ nhau             │ khởi tạo        │
+   ├──────────────────┼──────────────────┼──────────────────┼─────────────────┤
+   │ Strategy         │ Decorator        │ Composite        │ State           │
+   │ Factory          │ Chain of Resp.   │ Iterator/Cursor  │ Builder         │
+   └──────────────────┴──────────────────┴──────────────────┴─────────────────┘
+   ┌──────────────────┬──────────────────┐
+   │ Tách quan sát    │ Tiết kiệm RAM    │
+   │ Observer         │ Flyweight        │
+   └──────────────────┴──────────────────┘
+```
+
+---
+
 ## 1. Vì sao design pattern lại là chuyện của OOP
 
 Một design pattern **không phải là một tính năng**. Nó là một **cách sắp xếp lớp và interface** để một loại thay đổi cụ thể trở nên rẻ.

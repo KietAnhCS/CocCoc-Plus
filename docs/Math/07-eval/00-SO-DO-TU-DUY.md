@@ -36,7 +36,6 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
                             EVAL — 7 file
                                   │
@@ -82,7 +81,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 Muốn đo chất lượng → cần qrels (nhãn: tài liệu nào liên quan truy vấn nào)
                               ↓
@@ -132,7 +130,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 chọn ngẫu nhiên 1 tài liệu (Random hạt giống CỐ ĐỊNH → tái lập được)
         ↓
@@ -149,7 +146,6 @@ truy vấn + ground truth (chính là tài liệu ban đầu)
 </details>
 
 ### Cái bẫy `df = 1`
-
 ```
    Nếu chọn các term HIẾM NHẤT (df = 1):
         → phép giao posting list chỉ còn ĐÚNG MỘT tài liệu
@@ -181,7 +177,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 EvaluationHarness
    ├── dùng lại NGUYÊN SI  QueryParser
@@ -198,7 +193,6 @@ CẢNH BÁO: nếu dùng một đường đi RIÊNG cho phần đo, kết luận
 > Đây chính là lý do `CandidateResolver` phải được **tách thành lớp riêng** thay vì để private trong `SearchEngineFacade` — xem [sơ đồ tư duy tầng truy vấn §9](../04-query/00-SO-DO-TU-DUY.md).
 
 **Lợi ích phụ sau khi chuyển sang Decorator:** một "cấu hình xếp hạng" giờ chỉ là **một chuỗi scorer đã lắp ghép sẵn**, không còn ba trọng số rời rạc. Nhờ vậy `RelevanceScorer.name()` tự ghép thành nhãn mô tả đầy đủ cho bảng kết quả:
-
 ```
    BM25(k1=1.2,b=0.75) + PR x0.30 + title x0.10
 ```
@@ -216,7 +210,6 @@ CẢNH BÁO: nếu dùng một đường đi RIÊNG cho phần đo, kết luận
 | Độ đo nhị phân (P, R, MAP) coi mức ≥ 1 là liên quan | Chỉ **nDCG** mới dùng đến mức độ chi tiết (0 / 1 / 2) |
 
 ### Chọn độ đo nào cho tình huống nào
-
 ```
    Mỗi truy vấn có ĐÚNG MỘT đáp án đúng   →  MRR, Success@k
    Nhiều đáp án đúng, KHÔNG phân mức      →  Precision@k, Recall@k, MAP
@@ -230,7 +223,6 @@ Dùng sai độ đo là lỗi thường gặp: tính MAP trên known-item search
 ## 6. `SignificanceTest` — thứ phân biệt báo cáo khoa học với bảng số
 
 ### 6.1 Vấn đề nó giải
-
 ```
    Bảng ablation nói: cấu hình nào có MRR CAO HƠN.
 
@@ -258,7 +250,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 Cả hai cấu hình chạy trên CÙNG tập truy vấn
         ↓
@@ -305,7 +296,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 ĐƯỜNG A — TỰ ĐỘNG (chạy được ngay)
    EvaluationRunner  →  sinh truy vấn known-item  →  chạy 11 cấu hình
@@ -327,15 +317,15 @@ cd search-engine
 
 # Đường A — đánh giá tự động, 200 truy vấn known-item
 ./mvnw exec:java -Dexec.mainClass=com.vnsearch.eval.EvaluationRunner \
-     -Dexec.args="data/crawled-multi.json 200"
+     -Dexec.args="data/crawled-documents.json 200"
 
 # Đường B bước 1 — sinh pool cần gán nhãn
 ./mvnw compile exec:java -Dexec.mainClass=com.vnsearch.eval.QrelsEvaluationRunner \
-     -Dexec.args="pool data/crawled-multi.json"
+     -Dexec.args="pool data/crawled-documents.json"
 
 # Đường B bước 4 — sau khi đã điền nhãn vào data/eval/qrels.json
 ./mvnw compile exec:java -Dexec.mainClass=com.vnsearch.eval.QrelsEvaluationRunner \
-     -Dexec.args="eval data/crawled-multi.json"
+     -Dexec.args="eval data/crawled-documents.json"
 ```
 
 > `docs/EVALUATION.md` được **sinh tự động** — đừng sửa tay. Muốn đổi nội dung thì sửa phần sinh báo cáo trong `EvaluationRunner.java` rồi chạy lại.

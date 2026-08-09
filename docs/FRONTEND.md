@@ -51,7 +51,7 @@ flowchart LR
 
     M --> M1["index.ts<br/>tạo cửa sổ frameless"]
     M --> M2["tabManager.ts<br/>vòng đời tab, WebContentsView"]
-    M --> M3["ipcHandlers.ts<br/>12 kênh browser:*"]
+    M --> M3["ipcHandler.ts<br/>10 kênh browser:*"]
     M --> M4["windowControls.ts<br/>kéo, phóng to, 3 nút"]
 
     P --> P1["index.ts<br/>contextBridge: window.browser / window.win"]
@@ -74,14 +74,13 @@ flowchart LR
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 TRÌNH DUYỆT VnSearch (browser-app/, 42 file)
 │
 ├── src/main/ — TIẾN TRÌNH CHÍNH (Node.js, có toàn quyền hệ thống)
 │     ├── index.ts ............. tạo BrowserWindow 1280x800, frameless
 │     ├── tabManager.ts ........ TRÁI TIM: vòng đời tab, bố trí WebContentsView
-│     ├── ipcHandlers.ts ....... đăng ký 12 kênh browser:*
+│     ├── ipcHandler.ts ....... đăng ký 10 kênh browser:*
 │     └── windowControls.ts .... kéo cửa sổ, phóng to thủ công, 3 nút
 │
 ├── src/preload/ — CẦU NỐI (chạy trước renderer, bị cô lập ngữ cảnh)
@@ -118,7 +117,6 @@ Một trình duyệt có **hai loại nội dung hoàn toàn khác nhau** cùng 
 2. **Trang web người dùng mở** — `vnexpress.net`, `tuoitre.vn`… Đây là *mã của người lạ*, không được tin.
 
 Electron tách hai thứ đó thành **hai `WebContentsView` khác nhau**, chồng lên nhau trong một cửa sổ:
-
 ```
 ┌──────────────────────────────────────────────────────────┐
 │  chromeView  (React app — vỏ trình duyệt, phủ KÍN cửa sổ) │
@@ -163,7 +161,7 @@ flowchart TB
     subgraph MAIN["TIẾN TRÌNH CHÍNH (Node.js đầy đủ quyền)"]
         TM["TabManager<br/>tạo/đóng/chuyển tab<br/>bố trí view"]
         WC["windowControls<br/>kéo, phóng to, 3 nút"]
-        IH["ipcHandlers<br/>12 kênh browser:*"]
+        IH["ipcHandler<br/>10 kênh browser:*"]
     end
 
     subgraph PRE["PRELOAD (cầu nối, contextIsolation)"]
@@ -183,7 +181,7 @@ flowchart TB
     REN -->|"invoke('browser:newTab')"| PRE
     PRE -->|"ipcRenderer.invoke"| IH
     IH --> TM
-    TM -->|"send('browser:tabUpdate')"| PRE
+    TM -->|"send('browser:tabs')"| PRE
     PRE -->|"callback"| REN
     TM -->|"tạo / gỡ / đặt bounds"| EXT
     EXT -.->|"before-input-event<br/>chuyển tiếp phím tắt"| TM
@@ -191,7 +189,6 @@ flowchart TB
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 RENDERER (React)                PRELOAD              MAIN (Node.js)
 ─────────────────               ────────             ──────────────
@@ -201,7 +198,7 @@ useTabStore.newTab()
                             └─► ipcMain.handle ──► TabManager.createTab()
                                                         │
                                                         ├─► tạo WebContentsView
-                                                        └─► send('browser:tabUpdate')
+                                                        └─► send('browser:tabs')
                                           ◄─────────────┘
               ◄─── callback ───┘
    ◄─── applyTabUpdate() cập nhật store ───┘
@@ -257,7 +254,6 @@ flowchart TB
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
                 Trục Z (cái nào che cái nào)
    TRÊN  ┌─────────────────────────────────┐
@@ -295,7 +291,6 @@ $$\text{CHROME\_HEIGHT} = \underbrace{40}_{\text{TabBar}} + \underbrace{48}_{\te
 `tabView` nằm **trên** `chromeView`. Nên nếu `SidePanel` chỉ dùng CSS `position: absolute` phủ lên, nó sẽ bị trang ngoài che **hoàn toàn**.
 
 Giải pháp: bảng **đẩy trang co lại**.
-
 ```
 App.tsx:46  useEffect → window.browser.setPanelWidth(open ? 340 : 0)
                             │
@@ -313,7 +308,6 @@ Menu trình duyệt đổ dài xuống quá 122px. Phần vượt ra sẽ bị `
 Giải pháp: trong lúc còn lớp phủ nào mở, **gỡ tạm** `tabView` khỏi cây view (`removeChildView`) — `webContents` vẫn sống, trang **không tải lại**, chỉ tạm ẩn — rồi gắn lại khi đóng.
 
 Vì có thể mở **chồng nhiều lớp phủ**, `overlayStore` dùng **số đếm** chứ không phải cờ đúng/sai:
-
 ```
 Popover mount   → acquire()  count 0→1 → setOverlay(true)  → gỡ tabView
 Popover con     → acquire()  count 1→2 → (không đổi)
@@ -340,83 +334,118 @@ flowchart LR
 ---
 
 ## 6. Bản đồ thư mục — 42 file
-
 ```
 browser-app/
 ├── electron.vite.config.ts     3 cấu hình build: main / preload / renderer
-├── tailwind.config.js          màu ngữ nghĩa, font, shadow, animation
-├── postcss.config.js
+│                               (preload đặt externalizeDeps:false — xem §6.1)
 ├── tsconfig.json               gốc, chỉ tham chiếu 2 file dưới
 ├── tsconfig.node.json          cho main + preload (môi trường Node)
 ├── tsconfig.web.json           cho renderer (môi trường trình duyệt)
 └── src/
     ├── main/
-    │   ├── index.ts            53  tạo cửa sổ 1280x800 frameless
-    │   ├── tabManager.ts      393  ★ trái tim: tab, view, bố cục, phím tắt
-    │   ├── ipcHandlers.ts      32  đăng ký 12 kênh
-    │   └── windowControls.ts  163  kéo cửa sổ, phóng to thủ công
+    │   ├── index.ts            46  tạo cửa sổ 1280x800 frameless
+    │   ├── tabManager.ts      333  ★ trái tim: tab, view, bố cục, phím tắt
+    │   ├── ipcHandler.ts       38  đăng ký 10 kênh browser:*
+    │   ├── urlPolicy.ts       130  danh sách CHO PHÉP scheme, chặn file://
+    │   └── windowControls.ts   81  kéo cửa sổ, phóng to thủ công
     ├── preload/
-    │   ├── index.ts            67  contextBridge → window.browser, window.win
-    │   └── index.d.ts          37  kiểu của hợp đồng
+    │   ├── index.ts            63  contextBridge → window.browser, window.win
+    │   └── index.d.ts          12  kiểu của hợp đồng
     └── renderer/
-        ├── index.html          15  CSP nằm ở đây
+        ├── index.html          41  CSP nằm ở đây
         └── src/
-            ├── main.tsx        10  ReactDOM.createRoot
-            ├── App.tsx         76  ★ bố cục tổng + 2 useEffect đồng bộ xuống main
-            ├── index.css      150  biến màu, .icon-btn, .menu-row, .skeleton
-            ├── store/          786  ── 9 store, xem §9
-            ├── components/   3.348  ── 13 component, xem §10
-            └── lib/            722  ── 9 tiện ích, xem §11
+            ├── main.tsx        15  ReactDOM.createRoot
+            ├── App.tsx         57  ★ bố cục tổng + 2 useEffect đồng bộ xuống main
+            ├── index.css      170  biến màu, .icon-btn, .menu-row, .skeleton
+            ├── store/          669  ── 9 store, xem §9
+            ├── components/   4.340  ── 15 component, xem §10
+            └── lib/            749  ── 9 tiện ích, xem §11
 ```
+
+> **Không có `tailwind.config.js` và `postcss.config.js`.** Dự án dùng
+> **Tailwind v4**, cấu hình bằng plugin `@tailwindcss/vite` khai trong
+> `electron.vite.config.ts` cộng với directive `@theme` ngay trong
+> `index.css` — hai tệp cấu hình đời v3 không còn tồn tại. Đi tìm chúng để
+> sửa màu là đi nhầm chỗ; màu nằm ở `index.css`.
 
 ---
 
-## 7. Hợp đồng IPC — 16 kênh
+## 7. Hợp đồng IPC — 20 kênh
 
-Toàn bộ giao tiếp giữa hai thế giới đi qua đúng **16 kênh**, khai báo ở ba nơi phải khớp nhau:
-
+Toàn bộ giao tiếp giữa hai thế giới đi qua đúng **20 kênh**, khai báo ở ba nơi phải khớp nhau:
 ```
 preload/index.ts (gọi)  ←→  preload/index.d.ts (kiểu)  ←→  main/*.ts (xử lý)
 ```
 
-### 7.1. Renderer → Main (yêu cầu)
+**Hai tiền tố, hai tệp đăng ký, đừng nhầm:**
+```
+browser:*   →  đăng ký ở  main/ipcHandler.ts       (10 kênh)  việc của TAB
+win:*       →  đăng ký ở  main/windowControls.ts   ( 7 kênh)  việc của CỬA SỔ
+                          + 3 kênh main → renderer            = 20
+```
+
+Tiền tố là `win:`, **không phải** `window:` — gõ `window:minimize` thì không ai
+`handle`, và lời gọi treo im lặng chứ không báo lỗi.
+
+### 7.1. Renderer → Main · `invoke` (có giá trị trả về)
 
 | Kênh | Tham số | Trả về | Xử lý ở | Việc |
 |---|---|---|---|---|
-| `browser:listTabs` | — | `TabState[]` | `tabManager.listTabs` | Kéo danh sách tab hiện tại |
+| `browser:listTabs` | — | `TabsSnapshot` | `tabManager.snapshot()` | Kéo danh sách tab hiện tại |
 | `browser:newTab` | `url?` | `string` (id) | `createTab` | Mở tab mới |
 | `browser:closeTab` | `id` | — | `closeTab` | Đóng tab |
 | `browser:switchTab` | `id` | — | `switchTab` | Chuyển tab |
 | `browser:navigate` | `id, url` | — | `navigate` | Đi tới URL (hoặc về `HOME_URL`) |
-| `browser:goBack` | `id` | — | `goBack` | Lùi *lịch sử native* (hiện không dùng — xem §9.2) |
-| `browser:goForward` | `id` | — | `goForward` | Tiến *lịch sử native* |
 | `browser:reload` | `id` | — | `reload` | Tải lại |
-| `browser:setPanelWidth` | `px` | — | `setPanelWidth` | Bảng bên mở/đóng → trang co lại |
-| `browser:setOverlay` | `active` | — | `setOverlay` | Lớp phủ mở → tạm gỡ trang xuống |
-| `browser:setZoom` | `id, factor` | — | `setZoom` | Thu phóng trang ngoài |
 | `browser:print` | `id` | — | `print` | Mở hộp thoại in |
-| `window:minimize` | — | — | `windowControls` | Thu nhỏ |
-| `window:toggleMaximize` | — | `boolean` | `Maximizer.toggle` | Phóng to/khôi phục |
-| `window:close` | — | — | | Đóng cửa sổ |
-| `window:isMaximized` | — | `boolean` | | Trạng thái ban đầu của nút |
-| `window:toggleFullScreen` | — | `boolean` | | F11 |
-| `window:dragStart` / `dragEnd` | — | — | `registerManualDrag` | Kéo cửa sổ (dùng `send`, không phải `invoke`) |
+| `browser:setZoom` | `id, factor` | — | `setZoom` | Thu phóng trang ngoài |
+| `win:isMaximized` | — | `boolean` | `windowControls` | Trạng thái ban đầu của nút |
+| `win:toggleMaximize` | — | `boolean` | `windowControls` | Phóng to/khôi phục |
 
-### 7.2. Main → Renderer (thông báo)
+### 7.2. Renderer → Main · `send` (một chiều, không chờ)
+
+| Kênh | Tham số | Việc |
+|---|---|---|
+| `browser:setPanelWidth` | `px` | Bảng bên mở/đóng → trang co lại |
+| `browser:setOverlay` | `active` | Lớp phủ mở → tạm gỡ trang xuống |
+| `win:minimize` | — | Thu nhỏ |
+| `win:close` | — | Đóng cửa sổ |
+| `win:toggleFullScreen` | — | F11 |
+| `win:dragStart` / `win:dragEnd` | — | Kéo cửa sổ bằng tay, nhịp 16 ms (`DRAG_TICK_MS`) |
+
+### 7.3. Main → Renderer (thông báo)
 
 | Kênh | Payload | Bắn khi | Nghe ở |
 |---|---|---|---|
-| `browser:tabUpdate` | `TabState` | Tab tạo/chuyển/điều hướng/đổi tiêu đề/bắt đầu-kết thúc tải | `tabStore.init` |
-| `browser:shortcut` | `string` | Phím tắt bấm trong trang ngoài | `useBrowserShortcuts` |
-| `window:maximizeChanged` | `boolean` | Cửa sổ phóng to/khôi phục (kể cả bằng Win+↑) | `TabBar.WindowControls` |
+| `browser:tabs` | `TabsSnapshot` (**cả danh sách**, không phải một tab) | Tab tạo/đóng/chuyển/điều hướng/đổi tiêu đề/bắt đầu-kết thúc tải | `tabStore.init` qua `onTabsChanged` |
+| `browser:shortcut` | `string` (tên lệnh) | Phím tắt bấm **trong trang ngoài** | `useBrowserShortcuts` |
+| `win:maximizeChanged` | `boolean` | Cửa sổ phóng to/khôi phục (kể cả bằng Win+↑) | `TabBar.WindowControls` |
 
-### 7.3. Một chi tiết tinh tế: vì sao cần cả `listTabs` (kéo) lẫn `tabUpdate` (đẩy)
+> **Vì sao `browser:tabs` gửi cả danh sách chứ không gửi một tab.** Gửi từng
+> `TabState` lẻ buộc renderer phải tự gộp vào mảng đang có — và ngay lập tức
+> sinh câu hỏi "tab bị xoá thì báo bằng gì". `TabManager.emit()` chọn cách
+> đơn giản hơn: mỗi lần có bất kỳ thay đổi nào, gửi **ảnh chụp toàn bộ**
+> (`tabManager.ts:327`). Renderer chỉ việc thay thế trạng thái, không có phép
+> gộp nào để làm sai.
 
-Tab đầu tiên được `TabManager` tạo **trong constructor** — tức là **trước khi** React kịp mount và đăng ký `ipcRenderer.on('browser:tabUpdate')`. Mà `webContents.send()` là *gửi-và-quên*, không có hàng đợi.
+### 7.4. Một chi tiết tinh tế: vì sao cần cả `listTabs` (kéo) lẫn `browser:tabs` (đẩy)
+
+Tab đầu tiên được `TabManager` tạo **trong constructor** — tức là **trước khi** React kịp mount và đăng ký `onTabsChanged`. Mà `webContents.send()` là *gửi-và-quên*, không có hàng đợi.
 
 → Sự kiện đẩy đầu tiên **bị mất**. Nếu chỉ dựa vào đẩy, ứng dụng khởi động với thanh tab trống trơn.
 
-Vì vậy `tabStore.init()` (`tabStore.ts:72`) làm **cả hai**: đăng ký nghe đẩy, rồi **chủ động kéo** `listTabs()` một lần.
+Vì vậy `tabStore.init()` làm **cả hai**: đăng ký nghe đẩy, rồi **chủ động kéo** `listTabs()` một lần.
+
+### 7.5. Không có `browser:goBack` / `browser:goForward`
+
+Lịch sử **không** đi qua IPC, và đó là lựa chọn có chủ ý. Lịch sử do renderer
+tự giữ bằng **hai ngăn xếp** trong `historyStore.ts` thay vì gọi
+`webContents.goBack()` của Electron — hai lý do, ghi ở §9.2: để trạng thái hai
+bên không lệch nhau, và để phần cấu trúc dữ liệu tự cài được thể hiện. Xem
+[`Math/08-frontend/Stack.md`](Math/08-frontend/Stack.md).
+
+Hệ quả thực tế: lùi/tiến chỉ là một lời gọi `browser:navigate` bình thường,
+nên nếu bạn đi tìm kênh `goBack` để sửa nút Lùi thì không có kênh nào cả.
 
 ---
 
@@ -444,7 +473,7 @@ sequenceDiagram
     AB->>TS: navigate(HOME_URL)
     TS->>M: browser:navigate(id, HOME_URL)
     M->>M: gỡ + đóng tabView, entry.view = null
-    M-->>TS: browser:tabUpdate
+    M-->>TS: browser:tabs
     Note over SR: App.tsx thấy url=HOME_URL và query≠null
     SR->>BE: GET /api/search · q, page=1, size=10
     BE-->>SR: {results, totalResults, timeTakenMs, droppedTerms}
@@ -461,7 +490,6 @@ sequenceDiagram
 | `site:vnexpress.net kinh tế` | ❌ có khoảng trắng | `setQuery` → backend hiểu cú pháp `site:` |
 
 ### 8.2. Mở một URL thật
-
 ```
 navigate(id, "https://vnexpress.net")
   │
@@ -469,7 +497,7 @@ navigate(id, "https://vnexpress.net")
   │      ├── new WebContentsView({ sandbox: true })
   │      ├── gắn 5 listener: did-start-loading, did-stop-loading,
   │      │                   page-title-updated, did-navigate, did-navigate-in-page
-  │      │      → mỗi cái gọi pushUpdate() → emit('browser:tabUpdate')
+  │      │      → mỗi cái gọi pushUpdate() → emit('browser:tabs')
   │      ├── forwardShortcuts(wc)
   │      └── setWindowOpenHandler → target=_blank thành TAB MỚI, không phải cửa sổ mới
   │
@@ -492,14 +520,13 @@ flowchart LR
     P1 --> P2["forwardStack.push(currentUrl)"]
     P2 --> P3["suppressNextRecord = true"]
     P3 --> NAV["window.browser.navigate(tabId, prevUrl)"]
-    NAV --> UPD["main bắn tabUpdate"]
+    NAV --> UPD["main bắn browser:tabs"]
     UPD --> REC["recordNavigation()<br/>thấy cờ → CHỈ cập nhật currentUrl<br/>KHÔNG push lại"]
 ```
 
 Cờ `suppressNextRecord` là chỗ tinh tế nhất: nếu không có nó, chính lượt điều hướng do `goBack` gây ra sẽ quay lại push vào `backStack` → nút Back thành vòng lặp vô tận giữa hai trang. Phân tích đầy đủ ở [Math/08-frontend/Stack.md](Math/08-frontend/Stack.md).
 
 ### 8.4. Mở bảng bên phải
-
 ```
 SideRail bấm ô  →  sidePanelStore.openApp(id)  →  open ≠ null
                                                       │
@@ -516,7 +543,6 @@ SideRail bấm ô  →  sidePanelStore.openApp(id)  →  open ≠ null
 Cửa sổ chạy `frame: false` để thanh tab ngang hàng với ba nút — đúng cách Chrome/Edge/Cốc Cốc bố trí. Đổi lại phải tự làm phần việc của khung hệ điều hành.
 
 **Vì sao không dùng `-webkit-app-region: drag`?** Vùng kéo bằng CSS chỉ được hệ thống hiểu ở `webContents` **gốc** của `BrowserWindow`. Mà vỏ ở đây nằm trong một `WebContentsView` **con**. Nên phần kéo làm thủ công:
-
 ```
 mousedown  →  chờ con trỏ đi quá 4px  →  win.dragStart()
                      │                          │
@@ -540,7 +566,7 @@ Tương tự, lớp `Maximizer` **tự đặt bounds** bằng `screen.getDisplay
 flowchart TD
     TS["tabStore<br/>141 dòng · danh sách tab, tab đang mở"]
     HS["historyStore<br/>165 dòng · 2 Stack/tab"]
-    SV["searchViewStore<br/>18 dòng · truy vấn đang xem"]
+    SV["searchViewStore<br/>42 dòng · truy vấn đang xem"]
     BM["bookmarkStore<br/>158 dòng · cây dấu trang · persist"]
     SP["sidePanelStore<br/>132 dòng · bảng + cột phải · persist"]
     SC["shortcutStore<br/>51 dòng · lối tắt trang chủ · persist"]
@@ -561,7 +587,6 @@ flowchart TD
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
-
 ```
 tabStore ──► historyStore ──► lib/Stack (DSA tự cài)
     │              
@@ -585,7 +610,7 @@ overlayStore, themeStore: độc lập, không phụ thuộc store nào
 |---|---|---|---|
 | **tabStore** | `tabs[]`, `activeTabId` | ❌ | Cổng duy nhất ra `window.browser.*`. Component **không bao giờ** gọi IPC trực tiếp (trừ 3 ngoại lệ ở §15.6) |
 | **historyStore** | `{backStack, forwardStack, currentUrl, suppressNextRecord}` **cho mỗi tab** | ❌ | Dùng `Stack` tự cài. **Cố ý không dùng** `wc.goBack()` của Electron — để hai bên không lệch nhau, và để thể hiện DSA |
-| **searchViewStore** | `query: string \| null` | ❌ | 18 dòng. Cầu nối giữa `AddressBar` và `SearchResultList` |
+| **searchViewStore** | `query: string \| null` | ❌ | 42 dòng. Cầu nối giữa `AddressBar` và `SearchResultList` |
 | **bookmarkStore** | cây `BookmarkNode` (thư mục lồng nhau) | ✅ `vnsearch-bookmarks` | Trie **dựng lại mỗi lần tìm** — không serialize được JSON để persist. Chấp nhận vì số bookmark rất nhỏ |
 | **sidePanelStore** | `open`, `activeItemId`, `pinned`, `items[]` | ✅ `vnsearch-side-panel` (chỉ `items` + `pinned`, nhờ `partialize`) | Bảng đang mở là chuyện của phiên, không nên nhớ qua lần sau |
 | **shortcutStore** | `shortcuts[]` trang chủ | ✅ `vnsearch-shortcuts` | Khởi tạo bằng 6 trang seed của crawler |
@@ -613,7 +638,6 @@ tabStore.newTab()
 ## 10. Tầng component — 13 component
 
 ### 10.1. Cây
-
 ```
 App.tsx
 ├── TabBar                    40px — tab + 3 nút cửa sổ + vùng kéo
@@ -645,21 +669,27 @@ App.tsx
 
 ### 10.2. Bảng chi tiết
 
+**15 component, 4.340 dòng.** Sắp theo kích thước để thấy ngay trọng tâm nằm ở đâu:
+
 | Component | Dòng | Điểm đáng chú ý về kỹ thuật |
 |---|---:|---|
-| `App.tsx` | 76 | Hai `useEffect` đồng bộ `panelWidth` và `overlayCount` xuống main. Quyết định vẽ gì bằng 2 điều kiện |
-| `TabBar` | 245 | `useWindowDrag` với ngưỡng 4px; nút đóng chỉ hiện khi hover; **mờ dần** thay cho `…` |
-| `Toolbar` | 185 | Chỉ xếp chỗ; mỗi popover là một `useState` cục bộ |
+| `ImageResultGrid` | **959** | ★ **Component lớn nhất ứng dụng.** Bố cục hàng-cân-tỉ-lệ tự cài thay cho `columns-4` của CSS (multi-column rót đầy cột 1 rồi mới sang cột 2 → **thứ tự đọc sai**). Cuộn vô hạn bằng `IntersectionObserver` trên một ô canh vô hình, **không** nghe sự kiện `scroll`. `onError` hạ ô ảnh xuống khi máy chủ gốc trả 403 chống hotlink |
+| `NewTabPage` | 674 | Toàn bộ "ảnh" là SVG/gradient vẽ tại chỗ (hệ quả CSP) |
+| `icons.tsx` | 473 | 48 icon SVG nội tuyến, `currentColor` |
+| `SearchResultList` | 374 | Skeleton, phân trang kiểu Google, **chế độ debug hiện điểm BM25/PageRank** — rất hữu ích khi demo |
+| `BrowserMenu` | 334 | Mục chưa làm được để **tắt kèm chú thích** thay vì bấm vào không có gì xảy ra |
+| `SidePanel` | 321 | 5 thân nội dung; `BookmarksBody` lọc bằng **BookmarkTrie** chứ không `Array.filter` |
+| `BookmarksBar` | 245 | **Hàng bản sao vô hình để đo**: đo trên bản sao chứ không đo hàng đang hiện, vì cắt bớt mục sẽ làm phép đo lần sau sai và hai bên giằng nhau vô tận |
+| `TabBar` | 235 | `useWindowDrag` với ngưỡng 4px; nút đóng chỉ hiện khi hover; **mờ dần** thay cho `…` |
 | `AddressBar` | 202 | `looksLikeUrl`, debounce 200ms, điều hướng dropdown bằng mũi tên, ★ đổi màu tức thì |
-| `AutocompleteDropdown` | 76 | **`onMouseDown` chứ không `onClick`** — để chạy *trước* `blur` của input; phần gõ rồi để nhạt, phần gợi ý thêm in đậm |
-| `BookmarksBar` | 255 | **Hàng bản sao vô hình để đo**: đo trên bản sao chứ không đo hàng đang hiện, vì cắt bớt mục sẽ làm phép đo lần sau sai và hai bên giằng nhau vô tận |
-| `NewTabPage` | 587 | Toàn bộ "ảnh" là SVG/gradient vẽ tại chỗ (hệ quả CSP) |
-| `SearchResultList` | 283 | Skeleton, phân trang kiểu Google, **chế độ debug hiện điểm BM25/PageRank** — rất hữu ích khi demo |
-| `SidePanel` | 354 | 5 thân nội dung; `BookmarksBody` lọc bằng **BookmarkTrie** chứ không `Array.filter` |
-| `SideRail` | 164 | Ô lạ trong `localStorage` (danh mục đã đổi) bị bỏ qua thay vì làm vỡ giao diện |
-| `BrowserMenu` | 350 | Mục chưa làm được để **tắt kèm chú thích** thay vì bấm vào không có gì xảy ra |
-| `Popover` | 79 | `acquire`/`release` overlay; lớp trong suốt bắt cú bấm ra ngoài; Escape đóng |
-| `icons.tsx` | 511 | 48 icon SVG nội tuyến, `currentColor` |
+| `Toolbar` | 156 | Chỉ xếp chỗ; mỗi popover là một `useState` cục bộ |
+| `SideRail` | 150 | Ô lạ trong `localStorage` (danh mục đã đổi) bị bỏ qua thay vì làm vỡ giao diện |
+| `Popover` | 68 | `acquire`/`release` overlay; lớp trong suốt bắt cú bấm ra ngoài; Escape đóng |
+| `AutocompleteDropdown` | 65 | **`onMouseDown` chứ không `onClick`** — để chạy *trước* `blur` của input; phần gõ rồi để nhạt, phần gợi ý thêm in đậm |
+| `NavigationButtons` | 58 | Nút Lùi/Tiến. Trạng thái mờ lấy từ `canGoBack()`/`canGoForward()` của `tabStore` — **không** hỏi Electron, vì lịch sử do renderer tự giữ (§7.5) |
+| `AppTile` | 26 | Ô logo trong lưới ứng dụng; nhận `size` để dùng lại ở cả trang chủ lẫn bảng bên |
+
+*(`App.tsx` 57 dòng nằm ở §6 chứ không phải bảng này — nó là bố cục gốc, không phải component lá.)*
 
 ### 10.3. Ba mẹo giao diện đáng học trong repo
 
@@ -687,15 +717,21 @@ Nếu đo trực tiếp hàng đang hiện: cắt bớt → hàng ngắn lại �
 
 | File | Dòng | Việc |
 |---|---:|---|
-| `searchApi.ts` | 51 | `search()`, `suggest()` → `http://localhost:8080`. Kiểu DTO khớp `SearchResponse.java` |
-| `newsApi.ts` | 70 | Khu "Tin nóng". Backend **không có** endpoint bảng tin → chạy 6 truy vấn theo chuyên mục qua `/api/search` rồi **xen kẽ** kết quả. `Promise.allSettled` để một chuyên mục hỏng không làm trắng cả trang |
-| `site.ts` | 53 | `hostOf`, `prettyUrl`, và **favicon giả**: băm FNV-1a 32 bit tên miền → hue → gradient ổn định |
-| `seedSites.ts` | 21 | 6 báo seed của crawler. **Một nguồn cho ba chỗ dùng**: dấu trang, lối tắt, thanh dấu trang |
-| `apps.tsx` | 290 | 10 ứng dụng cột bên phải, logo SVG nội tuyến (phỏng theo, không phải logo chính thức) |
-| `account.ts` | 13 | Tài khoản tượng trưng — tách một chỗ để avatar và menu không hiện hai tên khác nhau |
-| **`Stack.ts`** | 42 | **DSA tự cài** — LIFO cho back/forward. Xem [Stack.md](Math/08-frontend/Stack.md) |
-| **`BookmarkTrie.ts`** | 68 | **DSA tự cài** — cây tiền tố tìm dấu trang. Bản TypeScript song song với `Trie.java`. Xem [BookmarkTrie.md](Math/08-frontend/BookmarkTrie.md) |
-| `useBrowserShortcuts.ts` | 114 | Hook gộp hai nguồn sự kiện phím thành **một** chỗ thực thi |
+| `searchApi.ts` | 175 | Cổng ra backend. **4 export**: `getJson<T>()` (bọc `fetch`, có `AbortSignal.timeout`), `search()`, `searchImages()`, `suggest()`. Kèm 4 DTO: `SearchResultDto`, `SearchResponseDto`, `ImageResultDto`, `ImageResponseDto` — khớp `SearchResponse.java` và `ImageSearchController` |
+| `apps.tsx` | 245 | 10 ứng dụng cột bên phải, logo SVG nội tuyến (phỏng theo, không phải logo chính thức) |
+| `newsApi.ts` | 90 | Khu "Tin nóng". Gọi **`/api/feed`** — một vòng mạng mỗi lô, chỉ lấy bài có ảnh, phân trang được. Truyền `seed` để lô sau nối đúng vào lô trước |
+| `useBrowserShortcuts.ts` | 96 | Hook gộp hai nguồn sự kiện phím thành **một** chỗ thực thi |
+| **`BookmarkTrie.ts`** | 55 | **DSA tự cài** — cây tiền tố tìm dấu trang. Bản TypeScript song song với `Trie.java`. Xem [BookmarkTrie.md](Math/08-frontend/BookmarkTrie.md) |
+| `site.ts` | 38 | `hostOf`, `prettyUrl`, và **favicon giả**: băm FNV-1a 32 bit tên miền → hue → gradient ổn định |
+| **`Stack.ts`** | 31 | **DSA tự cài** — LIFO cho back/forward. Xem [Stack.md](Math/08-frontend/Stack.md) |
+| `seedSites.ts` | 13 | 6 báo seed của crawler. **Một nguồn cho ba chỗ dùng**: dấu trang, lối tắt, thanh dấu trang |
+| `account.ts` | 6 | Tài khoản tượng trưng — tách một chỗ để avatar và menu không hiện hai tên khác nhau |
+
+> **`newsApi.ts` từng không gọi `/api/feed`.** Bản đầu chạy 6 truy vấn
+> `/api/search` theo chuyên mục rồi xen kẽ kết quả, vì backend chưa có endpoint
+> bảng tin. Cách đó tốn 6 vòng mạng, không đảm bảo bài nào có ảnh, và không
+> phân trang được. `FeedController` ra đời để giải cả ba — nếu bạn đọc mã và
+> thấy `Promise.allSettled` thì đó là dấu vết đã bị gỡ, không còn nữa.
 
 ### Vì sao "favicon giả" mà vẫn nhận ra được nguồn tin
 
@@ -718,7 +754,6 @@ Hàm băm **tất định** → `vnexpress.net` luôn ra đúng một màu, ở 
 ## 12. Hệ thống giao diện
 
 ### 12.1. Ba lớp màu
-
 ```
 index.css (:root và .dark)          tailwind.config.js              component
 ─────────────────────────           ──────────────────              ─────────
@@ -772,7 +807,7 @@ findInPage(id: string, text: string): void {
   this.tabs.get(id)?.view?.webContents.findInPage(text)
 }
 
-// ── 2. main/ipcHandlers.ts — mở kênh
+// ── 2. main/ipcHandler.ts — mở kênh
 ipcMain.handle('browser:findInPage', (_e, id: string, text: string) =>
   tabManager.findInPage(id, text)
 )
@@ -1067,7 +1102,6 @@ npm run build:win        # electron-vite build && electron-builder --win
 Phần này liệt kê thẳng những chỗ chưa đạt chuẩn một sản phẩm có đội nhiều người, có CI, có bàn giao. Mỗi mục ghi rõ **trạng thái hiện tại** và, nếu chưa đóng, **cách đóng**.
 
 ### 15.0. Trạng thái tổng hợp
-
 ```
    ĐÃ ĐÓNG                              CÒN LẠI
    ─────────────────────────────        ──────────────────────────────
@@ -1113,10 +1147,10 @@ Ba việc đáng làm tiếp, theo thứ tự: **(1) `src/shared/` cho hằng s�
 ```ts
 // preload/index.ts:11 — kiểu bị vứt bỏ
 listTabs: (): Promise<unknown[]> => ipcRenderer.invoke('browser:listTabs'),
-onTabUpdate: (callback: (payload: unknown) => void): void => { /* ... */ }
+onTabsChanged: (callback: (payload: unknown) => void): void => { /* ... */ }
 
 // store/tabStore.ts:70 — rồi ép kiểu lại bằng niềm tin
-window.browser.onTabUpdate((payload) => applyTabUpdate(payload as TabUpdatePayload))
+window.browser.onTabsChanged((payload) => applyTabUpdate(payload as TabUpdatePayload))
 ```
 
 `as` ở đây là một lời hứa với trình biên dịch mà **không ai kiểm chứng**. Main đổi hình dạng `TabState` mà renderer không đổi theo → biên dịch vẫn xanh, chạy mới vỡ, và vỡ ở chỗ khó lần ra.
@@ -1156,9 +1190,9 @@ export function isTabState(v: unknown): v is TabState {
 listTabs: (): Promise<TabState[]> => ipcRenderer.invoke('browser:listTabs'),
 
 // ── store/tabStore.ts — chặn dữ liệu hỏng ngay tại cửa
-window.browser.onTabUpdate((payload) => {
+window.browser.onTabsChanged((payload) => {
   if (!isTabState(payload)) {
-    console.error('[tabStore] payload tabUpdate sai hình dạng:', payload)
+    console.error('[tabStore] payload browser:tabs sai hình dạng:', payload)
     return
   }
   applyTabUpdate(payload)
@@ -1271,12 +1305,12 @@ Cần thêm `src/shared/**` vào `include` của cả `tsconfig.node.json` lẫn
 
 ```ts
 // preload/index.ts:27, 32, 51
-onTabUpdate: (callback) => { ipcRenderer.on('browser:tabUpdate', ...) },
+onTabsChanged: (callback) => { ipcRenderer.on('browser:tabs', ...) },
 onShortcut:  (callback) => { ipcRenderer.on('browser:shortcut', ...) },
-onMaximizeChanged: (callback) => { ipcRenderer.on('window:maximizeChanged', ...) }
+onMaximizeChanged: (callback) => { ipcRenderer.on('win:maximizeChanged', ...) }
 ```
 
-Hiện tại **chưa rò rỉ**, vì `tabStore.init()` có cờ `initialized` chặn gọi lại. Nhưng đây là an toàn *nhờ may*, không phải *nhờ thiết kế*: hôm nào có ai gọi `onTabUpdate` từ một `useEffect` không có mảng phụ thuộc, listener chồng lên nhau mỗi lần render và không cách nào gỡ ra.
+Hiện tại **chưa rò rỉ**, vì `tabStore.init()` có cờ `initialized` chặn gọi lại. Nhưng đây là an toàn *nhờ may*, không phải *nhờ thiết kế*: hôm nào có ai gọi `onTabsChanged` từ một `useEffect` không có mảng phụ thuộc, listener chồng lên nhau mỗi lần render và không cách nào gỡ ra.
 
 Ngoài ra `useBrowserShortcuts` gỡ `window.removeEventListener` nhưng **không** gỡ được `onShortcut` — hàm dọn dẹp chỉ đúng một nửa.
 
@@ -1284,10 +1318,10 @@ Ngoài ra `useBrowserShortcuts` gỡ `window.removeEventListener` nhưng **khôn
 
 ```ts
 // preload/index.ts
-onTabUpdate: (callback: (payload: TabState) => void): (() => void) => {
+onTabsChanged: (callback: (payload: TabState) => void): (() => void) => {
   const listener = (_e: IpcRendererEvent, payload: TabState): void => callback(payload)
-  ipcRenderer.on('browser:tabUpdate', listener)
-  return () => ipcRenderer.removeListener('browser:tabUpdate', listener)   // ← trả hàm huỷ
+  ipcRenderer.on('browser:tabs', listener)
+  return () => ipcRenderer.removeListener('browser:tabs', listener)   // ← trả hàm huỷ
 }
 ```
 
@@ -1323,7 +1357,7 @@ set((state) => ({ histories: { ...state.histories, [tabId]: { ...h, currentUrl: 
 const canGoBack = useTabStore((s) => s.canGoBack())
 ```
 
-Hàm `canGoBack` bên trong đọc `useHistoryStore.getState()` — tức là **đọc lén** store khác mà không đăng ký nghe nó. Component chỉ vẽ lại khi `tabStore` đổi. May là mỗi lần điều hướng đều bắn `tabUpdate` → `tabStore` đổi → vẽ lại đúng lúc. Nhưng nếu mai có ai thêm nút "xoá lịch sử" chỉ đụng vào `historyStore`, hai nút back/forward sẽ **không mờ đi**.
+Hàm `canGoBack` bên trong đọc `useHistoryStore.getState()` — tức là **đọc lén** store khác mà không đăng ký nghe nó. Component chỉ vẽ lại khi `tabStore` đổi. May là mỗi lần điều hướng đều bắn `browser:tabs` → `tabStore` đổi → vẽ lại đúng lúc. Nhưng nếu mai có ai thêm nút "xoá lịch sử" chỉ đụng vào `historyStore`, hai nút back/forward sẽ **không mờ đi**.
 
 **Cách sửa** — đăng ký đúng store mình phụ thuộc:
 
@@ -1406,11 +1440,20 @@ VITE_API_BASE_URL=https://api.vnsearch.vn
 
 CSP cũng phải sinh động theo, thay vì viết cứng trong `index.html` — dùng plugin thay chuỗi lúc build, hoặc chuyển sang đặt CSP qua `session.defaultSession.webRequest.onHeadersReceived` bên main.
 
-**Điểm liên quan:** `searchApi` cũng không có **timeout**. Backend treo thì `fetch` chờ vô hạn và ô tìm kiếm quay mãi. Nên dùng `AbortSignal.timeout(8000)`:
+**Điểm liên quan — phần timeout thì ✅ đã làm.** Trước đây `searchApi` không đặt
+timeout, nên backend treo là `fetch` chờ vô hạn và ô tìm kiếm quay mãi không
+dừng. Nay mọi lời gọi đều đi qua `getJson()`, và hàm đó đặt hạn chờ:
 
 ```ts
-const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
+// lib/searchApi.ts
+const REQUEST_TIMEOUT_MS = 8000
+// ...
+signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
 ```
+
+Còn lại đúng **một nửa** của mục này chưa làm: địa chỉ backend vẫn viết cứng
+`const API_BASE = 'http://localhost:8080'` ở `searchApi.ts:1`. Đổi máy chủ vẫn
+phải sửa mã và biên dịch lại.
 
 ---
 
@@ -1420,8 +1463,8 @@ const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000)
 > xếp đây là thiếu sót lớn nhất. Nay:
 >
 > ```
-> Backend  : 521 test / 21.156 dòng Java
-> Frontend :  53 test /  6.534 dòng TypeScript   (5 tệp, chạy trong CI)
+> Backend  : 528 test / 21.162 dòng Java
+> Frontend :  53 test /  7.025 dòng TypeScript   (5 tệp, chạy trong CI)
 > ```
 >
 > | Tệp test | Phủ gì | Số bài |
@@ -1642,7 +1685,6 @@ Hiện tại: `components/` có 13 file, `store/` có 9. **Ở quy mô này, ph�
 Nhưng ứng dụng này rõ ràng còn nhiều tính năng chưa làm (tìm trong trang, tải xuống thật, cài đặt, chia đôi màn hình, ẩn danh). Mỗi tính năng thêm 3–6 file. Đến ~40 component thì `components/` thành bãi rác: nhìn tên file không biết cái nào thuộc về cái nào.
 
 **Ngưỡng nên chuyển:** khoảng **25 component**. Cấu trúc theo tính năng:
-
 ```
 src/renderer/src/
 ├── app/                    App.tsx, providers, ErrorBoundary
@@ -1731,11 +1773,11 @@ Lưu ý `appId` phải khớp với `electronApp.setAppUserModelId('com.vnsearch
 
 | Chỗ | Vấn đề | Sửa |
 |---|---|---|
-| `searchApi.ts` | Dùng cờ `cancelled` thay vì huỷ thật → yêu cầu vẫn chạy đến cùng, tốn băng thông | `AbortController` truyền qua `signal` |
+| `SearchResultList.tsx:91` | Dùng cờ `cancelled` thay vì huỷ thật → gõ nhanh thì yêu cầu cũ vẫn chạy đến cùng, tốn băng thông. *(Không phải `searchApi.ts` — nơi đó đã có `AbortSignal.timeout`, nhưng timeout khác với huỷ theo lượt gõ.)* | `AbortController` riêng cho mỗi lượt, `abort()` ở hàm dọn dẹp của `useEffect` |
 | `Popover.tsx` | Không **bẫy tiêu điểm**, không trả tiêu điểm về nút khi đóng | Vòng `Tab` trong bảng, `ref` lưu phần tử vừa mở, `focus()` lại khi đóng |
 | `Popover.tsx` | Thiếu `aria-modal="true"` trên `role="dialog"` | Thêm thuộc tính |
-| `AddShortcutDialog` | Đóng bằng `onMouseDown` trên nền — người dùng bôi đen trong ô nhập rồi nhả tay ra ngoài sẽ **vô tình đóng** hộp thoại | Đóng bằng `onClick` và kiểm tra `e.target === e.currentTarget` |
-| `windowControls.ts:145` | `setInterval(8ms)` = 125 lần/giây trong suốt lúc kéo | Chấp nhận được, nhưng `requestAnimationFrame` bên renderer + `setBounds` theo lô sẽ mượt hơn |
+| `AddShortcutDialog` *(hàm lồng trong `NewTabPage.tsx:235`)* | Đóng bằng `onMouseDown` trên nền — người dùng bôi đen trong ô nhập rồi nhả tay ra ngoài sẽ **vô tình đóng** hộp thoại | Đóng bằng `onClick` và kiểm tra `e.target === e.currentTarget` |
+| `windowControls.ts:34` | `setInterval(DRAG_TICK_MS)` với `DRAG_TICK_MS = 16` ⇒ ~62 lần/giây trong suốt lúc kéo cửa sổ | Chấp nhận được (xấp xỉ 60 fps), nhưng `requestAnimationFrame` bên renderer + `setBounds` theo lô sẽ mượt hơn |
 | `bookmarkStore.searchByPrefix` | Dựng lại Trie **mỗi lần gõ một ký tự** | Đúng ở quy mô hàng chục bookmark (chú thích đã nói rõ). Trên ~1.000 thì nhớ lại bằng `useMemo` theo `root` |
 | Toàn bộ chuỗi | Viết cứng tiếng Việt trong JSX | Ngoài phạm vi đồ án. Nếu cần đa ngữ: `react-i18next` |
 | `AddressBar.tsx:34` | `useBookmarkStore((s) => s.root)` gọi chỉ để kích hoạt vẽ lại, giá trị không dùng | Hoạt động đúng, nhưng nên viết `useBookmarkStore((s) => s.isBookmarked(url))` cho rõ ý |
@@ -1763,7 +1805,7 @@ Lưu ý `appId` phải khớp với `electronApp.setAppUserModelId('com.vnsearch
 | 2 | `ErrorBoundary` + log ở main | 1 giờ | Không còn màn hình trắng câm lặng | 15.13 |
 | 3 | Kiểm tra kiểu lúc chạy ở ranh giới IPC | 3 giờ | Lỗi nổ ngay tại cửa, không nổ ở nơi khó lần | 15.2 |
 | 4 | `version`/`migrate` cho 3 store `persist` | 2 giờ | Nâng cấp không làm hỏng dữ liệu người dùng | 15.11 |
-| 5 | Biến môi trường + timeout cho `searchApi` | 1 giờ | Triển khai được nhiều môi trường | 15.7 |
+| 5 | Biến môi trường cho `searchApi` *(phần timeout ✅ đã xong)* | 30 phút | Triển khai được nhiều môi trường | 15.7 |
 | 6 | Bộ xử lý quyền cho trang ngoài | 15 phút | Từ chối micrô / vị trí / thông báo | 15.10c |
 | 7 | Test cho `historyStore` (cần `jsdom`) | 2 giờ | Phủ **chỗ tinh vi nhất dự án** | 15.8 |
 | 8 | `windowStore` — gom `window.win.*` | 1 giờ | Bịt rò rỉ trừu tượng, dễ test | 15.6 |

@@ -53,7 +53,6 @@ mindmap
       StatefulSet Kafka KRaft
       NetworkPolicy ×2
 ```
-
 ```
     ┌──────────────────────── BA ĐƯỜNG CHẠY ────────────────────────┐
     │                                                                │
@@ -79,7 +78,6 @@ nhất khiến họ không chạy lần thứ hai.
 | `docker compose up -d --build` | 2 | ~1,5 GB | Demo tìm kiếm |
 | `docker compose --profile kafka up -d --build` | 5 | ~3 GB | Xem crawl phân tán |
 | `docker compose --profile kafka --profile monitoring up -d --build` | 9 | ~4 GB | Xem trọn chuỗi quan sát |
-
 ```
 mặc định                profile kafka              profile monitoring
 ─────────────────       ────────────────────       ─────────────────────
@@ -99,7 +97,6 @@ Năm volume có tên: `postgres-data`, `kafka-data`, `prometheus-data`,
 ---
 
 ## 3. Ảnh Docker — hai giai đoạn
-
 ```
 ┌─ GIAI ĐOẠN 1: BIÊN DỊCH ────────────────────────────────────┐
 │  FROM maven:3.9-eclipse-temurin-17                          │
@@ -132,7 +129,6 @@ Năm volume có tên: `postgres-data`, `kafka-data`, `prometheus-data`,
 ---
 
 ## 4. Kubernetes — bốn lớp Kustomize
-
 ```
 deploy/k8s/base            nền chung — chỉ thứ Kubernetes TỰ HIỂU
 deploy/k8s/overlays/dev    cụm kind một node
@@ -158,7 +154,6 @@ deploy/k8s/monitoring      lớp CHỌN THÊM — cần Prometheus Operator
 
 `ServiceMonitor` và `PrometheusRule` là **CRD** — chúng không có sẵn trong
 Kubernetes. Đưa vào lớp nền thì mọi cụm chưa cài Prometheus Operator sẽ nhận:
-
 ```
 error: unable to recognize "...": no matches for kind "ServiceMonitor"
 ```
@@ -205,7 +200,6 @@ xoá và giá trị thật phải đến từ External Secrets, Sealed Secrets h
 
 Đây là chỗ hay bị làm sai nhất trong Kubernetes, vì ba probe trả lời **ba câu
 hỏi khác nhau**:
-
 ```
    startupProbe    "đã khởi động xong chưa?"   →  HOÃN hai probe kia
    readinessProbe  "nhận request được chưa?"   →  GỠ khỏi Service nếu không
@@ -227,7 +221,6 @@ hỏi khác nhau**:
 ## 6. Co giãn: CPU cho backend, độ dài hàng đợi cho worker
 
 Đây là khác biệt **bản chất** giữa hai Deployment.
-
 ```
                 CPU thấp  +  hàng đợi dài   →  CẦN thêm worker
    HPA theo CPU:                               ❌ bỏ lỡ
@@ -272,9 +265,6 @@ flowchart LR
     rules --> am["Alertmanager<br/>gom nhóm, chặn trùng"]
     am --> nguoi["Con người"]
     kafka["Kafka"] -->|JMX| exp["kafka-exporter"] --> prom
-
-    style prom fill:#e8590c,color:#fff
-    style am fill:#1c7ed6,color:#fff
 ```
 
 ```
@@ -391,7 +381,6 @@ volumes:
 
 Kết hợp với việc chỉ mục đảo nằm **hoàn toàn trong RAM** của từng tiến trình
 (xem [`BACKEND.md` §9](BACKEND.md)), nó dẫn tới ba hệ quả:
-
 ```
    1.  Mỗi Pod dựng chỉ mục RIÊNG trong bộ nhớ của mình.
        Hai bản sao không chia sẻ gì cả.

@@ -10,7 +10,7 @@ Tài liệu này quét **toàn bộ mã nguồn** của dự án và tổng hợ
 - **Chủ đề DSA** mà đoạn code đó thể hiện
 - **Hạn chế đã biết**, nói thẳng
 
-**36 tài liệu** phân tích mã nguồn, chia theo 7 nhóm, cộng **15 tài liệu** về design pattern, OOP và chấm điểm ở nhóm 9.
+**36 tài liệu** phân tích mã nguồn, chia theo 7 nhóm, cộng **14 tài liệu** về design pattern và OOP ở nhóm 9.
 
 > 🗺️ **Mỗi nhóm đều mở đầu bằng một SƠ ĐỒ TƯ DUY** — vẽ ra mối liên hệ giữa các file của cả tầng đó thành hình, kèm bảng tra nhanh từng file và bảng *"xoá file này thì hỏng gì"*. **Đọc sơ đồ tư duy của nhóm trước, rồi mới vào các trang đi sâu.** Mọi sơ đồ đều có sẵn bản chữ (ASCII) bấm mở được, phòng khi trình xem không hiển thị Mermaid.
 
@@ -44,7 +44,7 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
 | 🗺️ [**Sơ đồ tư duy — toàn tầng chỉ mục**](03-index/00-SO-DO-TU-DUY.md) | cả 11 file `index/` | **Bắt đầu từ đây.** Hai đường đi của dữ liệu, hình dạng thật của chỉ mục trong bộ nhớ, một bất biến mở khoá bốn kỹ thuật, ba tầng ý tưởng nén, galloping search vẽ ra |
-| [VietnameseTokenizer](03-index/VietnameseTokenizer.md) | `index/VietnameseTokenizer.java` | **Longest Matching**, NFC/NFD Unicode, bẫy chữ `đ`, hai biến đếm độc lập |
+| [VietnameseTokenizer](03-index/VietnameseTokenizer.md) | `index/VietnameseTokenizer.java` | **QHĐ cực đại trọng số**, NFC/NFD Unicode, bẫy chữ `đ`, hai biến đếm độc lập |
 | [InvertedIndex](03-index/InvertedIndex.md) | `index/InvertedIndex.java` | **Bất biến quan trọng nhất dự án**, binary search, chỉ mục kép có/không dấu, `>>>` chống tràn |
 | [IndexPersistence](03-index/IndexPersistence.md) | `index/IndexPersistence.java` | Trạng thái dẫn xuất phải cập nhật ở **mọi** đường vào, chuỗi dự phòng 4 tầng |
 | [**VByteCodec**](03-index/VByteCodec.md) | `index/VByteCodec.java` | **Delta + variable-byte**, mã hoá theo đoạn, thao tác bit, đóng gói 2 giá trị vào một `long` |
@@ -106,7 +106,6 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 |---|---|
 | 🗺️ [**Sơ đồ tư duy — toàn bộ design pattern**](09-design-patterns/00-SO-DO-TU-DUY.md) | **Bắt đầu từ đây.** 10 mẫu chia theo nhóm GoF, mẫu nào ở tầng nào, bộ ba Strategy → Factory → Decorator, ba mẫu sửa lỗi **đo được bằng số** |
 | [**README**](09-design-patterns/README.md) | Chỉ mục loạt bài học OOP, lộ trình đọc, tra cứu ngược theo khái niệm |
-| [**CHAM-DIEM**](09-design-patterns/CHAM-DIEM.md) | **Chấm điểm OOP · DSA · Design Pattern** — tiêu chí có trọng số công khai, dẫn chứng từ code |
 
 **Loạt 12 trang học OOP — mỗi mẫu một trang:**
 
@@ -306,7 +305,7 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 - **Cấu hình Spring**: `CorsConfig`, `GlobalExceptionHandler`, `VnSearchApplication`
 - **Controller**: `SearchController`, `SuggestController`, `AdminController` — chỉ ràng buộc tham số rồi uỷ quyền cho Facade
 - **Runner / script**: `MultiDomainCrawlRunner`, `EvaluationRunner`, `QrelsEvaluationRunner`, `PostgresImportRunner`, `GinBaselineRunner` — điều phối và sinh báo cáo, không có thuật toán riêng
-- **Lớp keo dán**: `SearchEngineFacade` (phân tích ở [CHAM-DIEM §2.3](09-design-patterns/CHAM-DIEM.md) và [11-MAU-BO-TRO §1](09-design-patterns/11-MAU-BO-TRO.md)), `EvaluationHarness` (ở [PoolBuilder §2](07-eval/PoolBuilder.md))
+- **Lớp keo dán**: `SearchEngineFacade` (phân tích ở [11-MAU-BO-TRO §1](09-design-patterns/11-MAU-BO-TRO.md)), `EvaluationHarness` (ở [PoolBuilder §2](07-eval/PoolBuilder.md))
 - **Truy cập CSDL**: `DocumentRepository` — CRUD JDBC chuẩn, phần GIN đã có `docs/GIN-BASELINE.md` riêng
 - **Frontend**: `tabManager.ts`, `ipcHandlers.ts`, các store Zustand — bố cục UI và IPC
 - **Interface thuần và lớp thực thi mẫu thiết kế**: `Tokenizer`, `SearchIndex`, `DocumentStore`, `CandidateFilter`, `QueryNode` + 5 nút, `PostingCursor`, `CrawlListener`, `ScorerFactory`, `CrawlStatus`, `CrawlConfig`, hai Decorator, hai Filter, `IndexBuilder`, `SuggestionService`, `CrawlJobManager`, `LanguageDetector`, `SnippetBuilder` — chúng **không chứa toán học mới**, nhưng mỗi cái có một trang riêng trong [`09-design-patterns/`](09-design-patterns/README.md) phân tích **vấn đề thiết kế** mà nó giải
@@ -341,26 +340,36 @@ Tài liệu bao phủ **mọi file có nội dung toán học hoặc thuật to�
 
 **Nếu bạn viết báo cáo đồ án**, bắt đầu từ:
 
-[CHAM-DIEM](09-design-patterns/CHAM-DIEM.md) → [loạt 12 trang học OOP](09-design-patterns/README.md)
+[loạt 12 trang học OOP](09-design-patterns/README.md)
 
 **Nếu bạn muốn hiểu OOP qua chính dự án này**, đọc [09-design-patterns/README.md](09-design-patterns/README.md) — mỗi design pattern một trang, kèm mã thật, lỗi mà nó sửa, và câu hỏi bảo vệ.
 
-**Nếu bạn muốn cải thiện dự án**, những hạn chế **còn lại** (ba việc trong danh sách cũ — Factory cho scorer, State enum cho `CrawlJob`, thread-safety của `Trie` — **đều đã làm xong**):
+**Nếu bạn muốn cải thiện dự án** — năm việc trong danh sách cũ **đều đã làm xong**: Factory cho scorer, State enum cho `CrawlJob`, thread-safety của `Trie`, **mở rộng từ điển từ ghép** (154 → **49.793 mục**, kèm chuyển tách từ sang quy hoạch động), và **kiểm định thống kê** cho chênh lệch MRR (`SignificanceTest`).
 
-1. **Mở rộng từ điển từ ghép** từ 154 mục lên 30.000–70.000 — đây là **trần chất lượng** của cả hệ thống
-2. **Kiểm định thống kê** cho chênh lệch MRR (paired t-test)
-3. **WAND / MaxScore** thay cho `MaxCandidatesFilter` — tối ưu top-K chính xác
+Ba việc còn lại, xếp theo giá trị:
 
-Chi tiết: [CHAM-DIEM §Hạn chế còn lại](09-design-patterns/CHAM-DIEM.md)
+1. **WAND / MaxScore** thay cho `MaxCandidatesFilter` — tối ưu top-K chính xác, và là khoảng trống thuật toán lớn nhất còn lại
+2. **Skip pointer thật trên posting list đã nén** — hiện `PostingCursor` gallop trên `ArrayList`, còn bản VByte phải giải nén toàn bộ mới duyệt được. Đi cùng WAND thì mới phát huy tác dụng
+3. **SimHash** cho khử trùng lặp **gần đúng** — `ContentSeenFilter` hiện chỉ bắt trùng chính xác
+
+Chi tiết: [SO-SANH-PHUONG-AN.md](../SO-SANH-PHUONG-AN.md)
 
 ---
 
 ## 🔗 Quan hệ với các tài liệu khác trong `docs/`
 
-| Tài liệu | Khác gì với thư mục `Math/` này |
+Tài liệu trong `docs/` chia theo **câu hỏi cần trả lời**, không theo thư mục mã nguồn:
+
+| Tài liệu | Trả lời câu hỏi |
 |---|---|
-| `ARCHITECTURE.md` | Ba tầng hệ thống, sơ đồ thành phần, luồng xử lý |
-| `DSA-REPORT.md` | Bảng Big-O tổng hợp và **số đo** |
-| `EVALUATION.md` | Kết quả đánh giá chất lượng *(sinh tự động)* |
-| `GIN-BASELINE.md` | Đối chứng với PostgreSQL GIN *(sinh tự động)* |
-| **`Math/`** (thư mục này) | **Một trang cho mỗi file nguồn** — công thức, chứng minh, ví dụ tính tay, hạn chế |
+| **`Math/`** (thư mục này) | *Thuật toán bên trong hoạt động ra sao?* — **một trang cho mỗi file nguồn**: công thức, chứng minh, ví dụ tính tay, hạn chế |
+| [`../DSA-REPORT.md`](../DSA-REPORT.md) | *Nó nhanh cỡ nào?* — bảng Big-O tổng hợp và **số đo thực nghiệm** |
+| [`../ARCHITECTURE.md`](../ARCHITECTURE.md) | *Các mảnh ghép lại thành hệ thống thế nào?* |
+| [`../BACKEND.md`](../BACKEND.md) | *Ứng dụng Spring được lắp ra sao?* — bean, cấu hình, vòng đời request |
+| [`../INFRASTRUCTURE.md`](../INFRASTRUCTURE.md) | *Chạy ở đâu, ai canh nó?* — Docker, Kubernetes, giám sát |
+| [`../DEVOPS.md`](../DEVOPS.md) | *Mã đi từ máy tới cụm bằng cách nào?* — CI/CD, bảy cổng chặn |
+| [`../SECURITY.md`](../SECURITY.md) | *Chống lại cái gì, và **còn hở chỗ nào**?* |
+| [`../FRONTEND.md`](../FRONTEND.md) | *Trình duyệt mini hoạt động ra sao?* |
+| [`../SO-SANH-PHUONG-AN.md`](../SO-SANH-PHUONG-AN.md) | *Phương án nào đã bị bác bỏ, vì sao?* — 13 bài toán |
+| [`../EVALUATION.md`](../EVALUATION.md) | *Chất lượng tìm kiếm đo bằng gì?* *(sinh tự động)* |
+| [`../GIN-BASELINE.md`](../GIN-BASELINE.md) | *So với PostgreSQL GIN thì sao?* *(sinh tự động)* |

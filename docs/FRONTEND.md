@@ -1062,29 +1062,27 @@ npm run build:win        # electron-vite build && electron-builder --win
 
 ---
 
-## 15. Đánh giá kiến trúc theo chuẩn doanh nghiệp
+## 15. Giới hạn đã biết và hướng cải thiện
 
-Đây là phần đánh giá thẳng thắn. Tiêu chí là **chuẩn một sản phẩm doanh nghiệp** (có đội nhiều người, có CI, có bàn giao), chứ không phải chuẩn đồ án môn học.
+Phần này liệt kê thẳng những chỗ chưa đạt chuẩn một sản phẩm có đội nhiều người, có CI, có bàn giao. Mỗi mục ghi rõ **trạng thái hiện tại** và, nếu chưa đóng, **cách đóng**.
 
-### 15.0. Bảng điểm tổng hợp
+### 15.0. Trạng thái tổng hợp
 
-| # | Tiêu chí | Điểm | Nhận xét một dòng |
-|---|---|:---:|---|
-| 1 | Kiến trúc tiến trình & bảo mật | **8/10** | `contextIsolation` + `sandbox` + CSP đúng bài; còn 3 chỗ hở |
-| 2 | Ranh giới kiểu (type safety) qua IPC | **5/10** | Có `.d.ts`, nhưng `unknown[]` + ép kiểu, không kiểm tra lúc chạy |
-| 3 | Quản lý trạng thái | **8/10** | Chia store theo miền rất sạch; một chỗ đăng ký ngầm |
-| 4 | Cấu trúc thư mục & khả năng mở rộng | **6/10** | Rõ ở quy mô hiện tại; thư mục phẳng sẽ nghẽn ở ~40 component |
-| 5 | Hệ thống giao diện | **9/10** | Token ba lớp, chế độ tối một class — điểm mạnh nhất |
-| 6 | Chất lượng mã & chú thích | **9/10** | Chú thích giải thích **vì sao**, không phải **cái gì**. Trên chuẩn |
-| 7 | Kiểm thử | **0/10** | **Không có một test nào** |
-| 8 | Công cụ (lint · format · CI) | **2/10** | Chỉ có `typecheck`. Không ESLint, không Prettier, không CI |
-| 9 | Khả năng truy cập (a11y) | **7/10** | `aria-*` đầy đủ; thiếu bẫy tiêu điểm trong hộp thoại |
-| 10 | Xử lý lỗi & khả năng quan sát | **4/10** | Không có Error Boundary, không có log tập trung |
-| | **TỔNG (trung bình có trọng số)** | **≈ 6,3/10** | **Rất tốt cho đồ án. Chưa đạt chuẩn bàn giao doanh nghiệp.** |
+```
+   ĐÃ ĐÓNG                              CÒN LẠI
+   ─────────────────────────────        ──────────────────────────────
+   ✅ Kiểm thử — 53 bài Vitest          ⚠️ Kiểu ở ranh giới IPC không
+   ✅ ESLint + Prettier + CI                kiểm tra lúc chạy      (15.2)
+   ✅ sandbox: true                     ⚠️ Hằng số chép hai chỗ    (15.3)
+   ✅ Chặn điều hướng vỏ giao diện      ⚠️ API_BASE viết cứng      (15.7)
+   ✅ Danh sách CHO PHÉP scheme         ⚠️ Chưa có Error Boundary  (15.13)
+   ✅ Ép hệ số phóng to                 ⚠️ persist chưa có version (15.11)
+                                        ⚠️ Chưa có bộ xử lý quyền  (15.10c)
+```
 
-**Kết luận ngắn:** phần *thiết kế* (kiến trúc, phân tách trách nhiệm, hệ màu, chú thích) ở mức tốt — nhiều chỗ tốt hơn mã sản xuất trung bình. Phần *kỹ thuật công trình* (test, lint, CI, kiểm tra ranh giới lúc chạy) gần như bằng không. Đó là hình dạng điển hình của một dự án cá nhân làm kỹ: **cái nhìn thấy được thì đẹp, cái không nhìn thấy thì trống**.
+**Hình dạng của dự án đã đổi.** Bản rà soát trước mô tả *"cái nhìn thấy được thì đẹp, cái không nhìn thấy thì trống"* — phần thiết kế tốt, phần kỹ thuật công trình (test, lint, CI) gần như bằng không. Sáu mục bên trái đã đóng khoảng trống đó. Những gì còn lại đều là **cải thiện dần**, không còn mục nào ở mức *thiếu hoàn toàn*.
 
-Ba việc quan trọng nhất, theo thứ tự: **(1) test cho tầng store · (2) một `src/shared/` cho hằng số và kiểu dùng chung · (3) ESLint + CI.**
+Ba việc đáng làm tiếp, theo thứ tự: **(1) `src/shared/` cho hằng số và kiểu dùng chung · (2) Error Boundary · (3) kiểm tra kiểu lúc chạy ở ranh giới IPC.**
 
 ---
 
@@ -1416,11 +1414,35 @@ const response = await fetch(url.toString(), { signal: AbortSignal.timeout(8000)
 
 ---
 
-### 15.8. ❌ Không có một test nào — **thiếu sót lớn nhất**
+### 15.8. ✅ Kiểm thử — **đã đóng**
 
-Backend có **280 test**. Frontend có **0**.
+> **Trạng thái: xong.** Bản trước ghi *"Backend có 280 test. Frontend có 0"* và
+> xếp đây là thiếu sót lớn nhất. Nay:
+>
+> ```
+> Backend  : 521 test / 21.156 dòng Java
+> Frontend :  53 test /  6.534 dòng TypeScript   (5 tệp, chạy trong CI)
+> ```
+>
+> | Tệp test | Phủ gì | Số bài |
+> |---|---|---:|
+> | `src/main/urlPolicy.test.ts` | **Ranh giới bảo mật của tiến trình chính** — `file://`, `javascript:`, `data:`, `chrome://` phải bị từ chối | 25 |
+> | `src/renderer/src/lib/BookmarkTrie.test.ts` | `insert`/`searchByPrefix`, tiếng Việt có dấu, tiền tố chung | 8 |
+> | `src/renderer/src/lib/searchApi.test.ts` | Nhánh chịu lỗi khi máy chủ trả thiếu trường, `fetch` được thay bằng bản giả | 12 |
+> | `src/renderer/src/lib/Stack.test.ts` | Bất biến LIFO, `toArray` trả bản sao | 6 |
+> | `src/renderer/src/lib/site.test.ts` | Bốn hàm chạy trên **mọi** kết quả tìm kiếm — không được phép ném lỗi | 12 |
+>
+> Bài đáng giá nhất **không** nằm trong danh sách dự đoán của bản trước:
+> `urlPolicy` là ranh giới bảo mật, quan trọng hơn cả hai cấu trúc dữ liệu cộng
+> lại. Xem [`SECURITY.md` §9](SECURITY.md).
+>
+> **Còn thiếu:** `historyStore` — chỗ tinh vi nhất dự án (cờ `suppressNextRecord`,
+> xoá `forwardStack`) — vẫn chưa có test, vì nó cần môi trường `jsdom` chứ không
+> chạy được trong môi trường `node` hiện tại.
 
-Điều đáng nói là frontend có sẵn những phần **rất dễ test và rất đáng test** — logic thuần, không đụng DOM:
+Phần phân tích nguyên bản giữ lại bên dưới — nó vẫn là danh sách đúng cho những gì còn thiếu.
+
+Frontend có sẵn những phần **rất dễ test và rất đáng test** — logic thuần, không đụng DOM:
 
 | Đối tượng | Vì sao đáng test |
 |---|---|
@@ -1481,13 +1503,29 @@ Ba mươi test cho tầng `store` và `lib` là đã bịt gần hết rủi ro 
 
 ---
 
-### 15.9. ❌ Không có lint, format, hay CI
+### 15.9. ✅ Lint, format, CI — **đã đóng**
 
-`package.json` chỉ có `dev`, `build`, `typecheck`, `build:win`. Không ESLint, không Prettier, không `.github/workflows/`.
+> **Trạng thái: xong.** Bản trước ghi *"`package.json` chỉ có `dev`, `build`,
+> `typecheck`, `build:win`. Không ESLint, không Prettier, không
+> `.github/workflows/`"* — kèm một quan sát sắc: hai chỗ trong mã viết
+> `// eslint-disable-next-line` cho một ESLint **không tồn tại**.
+>
+> Hiện tại:
+>
+> | Công cụ | Script | Chạy ở đâu |
+> |---|---|---|
+> | ESLint 9 (flat config) + plugin React/Hooks/Refresh | `npm run lint` | CI job `frontend` |
+> | Prettier | `npm run format` | tay |
+> | TypeScript | `npm run typecheck` (node + web) | CI job `frontend` |
+> | **Vitest** | `npm test` | CI job `frontend` |
+>
+> `eslint-plugin-react-hooks` đúng như dự đoán của mục này là thứ đáng giá nhất:
+> nó bắt loại lỗi mà `useEffect` với mảng phụ thuộc thiếu gây ra.
+>
+> Ba cổng chặn frontend chạy trong **cùng** job `frontend` của `ci.yml`, không
+> phải một workflow riêng — xem [`DEVOPS.md` §3.2](DEVOPS.md).
 
-Hậu quả cụ thể **đã thấy trong mã**: hai chỗ phải viết `// eslint-disable-next-line` (`AddressBar.tsx:48`, `SearchResultList.tsx:168`) cho một ESLint **không tồn tại**. Tức là mã từng được viết với ESLint trong đầu, nhưng công cụ không bao giờ được cài.
-
-**Thiết lập tối thiểu:**
+Cấu hình gốc được đề xuất ở đây, giữ lại để đối chiếu:
 
 ```bash
 npm i -D eslint @typescript-eslint/parser @typescript-eslint/eslint-plugin \
@@ -1523,15 +1561,19 @@ jobs:
 
 ---
 
-### 15.10. ⚠️ Ba lỗ hổng bảo mật còn lại
+### 15.10. Bảo mật — ba mục đã đóng, một còn lại
 
-**a. `sandbox: false` cho `chromeView`** (`tabManager.ts:98`). Preload hiện chỉ dùng các module của Electron, hoàn toàn chạy được dưới sandbox. Bật lên là một dòng, và thu hẹp đáng kể bề mặt tấn công nếu React app từng bị XSS:
+> **Toàn bộ mặt bảo mật của dự án nay có một tài liệu riêng:**
+> [`SECURITY.md`](SECURITY.md) — mục §9 dành cho Electron, và §13 liệt kê những
+> gì còn hở trên toàn hệ thống.
 
-```ts
-webPreferences: { preload: /* ... */, contextIsolation: true, nodeIntegration: false, sandbox: true }
-```
+**a. ✅ `sandbox: false` → `true`** — **đã sửa**. Đúng như mục này dự đoán, preload chỉ dùng các module của Electron nên hoàn toàn chạy được dưới sandbox; bật lên là một dòng và không phải đánh đổi gì. Đã kiểm cả `@electron-toolkit/preload`.
 
-**b. Không chặn điều hướng của `chromeView`.** Nếu một liên kết nào đó khiến chính vỏ trình duyệt điều hướng ra ngoài, toàn bộ ứng dụng bị thay bằng trang lạ — **và trang lạ đó thừa hưởng luôn preload** (tức là `window.browser`, `window.win`). Đây là lỗ hổng nghiêm trọng nhất trong ba lỗ hổng:
+**b. ✅ Không chặn điều hướng của `chromeView`** — **đã sửa** bằng `will-navigate` + `setWindowOpenHandler`, cả hai định tuyến URL sang một tab mới thay vì chặn cứng. Nhận định của mục này là đúng và nó là lỗ hổng nghiêm trọng nhất trong nhóm: vỏ giao diện mà điều hướng ra ngoài thì trang lạ **thừa hưởng luôn preload** (`window.browser`, `window.win`).
+
+**b′. ✅ `navigate()` nhận mọi scheme** — lỗ hổng mà bản trước **chưa phát hiện**, nghiêm trọng hơn cả (a) và (b): `/^[a-z]+:\/\//i` cho qua `file://`, nên `window.open('file:///C:/Users/…/.ssh/id_rsa')` từ một trang bất kỳ là đủ để đọc tệp cục bộ. Đã vá bằng `urlPolicy.ts` — danh sách **CHO PHÉP** `http`/`https`, có 25 bài test canh.
+
+Cấu hình gốc được đề xuất cho (a) và (b), giữ lại để đối chiếu:
 
 ```ts
 // main/tabManager.ts — trong constructor
@@ -1702,21 +1744,33 @@ Lưu ý `appId` phải khớp với `electronApp.setAppUserModelId('com.vnsearch
 
 ## 16. Lộ trình nâng cấp theo thứ tự ưu tiên
 
-| Thứ tự | Việc | Công sức | Được gì | §|
-|:---:|---|---|---|---|
-| 1 | Vitest + ~30 test cho `store/` và `lib/` | 1 ngày | Chặn hồi quy ở phần tinh vi nhất | 15.8 |
-| 2 | `src/shared/` cho hằng số, kiểu, bảng phím tắt | 3 giờ | Xoá 4 chỗ chép đôi | 15.3 |
-| 3 | ESLint + Prettier + CI GitHub Actions | 2 giờ | Bắt lỗi tự động, kể cả `useEffect` thiếu phụ thuộc | 15.9 |
-| 4 | Ba bản vá bảo mật (`sandbox`, `will-navigate`, quyền) | 1 giờ | Bịt lỗ hổng nghiêm trọng nhất | 15.10 |
-| 5 | Kiểm tra kiểu lúc chạy ở ranh giới IPC | 3 giờ | Lỗi nổ ngay tại cửa, không nổ ở nơi khó lần | 15.2 |
-| 6 | `ErrorBoundary` + log ở main | 1 giờ | Không còn màn hình trắng câm lặng | 15.13 |
-| 7 | `version`/`migrate` cho 3 store `persist` | 2 giờ | Nâng cấp không làm hỏng dữ liệu người dùng | 15.11 |
-| 8 | Biến môi trường + timeout cho `searchApi` | 1 giờ | Triển khai được nhiều môi trường | 15.7 |
-| 9 | `windowStore` — gom `window.win.*` | 1 giờ | Bịt rò rỉ trừu tượng, dễ test | 15.6 |
-| 10 | Khối `build` cho electron-builder | 30 phút | Bản cài đặt tử tế | 15.14 |
-| 11 | Chuyển sang cấu trúc theo tính năng | 1 ngày | **Chỉ làm khi vượt ~25 component** | 15.12 |
+### ✅ Đã xong
 
-**Bảy việc đầu gộp lại khoảng 2,5 ngày công** và sẽ kéo điểm tổng từ ~6,3 lên khoảng **8,5/10** — tức là mức bàn giao được cho một đội.
+| Việc | Được gì | § |
+|---|---|---|
+| Vitest + 53 test cho `lib/` và `main/` | Chặn hồi quy, và canh **ranh giới bảo mật** | 15.8 |
+| ESLint + Prettier + Vitest trong CI | Bắt lỗi tự động, kể cả `useEffect` thiếu phụ thuộc | 15.9 |
+| `sandbox: true` | Thu hẹp bề mặt tấn công nếu React app bị XSS | 15.10a |
+| `will-navigate` + `setWindowOpenHandler` | Vỏ giao diện không rời được trang của nó | 15.10b |
+| `urlPolicy.ts` — danh sách CHO PHỀP scheme | Bịt đường đọc tệp cục bộ qua `file://` | 15.10b′ |
+| `clampZoomFactor` | `setZoomFactor(0)` không làm nội dung biến mất vĩnh viễn | — |
+
+### ⬜ Còn lại, theo thứ tự ưu tiên
+
+| Thứ tự | Việc | Công sức | Được gì | § |
+|:---:|---|---|---|---|
+| 1 | `src/shared/` cho hằng số, kiểu, bảng phím tắt | 3 giờ | Xoá 4 chỗ chép đôi giữa hai tiến trình | 15.3 |
+| 2 | `ErrorBoundary` + log ở main | 1 giờ | Không còn màn hình trắng câm lặng | 15.13 |
+| 3 | Kiểm tra kiểu lúc chạy ở ranh giới IPC | 3 giờ | Lỗi nổ ngay tại cửa, không nổ ở nơi khó lần | 15.2 |
+| 4 | `version`/`migrate` cho 3 store `persist` | 2 giờ | Nâng cấp không làm hỏng dữ liệu người dùng | 15.11 |
+| 5 | Biến môi trường + timeout cho `searchApi` | 1 giờ | Triển khai được nhiều môi trường | 15.7 |
+| 6 | Bộ xử lý quyền cho trang ngoài | 15 phút | Từ chối micrô / vị trí / thông báo | 15.10c |
+| 7 | Test cho `historyStore` (cần `jsdom`) | 2 giờ | Phủ **chỗ tinh vi nhất dự án** | 15.8 |
+| 8 | `windowStore` — gom `window.win.*` | 1 giờ | Bịt rò rỉ trừu tượng, dễ test | 15.6 |
+| 9 | Khối `build` cho electron-builder | 30 phút | Bản cài đặt tử tế | 15.14 |
+| 10 | Chuyển sang cấu trúc theo tính năng | 1 ngày | **Chỉ làm khi vượt ~25 component** | 15.12 |
+
+**Năm việc đầu gộp lại khoảng một ngày rưỡi công.**
 
 ---
 

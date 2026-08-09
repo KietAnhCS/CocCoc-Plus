@@ -99,7 +99,7 @@ Không ai phải viết tay chuỗi đó — cấu trúc object tự sinh ra nó
 
 Lập luận đắt nhất trong nhóm này:
 
-> Bộ tách từ **cũng là một biến số** ảnh hưởng lớn tới chất lượng — thực tế nó là **trần chất lượng** của cả hệ thống, vì từ điển từ ghép hiện chỉ có 154 mục.
+> Bộ tách từ **cũng là một biến số** ảnh hưởng lớn tới chất lượng — đổi thuật toán ghép từ (tham lam → quy hoạch động) và đổi từ điển (154 → 49.793 mục) đã làm tốc độ tách từ nhanh 4,80 lần và sửa hẳn lớp câu nhập nhằng chồng lấp.
 >
 > Nhưng trước đây `VietnameseTokenizer` là **lớp cụ thể**, nên câu hỏi *"tokenizer nào tốt hơn"* **không đo được**, trong khi câu hỏi về scorer thì đo được. Interface xoá bỏ sự bất đối xứng đó.
 

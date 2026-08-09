@@ -15,7 +15,6 @@
 > - **Đã sửa lỗi thread-safety** bằng `ReentrantReadWriteLock` — `getSuggestions` dùng read lock thật (đọc thuần tuý), `insert`/`clear` dùng write lock.
 > - Logic dựng Trie gợi ý đã chuyển từ `SearchEngineFacade` sang lớp `SuggestionService` riêng.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 
@@ -400,7 +399,7 @@ for (int i = 0; i < tokens.size(); i++) {
 }
 ```
 
-Nguồn (2) là cách khéo để bù cho từ điển từ ghép chỉ có 154 mục (xem [VietnameseTokenizer §9](../03-index/VietnameseTokenizer.md)): dù `bóng đá` không có trong từ điển, cặp token liên tiếp `bóng` + `đá` vẫn được ghi nhận và trở thành gợi ý.
+Nguồn (2) là cách khéo để bắt những cụm mà từ điển KHÔNG có (tên riêng, thuật ngữ mới, cách nói địa phương): dù `bóng đá` không có trong từ điển, cặp token liên tiếp `bóng` + `đá` vẫn được ghi nhận và trở thành gợi ý.
 
 **Hai bộ lọc thêm:**
 

@@ -17,7 +17,6 @@
 > - Đã thêm `buildAst()` dựng **cây biểu thức** (Composite) — mục §5 nói cấu trúc phẳng "chưa hỗ trợ OR" nay đã lỗi thời.
 > - Nhận `Tokenizer` (interface) thay vì lớp cụ thể.
 >
-> Chi tiết: [09-design-patterns/CHAM-DIEM.md](../09-design-patterns/CHAM-DIEM.md)
 
 ---
 
@@ -176,7 +175,7 @@ for (String phraseRaw : phrasesRaw) {
 }
 ```
 
-**Vì sao mỗi cụm được tokenize RIÊNG** thay vì nối tất cả rồi tokenize một lần: vì Longest Matching hoạt động trên **ngữ cảnh liền kề**. Nối `"trình duyệt web"` với `"máy tính"` thành một chuỗi có thể khiến `web máy` bị ghép nhầm nếu cụm đó có trong từ điển.
+**Vì sao mỗi cụm được tokenize RIÊNG** thay vì nối tất cả rồi tokenize một lần: vì phép ghép từ hoạt động trên **ngữ cảnh liền kề**. Nối `"trình duyệt web"` với `"máy tính"` thành một chuỗi có thể khiến `web máy` bị ghép nhầm nếu cụm đó có trong từ điển.
 
 **Vì sao `mustRaw` được nối rồi tokenize một lần:** ngược lại, ở đây ta **muốn** ngữ cảnh. Người gõ `máy tính` (không ngoặc kép) vẫn phải được ghép thành `máy_tính` — tokenize từng tiếng riêng sẽ mất hoàn toàn khả năng ghép từ.
 

@@ -66,7 +66,7 @@ VnSearch có **8 interface tự định nghĩa**:
 | Interface | Tách *cái gì* khỏi *làm thế nào* |
 |---|---|
 | `RelevanceScorer` | "chấm điểm liên quan" ↔ TF-IDF hay BM25 |
-| `Tokenizer` | "tách từ" ↔ thuật toán Longest Matching |
+| `Tokenizer` | "tách từ" ↔ quy hoạch động cực đại trọng số |
 | `SearchIndex` | "tra posting list" ↔ trong RAM hay trên đĩa |
 | `DocumentStore` | "nạp corpus" ↔ JSON hay PostgreSQL |
 | `CandidateFilter` | "thu hẹp ứng viên" ↔ theo domain hay theo số lượng |
@@ -189,7 +189,7 @@ Chain     :  A chứa danh sách B            → truyền dữ liệu qua từn
 | **Leaky Encapsulation** | Getter trả tham chiếu vào cấu trúc nội bộ | `getAllDocuments()` trả map thật |
 | **Dead Code** | Có code, có test, không ai gọi | `PostingListMerger.union` |
 
-Cả sáu đã được loại bỏ; bảng đối chiếu trước/sau ở [CHAM-DIEM.md](CHAM-DIEM.md) §3.4.
+Cả sáu đã được loại bỏ.
 
 ---
 
@@ -228,5 +228,4 @@ Trả lời được năm câu này thì bạn đã nắm phần nền:
 ## Liên kết
 
 - Tổng quan 10 pattern kèm số đo: [README.md](README.md)
-- Chấm điểm theo tiêu chí có trọng số: [CHAM-DIEM.md](CHAM-DIEM.md)
 - Mục lục toàn bộ tài liệu toán/thuật toán: [../README.md](../README.md)

@@ -23,7 +23,18 @@ rem --- Tham so ---
 rem   crawl-stats.bat                      thong ke moi corpus trong search-engine/data
 rem   crawl-stats.bat data/thu-nghiem.json chi mot tep
 rem   crawl-stats.bat -NoLinks             bo qua phan dem lien ket (nhanh hon)
+rem   crawl-stats.bat -NoImages            bo qua phan thong ke anh
 rem   them --no-pause de khong dung lai o cuoi (dung khi goi tu script khac)
+rem
+rem Bao cao gom ba phan cho MOI corpus:
+rem   1. Trang    : so trang, ten mien, trang khong co noi dung
+rem   2. Lien ket : outlinks tong/khac nhau, hang doi con lai, uoc tinh dung luong
+rem   3. Anh      : so anh, ty le co alt, so trang co anh, top ten mien, dinh dang
+rem
+rem Phan anh doc tu tep "<ten-corpus>.images.json" nam canh corpus - do
+rem ImageStorage phia Java ghi ra o cuoi moi phien crawl. Corpus crawl bang ban
+rem ma cu chua co tep nay; chay lai run-crawl.bat mot lan la co (crawl noi tiep,
+rem khong mat du lieu cu).
 set "ARGS="
 set "NOPAUSE="
 :parse

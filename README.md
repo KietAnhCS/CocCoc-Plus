@@ -83,13 +83,19 @@ Requires JDK 17+ and Node.js 22+.
 ### Backend
 
 ```bash
-# Set the admin key for the current terminal session
+run-backend.bat             # Windows
+
+# or, by hand:
 export ADMIN_API_KEY=$(openssl rand -hex 32)          # Linux/macOS
 $env:ADMIN_API_KEY = "..."                             # PowerShell
-
 cd search-engine
 ./mvnw spring-boot:run
 ```
+
+`run-backend.bat` reads `ADMIN_API_KEY` from `.env` (generating and saving one
+if absent), checks port 8080, sets a 6 GB heap, and warns when `data/index.json`
+is older than the crawled corpus. Flags: `--postgres`, `--kafka`, `--bm25`,
+`--help`.
 
 No database required: the app falls back to the sample corpus shipped with the
 repo (`data/seed-documents.json`), so a fresh clone runs as-is.

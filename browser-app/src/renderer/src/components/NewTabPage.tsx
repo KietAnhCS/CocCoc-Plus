@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useRef,
   useState,
   type FormEvent,
   type JSX,
@@ -7,19 +9,24 @@ import {
 } from 'react'
 import AutocompleteDropdown from './AutocompleteDropdown'
 import { suggest } from '../lib/searchApi'
-import { fetchHotNews, type NewsCard } from '../lib/newsApi'
+import { fetchFeed, type FeedCard } from '../lib/newsApi'
 import { useSearchViewStore } from '../store/searchViewStore'
 import { useTabStore } from '../store/tabStore'
 import { useShortcutStore } from '../store/shortcutStore'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
-import { CloseIcon, MicIcon, MoonCloudIcon, PlusIcon, SunCloudIcon, VnSearchMark } from './icons'
+import {
+  AlertIcon,
+  CloseIcon,
+  GlobeIcon,
+  MicIcon,
+  MoonCloudIcon,
+  PlusIcon,
+  SpinnerIcon,
+  SunCloudIcon,
+  VnSearchMark
+} from './icons'
 
 const SUGGEST_DEBOUNCE_MS = 200
-
-interface NewsOutcome {
-  attempt: number
-  cards: NewsCard[] | null
-}
 
 const SAMPLE_QUERIES = [
   'bóng đá Việt Nam',
@@ -445,58 +452,104 @@ function HeroSearchBox(): JSX.Element {
   )
 }
 
+/**
+ * Dòng tin trang chủ — thẻ tin CÓ ẢNH, cuộn xuống tải thêm.
+ *
+ * Trước đây khối này vẽ một ô gradient kèm chữ cái đầu của tên miền thay cho
+ * ảnh, đơn giản vì hệ thống chưa hề thu thập ảnh. Nay `ImageStore` đã có, nên
+ * thẻ tin mang ảnh thật — và CHỈ những bài có ảnh mới được đưa vào, vì một
+ * dòng tin đầy ô xám trông như đang hỏng.
+ *
+ * Ngẫu nhiên nhưng phân trang được: máy chủ xáo trộn bằng một hạt giống do
+ * giao diện sinh một lần cho mỗi lần mở cửa sổ. Cùng hạt giống thì mọi lô nhìn
+ * cùng một hoán vị, nên lô 2 nối khít vào sau lô 1 — xem `FeedController`.
+ */
 function HotNews(): JSX.Element {
-  const [attempt, setAttempt] = useState(0)
-  const [outcome, setOutcome] = useState<NewsOutcome | null>(null)
   const navigate = useTabStore((state) => state.navigate)
 
-  useEffect(() => {
-    let cancelled = false
+  const [cards, setCards] = useState<FeedCard[]>([])
+  const [hasMore, setHasMore] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [indexed, setIndexed] = useState<number | null>(null)
+  const [page, setPage] = useState(0)
+  const [broken, setBroken] = useState<Set<string>>(new Set())
 
-    fetchHotNews(2)
-      .then((cards) => {
-        if (!cancelled) {
-          setOutcome({ attempt, cards })
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setOutcome({ attempt, cards: null })
-        }
-      })
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  // Chốt ĐỒNG BỘ: IntersectionObserver có thể bắn hai lần trước khi React kịp
+  // render lại, và `loading` là state nên lúc đó nó vẫn mang giá trị cũ — hai
+  // request cho cùng một lô. Ref cập nhật ngay nên nó chặn được ca đó.
+  const inFlight = useRef(false)
 
-    return () => {
-      cancelled = true
+  const loadNext = useCallback(async () => {
+    if (inFlight.current || !hasMore) {
+      return
     }
-  }, [attempt])
+    inFlight.current = true
+    setLoading(true)
+    const next = page + 1
+    try {
+      const response = await fetchFeed(next, 12)
+      setCards((prev) => {
+        const seen = new Set(prev.map((card) => card.url))
+        return [...prev, ...response.results.filter((card) => !seen.has(card.url))]
+      })
+      setHasMore(response.hasMore)
+      setIndexed(response.indexedDocuments)
+      setPage(next)
+      setFailed(false)
+    } catch {
+      setFailed(true)
+      setHasMore(false)
+    } finally {
+      inFlight.current = false
+      setLoading(false)
+    }
+  }, [page, hasMore])
 
-  const settled = outcome?.attempt === attempt ? outcome : null
-  const cards = settled ? settled.cards : null
-  const failed = settled !== null && settled.cards === null
+  // MỘT cơ chế cho mọi lô, kể cả lô đầu: ô canh nằm dưới một lưới rỗng thì vốn
+  // đã nằm trong tầm nhìn, nên observer tự bắn ngay khi gắn. Không có nhánh
+  // "lần đầu" riêng để hỏng riêng, và cũng không có setState đồng bộ trong
+  // effect (thứ mà ESLint chặn vì gây thêm một lượt render).
+  useEffect(() => {
+    const sentinel = sentinelRef.current
+    if (!sentinel || !hasMore) {
+      return undefined
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          void loadNext()
+        }
+      },
+      { rootMargin: '400px' }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [loadNext, hasMore])
+
+  const empty = cards.length === 0
 
   return (
     <section className="mx-auto max-w-6xl px-8 pb-14 pt-10">
       <div className="mb-5 flex items-baseline gap-3">
         <h2 className="font-display text-[19px] font-semibold text-ink">Tin nóng</h2>
-        <span className="text-[12px] text-faint">Lấy từ chỉ mục VnSearch</span>
+        <span className="text-[12px] text-faint">
+          {cards.length > 0 ? `${cards.length} bài · cuộn để xem thêm` : 'Lấy từ chỉ mục VnSearch'}
+        </span>
       </div>
 
-      {failed ? (
+      {empty && failed && (
         <div className="rounded-2xl border border-line bg-raised/40 px-6 py-10 text-center">
           <p className="text-[13px] text-muted">Không lấy được tin từ backend.</p>
           <p className="mt-1 text-[12px] text-faint">
             Kiểm tra <code className="text-muted">http://localhost:8080</code> — chạy{' '}
             <code className="text-muted">docker compose up -d --build</code> ở thư mục gốc.
           </p>
-          <button
-            onClick={() => setAttempt((value) => value + 1)}
-            className="mt-4 rounded-full border border-line px-4 py-1.5 text-[12.5px] text-muted
-                       transition hover:border-brand/40 hover:text-ink"
-          >
-            Thử lại
-          </button>
         </div>
-      ) : cards === null ? (
+      )}
+
+      {empty && loading && (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="overflow-hidden rounded-2xl border border-line">
@@ -508,42 +561,110 @@ function HotNews(): JSX.Element {
             </div>
           ))}
         </div>
-      ) : cards.length === 0 ? (
-        <p className="rounded-2xl border border-line bg-raised/40 px-6 py-10 text-center text-[13px] text-muted">
-          Chỉ mục chưa có bài nào khớp các chuyên mục.
-        </p>
-      ) : (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {cards.map((card) => (
-            <button
-              key={card.url}
-              onClick={() => navigate(card.url)}
-              className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface
-                         text-left transition hover:-translate-y-0.5 hover:border-brand/35
-                         hover:shadow-card focus-visible:outline-none focus-visible:ring-2
-                         focus-visible:ring-brand/50"
-              title={card.url}
-            >
-              <span
-                className="flex h-28 w-full items-center justify-center text-3xl font-bold text-white/90"
-                style={{ background: siteGradient(card.url) }}
-              >
-                {siteInitial(card.url)}
-              </span>
+      )}
 
-              <span className="flex min-w-0 flex-1 flex-col gap-2 p-3">
-                <span className="flex items-center gap-2">
-                  <span className="rounded-full bg-brand-soft px-2 py-0.5 text-[10.5px] font-medium text-brand">
-                    {card.category}
+      {/* HAI ca rỗng khác hẳn nhau — nói nhầm thì người dùng đi sửa sai chỗ. */}
+      {empty && !loading && !failed && !hasMore && (
+        <div className="rounded-2xl border border-line bg-raised/40 px-6 py-10 text-center">
+          {indexed && indexed > 0 ? (
+            <>
+              <p className="text-[13px] text-muted">
+                Chỉ mục có {indexed.toLocaleString('vi-VN')} bài, nhưng chưa bài nào được thu thập
+                ảnh.
+              </p>
+              <p className="mt-1 text-[12px] text-faint">
+                Kho ảnh nằm trong bộ nhớ tiến trình — khởi động lại backend là mất. Hãy chạy một
+                phiên crawl mới.
+              </p>
+            </>
+          ) : (
+            <p className="text-[13px] text-muted">Chỉ mục chưa có bài nào. Hãy chạy crawl trước.</p>
+          )}
+        </div>
+      )}
+
+      {cards.length > 0 && (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {cards.map((card) => {
+            const isBroken = broken.has(card.imageUrl)
+            return (
+              <button
+                key={card.url}
+                onClick={() => navigate(card.url)}
+                className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface
+                           text-left transition hover:-translate-y-0.5 hover:border-brand/35
+                           hover:shadow-card focus-visible:outline-none focus-visible:ring-2
+                           focus-visible:ring-brand/50"
+                title={card.url}
+              >
+                {isBroken ? (
+                  <span
+                    className="flex h-28 w-full items-center justify-center text-3xl font-bold text-white/90"
+                    style={{ background: siteGradient(card.url) }}
+                  >
+                    {siteInitial(card.url)}
                   </span>
-                  <span className="truncate text-[11px] text-faint">{hostOf(card.url)}</span>
+                ) : (
+                  <img
+                    src={card.imageUrl}
+                    alt={card.altText}
+                    loading="lazy"
+                    decoding="async"
+                    referrerPolicy="no-referrer"
+                    onError={() =>
+                      setBroken((prev) => {
+                        const next = new Set(prev)
+                        next.add(card.imageUrl)
+                        return next
+                      })
+                    }
+                    className="h-28 w-full bg-raised object-cover transition duration-300
+                               group-hover:scale-[1.03]"
+                  />
+                )}
+
+                <span className="flex min-w-0 flex-1 flex-col gap-2 p-3">
+                  <span className="flex items-center gap-1.5">
+                    <GlobeIcon className="h-3 w-3 shrink-0 text-faint" />
+                    <span className="truncate text-[11px] text-faint">
+                      {card.host || hostOf(card.url)}
+                    </span>
+                  </span>
+                  <span className="line-clamp-2 text-[13px] font-medium leading-snug text-ink group-hover:text-brand">
+                    {card.title}
+                  </span>
+                  {card.snippet && (
+                    <span className="line-clamp-2 text-[11.5px] leading-relaxed text-muted">
+                      {card.snippet}
+                    </span>
+                  )}
                 </span>
-                <span className="line-clamp-2 text-[13px] font-medium leading-snug text-ink group-hover:text-brand">
-                  {card.title}
-                </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Ô canh vô hình: lọt vào tầm nhìn = đã cuộn gần đáy = nạp lô sau. */}
+      <div ref={sentinelRef} aria-hidden className="h-1" />
+
+      {loading && cards.length > 0 && (
+        <div className="flex items-center justify-center gap-2 py-6 text-[13px] text-muted">
+          <SpinnerIcon className="h-4 w-4" />
+          Đang tải thêm tin…
+        </div>
+      )}
+
+      {!hasMore && !loading && cards.length > 0 && (
+        <p className="py-6 text-center text-[12px] text-faint">
+          Đã hiện hết {cards.length.toLocaleString('vi-VN')} bài trong chỉ mục.
+        </p>
+      )}
+
+      {failed && cards.length > 0 && (
+        <div className="flex items-center justify-center gap-2 py-4 text-[12px] text-danger">
+          <AlertIcon className="h-4 w-4" />
+          Không tải được thêm tin.
         </div>
       )}
     </section>

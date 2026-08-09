@@ -102,7 +102,7 @@ public class SecurityConfig {
                         // Spring Security (chan truoc, mo sau), va la ly do
                         // /api/images tra 401 o lan chay dau tien.
                         .requestMatchers("/api/search", "/api/suggest", "/api/health",
-                                "/api/images").permitAll()
+                                "/api/images", "/api/feed").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         .requestMatchers("/api/admin/**", "/actuator/**").hasRole("ADMIN")
                         .anyRequest().denyAll())

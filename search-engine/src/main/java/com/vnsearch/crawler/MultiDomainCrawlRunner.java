@@ -1,5 +1,8 @@
 package com.vnsearch.crawler;
 
+import com.vnsearch.crawler.bus.ImageFound;
+import com.vnsearch.crawler.modular.ImageStorage;
+import com.vnsearch.crawler.modular.ImageStore;
 import com.vnsearch.model.WebDocument;
 
 import java.io.IOException;
@@ -132,6 +135,27 @@ public class MultiDomainCrawlRunner {
                     previous.size(), outputPath);
         }
 
+        // KHO ANH — truoc day khong ton tai o duong chay nay.
+        //
+        // CrawlerService() khong tham so dat imageStore = null, nghia la anh chi
+        // duoc DEM roi vut: ImageDownloadService van chay, CrawlAnalyticsService
+        // van cong so lieu, nhung khong ai giu lai ban ghi nao. Hau qua la
+        // run-crawl.bat crawl xong hang nghin anh ma tab "Hinh anh" van trong,
+        // va crawl-stats khong co gi de doc.
+        //
+        // Truyen mot ImageStore vao la du de vong doi anh khop voi corpus: cung
+        // nap lai o dau phien, cung ghi diem kiem tra, cung ghi ra dia o cuoi.
+        ImageStore imageStore = new ImageStore();
+        String imagePath = ImageStorage.pathFor(outputPath);
+        if (!fresh) {
+            List<ImageFound> previousImages = ImageStorage.loadQuietly(imagePath);
+            if (!previousImages.isEmpty()) {
+                imageStore.addAll(previousImages);
+                System.out.printf("Noi tiep kho anh san co : %d anh tu %s%n",
+                        previousImages.size(), imagePath);
+            }
+        }
+
         Set<String> allowedDomains = new LinkedHashSet<>();
         for (String seed : DEFAULT_SEEDS) {
             String host = URI.create(seed).getHost();
@@ -185,11 +209,11 @@ public class MultiDomainCrawlRunner {
         // Khai báo tách khỏi chuỗi addListener: điểm kiểm tra cần tham chiếu tới
         // chính crawler để lấy bản chụp corpus, mà biến chưa gán xong thì chưa
         // dùng được trong biểu thức khởi tạo của nó.
-        CrawlerService crawler = new CrawlerService();
+        CrawlerService crawler = new CrawlerService(null, imageStore);
         crawler.addListener(new ProgressBarCrawlListener(25))
                 .addListener(new ConsoleCrawlListener(200))
                 .addListener(new CheckpointCrawlListener(
-                        crawler::snapshotDocuments, outputPath, 250));
+                        crawler::snapshotDocuments, imageStore::all, outputPath, 250));
         long start = System.currentTimeMillis();
 
         List<WebDocument> docs = crawler.crawl(DEFAULT_SEEDS, config, previous);
@@ -198,6 +222,14 @@ public class MultiDomainCrawlRunner {
 
 
         ContentStorage.saveToJson(docs, outputPath);
+        // Ghi anh SAU corpus — cung thu tu ma CheckpointCrawlListener dung, va
+        // vi cung mot ly do: tep anh cu hon corpus thi chi thieu anh, con moi
+        // hon thi tro toi trang khong ton tai trong corpus.
+        List<ImageFound> images = imageStore.all();
+        ImageStorage.saveToJson(images, imagePath);
+        System.out.printf("Kho anh    : %d anh tren %d trang -> %s%n",
+                images.size(), imageStore.pageCount(), imagePath);
+
         printBlockStatistics(crawler);
         printStatistics(docs, elapsedMs, outputPath, allowedDomains);
     }

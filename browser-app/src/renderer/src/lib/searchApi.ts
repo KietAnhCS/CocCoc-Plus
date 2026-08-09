@@ -20,7 +20,10 @@ export interface SearchResponseDto {
   droppedTerms: string[]
 }
 
-async function getJson<T>(path: string, params: Record<string, string | number>): Promise<T> {
+export async function getJson<T>(
+  path: string,
+  params: Record<string, string | number>
+): Promise<T> {
   const url = new URL(path, API_BASE)
   for (const [key, value] of Object.entries(params)) {
     url.searchParams.set(key, String(value))

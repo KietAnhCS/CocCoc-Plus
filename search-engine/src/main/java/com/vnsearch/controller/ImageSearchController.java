@@ -66,14 +66,19 @@ public class ImageSearchController {
      * trang đúng: mọi lô phải nhìn cùng một tập ảnh nền, nếu không thì cắt lát
      * ở lô sau sẽ lệch so với lô trước.
      *
-     * <p>60 là thoả hiệp có căn cứ. Đo trên trang thật, mỗi trang cho khoảng
-     * 5–15 ảnh lọt qua bộ lọc đuôi tệp, nên 60 trang là vài trăm ảnh — đủ để
-     * cuộn rất lâu mà không phải quét cả chỉ mục cho mỗi lần cuộn.
+     * <p><b>Con số này buộc phải bằng {@link #MAX_TOTAL_IMAGES}.</b> Từ khi
+     * {@link ImageStore} chỉ giữ MỘT ảnh cho mỗi trang, quan hệ giữa hai đại
+     * lượng trở thành một-một: quét N trang thì có nhiều nhất N ảnh.
      *
-     * <p>Chi phí thật của nó nhỏ: {@code facade.search} có cache, và bước tra
-     * ảnh chỉ là tra bảng băm.
+     * <p>Bản trước để 60 ở đây, và con số đó có căn cứ ĐÚNG VÀO LÚC ẤY — mỗi
+     * trang cho 5–15 ảnh nên 60 trang là vài trăm ảnh. Giữ nguyên 60 sau khi
+     * đổi sang một ảnh mỗi trang thì mọi truy vấn đều dừng ở 60 ảnh: người dùng
+     * cuộn hết ba lô là hết, dù chỉ mục có hàng nghìn trang khớp.
+     *
+     * <p>Chi phí thật của việc nâng lên 300 vẫn nhỏ: {@code facade.search} có
+     * cache, và bước tra ảnh chỉ là 300 lần tra bảng băm.
      */
-    private static final int MAX_SCANNED_PAGES = 60;
+    private static final int MAX_SCANNED_PAGES = 300;
 
     /**
      * Trần số ảnh gom cho một truy vấn.
@@ -129,20 +134,15 @@ public class ImageSearchController {
         List<ImageFound> images = new ArrayList<>(
                 imageStore.forPages(new ArrayList<>(titleByUrl.keySet()), MAX_TOTAL_IMAGES));
 
-        // Bước 3 — ĐẨY ẢNH NỘI DUNG LÊN TRƯỚC ẢNH TRANG TRÍ.
+        // Bước 3 — ĐẨY TRANG CÓ ẢNH TỐT LÊN TRƯỚC.
         //
-        // Tín hiệu: sự CÓ MẶT của văn bản thay thế. Đây không phải mẹo vặt mà
-        // là đúng ngữ nghĩa của chuẩn tiếp cận — `alt` mô tả một bức ảnh
-        // truyền đạt nội dung, còn ảnh trang trí (icon, logo, ảnh nền) thì quy
-        // ước là để trống hoặc bỏ hẳn thuộc tính.
+        // Phần lọc ảnh trang trí NẶNG đã chuyển vào ImageQuality, chạy lúc
+        // crawl: mỗi trang chỉ giữ tấm tốt nhất của nó, nên lưới không còn bị
+        // logo của một trang duy nhất nuốt chỗ.
         //
-        // Số liệu đo trên trang thật khớp với ngữ nghĩa đó:
-        //
-        //     vnexpress.net   31 ảnh, 100% có alt   (ảnh bài viết)
-        //     eclick.vn       12 ảnh,   0% có alt   (toàn icon và logo)
-        //
-        // Nếu không sắp xếp, lưới đầy icon của những trang xếp hạng cao mà
-        // nghèo nội dung ảnh — đúng triệu chứng đã quan sát được.
+        // Nhưng còn một ca mà bước đó không xử lý được: một trang mà TOÀN BỘ
+        // ảnh đều là trang trí thì tấm "tốt nhất" của nó vẫn là một cái logo.
+        // Phép sắp xếp này đẩy những trang như vậy xuống cuối.
         //
         // Sắp xếp ỔN ĐỊNH: trong cùng một nhóm, thứ tự xếp hạng trang được giữ
         // nguyên. Nên đây chỉ là một lần phân hoạch hai nhóm, không phải thay

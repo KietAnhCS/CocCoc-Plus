@@ -1,5 +1,7 @@
 package com.vnsearch.crawler;
 
+import com.vnsearch.crawler.bus.ImageFound;
+import com.vnsearch.crawler.modular.ImageStorage;
 import com.vnsearch.model.WebDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,6 +78,10 @@ public final class CheckpointCrawlListener implements CrawlListener {
     private static final double GROWTH_RATIO = 0.25;
 
     private final Supplier<List<WebDocument>> snapshot;
+
+    /** Nguồn bản chụp kho ảnh; {@code null} nghĩa là phiên này không ghi ảnh. */
+    private final Supplier<List<ImageFound>> imageSnapshot;
+
     private final String path;
     private final int everyN;
 
@@ -101,7 +107,32 @@ public final class CheckpointCrawlListener implements CrawlListener {
      * @param everyN   ghi sau mỗi bấy nhiêu trang
      */
     public CheckpointCrawlListener(Supplier<List<WebDocument>> snapshot, String path, int everyN) {
+        this(snapshot, null, path, everyN);
+    }
+
+    /**
+     * Bản có ghi kèm <b>kho ảnh</b>.
+     *
+     * <p>Vì sao ảnh phải đi cùng nhịp với corpus chứ không ghi riêng một lần ở
+     * cuối: hai tệp mô tả cùng một phiên crawl, nên chúng phải cùng sống hoặc
+     * cùng chết. Nếu chỉ corpus có điểm kiểm tra, một lần Ctrl+C ở phút thứ 40
+     * để lại 12.000 trang trên đĩa và <b>0 ảnh</b> — người chạy tưởng phiên
+     * crawl đó không tìm được ảnh nào, trong khi thật ra ảnh có đủ và vừa bốc
+     * hơi cùng tiến trình.
+     *
+     * <p>Chi phí thêm gần như bằng không: tệp ảnh nhỏ hơn corpus vài chục lần
+     * (chỉ có siêu dữ liệu, không có {@code bodyText}), và nó ghi trên cùng
+     * luồng nền, sau corpus.
+     *
+     * @param imageSnapshot nguồn lấy bản chụp kho ảnh; {@code null} thì không
+     *                      ghi ảnh — dùng cho lời gọi cũ và cho các phiên chạy
+     *                      không bật kho ảnh
+     */
+    public CheckpointCrawlListener(Supplier<List<WebDocument>> snapshot,
+                                   Supplier<List<ImageFound>> imageSnapshot,
+                                   String path, int everyN) {
         this.snapshot = snapshot;
+        this.imageSnapshot = imageSnapshot;
         this.path = path;
         this.everyN = Math.max(1, everyN);
     }
@@ -175,9 +206,24 @@ public final class CheckpointCrawlListener implements CrawlListener {
             long start = System.currentTimeMillis();
             List<WebDocument> docs = snapshot.get();
             ContentStorage.saveToJson(docs, path);
+
+            // Ảnh ghi SAU corpus, có chủ ý. Nếu bị cắt ngang giữa hai lần ghi
+            // thì tệp ảnh cũ hơn tệp corpus — tức là thiếu ảnh của vài trăm
+            // trang cuối. Chiều ngược lại (ảnh mới hơn corpus) tệ hơn: kho ảnh
+            // trỏ tới những trang không có trong corpus, và ImageStore.forPages
+            // sẽ không bao giờ tra ra chúng, nên chỗ đó thành rác câm.
+            int images = -1;
+            if (imageSnapshot != null) {
+                List<ImageFound> snapshotImages = imageSnapshot.get();
+                ImageStorage.saveToJson(snapshotImages, ImageStorage.pathFor(path));
+                images = snapshotImages.size();
+            }
+
             lastCheckpointPages = pages;
-            log.info("Điểm kiểm tra: {} tài liệu -> {} ({} ms)",
-                    docs.size(), path, System.currentTimeMillis() - start);
+            log.info("Điểm kiểm tra: {} tài liệu{} -> {} ({} ms)",
+                    docs.size(),
+                    images >= 0 ? " + " + images + " ảnh" : "",
+                    path, System.currentTimeMillis() - start);
         } catch (Exception e) {
             // Không ném ra ngoài: hỏng việc ghi điểm kiểm tra là mất một lưới an
             // toàn, còn ném ngoại lệ lên luồng worker sẽ làm hỏng chính phiên

@@ -21,7 +21,10 @@ param(
     [string]$Path,
 
     # Bỏ qua phần đếm liên kết (nhanh hơn, ít RAM hơn) khi chỉ cần dung lượng.
-    [switch]$NoLinks
+    [switch]$NoLinks,
+
+    # Bỏ qua phần thống kê ảnh.
+    [switch]$NoImages
 )
 
 $ErrorActionPreference = 'Stop'
@@ -238,6 +241,294 @@ function Add-Links {
     return $n
 }
 
+# ------------------------------------------------------------------ quét ảnh
+
+<#
+    Tệp ảnh đi kèm một tệp corpus.
+
+        data/crawled-documents.json  ->  data/crawled-documents.images.json
+
+    Quy ước này do ImageStorage.pathFor phía Java đặt ra; hàm dưới đây chỉ lặp
+    lại nó. Hai chỗ phải khớp nhau, nên nếu đổi thì đổi cả hai.
+#>
+function Get-ImagePath {
+    param([string]$CorpusPath)
+    if ($CorpusPath.EndsWith('.json')) {
+        return $CorpusPath.Substring(0, $CorpusPath.Length - 5) + '.images.json'
+    }
+    return $CorpusPath + '.images.json'
+}
+
+<#
+    Quét tệp ảnh, đọc TỪNG DÒNG — cùng cách và cùng lý do như Measure-Corpus.
+
+    Bản ghi ImageFound do Jackson ghi ra với INDENT_OUTPUT nên mỗi trường nằm
+    trên một dòng riêng:
+
+        {
+          "pageUrl" : "https://vnexpress.net/...",
+          "host" : "vnexpress.net",
+          "imageUrl" : "https://i1-kinhdoanh.vnecdn.net/....jpg",
+          "altText" : "Nhà đầu tư theo dõi bảng điện tử",
+          "declaredWidth" : 680,
+          "declaredHeight" : 408,
+          "sizeBytes" : -1,
+          "contentHash" : null
+        }
+
+    Đếm theo "imageUrl" chứ không theo dấu ngoặc nhọn: dấu ngoặc còn thuộc về
+    cấu trúc bao ngoài, còn imageUrl thì đúng một dòng cho mỗi ảnh.
+#>
+function Measure-Images {
+    param([System.IO.FileInfo]$File)
+
+    $images    = 0
+    $withAlt   = 0
+    $declared  = 0
+    $downloaded = 0
+    $downBytes = 0L
+    $pages     = New-Object 'System.Collections.Generic.HashSet[string]'
+    $urls      = New-Object 'System.Collections.Generic.HashSet[string]'
+    $hosts     = @{}
+    $extensions = @{}
+
+    # Số ảnh của TỪNG trang, để tính trung vị và trang nhiều ảnh nhất. Lý do
+    # giống hệt phần outlinks: vài trang thư viện ảnh với hàng chục ảnh kéo
+    # trung bình cộng lên cao hơn hẳn trang bài viết bình thường.
+    $perPage   = @{}
+    $curPage   = ''
+
+    $reader = New-Object System.IO.StreamReader($File.FullName, [System.Text.Encoding]::UTF8)
+    try {
+        while ($null -ne ($line = $reader.ReadLine())) {
+            $t = $line.Trim()
+
+            if ($t.StartsWith('"pageUrl"')) {
+                $m = [regex]::Match($t, '^"pageUrl"\s*:\s*"(.*?)"\s*,?$')
+                if ($m.Success) {
+                    $curPage = $m.Groups[1].Value
+                    [void]$pages.Add($curPage)
+                    if ($perPage.ContainsKey($curPage)) { $perPage[$curPage]++ } else { $perPage[$curPage] = 1 }
+                }
+                continue
+            }
+
+            if ($t.StartsWith('"host"')) {
+                $m = [regex]::Match($t, '^"host"\s*:\s*"(.*?)"\s*,?$')
+                if ($m.Success) {
+                    $h = $m.Groups[1].Value
+                    if ($h) {
+                        if ($hosts.ContainsKey($h)) { $hosts[$h]++ } else { $hosts[$h] = 1 }
+                    }
+                }
+                continue
+            }
+
+            if ($t.StartsWith('"imageUrl"')) {
+                $m = [regex]::Match($t, '^"imageUrl"\s*:\s*"(.*?)"\s*,?$')
+                if ($m.Success) {
+                    $images++
+                    $u = $m.Groups[1].Value
+                    [void]$urls.Add($u)
+
+                    # Đuôi tệp: cho biết corpus ảnh nghiêng về ảnh nội dung
+                    # (jpg/png) hay ảnh giao diện (svg/gif). Cắt tham số truy
+                    # vấn trước, vì CDN hay gắn "?w=680&q=100" vào sau đuôi.
+                    $clean = $u.Split('?')[0].Split('#')[0]
+                    $dot = $clean.LastIndexOf('.')
+                    $slash = $clean.LastIndexOf('/')
+                    $ext = if ($dot -gt $slash -and $dot -ge 0 -and ($clean.Length - $dot) -le 6) {
+                        $clean.Substring($dot + 1).ToLower()
+                    } else { '(không rõ)' }
+                    if ($extensions.ContainsKey($ext)) { $extensions[$ext]++ } else { $extensions[$ext] = 1 }
+                }
+                continue
+            }
+
+            if ($t.StartsWith('"altText"')) {
+                # Chuỗi RỖNG nghĩa là thiếu alt — đúng định nghĩa của
+                # ImageFound.missingAlt(). Chuỗi chỉ có khoảng trắng cũng tính
+                # là thiếu, vì phía Java dùng isBlank() chứ không isEmpty().
+                $m = [regex]::Match($t, '^"altText"\s*:\s*"(.*)"\s*,?$')
+                if ($m.Success -and -not [string]::IsNullOrWhiteSpace($m.Groups[1].Value)) {
+                    $withAlt++
+                }
+                continue
+            }
+
+            if ($t.StartsWith('"declaredWidth"')) {
+                $m = [regex]::Match($t, '^"declaredWidth"\s*:\s*(-?\d+)\s*,?$')
+                if ($m.Success -and [int]$m.Groups[1].Value -gt 0) { $declared++ }
+                continue
+            }
+
+            if ($t.StartsWith('"sizeBytes"')) {
+                $m = [regex]::Match($t, '^"sizeBytes"\s*:\s*(-?\d+)\s*,?$')
+                if ($m.Success) {
+                    $n = [long]$m.Groups[1].Value
+                    if ($n -ge 0) { $downloaded++; $downBytes += $n }
+                }
+                continue
+            }
+        }
+    } finally {
+        $reader.Dispose()
+    }
+
+    # Đếm số trang CHẠM TRẦN. Hai trần khác nhau cắt ở hai chỗ khác nhau:
+    #
+    #   50 = app.crawler.images.max-per-page  (cấu hình, ImageDownloadService)
+    #   60 = ImageStore.MAX_IMAGES_PER_PAGE   (bất biến của kho, không đổi được)
+    #
+    # Trần cấu hình THẤP HƠN nên nó luôn cắt trước — nghĩa là trần 60 trên thực
+    # tế không bao giờ chạm tới ở cấu hình mặc định. Chỉ kiểm tra mốc 60 thì
+    # cảnh báo không bao giờ bắn, kể cả khi ảnh đang bị cắt thật.
+    $atConfigCap = 0
+    $atStoreCap  = 0
+    foreach ($n in $perPage.Values) {
+        if ($n -ge 60) { $atStoreCap++ }
+        elseif ($n -ge 50) { $atConfigCap++ }
+    }
+
+    $counts = @($perPage.Values)
+    $median = 0
+    $maxImg = 0
+    $maxUrl = ''
+    if ($counts.Count -gt 0) {
+        $arr = [int[]]$counts
+        [Array]::Sort($arr)
+        $median = $arr[[int][Math]::Floor($arr.Length * 0.5)]
+        $top = $perPage.GetEnumerator() | Sort-Object -Property Value -Descending | Select-Object -First 1
+        $maxImg = $top.Value
+        $maxUrl = $top.Key
+    }
+
+    [pscustomobject]@{
+        File       = $File
+        Images     = $images
+        UniqueUrls = $urls.Count
+        WithAlt    = $withAlt
+        MissingAlt = $images - $withAlt
+        Pages      = $pages.Count
+        Hosts      = $hosts
+        Extensions = $extensions
+        Declared   = $declared
+        Downloaded = $downloaded
+        DownBytes  = $downBytes
+        Median     = $median
+        MaxImages  = $maxImg
+        MaxUrl     = $maxUrl
+        AtConfigCap = $atConfigCap
+        AtStoreCap  = $atStoreCap
+    }
+}
+
+function Show-ImageReport {
+    param($Stat, [int]$CorpusPages)
+
+    $f = $Stat.File
+    Write-Host ''
+    Write-Field 'Số ảnh thu được' ('{0:N0}' -f $Stat.Images)
+
+    if ($Stat.Images -eq 0) {
+        Write-Host '       (tệp ảnh rỗng — phiên crawl không tìm được ảnh nào)' -ForegroundColor DarkGray
+        return
+    }
+
+    Write-Sub 'tệp ảnh' ('{0}  ({1})' -f $f.Name, (Format-Size $f.Length))
+
+    # Tỉ lệ có alt là THƯỚC ĐO CHẤT LƯỢNG của corpus ảnh, không phải số liệu
+    # trang trí. ImageSearchController sắp ảnh có alt lên trước ảnh thiếu alt,
+    # vì alt phân biệt ảnh NỘI DUNG với ảnh TRANG TRÍ (icon, logo). Tỉ lệ này
+    # thấp nghĩa là lưới ảnh sẽ đầy icon.
+    Write-Sub 'có văn bản thay thế' ('{0:N0}  ({1:P1})' -f $Stat.WithAlt, ($Stat.WithAlt / $Stat.Images))
+    $missRatio = $Stat.MissingAlt / $Stat.Images
+    $missNote = if ($missRatio -gt 0.5) {
+        '  <- quá nửa là ảnh trang trí, lưới ảnh sẽ nhiều icon'
+    } else { '' }
+    Write-Sub 'thiếu văn bản thay thế' ('{0:N0}  ({1:P1}){2}' -f $Stat.MissingAlt, $missRatio, $missNote)
+
+    if ($Stat.UniqueUrls -lt $Stat.Images) {
+        Write-Sub 'địa chỉ ảnh khác nhau' ('{0:N0}  (cùng một ảnh xuất hiện trên nhiều trang)' -f $Stat.UniqueUrls)
+    }
+
+    # Kích thước khai báo trong HTML. Con số này quyết định lưới ảnh ở giao diện
+    # có xếp đúng chỗ ngay từ đầu hay phải chờ ảnh tải xong mới đo được — xem
+    # FALLBACK_RATIO trong ImageResultGrid.tsx.
+    Write-Sub 'có khai báo kích thước' ('{0:N0}  ({1:P1})  — phần còn lại lưới phải tự đo lúc hiển thị' -f `
+        $Stat.Declared, ($Stat.Declared / $Stat.Images))
+
+    if ($Stat.Downloaded -gt 0) {
+        Write-Sub 'đã tải nội dung' ('{0:N0}  ({1})' -f $Stat.Downloaded, (Format-Size $Stat.DownBytes))
+    } else {
+        Write-Sub 'đã tải nội dung' '0  — app.crawler.images.download=false (mặc định, chỉ lưu siêu dữ liệu)'
+    }
+
+    # --- phân bố theo trang ---
+    Write-Host ''
+    Write-Field 'Số trang có ảnh' ('{0:N0}' -f $Stat.Pages)
+    if ($CorpusPages -gt 0) {
+        if ($Stat.Pages -gt $CorpusPages) {
+            # Kho ảnh nhắc tới NHIỀU trang hơn số trang có trong corpus. Không
+            # phải lỗi làm tròn — nó nghĩa là hai tệp thuộc hai phiên crawl khác
+            # nhau, thường do corpus bị ghi đè bằng --fresh mà tệp ảnh thì
+            # không, hoặc do chép tay một trong hai tệp từ nơi khác về.
+            #
+            # Hệ quả thật: ImageSearchController tra ảnh THEO URL trang lấy từ
+            # kết quả tìm kiếm, nên ảnh của những trang không nằm trong corpus
+            # sẽ không bao giờ được trả về. Chúng chiếm chỗ trên đĩa mà không
+            # bao giờ hiện ra.
+            $orphan = $Stat.Pages - $CorpusPages
+            Write-Sub 'trên tổng số trang' ('{0:N0}' -f $CorpusPages)
+            Write-Host ('       [CHÚ Ý] Kho ảnh nhắc tới {0:N0} trang KHÔNG có trong corpus.' -f $orphan) -ForegroundColor DarkYellow
+            Write-Host '               Hai tệp lệch phiên crawl — ảnh của những trang đó sẽ không bao giờ' -ForegroundColor DarkGray
+            Write-Host '               hiện ở tab Hình ảnh. Chạy lại run-crawl.bat --fresh để đồng bộ.' -ForegroundColor DarkGray
+        } else {
+            $cover = $Stat.Pages / $CorpusPages
+            $coverNote = if ($cover -lt 0.5) { '  <- quá nửa số trang không có ảnh nào' } else { '' }
+            Write-Sub 'trên tổng số trang' ('{0:N0}  ({1:P1} corpus){2}' -f $CorpusPages, $cover, $coverNote)
+        }
+    }
+    Write-Sub 'mỗi trang có ảnh' ('{0:N1} trung bình | {1:N0} trung vị | {2:N0} nhiều nhất' -f `
+        ($Stat.Images / $Stat.Pages), $Stat.Median, $Stat.MaxImages)
+    if ($Stat.MaxUrl) {
+        Write-Sub 'trang nhiều ảnh nhất' (Format-Url $Stat.MaxUrl 60)
+    }
+
+    # Chạm trần nghĩa là có trang bị cắt bớt ảnh — mọi con số ở trên khi đó là
+    # CHẶN DƯỚI, không phải con số thật. Nói rõ trần nào đang cắt, vì hai trần
+    # sửa ở hai chỗ hoàn toàn khác nhau.
+    if ($Stat.AtStoreCap -gt 0) {
+        Write-Host ('       [CHÚ Ý] {0:N0} trang chạm trần ImageStore.MAX_IMAGES_PER_PAGE = 60.' -f $Stat.AtStoreCap) -ForegroundColor DarkYellow
+        Write-Host '               Đây là bất biến của kho, phải sửa mã nguồn mới đổi được.' -ForegroundColor DarkGray
+    }
+    if ($Stat.AtConfigCap -gt 0) {
+        Write-Host ('       [CHÚ Ý] {0:N0} trang ({1:P1}) chạm trần app.crawler.images.max-per-page = 50.' -f `
+            $Stat.AtConfigCap, ($Stat.AtConfigCap / $Stat.Pages)) -ForegroundColor DarkYellow
+        Write-Host '               Ảnh của những trang đó bị cắt bớt — số liệu trên là chặn dưới.' -ForegroundColor DarkGray
+        Write-Host '               Nâng trong application.properties nếu muốn giữ nhiều ảnh hơn mỗi trang.' -ForegroundColor DarkGray
+    }
+
+    # --- tên miền ---
+    Write-Host ''
+    Write-Field 'Số tên miền có ảnh' ('{0:N0}' -f $Stat.Hosts.Count)
+    $topHosts = $Stat.Hosts.GetEnumerator() | Sort-Object -Property Value -Descending
+    foreach ($h in ($topHosts | Select-Object -First 10)) {
+        Write-Host ('       {0,-34} {1,8:N0}  {2,6:P1}' -f $h.Key, $h.Value, ($h.Value / $Stat.Images)) -ForegroundColor DarkGray
+    }
+    if ($Stat.Hosts.Count -gt 10) {
+        Write-Host ('       ... còn {0} tên miền nữa' -f ($Stat.Hosts.Count - 10)) -ForegroundColor DarkGray
+    }
+
+    # --- định dạng ---
+    Write-Host ''
+    Write-Field 'Định dạng ảnh' ('{0:N0} loại đuôi tệp' -f $Stat.Extensions.Count)
+    $topExt = $Stat.Extensions.GetEnumerator() | Sort-Object -Property Value -Descending
+    foreach ($e in ($topExt | Select-Object -First 8)) {
+        Write-Host ('       {0,-34} {1,8:N0}  {2,6:P1}' -f $e.Key, $e.Value, ($e.Value / $Stat.Images)) -ForegroundColor DarkGray
+    }
+}
+
 function Get-Host2 {
     param([string]$Url)
     $i = $Url.IndexOf('://')
@@ -370,7 +661,13 @@ $Path = $resolved
 
 $item = Get-Item -LiteralPath $Path
 if ($item.PSIsContainer) {
-    $files = @(Get-ChildItem -LiteralPath $item.FullName -Filter '*.json' -File | Sort-Object Length -Descending)
+    # LOẠI tệp ảnh khỏi danh sách corpus. Chúng nằm cùng thư mục và cũng có
+    # đuôi .json, nên nếu không lọc thì mỗi tệp ảnh bị quét như một corpus rồi
+    # báo "không nhận ra định dạng" — một dòng cảnh báo sai cho một tệp hoàn
+    # toàn bình thường. Chúng được báo cáo ở đúng chỗ: kèm theo corpus của mình.
+    $files = @(Get-ChildItem -LiteralPath $item.FullName -Filter '*.json' -File |
+        Where-Object { $_.Name -notlike '*.images.json' } |
+        Sort-Object Length -Descending)
     $scope = $item.FullName
 } else {
     $files = @($item)
@@ -388,14 +685,53 @@ Write-Host '=== THỐNG KÊ CORPUS ĐÃ CRAWL ===' -ForegroundColor Green
 Write-Host ('Thư mục: {0}' -f $scope) -ForegroundColor DarkGray
 
 $countLinks = -not $NoLinks
+$countImages = -not $NoImages
 $stats = @()
+$imageStats = @()
 foreach ($f in $files) {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     $s = Measure-Corpus -File $f -CountLinks $countLinks
     $sw.Stop()
     $stats += $s
     Show-Report -Stat $s -CountLinks $countLinks
-    Write-Host ('  (quét trong {0:N1} giây)' -f $sw.Elapsed.TotalSeconds) -ForegroundColor DarkGray
+
+    $imageSeconds = 0.0
+
+    # Ảnh: báo cáo NGAY DƯỚI corpus tương ứng, không gom thành một mục riêng ở
+    # cuối. Mọi tỉ lệ đáng đọc đều là tỉ lệ giữa hai bên ("bao nhiêu phần trăm
+    # trang có ảnh"), nên đặt xa nhau là bắt người đọc tự ghép số.
+    # `$s.Pages -gt 0`: bỏ qua hoàn toàn phần ảnh cho tệp KHÔNG PHẢI corpus.
+    # Thư mục data còn chứa index.json — chỉ mục đã dựng sẵn, không có trường
+    # "url" nào. Không có điều kiện này thì mỗi lần chạy lại in ra một lời
+    # khuyên "hãy chạy run-crawl.bat để sinh index.images.json", tức là mách
+    # người dùng đi tìm một tệp không bao giờ tồn tại và cũng không nên tồn tại.
+    if ($countImages -and $s.Pages -gt 0) {
+        $imagePath = Get-ImagePath $f.FullName
+        if (Test-Path -LiteralPath $imagePath) {
+            $imgFile = Get-Item -LiteralPath $imagePath
+            $swi = [System.Diagnostics.Stopwatch]::StartNew()
+            $si = Measure-Images -File $imgFile
+            $swi.Stop()
+            $imageSeconds = $swi.Elapsed.TotalSeconds
+            $imageStats += $si
+            Show-ImageReport -Stat $si -CorpusPages $s.Pages
+        } else {
+            # Không có tệp ảnh KHÔNG phải lỗi — nhưng nó có đúng một nguyên nhân
+            # và một cách sửa, nên nói thẳng ra thay vì im lặng bỏ qua.
+            Write-Host ''
+            Write-Host ('  [CHÚ Ý] Chưa có tệp ảnh "{0}".' -f (Split-Path -Leaf $imagePath)) -ForegroundColor DarkYellow
+            Write-Host '          Corpus này được crawl bằng bản mã cũ chưa lưu ảnh ra đĩa.' -ForegroundColor DarkGray
+            Write-Host '          Chạy run-crawl.bat một lần nữa để sinh nó (crawl nối tiếp, không mất gì).' -ForegroundColor DarkGray
+        }
+    }
+
+    Write-Host ''
+    if ($imageSeconds -gt 0) {
+        Write-Host ('  (quét trong {0:N1} giây: {1:N1}s corpus + {2:N1}s ảnh)' -f `
+            ($sw.Elapsed.TotalSeconds + $imageSeconds), $sw.Elapsed.TotalSeconds, $imageSeconds) -ForegroundColor DarkGray
+    } else {
+        Write-Host ('  (quét trong {0:N1} giây)' -f $sw.Elapsed.TotalSeconds) -ForegroundColor DarkGray
+    }
 }
 
 # Tổng hợp + chỗ trống còn lại của ổ đĩa: câu hỏi "tốn bao nhiêu GB" chỉ có
@@ -408,7 +744,43 @@ Write-Host '  TỔNG CỘNG' -ForegroundColor Green
 Write-Host '  ---------'
 Write-Field 'Số tệp corpus' ('{0}' -f $files.Count)
 Write-Field 'Tổng số trang' ('{0:N0}' -f $totalPages)
-Write-Field 'Tổng dung lượng' (Format-Size $totalBytes)
+
+if ($imageStats.Count -gt 0) {
+    $totalImages   = ($imageStats | Measure-Object -Property Images -Sum).Sum
+    $totalWithAlt  = ($imageStats | Measure-Object -Property WithAlt -Sum).Sum
+    $totalImgPages = ($imageStats | Measure-Object -Property Pages -Sum).Sum
+    # Cộng tay chứ không `Measure-Object -Property { ... }`: PowerShell 5.1
+    # KHÔNG nhận khối script làm tên thuộc tính, nó ném
+    # GenericMeasurePropertyNotFound. Cú pháp đó chỉ có từ PowerShell 7.
+    $totalImgBytes = 0L
+    foreach ($i in $imageStats) { $totalImgBytes += $i.File.Length }
+
+    Write-Field 'Tổng số ảnh' ('{0:N0}' -f $totalImages)
+    if ($totalImages -gt 0) {
+        Write-Sub 'có văn bản thay thế' ('{0:N0}  ({1:P1})' -f $totalWithAlt, ($totalWithAlt / $totalImages))
+
+        # Cùng lý do như trong Show-ImageReport: khi kho ảnh và corpus lệch
+        # phiên, tỉ lệ vượt 100% và trở thành một con số vô nghĩa. In số tuyệt
+        # đối thay vì một phần trăm không đọc được.
+        if ($totalImgPages -gt $totalPages) {
+            Write-Sub 'trang có ảnh' ('{0:N0}  <- NHIỀU HƠN tổng số trang corpus, hai bên lệch phiên crawl' -f $totalImgPages)
+        } else {
+            Write-Sub 'trang có ảnh' ('{0:N0}  ({1:P1} tổng số trang)' -f `
+                $totalImgPages, ($totalImgPages / [Math]::Max(1, $totalPages)))
+            Write-Sub 'mỗi trang' ('{0:N1} ảnh trung bình' -f ($totalImages / [Math]::Max(1, $totalPages)))
+        }
+    }
+    # Cộng tệp ảnh vào tổng dung lượng: chúng là một phần của "corpus tốn bao
+    # nhiêu GB", và bỏ chúng ra khiến ước tính dung lượng phía dưới thiếu hụt.
+    $totalBytes += $totalImgBytes
+    Write-Sub 'dung lượng tệp ảnh' (Format-Size $totalImgBytes)
+}
+
+# Nhãn "(corpus + ảnh)" chỉ đúng khi THẬT SỰ có tệp ảnh được cộng vào. Dán nó
+# vô điều kiện thì ở một corpus chưa có ảnh, người đọc tưởng ảnh đã được tính
+# và kết luận sai rằng ảnh gần như không tốn dung lượng.
+$sizeLabel = if ($imageStats.Count -gt 0) { '  (corpus + ảnh)' } else { '  (chưa có tệp ảnh nào)' }
+Write-Field 'Tổng dung lượng' ((Format-Size $totalBytes) + $sizeLabel)
 
 $drive = Get-PSDrive -Name (Split-Path -Qualifier $item.FullName).TrimEnd(':') -ErrorAction SilentlyContinue
 if ($drive -and $null -ne $drive.Free) {

@@ -384,6 +384,26 @@ public class SearchEngineFacade {
         return current == null ? 0 : current.getTotalDocs();
     }
 
+    /**
+     * Mot tai lieu theo docId, hoac {@code null} neu id nam ngoai chi muc.
+     *
+     * <p>Mo ra cho {@code FeedController} dung — no can DUYET chi muc chu khong
+     * phai truy van no. Doc khong co truy van thi khong co diem lien quan, nen
+     * moi duong di qua {@link #search} deu khong dung duoc.
+     *
+     * <p>Doc mot lan vao bien cuc bo: {@link #index} la {@code volatile} va co
+     * the bi thay the giua chung boi mot lan lap chi muc lai. Khong lam vay thi
+     * hai lenh doc lien tiep co the roi vao HAI chi muc khac nhau, va docId cua
+     * chi muc nay tro thanh mot tai lieu hoan toan khac o chi muc kia.
+     */
+    public WebDocument getDocumentAt(int docId) {
+        SearchIndex current = index;
+        if (current == null || docId < 0 || docId >= current.getTotalDocs()) {
+            return null;
+        }
+        return current.getDocument(docId);
+    }
+
     /** Ty le trung cache tim kiem — thang do cho Micrometer. */
     public double getCacheHitRate() {
         long hits = cacheHits.get();

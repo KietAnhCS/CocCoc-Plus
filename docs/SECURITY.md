@@ -533,7 +533,7 @@ Mục quan trọng nhất tài liệu này. Xếp theo mức rủi ro giảm d�
 
 | # | Còn hở | Mức | Ghi chú |
 |---|---|:---:|---|
-| 1 | **Chưa bật branch protection trên `main`** | 🔴 | Bảy cổng chặn CI **chỉ có nghĩa** khi không ai đẩy thẳng lên `main` được. Đây là thiết lập ở Settings, không nằm trong mã |
+| ~~1~~ | ~~Chưa bật branch protection trên `main`~~ | ✅ | **Đã bật.** Bắt buộc PR, 7 status check phải xanh, `enforce_admins`, cấm force-push và xoá nhánh. Kiểm chứng: đẩy thẳng lên `main` nay bị từ chối với `GH006: Protected branch update failed` |
 | 2 | **DNS rebinding** (§2.5) | 🟠 | Cửa sổ hẹp nhờ cache DNS; đóng hẳn thì phá SNI của HTTPS |
 | 3 | **Giới hạn tần suất theo từng tiến trình** | 🟠 | Ba bản sao = hạn mức thực tế gấp ba. Cần Redis để dùng chung |
 | 4 | **Định danh bằng IP** | 🟠 | Giả mạo được; nhiều người dùng chung NAT bị tính chung |
@@ -548,10 +548,25 @@ Mục quan trọng nhất tài liệu này. Xếp theo mức rủi ro giảm d�
 
 ### Ba việc đáng làm trước
 
-1. **Bật branch protection** — 5 phút, và nó khoá lại giá trị của toàn bộ CI.
+1. ~~**Bật branch protection**~~ — ✅ **đã xong**, xem hàng 1 ở bảng trên.
 2. **Thêm `gitleaks` vào CI** — 15 phút, chặn loại lỗi tốn kém nhất.
 3. **Audit log cho `/api/admin/**`** — ghi ai gọi gì lúc nào, kể cả khi thành
    công. Hiện chỉ log lần **từ chối**.
+
+### Ghi chú: vá CVE thư viện, 09/08/2026
+
+Cổng chặn CVE của CD đã **thật sự chặn một lần phát hành**, và đó là lần đầu nó
+được kiểm chứng. Sáu lỗ hổng CRITICAL, tất cả từ Spring Boot 3.3.4:
+
+| Thư viện | Trước | Sau | CVE đã vá |
+|---|---|---|---|
+| `tomcat-embed-core` | 10.1.30 | **10.1.55** | CVE-2025-24813, CVE-2026-41293, CVE-2026-43512, CVE-2026-43515 |
+| `spring-security-web` | 6.3.3 | **6.5.11** | CVE-2024-38821, CVE-2026-22732 |
+
+Vá bằng cách nâng Spring Boot lên **3.5.16** — bản minor, không phải 4.1.0 mà
+Dependabot đề xuất. Cùng kết quả bảo mật, nhưng tránh được migration Spring
+Framework 7 + Jakarta EE 11. Lên 4.x nên là quyết định riêng, không phải hệ quả
+phụ của việc vá lỗ hổng.
 
 ---
 

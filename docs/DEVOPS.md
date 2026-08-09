@@ -33,6 +33,7 @@ một người trong nhóm biết cách làm. Đó không phải là một quy t
 9. [Quản lý phụ thuộc](#9-quản-lý-phụ-thuộc)
 10. [Chạy tại chỗ trước khi đẩy](#10-chạy-tại-chỗ-trước-khi-đẩy)
 11. [Còn thiếu](#11-còn-thiếu)
+12. [Branch protection](#12-branch-protection--thứ-biến-bảy-cổng-chặn-thành-ràng-buộc)
 
 ---
 
@@ -251,7 +252,7 @@ Sửa bằng cách đưa giá trị ra một property (`test.excluded.groups`) �
 
 ### ③ Lệch phiên bản Docker API
 
-Testcontainers 1.19.8 (bản Spring Boot 3.3.4 quản lý) đi kèm docker-java 3.3.6,
+Testcontainers 1.19.8 (bản Spring Boot 3.3.4 khi đó quản lý) đi kèm docker-java 3.3.6,
 và client đó nói một phiên bản API mà Docker Engine 29.x không còn nhận. Triệu
 chứng dẫn sai đường hoàn toàn:
 
@@ -455,15 +456,66 @@ Test Files  5 passed (5)
 
 ## 11. Còn thiếu
 
-1. **Branch protection trên `main`.** Đây là thiết lập ở Settings, không nằm
-   trong mã nguồn — và **toàn bộ bảy cổng chặn chỉ có nghĩa khi không ai đẩy
-   thẳng lên `main` được**. Đây là việc còn thiếu quan trọng nhất của mục này.
-2. **Chưa có kiểm thử tải trong CI** (k6 hoặc tương đương), nên chưa có cổng nào
+1. **Chưa có kiểm thử tải trong CI** (k6 hoặc tương đương), nên chưa có cổng nào
    bắt được hồi quy về **thông lượng**.
-3. **Chưa có môi trường preview cho từng PR.** Mọi thay đổi giao diện phải chạy
+2. **Chưa có môi trường preview cho từng PR.** Mọi thay đổi giao diện phải chạy
    tay mới xem được.
-4. **`release.yml` chưa sinh changelog tự động** từ Conventional Commits, dù
+3. **`release.yml` chưa sinh changelog tự động** từ Conventional Commits, dù
    `pr-title.yml` đã ép đúng định dạng để làm được việc đó.
+4. **CD chưa chạy hết đường.** Nó dừng ở bước nạp `KUBE_CONFIG` vì chưa có cụm
+   thật — mọi bước trước đó (dựng, đẩy GHCR, ký cosign, quét CVE) đã kiểm chứng
+   xong.
+
+---
+
+## 12. Branch protection — thứ biến bảy cổng chặn thành ràng buộc
+
+Bảy cổng chặn ở §3 **chỉ là thông tin** nếu vẫn đẩy thẳng lên `main` được. Đây
+không phải giả thuyết: CI của dự án này từng **đỏ năm lần liên tiếp trong hai
+ngày** mà không ai biết, vì không có gì chặn.
+
+Cấu hình đang áp trên `main`:
+
+| Quy tắc | Giá trị | Vì sao |
+|---|---|---|
+| Bắt buộc pull request | ✅ | Không còn đường đẩy thẳng |
+| Số review cần duyệt | **0** | Kho một người. GitHub **không cho tự duyệt PR của mình**, nên đặt 1 sẽ khoá cứng chính chủ |
+| Status check bắt buộc | **7** | 5 job CI + 2 job CodeQL. **Không** gồm job CD — chúng chạy *sau* khi trộn |
+| Nhánh phải cập nhật (`strict`) | ✅ | Chặn ca hai PR xanh riêng lẻ nhưng hỏng khi ghép |
+| Áp cho cả admin | ✅ | Chủ kho cũng không bỏ qua được |
+| Lịch sử tuyến tính | ✅ | `git log` đọc được, hợp với một kho sẽ đem đi bảo vệ |
+| Cấm force-push / xoá nhánh | ✅ | `main` không bị viết lại lịch sử |
+
+Kiểm chứng bằng cách thử đẩy thẳng:
+
+```
+remote: error: GH006: Protected branch update failed for refs/heads/main.
+remote: - Changes must be made through a pull request.
+remote: - 7 of 7 required status checks are expected.
+```
+
+### Quy trình làm việc từ nay
+
+```bash
+git checkout -b feat/viec-gi-do
+# ... sửa mã ...
+git commit -m "feat: ..."
+git push -u origin feat/viec-gi-do
+gh pr create --fill
+gh pr checks --watch      # chờ 7 cổng xanh
+gh pr merge --squash --delete-branch
+```
+
+> **Lối thoát khi kẹt.** `enforce_admins` bật nghĩa là kể cả chủ kho cũng không
+> đẩy thẳng được. Nếu có lúc cần gấp: Settings → Branches → sửa quy tắc, tắt
+> tạm, đẩy, rồi **bật lại**. Mất khoảng 30 giây — đủ nhanh để không phải nới
+> lỏng quy tắc vĩnh viễn, đủ chậm để không làm theo thói quen.
+>
+> Một lưu ý về `required_status_checks`: nó ghim theo **TÊN job**. Đổi tên một
+> job trong `ci.yml` mà quên cập nhật danh sách này thì mọi PR sẽ treo mãi ở
+> *"Expected — Waiting for status to be reported"*. Đây chính là lý do việc đổi
+> tên job từ `Backend (Java 17)` sang `Backend (Java 21)` phải làm **trước** khi
+> bật branch protection.
 
 ---
 

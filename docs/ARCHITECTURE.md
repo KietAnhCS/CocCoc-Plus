@@ -58,7 +58,7 @@ flowchart LR
         Bkm["bookmarkStore — Tree + BookmarkTrie"]
     end
 
-    subgraph Backend["search-engine (Spring Boot, Java 17)"]
+    subgraph Backend["search-engine (Spring Boot 3.5.16, Java 17)"]
         Ctl["Controller: Search / Suggest / Admin"]
         Facade["SearchEngineFacade<br/>(chỉ điều phối)"]
         Svc["IndexBuilder / SuggestionService<br/>CrawlJobManager / LanguageDetector"]

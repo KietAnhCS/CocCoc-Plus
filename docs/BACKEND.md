@@ -43,7 +43,7 @@
 
 ```mermaid
 mindmap
-  root((Backend<br/>Spring Boot 3.3.4<br/>Java 17))
+  root((Backend<br/>Spring Boot 3.5.16<br/>Java 17 bytecode))
     Vỏ ngoài
       controller 6 endpoint
       GlobalExceptionHandler

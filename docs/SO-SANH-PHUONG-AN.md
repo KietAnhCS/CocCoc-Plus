@@ -56,23 +56,34 @@ Mỗi mục có đúng bốn phần:
 | # | Bài toán | Đang dùng | Trạng thái | Phương án tốt hơn (nếu có) |
 |---|---|---|---|---|
 | 1 | Khử trùng lặp URL | Bloom Filter | ✅ | — |
-| 2 | Tách từ tiếng Việt | Longest Matching tham lam | ❌ | Viterbi / quy hoạch động |
+| 2 | Tách từ tiếng Việt | **QHĐ cực đại trọng số + SyllableTrie** | ✅ | CRF (cần corpus gán nhãn) |
 | 3 | Cấu trúc từ điển term | HashMap + Flyweight | ✅ | FST (chỉ khi ≫ 10⁷ term) |
 | 4 | Nén posting list | delta + VByte | ✅ | PForDelta / Roaring (quy mô lớn) |
 | 5 | Giao posting list | two-pointer + galloping | ✅ | Roaring bitmap (đổi biểu diễn) |
 | 6 | Truy hồi top-K | chấm điểm toàn bộ + MinHeap | ❌ | **WAND / Block-Max WAND** |
-| 7 | Kết hợp tín hiệu xếp hạng | cộng tuyến tính có trọng số | ❌ | **RRF** và/hoặc **BM25F** |
+| 7 | Kết hợp tín hiệu xếp hạng | **Decorator — nhân + log** | ⚠️ | **RRF** và/hoặc **BM25F** |
 | 8 | Điểm uy tín trang | PageRank power iteration | ⚠️ | Gauss–Seidel (nhanh hơn ~40%) |
 | 9 | Lấy top-K từ n ứng viên | MinHeap | ✅ | — |
 | 10 | Gợi ý tự động | Trie + DFS + top-K | ⚠️ | Trie lưu sẵn top-k tại node |
 | 11 | Cache kết quả | LRU | ⚠️ | W-TinyLFU (hit rate cao hơn) |
 | 12 | Lập lịch crawler | Mercator back-queue | ✅ | — |
-| 13 | Khử trùng lặp nội dung | **không có** | ❌ | **SimHash** |
+| 13 | Khử trùng lặp nội dung | SHA-256 (trùng CHÍNH XÁC) | ⚠️ | **SimHash** (trùng gần đúng) |
 
-**Đọc bảng này thế nào.** 5 ✅, 4 ⚠️, 4 ❌. Bốn dấu ❌ không phải lỗi cài đặt —
-chúng là **quyết định thuật toán ở tầng cao** chưa được tối ưu, và mỗi cái đều
-kèm lời giải cụ thể ở mục tương ứng. Việc liệt kê chúng ra là có chủ ý: một
-đồ án nói *"mọi thứ đều tối ưu"* thì hoặc là chưa đo, hoặc là chưa nhìn kỹ.
+**Đọc bảng này thế nào.** 6 ✅, 6 ⚠️, 1 ❌.
+
+Ba hàng đã ĐỔI trạng thái so với bản rà soát trước, và cả ba đều được ghi lại
+nguyên nhân trong mục tương ứng thay vì lặng lẽ sửa con số:
+
+| # | Trước | Nay | Đóng bằng cách nào |
+|---|:---:|:---:|---|
+| 2 Tách từ | ❌ | ✅ | `MaxWeightSegmenter` + từ điển 49.793 mục |
+| 7 Kết hợp tín hiệu | ❌ | ⚠️ | Decorator nhân + log; RRF vẫn chưa cài |
+| 13 Khử trùng lặp nội dung | ❌ | ⚠️ | `ContentSeenFilter` bắt trùng chính xác; SimHash vẫn chưa cài |
+
+Dấu ❌ còn lại — truy hồi top-K — không phải lỗi cài đặt mà là một **quyết định
+thuật toán ở tầng cao** chưa được tối ưu, kèm lời giải cụ thể ở mục 6. Việc
+liệt kê nó ra là có chủ ý: một đồ án nói *"mọi thứ đều tối ưu"* thì hoặc là
+chưa đo, hoặc là chưa nhìn kỹ.
 
 ---
 
@@ -156,82 +167,96 @@ Tiếng Việt viết rời từng **tiếng** (âm tiết), nhưng đơn vị m
 **từ** — thường gồm 2–4 tiếng. `máy tính` là một từ; tách thành `máy` + `tính`
 làm hỏng hoàn toàn việc tìm kiếm. Ràng buộc:
 
-- Chạy trên **mọi tài liệu lúc index** (5.011 × 1.043 token) và trên **mọi
-  truy vấn** — nên phải nhanh.
-- Từ điển hiện có **154 mục** (131 từ 2 tiếng, 11 từ 3 tiếng, 12 từ 4 tiếng).
+- Chạy trên **mọi tài liệu lúc index** và trên **mọi truy vấn** — nên phải nhanh.
+- Từ điển hiện có **49.793 mục**, trong đó **40.390 từ ghép** (`vietnamese-words.txt`).
 - Phải xử lý được cả **văn bản không dấu** (người dùng gõ `may tinh`).
+- Phải **thread-safe**: tokenizer là một bean dùng chung, và tầng truy vấn chạy
+  trên nhiều luồng của Spring Boot.
 
 ## 2.2. Các phương án
 
 | Phương án | Độ phức tạp | Cần gì | Chất lượng | Giải được nhập nhằng chồng lấp? |
 |---|---|---|---|---|
-| **Longest Matching tham lam** (đang dùng) | O(n·L) | từ điển | Khá | ❌ **Không** |
+| Longest Matching tham lam | O(n·L) | từ điển | Khá | ❌ **Không** |
 | Bi-directional Maximum Matching | O(n·L) | từ điển | Khá hơn | Một phần (heuristic ít-từ-nhất) |
-| **Viterbi / quy hoạch động** | O(n·L) | từ điển **+ tần suất** | Tốt | ✅ **Có** |
-| CRF (RDRsegmenter, VnCoreNLP) | O(n·F) | corpus gán nhãn | Rất tốt (~97%) | ✅ Có |
-| BiLSTM-CRF / PhoBERT | O(n·d²) | GPU + corpus lớn | Tốt nhất | ✅ Có |
-| BPE / SentencePiece | O(n log V) | corpus thô | Trung bình cho tìm kiếm | Không áp dụng |
+| **Cực đại trọng số / QHĐ** (đang dùng) | O(n·L) | từ điển **+ trọng số** | Tốt | ✅ **Có** |
+| CRF | O(n·|tags|²) | corpus gán nhãn | Rất tốt | ✅ Có |
+| PhoBERT / mô hình neural | O(n²) attention | GPU + mô hình vài trăm MB | Tốt nhất | ✅ Có |
 
-## 2.3. Chọn gì và vì sao — ❌ **Đây là khoảng trống thật**
+## 2.3. Chọn gì và vì sao — ✅ Quy hoạch động cực đại trọng số
 
-Đang dùng **Longest Matching tham lam**: quét từ trái sang, tại mỗi vị trí lấy
-cụm **dài nhất** có trong từ điển.
+> **Mục này từng được xếp ❌ "khoảng trống thật".** Bản trước ghi rằng hệ thống
+> đang dùng Longest Matching tham lam trên một từ điển 154 mục, và rằng phương
+> án đúng là quy hoạch động. **Khoảng trống đó đã được đóng** — cả hai vế cùng
+> lúc, và đó là điều bắt buộc: xem "vì sao phải đi cùng nhau" ở cuối mục.
 
-**Vì sao nó được chọn ban đầu — lý do hợp lệ:**
-
-- Không cần dữ liệu huấn luyện, chỉ cần một từ điển.
-- Cài được trong ~40 dòng, giải thích được trong 3 phút khi bảo vệ.
-- Độ phức tạp O(n·L) với L = độ dài cụm dài nhất (4) — tuyến tính thực chất.
-- Thoả ràng buộc "tự cài tay", không gọi thư viện.
-
-**Vì sao nó vẫn chưa tối ưu — lý do kỹ thuật cụ thể:**
-
-Tham lam **không thể** giải nhập nhằng chồng lấp (*overlapping ambiguity*).
-Ví dụ kinh điển:
+`MaxWeightSegmenter` giải bài toán **đường đi dài nhất trên đồ thị không chu
+trình có hướng**. Gọi `best[i]` là tổng trọng số lớn nhất của một cách tách `i`
+âm tiết đầu tiên:
 
 ```
-Câu:        học sinh học sinh học
-Tham lam:   [học sinh] [học sinh] [học]        ← sai
-Đúng:       [học sinh] [học] [sinh học]        ← "học sinh" rồi "học" môn "sinh học"
+   best[0] = 0
+   best[j] = max( best[i] + weight(âmTiết[i..j)) )   với mọi i sao cho j - i <= 4
 ```
 
-Tham lam cam kết ngay tại vị trí đầu và **không bao giờ quay lui**. Nó tối ưu
-cục bộ tại mỗi bước, không tối ưu toàn câu.
+Đáp án nằm ở `best[n]`; cách tách cụ thể truy ngược bằng mảng `trace`. Các đỉnh
+`0..n` đã sẵn ở thứ tự tô-pô nên chỉ cần **một lượt quét tiến**, không cần sắp
+xếp tô-pô.
 
-**Phương án đúng: Viterbi / quy hoạch động.** Gọi $f(i)$ là điểm tốt nhất khi
-tách xong $i$ tiếng đầu:
+**Vì sao tham lam sai — ví dụ kinh điển:**
 
-$$f(i) = \max_{\substack{j < i \\ w = s_{j+1..i} \in D}} \bigl[\, f(j) + \log P(w) \,\bigr]$$
+```
+   "nhà hàng xóm"
 
-với $P(w)$ là xác suất xuất hiện của từ $w$ (ước lượng từ chính corpus đã
-crawl — **không cần dữ liệu gán nhãn**). Truy vết ngược cho ra cách tách tối
-ưu **toàn câu**.
+   Longest Matching:  tại i=0 thấy "nhà hàng" CÓ trong từ điển -> lấy ngay
+                      -> [nhà_hàng] [xóm]   = "quán ăn" + "xóm"        SAI
 
-**Điểm mấu chốt: chi phí gần như bằng không.** Cả hai đều là O(n·L). Viterbi
-chỉ thêm một mảng $f$ kích thước n và một mảng truy vết — vài chục dòng nữa.
-Đây **không phải** đánh đổi tốc độ lấy chất lượng; đây là **cùng độ phức tạp,
-chất lượng cao hơn**. Đó là lý do nó được xếp ❌ chứ không phải ⚠️.
+   Quy hoạch động:    so sánh CẢ HAI cách trên toàn cục
+                      [nhà_hàng][xóm] = 9,59 + 3,46 = 13,05
+                      [nhà][hàng_xóm] = 3,69 + 9,44 = 13,13   <- lớn hơn
+                      -> [nhà] [hàng_xóm] = "nhà của người hàng xóm"   ĐÚNG
+```
 
-**Vì sao chưa làm.** Với từ điển 154 mục, nhập nhằng chồng lấp hiếm khi kích
-hoạt — phải có **hai** từ chồng lấp cùng nằm trong từ điển mới xảy ra. Nghĩa
-là lợi ích của Viterbi **tăng cùng với kích thước từ điển**. Mở rộng từ điển
-mà không nâng cấp thuật toán sẽ làm chất lượng **giảm** ở một số câu — đây là
-điều đáng nói khi bảo vệ.
+Điểm mấu chốt: **cả hai cách tách đều hợp lệ về từ điển**. Tham lam không có
+cách nào phân biệt chúng nên phải đoán bằng một heuristic ("dài hơn thì đúng
+hơn"), và ở đây heuristic đó sai. Quy hoạch động không đoán — nó chấm điểm **cả
+câu** rồi chọn câu tốt nhất.
+
+**Chi phí: gần như bằng không.** Cả hai đều O(n × 4) = O(n). Cải thiện thực tế
+nằm ở **hằng số**, và nó đi ngược chiều trực giác — bản mới **nhanh hơn 4,80
+lần**:
+
+| | Longest Matching | Cực đại trọng số |
+|---|---|---|
+| Cấu trúc từ điển | `HashSet<String>` | **`SyllableTrie`** (mảng phẳng) |
+| Cấp phát mỗi âm tiết | 3 mảng tạm + 3 chuỗi | **0** |
+| Tốc độ ghép từ | 3.718.748 âm tiết/giây | **17.853.690 âm tiết/giây** |
+
+Bản cũ tạo ba `Arrays.copyOfRange` và ba `String.join` rồi vứt đi ngay ở **mỗi**
+vị trí; bản mới đi **một lượt** trên trie phủ cả bốn độ dài, và **cắt nhánh** khi
+mất tiền tố — điều `HashSet` không nói được, vì nó phải thử từng độ dài một.
+
+**Vì sao hai thay đổi bắt buộc phải đi cùng nhau.** Khiếm khuyết "tham lam" hầu
+như **không lộ ra** khi từ điển còn nhỏ — muốn chọn sai thì trước hết phải có
+nhiều lựa chọn. Mở rộng từ điển mà **giữ** tham lam sẽ làm chất lượng **tệ đi**
+ở một số câu, chứ không tốt lên. Đây là điều đáng nói khi bảo vệ.
 
 ## 2.4. Điểm lật
 
-- **Từ điển < 200 mục** → tham lam và Viterbi cho kết quả gần như giống nhau;
-  tham lam thắng vì đơn giản hơn. Đây là tình trạng hiện tại.
-- **Từ điển 30.000–70.000 mục** (kích thước thật của từ điển tiếng Việt) →
-  Viterbi thắng rõ rệt, tham lam bắt đầu sai có hệ thống.
-- **Có corpus gán nhãn** (VLSP, Viet Treebank) → CRF thắng cả hai, nhưng vi
-  phạm ràng buộc "tự cài tay" nếu dùng thư viện có sẵn.
-- **Cần độ chính xác tối đa, không quan tâm tốc độ** → PhoBERT, nhưng khi đó
-  đây không còn là đồ án DSA nữa.
+- **Từ điển < 200 mục** → tham lam và QHĐ cho kết quả gần như giống nhau; tham
+  lam thắng vì đơn giản hơn. Đây là tình trạng **trước đây** của dự án.
+- **Từ điển 30.000–70.000 mục** (kích thước thật của từ điển tiếng Việt) → QHĐ
+  thắng rõ rệt, tham lam bắt đầu sai có hệ thống. Đây là tình trạng **hiện tại**.
+- **Có corpus gán nhãn** (VLSP, Viet Treebank) → CRF thắng cả hai, nhưng vi phạm
+  ràng buộc "tự cài tay" nếu dùng thư viện có sẵn.
+- **Cần độ chính xác tối đa, không quan tâm tốc độ** → PhoBERT, nhưng khi đó đây
+  không còn là đồ án DSA nữa.
 
-> **Việc đo còn thiếu.** Độ chính xác tách từ **chưa được đo** — đây là khoảng
-> trống lớn nhất của phần đánh giá. Muốn đo cần một tập văn bản đã tách từ thủ
-> công làm chuẩn (vài trăm câu là đủ để có con số có ý nghĩa).
+> **Việc đo còn thiếu.** Trọng số hiện lấy từ tần suất trong từ điển, **chưa**
+> ước lượng từ chính corpus đã crawl — làm vậy sẽ hợp với miền dữ liệu hơn. Và
+> độ chính xác tách từ **vẫn chưa được đo** trên một tập chuẩn: muốn đo cần vài
+> trăm câu đã tách từ thủ công. Đây là khoảng trống lớn nhất còn lại của phần
+> đánh giá.
 
 ---
 
@@ -538,9 +563,13 @@ Có ba tín hiệu: điểm liên quan (TF-IDF hoặc BM25), điểm uy tín (Pa
 | **BM25F** (cho tín hiệu tiêu đề) | Không áp dụng | ❌ | Đúng về mặt mô hình |
 | Learning to Rank (LambdaMART) | ✅ | ✅ Cần nhãn | Không diễn giải được |
 
-## 7.3. Chọn gì và vì sao — ❌ **Có lỗi phương pháp đã được chính đồ án phát hiện**
+## 7.3. Chọn gì và vì sao — ⚠️ Decorator nhân + log
 
-Công thức đang dùng cộng tuyến tính:
+> **Mục này từng được xếp ❌.** Lỗi phương pháp mô tả dưới đây là CÓ THẬT và đã
+> được chính đồ án phát hiện — nhưng nó cũng **đã được sửa**. Phần phân tích giữ
+> nguyên vì nó giải thích vì sao bản sửa lại có hình dạng như vậy.
+
+Công thức **cũ** cộng tuyến tính:
 
 $$\text{score} = \alpha \cdot \text{TF-IDF} + \beta \cdot \text{PageRank}$$
 
@@ -988,10 +1017,15 @@ không phải mức **nội dung**.
 | MinHash + LSH | Gần trùng theo Jaccard | O(1) xấp xỉ |
 | Shingling + Jaccard đầy đủ | Chính xác nhất | **O(n²)** — không khả thi |
 
-## 13.3. Chọn gì và vì sao — ❌ **Thiếu hoàn toàn**
+## 13.3. Chọn gì và vì sao — ⚠️ Bắt trùng CHÍNH XÁC, chưa bắt trùng GẦN ĐÚNG
 
-Hiện tại **không có** lớp khử trùng lặp nội dung. `ARCHITECTURE.md` §6 có ghi
-nhận thiếu bước *"Content Seen?"* của mô hình Mercator, nhưng chưa cài.
+> **Mục này từng được xếp ❌ "thiếu hoàn toàn".** Nay bước *"Content Seen?"* của
+> mô hình Mercator **đã có**: `ContentSeenFilter` so vân tay SHA-256 của thân bài
+> đã chuẩn hoá, nên nó gom được cùng một bài nằm ở nhiều URL khác nhau.
+>
+> Nhưng nó chỉ bắt trùng **chính xác**. Chỉ cần khác một ký tự — một dòng "cập
+> nhật lúc 14:05", một banner lọt vào phần thân — là hai vân tay khác nhau và bản
+> trùng lọt lưới. Phần phân tích dưới đây vì vậy vẫn đúng cho trùng **gần đúng**.
 
 **Vì sao điều này quan trọng hơn vẻ ngoài của nó — nó ảnh hưởng tới độ tin cậy
 của toàn bộ phần đánh giá:**

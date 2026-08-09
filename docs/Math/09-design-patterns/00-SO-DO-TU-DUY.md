@@ -9,7 +9,7 @@
 > 2. **Được dùng trong đường chạy chính** — không phải code chết.
 > 3. **Động cơ được viết trong Javadoc**, chứ không chỉ trong tài liệu.
 >
-> 📖 **Mục lục & lộ trình đọc:** [README.md](README.md) · **Chấm điểm:** [CHAM-DIEM.md](CHAM-DIEM.md)
+> 📖 **Mục lục & lộ trình đọc:** [README.md](README.md)
 
 ---
 
@@ -290,7 +290,6 @@ flowchart TD
     H["04 Composite"]
     I["05 Chain of Responsibility - khó nhất"]
     J["09 Iterator · 10 Flyweight · 11 Bảy mẫu bổ trợ"]
-    K["CHAM-DIEM - viết phần tự đánh giá trong báo cáo"]
 
     A --> B --> C --> D --> E --> F --> G --> H --> I --> J --> K
 ```
@@ -309,7 +308,6 @@ flowchart TD
    ↓
 09 Iterator · 10 Flyweight · 11 Bảy mẫu bổ trợ
    ↓
-CHAM-DIEM (viết phần tự đánh giá trong báo cáo)
 ```
 
 </details>
@@ -347,7 +345,6 @@ CHAM-DIEM (viết phần tự đánh giá trong báo cáo)
 | Muốn | Đọc |
 |---|---|
 | Mục lục đầy đủ 14 trang + tra cứu ngược theo khái niệm | [README.md](README.md) |
-| Tự chấm điểm OOP · DSA · Design Pattern có trọng số công khai | [CHAM-DIEM.md](CHAM-DIEM.md) |
 | Nền tảng OOP: 4 trụ cột, SOLID | [00-OOP-CO-BAN.md](00-OOP-CO-BAN.md) |
 | Xem các mẫu này chạy thật trong từng tầng | [Crawler](../01-crawler/00-SO-DO-TU-DUY.md) · [Chỉ mục](../03-index/00-SO-DO-TU-DUY.md) · [Truy vấn](../04-query/00-SO-DO-TU-DUY.md) · [Xếp hạng](../05-ranking/00-SO-DO-TU-DUY.md) |
 | Các con số 5,3 % MRR / 0,1 % PageRank đo bằng cách nào | [Sơ đồ tư duy tầng đánh giá](../07-eval/00-SO-DO-TU-DUY.md) |

@@ -5,7 +5,6 @@ Thư mục này có **hai loại tài liệu**:
 | Loại | File | Dùng khi nào |
 |---|---|---|
 | **Học OOP** — mỗi pattern một trang | `00`…`11` | Muốn **hiểu** pattern, chuẩn bị bảo vệ |
-| **Tổng quan & chấm điểm** | `CHAM-DIEM.md` | Muốn **tra nhanh** hoặc viết báo cáo |
 
 ---
 
@@ -47,7 +46,6 @@ Bắt đầu từ trang 00 nếu bạn muốn hiểu nền tảng trước.
 
 **Nếu bạn muốn tra nhanh số liệu** → bảng tổng hợp ngay đầu trang này
 
-**Nếu bạn viết phần tự đánh giá trong báo cáo** → [CHAM-DIEM.md](CHAM-DIEM.md)
 
 ---
 
@@ -85,7 +83,7 @@ Bắt đầu từ trang 00 nếu bạn muốn hiểu nền tảng trước.
 | **Dependency Inversion / DI** | [11 §7](11-MAU-BO-TRO.md), [00 §3.1](00-OOP-CO-BAN.md) |
 | **Bất biến & đa luồng** | [08 Builder §5](08-BUILDER.md), [07 Observer §4.3](07-OBSERVER.md) |
 | **Fail fast** — ném ngoại lệ có thông điệp | [08 Builder §6](08-BUILDER.md), [02 Factory §4.3](02-FACTORY.md) |
-| **Anti-pattern** — nhận diện | [00 §5](00-OOP-CO-BAN.md), [CHAM-DIEM §3.4](CHAM-DIEM.md) |
+| **Anti-pattern** — nhận diện | [00 §5](00-OOP-CO-BAN.md) |
 
 ---
 

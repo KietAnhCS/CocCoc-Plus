@@ -54,7 +54,7 @@ tắc trên. Cột "Biến môi trường" trong các bảng dưới ghi đúng 
 
 ---
 
-## 1b. Bản đồ: 40 khoá chia thành 8 nhóm
+## 1b. Bản đồ: 43 khoá chia thành 8 nhóm
 
 ```mermaid
 mindmap

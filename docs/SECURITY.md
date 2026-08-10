@@ -13,6 +13,7 @@
 1. [Bản đồ tư duy các bề mặt tấn công](#1-bản-đồ-tư-duy-các-bề-mặt-tấn-công)
 2. [SSRF — bề mặt nguy hiểm nhất](#2-ssrf--bề-mặt-nguy-hiểm-nhất)
 3. [Xác thực API quản trị](#3-xác-thực-api-quản-trị)
+3b. [Tài khoản và vai trò](#3b-tài-khoản-và-vai-trò)
 4. [Giới hạn tần suất](#4-giới-hạn-tần-suất)
 5. [Phân quyền theo đường dẫn](#5-phân-quyền-theo-đường-dẫn)
 6. [CORS](#6-cors)
@@ -170,13 +171,30 @@ việc này phá SNI của HTTPS.
 `/api/admin/**` điều khiển crawler và **có thể tải URL tuỳ ý** — nếu để công
 khai, đó là một lỗ hổng SSRF đầy đủ chứ không chỉ là "API không được bảo vệ".
 
-### 3.1. Vì sao API key chứ không phải tài khoản/mật khẩu hay OAuth
+### 3.1. Khoá API dùng cho CÔNG CỤ, tài khoản dùng cho CON NGƯỜI
 
-Hệ thống này **không có người dùng nào cả**. Các endpoint quản trị được gọi bởi
-một công cụ vận hành — một dòng `curl`, một job định kỳ — chứ không phải bởi con
-người ngồi trước màn hình đăng nhập. Dựng bộ máy quản lý người dùng đầy đủ ở đây
-sẽ tạo ra bảng người dùng, luồng đăng ký, mã hoá mật khẩu... toàn bộ một hệ
-thống con **không ai sử dụng**.
+> **Ghi chú lịch sử.** Mục này trước đây viết: *"Hệ thống này không có người
+> dùng nào cả"* — và đó là sự thật đúng ở thời điểm ấy. Từ khi có bảng điều
+> khiển quản trị, câu hỏi *"tài khoản nào là admin, tài khoản nào là người dùng
+> thường?"* trở thành một câu hỏi có nghĩa, và câu trả lời "không có tài khoản
+> nào, chỉ có một cái khoá" không còn đủ. Hệ tài khoản được thêm vào ở
+> [§3b](#3b-tài-khoản-và-vai-trò); **khoá API vẫn giữ nguyên**, cho đúng việc mà
+> nó làm tốt.
+
+Hai cơ chế xác thực song song, mỗi cái cho một loại bên gọi:
+
+| | Khoá API (`X-API-Key`) | Tài khoản (`Authorization: Bearer`) |
+|---|---|---|
+| Ai dùng | công cụ: `curl`, job định kỳ, script triển khai | con người ngồi trước màn hình |
+| Danh tính | **không có** — mọi lời gọi giống hệt nhau | có: ghi được "ai đã làm gì" |
+| Hết hạn | không bao giờ | 12 giờ |
+| Thu hồi | phải đổi cấu hình + khởi động lại | một lần bấm "đăng xuất", hiệu lực tức thì |
+| Vai trò | luôn là ADMIN đầy đủ | USER hoặc ADMIN |
+
+Giữ cả hai chứ không bỏ khoá API đi, vì khoá tĩnh là thứ **duy nhất** dùng được
+ở nơi không có ai đăng nhập — và nó là **lối vào dự phòng khi kho tài khoản
+hỏng**. Một hệ thống mà cách duy nhất để vào là đăng nhập, và tệp tài khoản vừa
+hỏng, là một hệ thống tự khoá mình ra ngoài.
 
 ### 3.2. So sánh chuỗi thời gian hằng số
 
@@ -209,6 +227,241 @@ biết khoá là gì, và lần triển khai sau lại sinh khoá khác.
 > cảm giác an toàn sai.
 
 Có thêm kiểm tra độ dài tối thiểu 16 ký tự.
+
+---
+
+## 3b. Tài khoản và vai trò
+
+### Hai vai trò, và ranh giới giữa chúng
+
+```
+   KHÁCH                 NGƯỜI DÙNG (USER)        QUẢN TRỊ (ADMIN)
+   chưa đăng nhập        đã đăng nhập             đã đăng nhập + vai trò ADMIN
+   ─────────────────     ──────────────────       ────────────────────────────
+   tìm kiếm              tìm kiếm                 tìm kiếm
+   xem kết quả           xem kết quả              + đọc số liệu sử dụng
+   gửi sự kiện           + /api/auth/me           + điều khiển crawler
+   (ẩn danh)             + hành vi được quy       + quản lý tài khoản
+                           về tài khoản
+```
+
+Tìm kiếm **không đòi đăng nhập** — đó là chức năng chính của một máy tìm kiếm,
+và bắt đăng nhập để dùng nó là một quyết định sản phẩm tồi. Đăng nhập chỉ mở
+thêm những thứ *cần biết bạn là ai*.
+
+### Băm mật khẩu: BCrypt cost 12, không phải SHA-256
+
+Đây là chỗ dễ làm sai nhất và hậu quả nặng nhất:
+
+| | SHA-256 | BCrypt (đang dùng) |
+|---|---|---|
+| Thiết kế để | **nhanh** | **chậm có kiểm soát** |
+| GPU phổ thông | hàng tỉ hash/giây | vài nghìn/giây ở cost 12 |
+| Salt | phải tự thêm (và nhiều người quên) | tự sinh, nhúng trong chuỗi hash |
+| Tệp hash bị lộ | mọi mật khẩu yếu vỡ trong vài phút | phá ngoại tuyến trở nên vô vọng |
+
+Salt là thứ chặn *bảng tra ngược*: không có salt, hai người đặt cùng mật khẩu
+sẽ có cùng hash — phá một lần được cả hai, lại còn lộ ra là họ trùng mật khẩu.
+
+Cost 12 tốn khoảng 100–250 ms mỗi lần băm. Đó là **cố ý**: không đáng kể với
+một người đăng nhập một lần mỗi phiên, nhưng nhân với hàng tỉ lần thử thì thành
+bức tường.
+
+### Luật mật khẩu: chỉ ràng buộc độ dài
+
+Tối thiểu 8 ký tự, tối đa 200. **Không** bắt "phải có chữ hoa, số và ký tự đặc
+biệt" — những luật đó nghe chặt nhưng đẩy người dùng tới đúng một khuôn dễ đoán
+(`Password1!`), trong khi một cụm bốn từ ngẫu nhiên dài 20 ký tự vừa dễ nhớ hơn
+vừa khó phá hơn nhiều lần. Đây là khuyến nghị của NIST từ 2017.
+
+Trần 200 ký tự để chặn tấn công làm nghẽn bằng cách gửi chuỗi khổng lồ cho
+BCrypt băm. (BCrypt vốn chỉ dùng 72 byte đầu.)
+
+### Chống dò mật khẩu: khoá tạm THEO TÀI KHOẢN
+
+`RateLimitFilter` giới hạn theo **địa chỉ**, nên nó không chặn được kiểu tấn
+công ngược lại: một mạng botnet thử *một* mật khẩu phổ biến trên *hàng nghìn*
+tài khoản, mỗi địa chỉ chỉ gửi vài request. Bộ đếm trong `UserService` giới hạn
+theo **tài khoản** — 5 lần sai thì khoá 15 phút — nên nó bịt đúng chỗ kia bỏ sót.
+
+Khoá **tạm** chứ không vĩnh viễn: khoá vĩnh viễn biến một cuộc dò mật khẩu
+thành một cuộc **tấn công từ chối dịch vụ** nhắm vào người dùng thật — chỉ cần
+gõ sai vài lần trên tài khoản của người khác là khoá được họ ra ngoài mãi mãi.
+
+### Thông báo lỗi cố tình mơ hồ
+
+Sai tên và sai mật khẩu trả về **cùng một câu**. Phân biệt hai ca biến trang
+đăng nhập thành công cụ *liệt kê tài khoản*: kẻ tấn công thử một danh sách tên
+và biết chính xác tên nào có thật.
+
+Đi kèm một chi tiết dễ bỏ sót: khi tên **không tồn tại**, `UserService` vẫn băm
+một chuỗi giả trước khi từ chối. Không làm vậy thì ca đó trả về gần như tức thì
+còn ca "sai mật khẩu" tốn ~200 ms — và chênh lệch thời gian đó tự nó là một máy
+dò tên tài khoản, làm cho thông báo mơ hồ ở trên thành vô nghĩa.
+
+### Không có đường nào tự cấp vai trò ADMIN
+
+`UserService.register` **không nhận tham số vai trò** — nó luôn tạo `USER`.
+Nhận vai trò từ thân request đăng ký là lỗ hổng leo thang quyền kinh điển: chỉ
+cần thêm `"role":"ADMIN"` vào JSON là xong. Vai trò chỉ đặt được qua
+`createAccount` (hàm nội bộ, dùng cho tài khoản mồi) hoặc
+`POST /api/admin/users/{tên}/role` — endpoint đã cần vai trò ADMIN sẵn có.
+
+Hai bảo vệ nữa của việc đổi vai trò:
+
+- **Không tự hạ quyền chính mình.** Người quản trị cuối cùng hạ vai trò của
+  chính họ sẽ khoá hệ thống từ bên trong.
+- **Đổi vai trò đóng mọi phiên của người đó.** Không làm vậy thì quyền bị thu
+  hồi *trên giấy* nhưng phiên cũ vẫn mang vai trò cũ thêm nhiều giờ.
+
+### Token phiên: vì sao KHÔNG dùng JWT
+
+| | JWT | Token mờ (đang dùng) |
+|---|---|---|
+| Xác minh | không cần trạng thái | tra bảng băm trong bộ nhớ |
+| **Đăng xuất** | **không có hiệu lực ngay** — phải dựng danh sách đen, tức lại cần trạng thái | xoá một dòng, tức thì |
+| Hạ vai trò | vô hiệu tới khi token cũ hết hạn | có hiệu lực ở request kế tiếp |
+| Nhiều bản sao | chạy được ngay | cần kho dùng chung (Redis) |
+
+Cái lợi duy nhất của JWT — xác minh không cần trạng thái — chỉ có giá trị khi có
+nhiều dịch vụ hoặc nhiều bản sao. Hệ thống này là **một** tiến trình phục vụ
+**một** ứng dụng khách, và nó thật sự cần thu hồi tức thì (đây là trang điều
+khiển được crawler).
+
+Token là **256 bit từ `SecureRandom`**, mã Base64-URL. Không dùng
+`java.util.Random` (đoán được trạng thái sau vài mẫu) hay `UUID.randomUUID()`
+(chỉ 122 bit, có cấu trúc cố định).
+
+Hệ quả phải chấp nhận và **nói thẳng**: khởi động lại máy chủ là mọi người bị
+đăng xuất. Chỗ để sửa khi cần là thay bảng băm bằng Redis, không phải đổi sang JWT.
+
+### Token lưu bền, khoá API thì không
+
+Hai bí mật, hai cách đối xử — và sự khác biệt là có lý do:
+
+| | Khoá quản trị | Token phiên |
+|---|---|---|
+| Lưu ở đâu | **chỉ trong bộ nhớ** | `localStorage` |
+| Hết hạn | không | 12 giờ |
+| Thu hồi | không | được, tức thì |
+| Quyền | luôn ADMIN đầy đủ | đúng vai trò của tài khoản |
+
+Một bí mật vĩnh viễn, không thu hồi được, quyền cao nhất thì không đáng nằm lại
+trên đĩa để đổi lấy việc đỡ gõ. Một token hết hạn và huỷ được thì đáng — và cái
+giá của việc không lưu nó là bắt người dùng đăng nhập lại mỗi lần mở ứng dụng.
+
+Rủi ro còn lại: `localStorage` đọc được bởi mọi mã chạy trong renderer, nên một
+lỗ hổng XSS sẽ lấy được token. Thứ chặn điều đó là **CSP nghiêm ngặt** trong
+`index.html` cộng với việc renderer không bao giờ nạp mã từ xa (§9) — chứ không
+phải bản thân `localStorage`.
+
+### Xoá tài khoản khác vô hiệu hoá
+
+| | Vô hiệu hoá | Xoá hẳn |
+|---|---|---|
+| Bản ghi | giữ nguyên | mất |
+| Tên tài khoản | vẫn bị chiếm | được giải phóng |
+| Hồi lại | bật lại là xong | không |
+| Số liệu theo tên | vẫn thuộc về người đó | người đăng ký lại đúng tên đó sẽ **gộp chung một dòng** |
+
+Dòng cuối là lý do **vô hiệu hoá mới là mặc định đúng**, còn xoá chỉ dành cho
+dọn tài khoản rác. Xoá cũng dọn luôn bộ đếm khoá tạm của tên đó — giữ lại thì
+tên vừa xoá mang theo một "án treo" vô hình sang chủ mới.
+
+Chặn tự xoá chính mình, cùng lý do với đổi vai trò nhưng hậu quả nặng hơn:
+người quản trị cuối cùng tự xoá thì không còn tài khoản nào nâng lại được.
+
+### Đổi mật khẩu: ba quyết định
+
+**1. Vẫn phải nhập mật khẩu hiện tại.** Nghe thừa — người gọi đã có token hợp
+lệ. Nhưng đó chính là kịch bản cần chặn: một chiếc **token bị đánh cắp** (máy
+bỏ quên không khoá, token lấy qua XSS). Không hỏi mật khẩu cũ thì kẻ cầm token
+đổi được mật khẩu và **khoá chính chủ nhân ra ngoài** — biến một phiên bị lộ
+tạm thời thành mất tài khoản vĩnh viễn. Mật khẩu là thứ token không chứa.
+
+**2. Sai mật khẩu hiện tại cũng tính vào bộ đếm khoá tạm.** Không tính thì
+endpoint này thành một máy dò mật khẩu không giới hạn cho bất kỳ ai có một
+token — vòng qua đúng lớp bảo vệ mà trang đăng nhập đã dựng.
+
+**3. Đóng mọi phiên KHÁC, giữ phiên đang dùng.** Lý do phổ biến nhất để đổi mật
+khẩu là *nghi có người khác đang dùng tài khoản của mình*; không đóng thì kẻ kia
+vẫn ở trong và người dùng tưởng mình đã an toàn. Nhưng đá luôn cả người vừa đổi
+ra khỏi thiết bị họ đang ngồi thì chỉ gây khó chịu mà không thêm an toàn nào.
+
+Ba mức đóng phiên, ba nút khác nhau:
+
+```
+   /logout          chỉ phiên tại đây          "tôi rời máy"
+   /password        mọi phiên TRỪ phiên này    "tôi nghi bị lộ ở nơi khác"
+   /logout-all      MỌI phiên, kể cả phiên này "đóng hết, tôi sẽ đăng nhập lại"
+```
+
+### Kiểm tra dữ liệu ở giao diện KHÔNG phải lớp bảo vệ
+
+`browser-app/src/renderer/src/lib/validation.ts` lặp lại luật tên tài khoản và
+độ dài mật khẩu của máy chủ. Nó tồn tại **chỉ để người dùng biết mình gõ sai
+ngay khi gõ**, thay vì bấm nút, chờ một vòng mạng, rồi mới đọc được lỗi. Một
+request `curl` bỏ qua hoàn toàn tệp đó.
+
+Ràng buộc kèm theo: luật ở giao diện phải **khớp** với máy chủ. Chặt hơn thì
+chặn oan giá trị hợp lệ; lỏng hơn thì lời hứa "gõ thế này là được" bị máy chủ
+bác bỏ — trường hợp sau tệ hơn, vì nó dạy người dùng đừng tin thông báo của
+giao diện.
+
+Một ngoại lệ có chủ ý: màn hình **đăng nhập** không kiểm luật độ dài mật khẩu.
+Luật có thể đã đổi kể từ lúc người đó tạo tài khoản, và chặn họ đăng nhập vì
+mật khẩu cũ "không đạt chuẩn mới" là chặn nhầm hoàn toàn.
+
+### Tài khoản quản trị đầu tiên
+
+| Cách | Vấn đề |
+|---|---|
+| Mật khẩu mặc định trong mã (`admin/admin`) | **Loại bỏ ngay.** Mọi bản triển khai cùng một mật khẩu ai cũng biết |
+| Người đăng ký ĐẦU TIÊN tự động thành admin | Kẻ nào tìm thấy máy chủ trước chủ nhân thì chiếm được quyền |
+| **Biến môi trường, không có mặc định** (chọn) | Phải cấu hình thêm một bước |
+
+```bash
+export BOOTSTRAP_ADMIN_PASSWORD='...'   # không có giá trị mặc định
+```
+
+Thiếu biến này thì **cảnh báo, không chặn khởi động** — khác với `ADMIN_API_KEY`.
+Hai thứ khác nhau: thiếu khoá API nghĩa là endpoint quản trị *không có gì bảo
+vệ* (phải chặn), còn thiếu tài khoản mồi chỉ nghĩa là *chưa ai đăng nhập được
+bằng tài khoản* — máy tìm kiếm vẫn phục vụ bình thường và khoá API vẫn là lối
+vào. Chặn khởi động ở đây sẽ làm hỏng chức năng chính vì một tính năng phụ chưa
+cấu hình.
+
+Tài khoản mồi **không bị ghi đè** nếu đã tồn tại: ghi đè nghĩa là mỗi lần khởi
+động lại đặt mật khẩu về giá trị trong biến môi trường, nuốt mất mọi lần người
+quản trị tự đổi mật khẩu.
+
+### Kho tài khoản: tệp JSON, ghi nguyên tử
+
+`data/users.json`, đọc vào bộ nhớ lúc khởi động (tỉ lệ đọc/ghi hàng nghìn trên
+một, nên đọc phải là tra bảng băm chứ không phải mở tệp).
+
+Ghi thì **ra tệp tạm rồi đổi tên**: ghi đè trực tiếp có một cửa sổ chết người —
+tiến trình bị giết giữa lúc ghi để lại JSON **cụt**, và lần khởi động sau mất
+toàn bộ tài khoản. Phép đổi tên là nguyên tử ở mức hệ thống tệp, nên tệp đích
+luôn hoặc là bản cũ nguyên vẹn, hoặc là bản mới nguyên vẹn.
+
+Một bản ghi hỏng (con người sửa tay nhầm) bị **bỏ qua** chứ không làm sập cả
+kho; một vai trò lạ trong tệp bị hạ về `USER` — hướng an toàn, vì mất quyền thì
+người thật báo ngay, còn *thừa* quyền thì không ai phát hiện.
+
+### Quyền riêng tư đổi khi có tài khoản
+
+Trước khi có tài khoản, số liệu sử dụng là ẩn danh **theo thiết kế**: mã phiên
+ngẫu nhiên không chỉ tới ai. Nay với người đã đăng nhập, quản trị viên đọc được
+*người này đã tìm bao nhiêu lần*. Đó là một quyền lực thật, và ranh giới được
+đặt như sau:
+
+- bảng xếp hạng người dùng chỉ hiện **tên và số lượt**, không hiện truy vấn của
+  từng người — nó trả lời "ai dùng nhiều", không trả lời "người này tìm gì";
+- người **không đăng nhập** vẫn hoàn toàn ẩn danh;
+- danh tính lấy từ **ngữ cảnh bảo mật của request**, không phải từ một trường
+  trong thân JSON — nếu tin lời tự khai thì ai cũng gán được hành vi cho người
+  khác bằng một dòng `curl`.
 
 ---
 
@@ -262,7 +515,8 @@ trên bộ nhớ là điều bắt buộc, còn độ chính xác của hạn m�
    GET  /api/suggest                POST /api/admin/reindex
    GET  /api/health                 GET  /api/admin/stats
    GET  /api/images                 GET  /api/admin/crawl/{id}/status
-   GET  /api/feed
+   GET  /api/feed                   GET  /api/admin/analytics
+   POST /api/events                 POST /api/admin/analytics/reset
    GET  /actuator/health/**         GET  /actuator/**  (còn lại)
    GET  /actuator/prometheus
    ─────────────────────────────────────────────────────────
@@ -282,6 +536,62 @@ sửa ngay. Đây đúng là lý do `/api/images` trả 401 ở lần chạy đ�
 header tuỳ ý trong cấu hình mặc định, và endpoint này chỉ phơi bày số liệu tổng
 hợp. Trong một triển khai thật, nó nên bị chặn ở **tầng mạng** — ranh giới mà
 ứng dụng không tự đặt được.
+
+### Số liệu sử dụng: một tài nguyên, hai chiều, hai mức quyền
+
+Đây là chỗ duy nhất trong hệ thống mà **quyền được đặt theo *chiều* của dữ liệu
+chứ không theo đường dẫn**, nên nó đáng được nói riêng.
+
+```
+   GHI  POST /api/admin? KHÔNG          ĐỌC  GET /api/admin/analytics
+   POST /api/events  ─ công khai        ─ vai trò ADMIN
+   ┌──────────────────────────┐         ┌──────────────────────────┐
+   │ mọi người dùng đều phải  │         │ số liệu tổng hợp phơi ra │
+   │ báo được hành vi, nếu    │  ────▶  │ TOÀN BỘ truy vấn mà mọi  │
+   │ không thì không còn số   │         │ người dùng đã gõ         │
+   │ liệu nào để đọc          │         │                          │
+   └──────────────────────────┘         └──────────────────────────┘
+```
+
+Đóng chiều ghi lại thì chỉ quản trị viên đóng góp được số liệu — tức là không
+còn số liệu nào đáng đọc. Mở chiều đọc ra thì bất kỳ ai cũng xem được người
+khác đang tìm gì. Ranh giới đúng nằm **giữa hai chiều**, không phải ở một
+trong hai.
+
+Ba điều làm cho việc mở chiều ghi chấp nhận được:
+
+| Rủi ro của một endpoint ghi công khai | Cái chặn nó |
+|---|---|
+| Làm ngập bằng request | `RateLimitFilter` đã bọc sẵn `/api/*` — 120 req/phút mỗi địa chỉ |
+| Chuỗi khổng lồ làm phình bộ nhớ | Bean Validation chặn độ dài tại controller, `UsageAnalyticsService` cắt lại lần nữa |
+| Nhồi khoá lạ cho tới khi hết heap | Mọi bảng thống kê đều có **trần** (5.000 truy vấn, 5.000 liên kết, 20.000 phiên); chạm trần thì bỏ khoá mới và bật cờ `truncated` |
+
+Hệ quả phải chấp nhận và **phải nói ra**: số liệu này *không đáng tin để ra
+quyết định pháp lý hay tính tiền* — ai cũng gửi được sự kiện giả. Nó đủ tin cho
+đúng việc nó phục vụ: nhìn xu hướng sử dụng của chính ứng dụng mình.
+
+**Quyền riêng tư.** Không nhận và không lưu địa chỉ IP, không cookie. Mã phiên
+là chuỗi ngẫu nhiên do máy khách sinh — nó gom các hành động của một phiên lại
+với nhau nhưng không chỉ tới một con người. Bảng điều khiển cần biết *có bao
+nhiêu phiên*, không cần biết *ai*.
+
+**Ràng buộc theo phương thức, không theo đường dẫn.** Dòng khai báo là
+`requestMatchers(HttpMethod.POST, "/api/events")`. Nếu sau này có ai thêm một
+`GET /api/events` (chẳng hạn để đọc lại nhật ký sự kiện), nó sẽ **không** tự
+động thừa hưởng quyền công khai — nó rơi vào `denyAll()` và trả 401 ngay lần
+gọi đầu.
+
+### Bảng phân quyền hiển thị ngay trong sản phẩm
+
+Bảng điều khiển quản trị của browser-app có một khối *Phân quyền truy cập* liệt
+kê đúng bảng trên, kèm vai trò của phiên đang chạy. Đây là bản **chép lại** của
+`SecurityConfig` cho người đọc, nên nó có nguy cơ lệch khỏi bản gốc — đánh đổi
+lấy việc người vận hành nhìn thấy ranh giới quyền ngay tại nơi họ đang đứng.
+
+Điều quan trọng hơn cần nhớ: **ẩn hay hiện nút ở giao diện không phải là phân
+quyền.** Nút vào khu vực quản trị luôn hiển thị kể cả khi chưa đăng nhập — ẩn
+nó đi không chặn được gì (một lệnh `curl` không có khoá vẫn nhận 401) mà còn
+giấu mất lối vào của chính người có quyền.
 
 ### Actuator: không bao giờ dùng `*`
 
@@ -324,6 +634,36 @@ Ba điều làm đánh đổi đó chấp nhận được:
 > **CORS không phải lớp bảo vệ của `/api/admin/**`** — lớp đó là
 > `ApiKeyAuthFilter`. CORS chỉ quyết định **trình duyệt nào đọc được phản hồi**;
 > một lệnh `curl` không bị CORS ràng buộc chút nào.
+
+---
+
+### Một lỗi đã gặp: quên `Authorization` trong `allowedHeaders`
+
+Danh sách ban đầu chỉ có `Accept`, `Content-Type`, `X-API-Key`. Khi thêm đăng
+nhập bằng token, header `Authorization` **không** được thêm vào — và hậu quả là
+toàn bộ tầng đăng nhập không dùng được từ trình duyệt.
+
+Nó hỏng theo kiểu khó lần nhất:
+
+```
+   trình duyệt  ──preflight OPTIONS──▶  bị CHẶN ngay tại đây
+                                        máy chủ không nhận được gì
+                                        log hoàn toàn sạch
+   curl         ──────GET────────────▶  200 OK
+                                        (curl không bị CORS ràng buộc)
+```
+
+Nên: mọi phép thử bằng `curl` đều xanh, mọi bài kiểm thử MockMvc đều xanh (chúng
+gọi thẳng controller, không qua trình duyệt), **đăng nhập vẫn chạy** (POST
+`/login` chỉ gửi `Content-Type`) — chỉ những request *mang token* mới hỏng. Triệu
+chứng người dùng thấy là "đăng nhập thành công rồi bảng điều khiển báo không kết
+nối được máy chủ".
+
+Chỉ mở ứng dụng thật và nhìn màn hình mới thấy. `CorsPreflightTest` giờ ghim lại:
+nó gửi đúng request preflight mà trình duyệt gửi.
+
+> **Bài học rộng hơn:** `curl` và MockMvc không thay thế được việc chạy ứng dụng
+> thật. Cả hai đều bỏ qua trình duyệt, mà trình duyệt mới là nơi CORS tồn tại.
 
 ---
 

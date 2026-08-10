@@ -24,6 +24,12 @@
 		     làm đỏ bản build ngay lập tức. Nâng lên mỗi khi độ phủ thật tăng;
 		     đừng bao giờ hạ xuống để build xanh trở lại — hạ ngưỡng là bỏ cổng
 		     chặn, không phải sửa lỗi. -->
+		<!-- Nang jackson-bom len tren muc Spring Boot 3.5.16 quan ly (2.21.4).
+		     Ban do dinh CVE-2026-59889, CVE-2026-54515 va GHSA-mhm7-754m-9p8w —
+		     cong quet anh Docker trong CI chan merge vi chung. Day la phep de
+		     TAM: bo dong nay khi Spring Boot quan ly 2.21.5 tro len. -->
+		<jackson-bom.version>2.21.5</jackson-bom.version>
+
 		<jacoco.line.minimum>0.68</jacoco.line.minimum>
 		<jacoco.branch.minimum>0.65</jacoco.branch.minimum>
 
@@ -78,7 +84,7 @@
 		<dependency>
 			<groupId>org.jsoup</groupId>
 			<artifactId>jsoup</artifactId>
-			<version>1.18.1</version>
+			<version>1.23.1</version>
 		</dependency>
 
 		<!-- Bao ve /api/admin/**. Chi dung phan loc + cau hinh chuoi loc; KHONG
@@ -124,7 +130,7 @@
 		<dependency>
 			<groupId>org.postgresql</groupId>
 			<artifactId>postgresql</artifactId>
-			<version>42.7.4</version>
+			<version>42.7.12</version>
 		</dependency>
 
 		<!-- Bus sự kiện giữa crawler và các Modular Service (Analytics, Image

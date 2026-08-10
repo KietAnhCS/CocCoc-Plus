@@ -3,10 +3,12 @@ import NavigationButtons from './NavigationButtons'
 import AddressBar from './AddressBar'
 import BrowserMenu from './BrowserMenu'
 import Popover from './Popover'
+import AccountMenu from './AccountMenu'
 import { useSidePanelStore } from '../store/sidePanelStore'
 import { useTabStore } from '../store/tabStore'
-import { ACCOUNT } from '../lib/account'
-import { DownloadIcon, MenuIcon, PuzzleIcon, SparkleIcon, SplitScreenIcon } from './icons'
+import { useSessionStore } from '../store/sessionStore'
+import { useAdminStore } from '../store/adminStore'
+import { DownloadIcon, MenuIcon, PuzzleIcon, SparkleIcon, SplitScreenIcon, UserIcon } from './icons'
 
 function Toolbar(): JSX.Element {
   const [extensionsOpen, setExtensionsOpen] = useState(false)
@@ -18,6 +20,8 @@ function Toolbar(): JSX.Element {
   const togglePanel = useSidePanelStore((state) => state.togglePanel)
   const panelOpen = useSidePanelStore((state) => state.open)
   const tabCount = useTabStore((state) => state.tabs.length)
+  const user = useSessionStore((state) => state.user)
+  const openDashboard = useAdminStore((state) => state.openDashboard)
 
   return (
     <div className="flex h-12 shrink-0 items-center gap-1 bg-surface px-2.5">
@@ -103,27 +107,41 @@ function Toolbar(): JSX.Element {
         <div className="relative">
           <button
             onClick={() => setAccountOpen((open) => !open)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full
-                       bg-linear-to-br from-rose-500 to-orange-400 text-[11px] font-bold text-white
-                       transition hover:brightness-110 focus-visible:ring-2
-                       focus-visible:ring-brand/60 focus-visible:outline-none"
-            aria-label={`Tài khoản ${ACCOUNT.name}`}
-            title={ACCOUNT.email}
+            className={
+              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] ' +
+              'font-bold transition hover:brightness-110 focus-visible:ring-2 ' +
+              'focus-visible:ring-brand/60 focus-visible:outline-none ' +
+              // Ba trạng thái, ba diện mạo — avatar phải NÓI THẬT về quyền
+              // hiện tại. Trước đây nó luôn hiện một tài khoản "admin" cứng,
+              // kể cả khi chưa ai đăng nhập.
+              (user
+                ? user.role === 'ADMIN'
+                  ? 'bg-linear-to-br from-indigo-500 to-violet-500 text-white'
+                  : 'bg-linear-to-br from-sky-500 to-teal-400 text-white'
+                : 'border border-line bg-raised text-muted')
+            }
+            aria-label={user ? `Tài khoản ${user.username}` : 'Chưa đăng nhập'}
+            title={
+              user
+                ? `${user.username} — ${user.role === 'ADMIN' ? 'Quản trị viên' : 'Người dùng'}`
+                : 'Chưa đăng nhập'
+            }
             aria-expanded={accountOpen}
           >
-            {ACCOUNT.initials}
+            {user ? user.username.slice(0, 2).toUpperCase() : <UserIcon className="h-4 w-4" />}
           </button>
           <Popover
             open={accountOpen}
             onClose={() => setAccountOpen(false)}
             label="Tài khoản"
-            width={260}
+            width={280}
           >
-            <div className="px-2.5 py-2">
-              <p className="text-[13px] font-medium text-ink">{ACCOUNT.name}</p>
-              <p className="mt-0.5 text-[12px] text-faint">{ACCOUNT.email}</p>
-              <p className="mt-2 text-[12px] text-success">{ACCOUNT.status}</p>
-            </div>
+            <AccountMenu
+              onNavigateAdmin={() => {
+                setAccountOpen(false)
+                openDashboard()
+              }}
+            />
           </Popover>
         </div>
 

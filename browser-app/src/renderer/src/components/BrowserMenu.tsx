@@ -5,7 +5,7 @@ import { useTabStore, HOME_URL } from '../store/tabStore'
 import { useHistoryStore } from '../store/historyStore'
 import { useSidePanelStore } from '../store/sidePanelStore'
 import { useZoomStore, zoomFactorOf } from '../store/zoomStore'
-import { ACCOUNT } from '../lib/account'
+import { useSessionStore } from '../store/sessionStore'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
 import {
   ChevronRightIcon,
@@ -177,18 +177,41 @@ function MenuItem({ icon, label, shortcut, onClick, disabled, title }: MenuItemP
   )
 }
 
+/**
+ * Hàng tài khoản đầu menu.
+ *
+ * Đọc phiên THẬT thay vì một hằng số cứng. Trước đây hàng này luôn hiện
+ * "admin — Đã đăng nhập" cho mọi người, kể cả khi chưa ai đăng nhập: menu nói
+ * một đằng, máy chủ áp một nẻo.
+ */
 function AccountRow(): JSX.Element {
+  const user = useSessionStore((state) => state.user)
+  const isAdmin = user?.role === 'ADMIN'
+
   return (
-    <button className="menu-row py-2" title={ACCOUNT.email}>
+    <button
+      className="menu-row py-2"
+      title={user ? 'Quản lý tài khoản ở nút avatar trên thanh công cụ' : 'Chưa đăng nhập'}
+    >
       <span
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full
-                   bg-gradient-to-br from-rose-500 to-orange-400 text-[12px] font-bold text-white"
+        className={
+          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ' +
+          (user
+            ? isAdmin
+              ? 'bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
+              : 'bg-gradient-to-br from-sky-500 to-teal-400 text-white'
+            : 'border border-line bg-raised text-muted')
+        }
       >
-        {ACCOUNT.initials}
+        {user ? user.username.slice(0, 2).toUpperCase() : '—'}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium text-ink">{ACCOUNT.name}</span>
-        <span className="block truncate text-[12px] text-success">{ACCOUNT.status}</span>
+        <span className="block truncate text-[13px] font-medium text-ink">
+          {user ? user.username : 'Chưa đăng nhập'}
+        </span>
+        <span className={'block truncate text-[12px] ' + (isAdmin ? 'text-success' : 'text-muted')}>
+          {user ? (isAdmin ? 'Quản trị viên' : 'Người dùng') : 'Bấm avatar để đăng nhập'}
+        </span>
       </span>
       <ChevronRightIcon className="h-4 w-4 shrink-0 text-faint" />
     </button>

@@ -6,10 +6,14 @@ import SideRail from './components/SideRail'
 import SidePanel from './components/SidePanel'
 import NewTabPage from './components/NewTabPage'
 import SearchResultList from './components/SearchResultList'
+import AdminPanel from './components/admin/AdminPanel'
+import AuthScreen from './components/auth/AuthScreen'
+import { track } from './lib/telemetry'
 import { useTabStore, HOME_URL } from './store/tabStore'
 import { useSearchViewStore } from './store/searchViewStore'
 import { useOverlayStore } from './store/overlayStore'
 import { useSidePanelStore, PANEL_WIDTH } from './store/sidePanelStore'
+import { useSessionStore } from './store/sessionStore'
 import { useBrowserShortcuts } from './lib/useBrowserShortcuts'
 
 function App(): JSX.Element {
@@ -19,12 +23,22 @@ function App(): JSX.Element {
   const query = useSearchViewStore((state) => state.query)
   const overlayCount = useOverlayStore((state) => state.count)
   const panelOpen = useSidePanelStore((state) => state.open)
+  const restoreSession = useSessionStore((state) => state.restore)
 
   useBrowserShortcuts()
 
   useEffect(() => {
     init()
-  }, [init])
+    // Khôi phục phiên đăng nhập TRƯỚC khi gửi sự kiện, để sự kiện đầu tiên
+    // cũng mang được danh tính. Máy chủ là nguồn sự thật: `restore` hỏi
+    // /api/auth/me chứ không tin token trong localStorage.
+    void restoreSession().then(() => {
+      // Một phiên bắt đầu. Gửi ngay ở đây chứ không đợi lượt tìm kiếm đầu
+      // tiên: người mở ứng dụng rồi chỉ duyệt web vẫn là một người truy cập,
+      // và không đếm họ sẽ làm mọi tỉ lệ "lượt tìm trên mỗi người" bị thổi phồng.
+      track({ type: 'visit' })
+    })
+  }, [init, restoreSession])
 
   useEffect(() => {
     window.browser.setPanelWidth(panelOpen ? PANEL_WIDTH : 0)
@@ -50,6 +64,11 @@ function App(): JSX.Element {
         <SidePanel />
         <SideRail />
       </div>
+
+      {/* Hai lớp phủ toàn màn hình, tự ẩn khi chưa mở. Đặt CUỐI cây để chúng
+          nằm trên mọi thứ mà không cần đẩy z-index của các phần khác lên. */}
+      <AuthScreen />
+      <AdminPanel />
     </div>
   )
 }

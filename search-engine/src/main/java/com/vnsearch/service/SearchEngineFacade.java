@@ -1,5 +1,6 @@
 package com.vnsearch.service;
 
+import com.vnsearch.analytics.CorpusStats;
 import com.vnsearch.crawler.ContentStorage;
 import com.vnsearch.datastructure.LRUCache;
 import com.vnsearch.index.IndexPersistence;
@@ -27,6 +28,7 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -102,6 +104,7 @@ public class SearchEngineFacade {
     private final AtomicLong cacheMisses = new AtomicLong();
 
     private volatile SearchIndex index;
+    private volatile CorpusStats corpusStats = CorpusStats.empty();
     private volatile Map<Integer, Double> pageRankScores = Map.of();
     private volatile RelevanceScorer scorer;
     private volatile LRUCache<String, SearchResponse> searchCache;
@@ -246,6 +249,19 @@ public class SearchEngineFacade {
         scorer = scorerFactory.create(pageRankScores); // Factory + Decorator
         suggestionService.rebuild(index);
         searchCache = new LRUCache<>(cacheSize);
+        // So lieu mo ta corpus cung la TRANG THAI DAN XUAT tu chi muc, nen no
+        // duoc lam moi o day chu khong tinh lai moi lan bang dieu khien hoi:
+        // mot luot duyet toan bo corpus (co giai nen than bai) khong duoc phep
+        // nam tren duong di cua mot request hien thi. Xem CorpusStats.
+        SearchIndex current = index;
+        corpusStats = current.getTotalDocs() > 0
+                // Do dai tai lieu lay tu CHI MUC (so token, O(1)) chu khong tu
+                // getBodyText(): WebDocument trong chi muc khong mang than bai,
+                // nen do do dai chuoi o day se cho ra 0 cho moi tai lieu.
+                ? CorpusStats.from(current.getAllDocuments().values(),
+                        document -> current.getDocLength(document.getDocId()),
+                        ZoneId.systemDefault())
+                : CorpusStats.empty();
         log.info("Scorer dang dung: {}", scorer.name());
     }
 
@@ -423,27 +439,59 @@ public class SearchEngineFacade {
         return current == null ? 0 : current.getTermCount();
     }
 
-    public Map<String, Object> getStats() {
-        Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("totalDocuments", index.getTotalDocs());
-        stats.put("totalTerms", index.getTermCount());
+    /**
+     * So lieu mo ta corpus da crawl, tinh san luc dung chi muc.
+     *
+     * <p>Nguon cho bang dieu khien quan tri. Doc mot bien {@code volatile} —
+     * O(1), khong duyet corpus.
+     */
+    public CorpusStats getCorpusStats() {
+        return corpusStats;
+    }
 
-        long indexSizeBytes = 0;
+    /** Kich thuoc tep chi muc tren dia, {@code 0} khi chua ghi ra duoc. */
+    public long getIndexSizeBytes() {
         try {
             Path path = Path.of(indexDataPath);
-            if (Files.exists(path)) {
-                indexSizeBytes = Files.size(path);
-            }
+            return Files.exists(path) ? Files.size(path) : 0L;
         } catch (IOException e) {
             log.debug("Khong doc duoc kich thuoc file chi muc", e);
+            return 0L;
         }
-        stats.put("indexSizeBytes", indexSizeBytes);
+    }
 
-        long hits = cacheHits.get();
-        long misses = cacheMisses.get();
-        stats.put("cacheHitRate", (hits + misses) == 0 ? 0.0 : (double) hits / (hits + misses));
-        stats.put("bloomFilterBits", crawlJobManager.lastBloomFilterBits());
-        stats.put("scorer", scorer == null ? "(chua khoi tao)" : scorer.name());
+    /** Ten scorer dang dung, cho bang dieu khien va cho {@link #getStats()}. */
+    public String getScorerName() {
+        RelevanceScorer current = scorer;
+        return current == null ? "(chua khoi tao)" : current.name();
+    }
+
+    /** So bit cua Bloom Filter o lan crawl gan nhat. */
+    public long getBloomFilterBits() {
+        return crawlJobManager.lastBloomFilterBits();
+    }
+
+    public Map<String, Object> getStats() {
+        // Chụp `index` MỘT lần vào biến cục bộ, rồi mới đọc. Trường này là
+        // volatile nên hai lệnh đọc liên tiếp có thể rơi vào HAI chỉ mục khác
+        // nhau khi một lần lập chỉ mục lại xen vào giữa — báo ra một cặp số
+        // chưa bao giờ cùng tồn tại.
+        //
+        // Chặn null cho đồng bộ với các accessor còn lại. Hôm nay `index` được
+        // gán trong constructor và không đường nào gán lại thành null, nên NPE
+        // chưa xảy ra được — nhưng getIndexedDocumentCount, getTermCount và
+        // getDocumentAt đều đã chặn, và một hàm đứng ngoài kỷ luật chung là
+        // chỗ hỏng khi sau này có ai thêm đường gán mới. Trả 0 nói đúng ý
+        // "chưa có gì trong chỉ mục", giống hệt các accessor kia.
+        SearchIndex current = index;
+
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("totalDocuments", current == null ? 0 : current.getTotalDocs());
+        stats.put("totalTerms", current == null ? 0 : current.getTermCount());
+        stats.put("indexSizeBytes", getIndexSizeBytes());
+        stats.put("cacheHitRate", getCacheHitRate());
+        stats.put("bloomFilterBits", getBloomFilterBits());
+        stats.put("scorer", getScorerName());
         return stats;
     }
 }

@@ -281,6 +281,7 @@ Docs are organised by **the question they answer**, not by source folder:
 | [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) | Where does it run, and who watches it? Docker, Kubernetes, monitoring |
 | [`docs/DEVOPS.md`](docs/DEVOPS.md) | How does code get from a laptop to a cluster? CI/CD, the seven gates |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | What is it defended against, and **what is still open**? |
+| [**`docs/ACCOUNTS-AND-DASHBOARD.md`**](docs/ACCOUNTS-AND-DASHBOARD.md) | **Accounts, roles and the admin dashboard — who may see what, and six real bugs the tests missed** |
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | The mini browser (Electron + React) |
 | [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Big-O and measured numbers |
 | [`docs/Math/`](docs/Math/README.md) | One page per class — formulas, worked examples, mind maps |

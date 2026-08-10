@@ -471,3 +471,97 @@ export function VnSearchMark({ className }: { className?: string }): JSX.Element
     </svg>
   )
 }
+
+/** Khiên — biểu tượng của khu vực quản trị, dùng chung ở thanh bên và bảng điều khiển. */
+export function ShieldIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 3.2 5 6v5.4c0 4 2.9 7.6 7 8.8 4.1-1.2 7-4.8 7-8.8V6z" />
+    </Icon>
+  )
+}
+
+/** Khiên có dấu tick — đã xác thực, vai trò ADMIN đang hoạt động. */
+export function ShieldCheckIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M12 3.2 5 6v5.4c0 4 2.9 7.6 7 8.8 4.1-1.2 7-4.8 7-8.8V6z" />
+      <path d="m9.2 11.9 2 2 3.6-3.9" />
+    </Icon>
+  )
+}
+
+export function KeyIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="15.5" r="3.5" />
+      <path d="m10.6 13.1 7.6-7.6m-2.1 2.1 2 2m-4-4 2 2" />
+    </Icon>
+  )
+}
+
+export function UsersIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="9.5" cy="8.5" r="3.3" />
+      <path d="M3.6 19.4c.6-3 3-5 5.9-5s5.3 2 5.9 5" />
+      <path d="M16 5.6a3.3 3.3 0 0 1 0 6.3m1.2 2.9c2 .6 3.4 2.3 3.8 4.6" />
+    </Icon>
+  )
+}
+
+export function LinkIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M10.5 13.5a3.6 3.6 0 0 0 5.1 0l2.6-2.6a3.6 3.6 0 0 0-5.1-5.1L11.7 7.2" />
+      <path d="M13.5 10.5a3.6 3.6 0 0 0-5.1 0l-2.6 2.6a3.6 3.6 0 0 0 5.1 5.1l1.4-1.4" />
+    </Icon>
+  )
+}
+
+export function DatabaseIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <ellipse cx="12" cy="6" rx="7" ry="2.8" />
+      <path d="M5 6v12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8V6" />
+      <path d="M5 12c0 1.5 3.1 2.8 7 2.8s7-1.3 7-2.8" />
+    </Icon>
+  )
+}
+
+export function ChartIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M4 19.5h16" />
+      <path d="M7 19.5v-6m5 6V6.5m5 13v-9" />
+    </Icon>
+  )
+}
+
+/** Hình người — dùng cho avatar khi CHƯA đăng nhập. */
+export function UserIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="8.2" r="3.6" />
+      <path d="M4.8 20c.6-3.6 3.5-6 7.2-6s6.6 2.4 7.2 6" />
+    </Icon>
+  )
+}
+
+export function EyeIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M2.5 12s3.6-6 9.5-6 9.5 6 9.5 6-3.6 6-9.5 6-9.5-6-9.5-6z" />
+      <circle cx="12" cy="12" r="2.7" />
+    </Icon>
+  )
+}
+
+export function EyeOffIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M9.9 5.2A9.7 9.7 0 0 1 12 5c5.9 0 9.5 6 9.5 6a17 17 0 0 1-2.9 3.5M6.3 6.7A17 17 0 0 0 2.5 11s3.6 6 9.5 6c1.7 0 3.2-.5 4.5-1.2" />
+      <path d="M10.2 10.3a2.7 2.7 0 0 0 3.7 3.7M4 4l16 16" />
+    </Icon>
+  )
+}

@@ -78,12 +78,133 @@ GET {{baseUrl}}/api/health
 GET {{baseUrl}}/actuator/prometheus
 # curl "http://localhost:8080/actuator/prometheus"
 
+### 11. Ghi một sự kiện sử dụng — CÔNG KHAI, không cần khoá
+###
+### Chiều GHI của số liệu sử dụng mở cho mọi người, vì mọi người dùng đều phải
+### báo được hành vi; chiều ĐỌC (mục 17) thì cần vai trò ADMIN. Xem
+### docs/SECURITY.md §5. `type` nhận: visit | search | click.
+### Trả 204 khi ghi nhận, 400 khi `type` lạ hoặc chuỗi quá dài.
+POST {{baseUrl}}/api/events
+Content-Type: application/json
+
+{
+  "type": "search",
+  "sessionId": "phien-thu-nghiem-1",
+  "query": "Hà Nội",
+  "resultCount": 42,
+  "tookMs": 18
+}
+
+# curl -i -X POST "http://localhost:8080/api/events" #   -H "Content-Type: application/json" #   -d '{"type":"search","sessionId":"phien-thu-nghiem-1","query":"Hà Nội","resultCount":42,"tookMs":18}'
+
+### 12. Ghi một lượt bấm vào kết quả (công khai)
+###
+### `position` là thứ hạng TUYỆT ĐỐI của liên kết lúc được bấm — đây là số liệu
+### đo chất lượng xếp hạng, không phải vị trí trong trang.
+POST {{baseUrl}}/api/events
+Content-Type: application/json
+
+{
+  "type": "click",
+  "sessionId": "phien-thu-nghiem-1",
+  "url": "https://vnexpress.net/mot-bai-viet",
+  "position": 2
+}
+
+# curl -i -X POST "http://localhost:8080/api/events" #   -H "Content-Type: application/json" #   -d '{"type":"click","sessionId":"phien-thu-nghiem-1","url":"https://vnexpress.net/mot-bai-viet","position":2}'
+
 
 ### ───────────────────────────────────────────────────────────────────────────
-### QUẢN TRỊ — BẮT BUỘC có header X-API-Key
+### TÀI KHOẢN — đăng ký, đăng nhập (công khai)
 ### ───────────────────────────────────────────────────────────────────────────
 
-### 11. Bắt đầu một phiên crawl mới
+### 12b. Đăng ký tài khoản
+###
+### LUÔN tạo vai trò USER. Trường `role` trong thân request bị BỎ QUA — thử
+### thêm "role":"ADMIN" vào và xem phản hồi vẫn trả về USER. Đó là chốt chặn
+### lỗ hổng leo thang quyền kinh điển.
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{
+  "username": "sinhvien01",
+  "password": "matkhaucuatoi"
+}
+
+# curl -i -X POST "http://localhost:8080/api/auth/register" \
+#   -H "Content-Type: application/json" \
+#   -d '{"username":"sinhvien01","password":"matkhaucuatoi"}'
+
+### 12c. Đăng nhập — nhận token phiên
+###
+### Trả {token, expiresAt, user}. Token sống 12 giờ và HUỶ ĐƯỢC bằng logout —
+### đây là lý do hệ thống dùng token mờ thay vì JWT (xem SECURITY.md §3b).
+### Sai tên và sai mật khẩu trả về CÙNG một thông báo, cố ý.
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "sinhvien01",
+  "password": "matkhaucuatoi"
+}
+
+# curl -s -X POST "http://localhost:8080/api/auth/login" \
+#   -H "Content-Type: application/json" \
+#   -d '{"username":"sinhvien01","password":"matkhaucuatoi"}'
+
+### Dán token nhận được ở bước trên vào đây để chạy các mục dưới
+@token = dan-token-tu-buoc-12c-vao-day
+
+### 12d. Tôi là ai
+###
+### Nguồn sự thật là MÁY CHỦ, không phải thứ giao diện nhớ trong localStorage.
+GET {{baseUrl}}/api/auth/me
+Authorization: Bearer {{token}}
+
+# curl -H "Authorization: Bearer $TOKEN" "http://localhost:8080/api/auth/me"
+
+### 12e. Đổi mật khẩu
+###
+### PHẢI nhập mật khẩu hiện tại dù đã đăng nhập — đó là chỗ chặn một chiếc
+### token bị đánh cắp (xem SECURITY.md §3b). Trả về số phiên KHÁC đã bị đóng;
+### phiên đang gọi được giữ lại.
+POST {{baseUrl}}/api/auth/password
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "currentPassword": "matkhaucuatoi",
+  "newPassword": "matkhaumoicuatoi"
+}
+
+# curl -i -X POST "http://localhost:8080/api/auth/password" \
+#   -H "Content-Type: application/json" -H "Authorization: Bearer $TOKEN" \
+#   -d '{"currentPassword":"matkhaucuatoi","newPassword":"matkhaumoicuatoi"}'
+
+### 12f. Đăng xuất — huỷ phiên NGAY (chỉ thiết bị này)
+POST {{baseUrl}}/api/auth/logout
+Authorization: Bearer {{token}}
+
+# curl -i -X POST -H "Authorization: Bearer $TOKEN" "http://localhost:8080/api/auth/logout"
+
+### 12g. Đăng xuất khỏi MỌI thiết bị
+###
+### Khác mục trên: đóng cả những phiên mở ở nơi khác, kể cả phiên đang gọi.
+### Dành cho lúc nghi ngờ phiên của mình bị lộ.
+POST {{baseUrl}}/api/auth/logout-all
+Authorization: Bearer {{token}}
+
+# curl -i -X POST -H "Authorization: Bearer $TOKEN" "http://localhost:8080/api/auth/logout-all"
+
+
+### ───────────────────────────────────────────────────────────────────────────
+### QUẢN TRỊ — cần vai trò ADMIN
+###
+### Hai cách chứng minh: header X-API-Key (công cụ), hoặc
+### Authorization: Bearer <token> của một tài khoản có vai trò ADMIN (con người).
+### ───────────────────────────────────────────────────────────────────────────
+
+### 13. Bắt đầu một phiên crawl mới
 ###
 ### Trả `jobId` ngay lập tức, crawl chạy nền. Giới hạn nhỏ để thử cho nhanh.
 POST {{baseUrl}}/api/admin/crawl
@@ -101,13 +222,13 @@ X-API-Key: {{adminKey}}
 #   -H "X-API-Key: $ADMIN_API_KEY" \
 #   -d '{"seedUrls":["https://vnexpress.net/"],"maxDepth":2,"maxPages":20}'
 
-### 12. Trạng thái job crawl — thay {jobId} bằng giá trị trả về ở bước 11
+### 14. Trạng thái job crawl — thay {jobId} bằng giá trị trả về ở bước 13
 GET {{baseUrl}}/api/admin/crawl/{jobId}/status
 X-API-Key: {{adminKey}}
 
 # curl -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/crawl/JOB_ID/status"
 
-### 13. Lập lại chỉ mục toàn bộ
+### 15. Lập lại chỉ mục toàn bộ
 ###
 ### Đọc lại corpus từ đĩa, dựng lại chỉ mục + PageRank + Trie, xoá cache, rồi
 ### ghi index.json. Đây là lệnh phải chạy SAU MỖI PHIÊN CRAWL bằng dòng lệnh —
@@ -118,7 +239,7 @@ X-API-Key: {{adminKey}}
 
 # curl -X POST -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/reindex"
 
-### 14. Thống kê hệ thống
+### 16. Thống kê hệ thống
 ###
 ### Trả totalDocuments, totalTerms, indexSizeBytes, cacheHitRate, bloomFilterBits
 ### và `scorer` — dùng trường cuối để xác nhận mô hình chấm điểm đang chạy.
@@ -127,24 +248,117 @@ X-API-Key: {{adminKey}}
 
 # curl -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/stats"
 
+### 17. Số liệu cho bảng điều khiển quản trị
+###
+### Nguồn của bảng điều khiển trong browser-app. Một lời gọi trả về CẢ BA khối
+### — traffic (lưu lượng 24 giờ) / crawl (corpus) / index — để mọi con số hiện
+### cạnh nhau thuộc về cùng một khoảnh khắc. `top` = số dòng mỗi bảng xếp hạng,
+### chặn trên ở 50.
+GET {{baseUrl}}/api/admin/analytics?top=10
+X-API-Key: {{adminKey}}
+
+# curl -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/analytics?top=10"
+
+### 18. Đặt lại số liệu lưu lượng
+###
+### Chỉ xoá phần traffic (nằm trong bộ nhớ). KHÔNG đụng tới chỉ mục hay corpus.
+### Dùng khi một buổi thử nghiệm làm lệch hẳn mọi tỉ lệ trước lúc demo.
+POST {{baseUrl}}/api/admin/analytics/reset
+X-API-Key: {{adminKey}}
+
+# curl -i -X POST -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/analytics/reset"
+
 
 ### ───────────────────────────────────────────────────────────────────────────
 ### CÁC CA LỖI — chạy để thấy hệ thống phản ứng đúng
 ### ───────────────────────────────────────────────────────────────────────────
 
-### 15. Thiếu tham số bắt buộc (mong đợi 400)
+### 19. Thiếu tham số bắt buộc (mong đợi 400)
 GET {{baseUrl}}/api/search
 # curl -i "http://localhost:8080/api/search"
 
-### 16. Dùng `q` thay vì `prefix` cho /api/suggest (mong đợi 400)
+### 20. Dùng `q` thay vì `prefix` cho /api/suggest (mong đợi 400)
 GET {{baseUrl}}/api/suggest?q=bóng
 # curl -i "http://localhost:8080/api/suggest?q=bóng"
 
-### 17. Gọi endpoint quản trị mà KHÔNG có khoá (mong đợi 401)
+### 21. Gọi endpoint quản trị mà KHÔNG có khoá (mong đợi 401)
 GET {{baseUrl}}/api/admin/stats
 # curl -i "http://localhost:8080/api/admin/stats"
 
-### 18. Job crawl không tồn tại (mong đợi 404)
+### 22. Job crawl không tồn tại (mong đợi 404)
 GET {{baseUrl}}/api/admin/crawl/khong-ton-tai/status
 X-API-Key: {{adminKey}}
 # curl -i -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/crawl/khong-ton-tai/status"
+
+### 23. Đọc số liệu sử dụng mà KHÔNG có khoá (mong đợi 401)
+###
+### Cặp với mục 11: cùng một tài nguyên, chiều GHI mở, chiều ĐỌC đóng.
+GET {{baseUrl}}/api/admin/analytics
+# curl -i "http://localhost:8080/api/admin/analytics"
+
+### 24. Sự kiện có `type` lạ (mong đợi 400)
+###
+### Bị TỪ CHỐI chứ không âm thầm bỏ qua: một phiên bản giao diện gửi sai tên sự
+### kiện phải thấy lỗi ngay khi thử, thay vì thấy bảng điều khiển trống rỗng
+### vài tuần sau và không hiểu vì sao.
+POST {{baseUrl}}/api/events
+Content-Type: application/json
+
+{ "type": "khong-ton-tai", "sessionId": "phien-thu-nghiem-1" }
+
+# curl -i -X POST "http://localhost:8080/api/events" #   -H "Content-Type: application/json" -d '{"type":"khong-ton-tai","sessionId":"x"}'
+
+### 25. Tham số `top` vượt trần (mong đợi 400)
+GET {{baseUrl}}/api/admin/analytics?top=1000000
+X-API-Key: {{adminKey}}
+# curl -i -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/analytics?top=1000000"
+
+### 26. Người dùng thường gọi endpoint quản trị (mong đợi 403, KHÔNG phải 401)
+###
+### Hai mã có nghĩa khác nhau và hệ thống phân biệt chúng:
+###   401 = "tôi không biết anh là ai"      (chưa đăng nhập)
+###   403 = "tôi biết anh là ai, và KHÔNG"  (đã đăng nhập, sai vai trò)
+### Trộn hai mã này khiến giao diện đẩy người đã đăng nhập về màn hình đăng
+### nhập, họ đăng nhập lại thành công, rồi lại bị đẩy về — vòng lặp không lối ra.
+GET {{baseUrl}}/api/admin/analytics
+Authorization: Bearer {{token}}
+# curl -i -H "Authorization: Bearer $TOKEN_CUA_NGUOI_DUNG_THUONG" \
+#   "http://localhost:8080/api/admin/analytics"
+
+### 27. Danh sách tài khoản (ADMIN) — kiểm tra KHÔNG lộ hash mật khẩu
+GET {{baseUrl}}/api/admin/users
+X-API-Key: {{adminKey}}
+# curl -H "X-API-Key: $ADMIN_API_KEY" "http://localhost:8080/api/admin/users"
+
+### 28. Nâng vai trò một tài khoản (ADMIN)
+###
+### Máy chủ đóng MỌI phiên của người bị đổi, nên họ phải đăng nhập lại. Không
+### làm vậy thì quyền bị thu hồi trên giấy nhưng phiên cũ còn hiệu lực nhiều giờ.
+POST {{baseUrl}}/api/admin/users/sinhvien01/role
+Content-Type: application/json
+X-API-Key: {{adminKey}}
+
+{ "role": "ADMIN" }
+
+# curl -X POST "http://localhost:8080/api/admin/users/sinhvien01/role" \
+#   -H "Content-Type: application/json" -H "X-API-Key: $ADMIN_API_KEY" \
+#   -d '{"role":"ADMIN"}'
+
+### 29. Mật khẩu quá ngắn (mong đợi 400 kèm lý do đọc được)
+POST {{baseUrl}}/api/auth/register
+Content-Type: application/json
+
+{ "username": "nguoidungmoi", "password": "ngan" }
+
+# curl -i -X POST "http://localhost:8080/api/auth/register" \
+#   -H "Content-Type: application/json" -d '{"username":"nguoidungmoi","password":"ngan"}'
+
+### 30. Xoá hẳn một tài khoản (ADMIN)
+###
+### Khác disable: không hồi lại được, tên được giải phóng cho người khác đăng
+### ký. Máy chủ đóng luôn mọi phiên của người bị xoá — token cũ không được phép
+### tra ra một phiên hợp lệ cho một tài khoản đã biến mất.
+### Trả 404 nếu không có tài khoản đó, 400 nếu tự xoá chính mình.
+DELETE {{baseUrl}}/api/admin/users/sinhvien01
+X-API-Key: {{adminKey}}
+# curl -i -X DELETE -H "X-API-Key: $ADMIN_API_KEY" #   "http://localhost:8080/api/admin/users/sinhvien01"

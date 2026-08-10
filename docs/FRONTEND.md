@@ -24,12 +24,12 @@
 | [3](#3-ngăn-xếp-công-nghệ-và-lý-do-chọn) | Ngăn xếp công nghệ và lý do chọn |
 | [4](#4-ba-tiến-trình-của-electron) | Ba tiến trình của Electron |
 | [5](#5-ý-tưởng-trung-tâm--vỏ-nằm-dưới-trang-nằm-trên) | **Ý tưởng trung tâm** — vỏ nằm dưới, trang nằm trên |
-| [6](#6-bản-đồ-thư-mục--42-file) | Bản đồ thư mục — 42 file |
+| [6](#6-bản-đồ-thư-mục--64-file) | Bản đồ thư mục — 64 file |
 | [7](#7-hợp-đồng-ipc--16-kênh) | Hợp đồng IPC — 16 kênh |
 | [8](#8-năm-luồng-xử-lý-chính) | Năm luồng xử lý chính |
-| [9](#9-tầng-store--9-store-zustand) | Tầng store — 9 store Zustand |
-| [10](#10-tầng-component--13-component) | Tầng component — 13 component |
-| [11](#11-tầng-lib--9-file-tiện-ích) | Tầng lib — 9 file tiện ích |
+| [9](#9-tầng-store--12-store-zustand) | Tầng store — 12 store Zustand |
+| [10](#10-tầng-component--23-component) | Tầng component — 23 component |
+| [11](#11-tầng-lib--16-file-tiện-ích) | Tầng lib — 16 file tiện ích |
 | [12](#12-hệ-thống-giao-diện) | Hệ thống giao diện |
 | [13](#13-hướng-dẫn-thực-hành--12-công-thức) | **Hướng dẫn thực hành — 12 công thức** |
 | [14](#14-chạy-gỡ-lỗi-đóng-gói) | Chạy, gỡ lỗi, đóng gói |
@@ -333,7 +333,7 @@ flowchart LR
 
 ---
 
-## 6. Bản đồ thư mục — 42 file
+## 6. Bản đồ thư mục — 64 file
 ```
 browser-app/
 ├── electron.vite.config.ts     3 cấu hình build: main / preload / renderer
@@ -355,11 +355,11 @@ browser-app/
         ├── index.html          41  CSP nằm ở đây
         └── src/
             ├── main.tsx        15  ReactDOM.createRoot
-            ├── App.tsx         57  ★ bố cục tổng + 2 useEffect đồng bộ xuống main
-            ├── index.css      170  biến màu, .icon-btn, .menu-row, .skeleton
-            ├── store/          669  ── 9 store, xem §9
-            ├── components/   4.340  ── 15 component, xem §10
-            └── lib/            749  ── 9 tiện ích, xem §11
+            ├── App.tsx         67  ★ bố cục tổng + 3 useEffect đồng bộ xuống main
+            ├── index.css      206  biến màu, bảng màu biểu đồ, .icon-btn, .skeleton
+            ├── store/        1.277  ── 12 store, xem §9
+            ├── components/   7.076  ── 23 component (5 admin/, 2 auth/), xem §10
+            └── lib/          1.741  ── 15 tiện ích, xem §11
 ```
 
 > **Không có `tailwind.config.js` và `postcss.config.js`.** Dự án dùng
@@ -558,7 +558,7 @@ Tương tự, lớp `Maximizer` **tự đặt bounds** bằng `screen.getDisplay
 
 ---
 
-## 9. Tầng store — 9 store Zustand
+## 9. Tầng store — 12 store Zustand
 
 ### 9.1. Bản đồ phụ thuộc
 
@@ -573,10 +573,17 @@ flowchart TD
     OV["overlayStore<br/>26 dòng · đếm lớp phủ"]
     TH["themeStore<br/>45 dòng · sáng/tối · localStorage"]
     ZM["zoomStore<br/>50 dòng · mức thu phóng"]
+    SS["sessionStore<br/>112 dòng · tài khoản đang đăng nhập"]
+    AD["adminStore<br/>116 dòng · khoá API · KHÔNG persist"]
+    DB["dashboardStore<br/>99 dòng · số liệu bảng điều khiển"]
 
     TS --> HS
     TS --> SV
     ZM --> TS
+    DB --> AD
+    AD --> SS
+    SS --> AUTH["lib/authApi + lib/authToken"]
+    DB --> ADM["lib/adminApi"]
     SC --> SP
     BM --> SEED["lib/seedSites"]
     SC --> SEED
@@ -600,6 +607,13 @@ shortcutStore ──► lib/seedSites + normalizeUrl (mượn của sidePanelSto
 sidePanelStore ─► lib/apps
 
 overlayStore, themeStore: độc lập, không phụ thuộc store nào
+
+sessionStore ──► lib/authApi (đăng nhập/đăng ký/đăng xuất)
+             └─► lib/authToken (token phiên, một chỗ duy nhất giữ nó)
+adminStore ──► lib/adminApi (thử khoá bằng một lời gọi thật)
+           └─► sessionStore (useAdminCredential: tài khoản ADMIN ưu tiên hơn khoá)
+dashboardStore ─► lib/adminApi
+               └─► adminStore (hạ vai trò khi máy chủ trả 401)
 ```
 
 </details>
@@ -617,6 +631,9 @@ overlayStore, themeStore: độc lập, không phụ thuộc store nào
 | **overlayStore** | `count: number` | ❌ | **Số đếm** chứ không phải cờ — xem §5.3 hệ quả 3 |
 | **themeStore** | `theme: 'light' \| 'dark'` | ✅ `vnsearch.theme` (localStorage thô) | Mặc định **tối**, cố ý không theo cài đặt hệ điều hành |
 | **zoomStore** | `factor` | ❌ | 15 nấc lấy đúng bộ của Chrome. Chỉ tác dụng với trang ngoài |
+| **sessionStore** | `user` (tên + vai trò), `ready`, `error` | token ở `localStorage` | Nguồn sự thật là **máy chủ**: `restore()` gọi `/api/auth/me` chứ không tin bản sao ở máy khách. Tin localStorage thì một người đã bị hạ quyền vẫn thấy giao diện quản trị đầy đủ cho tới lần gọi API đầu tiên thất bại |
+| **adminStore** | `apiKey`, `dashboardOpen` | ❌ **cố ý** | Khoá quản trị **chỉ nằm trong bộ nhớ**, trong khi token phiên thì được lưu. Không mâu thuẫn: khoá không hết hạn, không thu hồi được, luôn là quyền cao nhất; token hết hạn sau 12 giờ và huỷ được. Xem bảng so sánh trong `lib/authToken.ts` |
+| **dashboardStore** | `data`, `loading`, `error` | ❌ | Số liệu bảng điều khiển + chu kỳ làm mới 10s. Ở store chứ không phải `useState` vì đây là trạng thái của **hệ thống bên ngoài**; để trong component thì effect khởi động phải `setState` ngay trong thân effect |
 
 ### 9.3. Quy ước dùng store
 
@@ -635,7 +652,7 @@ tabStore.newTab()
 
 ---
 
-## 10. Tầng component — 13 component
+## 10. Tầng component — 23 component
 
 ### 10.1. Cây
 ```
@@ -664,12 +681,24 @@ App.tsx
 │       └── HotNews
 ├── SidePanel                 340px khi mở
 │   └── AddSiteBody / AppBody / BookmarksBody / DownloadsBody / AskAiBody
-└── SideRail                  48px — luôn hiện
+├── SideRail                  48px — luôn hiện
+│                                   nút 🛡 vào khu vực quản trị LUÔN hiện,
+│                                   kể cả khi chưa có quyền (xem §10.4)
+└── AdminPanel                lớp phủ toàn màn hình, chỉ khi được mở
+    ├── GuestView → AdminLogin      cửa xác thực bằng X-API-Key
+    └── Dashboard                   vai trò ADMIN
+        ├── StatTile ×14            ô số liệu
+        ├── TrendChart              lưu lượng 24 giờ, 3 chuỗi
+        ├── ColumnChart ×2          phân bố độ trễ · trang crawl theo ngày
+        ├── AccountsTable           danh sách tài khoản + nâng/hạ vai trò
+        ├── BarList ×4              truy vấn · liên kết được bấm · tên miền
+        ├── ShareBar                tỉ lệ ngôn ngữ của corpus
+        └── PermissionMatrix        bảng phân quyền + vai trò hiện tại
 ```
 
 ### 10.2. Bảng chi tiết
 
-**15 component, 4.340 dòng.** Sắp theo kích thước để thấy ngay trọng tâm nằm ở đâu:
+**23 component, 7.076 dòng.** Sắp theo kích thước để thấy ngay trọng tâm nằm ở đâu:
 
 | Component | Dòng | Điểm đáng chú ý về kỹ thuật |
 |---|---:|---|
@@ -688,6 +717,14 @@ App.tsx
 | `AutocompleteDropdown` | 65 | **`onMouseDown` chứ không `onClick`** — để chạy *trước* `blur` của input; phần gõ rồi để nhạt, phần gợi ý thêm in đậm |
 | `NavigationButtons` | 58 | Nút Lùi/Tiến. Trạng thái mờ lấy từ `canGoBack()`/`canGoForward()` của `tabStore` — **không** hỏi Electron, vì lịch sử do renderer tự giữ (§7.5) |
 | `AppTile` | 26 | Ô logo trong lưới ứng dụng; nhận `size` để dùng lại ở cả trang chủ lẫn bảng bên |
+| `admin/charts` | 630 | 5 hình vẽ SVG **viết tay**, không thư viện biểu đồ. Bảng màu đã qua kiểm định tách biệt cho người mù màu, khai trong `index.css` thành `--color-viz-1..4` nên tự đổi theo giao diện sáng/tối |
+| `admin/AdminPanel` | 487 | Lớp phủ toàn màn hình. Giành `overlayStore` để `WebContentsView` không đè lên; tự làm mới 10s; giữ bố cục cũ mờ đi khi tải lại thay vì dựng lại khung xương |
+| `admin/PermissionMatrix` | 149 | Bảng "endpoint × vai trò" + vai trò của phiên đang chạy |
+| `admin/AdminLogin` | 204 | Cửa xác thực **hai đường**: tài khoản (mở sẵn) và khoá tĩnh (sau một nút bung ra). Cả hai kiểm bằng **một lời gọi thật**, không kiểm "cho có" ở giao diện |
+| `auth/AuthScreen` | 396 | Màn hình tài khoản **toàn màn hình**: đăng nhập, đăng ký, đổi mật khẩu. Kiểm tra tại chỗ nhưng chỉ báo lỗi **sau khi rời ô** — báo ngay từ ký tự đầu là mắng người dùng vì chưa gõ xong |
+| `admin/AccountsTable` | 190 | Danh sách tài khoản + nút nâng/hạ vai trò. Tooltip nói rõ hệ quả **trước** khi bấm: đổi vai trò sẽ đóng mọi phiên của người đó |
+| `AccountMenu` | 232 | Thẻ tài khoản + biểu mẫu đăng nhập nhanh + đổi mật khẩu + đăng xuất mọi thiết bị |
+| `auth/PasswordField` | 100 | Ô mật khẩu có nút hiện/ẩn. `tabIndex={-1}` để người dùng bàn phím đi thẳng từ ô mật khẩu tới nút gửi |
 
 *(`App.tsx` 57 dòng nằm ở §6 chứ không phải bảng này — nó là bố cục gốc, không phải component lá.)*
 
@@ -711,9 +748,128 @@ Nếu đo trực tiếp hàng đang hiện: cắt bớt → hàng ngắn lại �
 
 **3. `onMouseDown` cho mục chọn trong dropdown** (`AutocompleteDropdown.tsx:50`) — `onClick` bắn *sau* `blur`, mà `blur` đã xoá dropdown, nên cú bấm rơi vào hư không.
 
+### 10.4. Tài khoản và bảng điều khiển — phân quyền nhìn thấy được
+
+#### Vòng đời của một quyền
+
+```mermaid
+sequenceDiagram
+    participant U as Người dùng
+    participant R as SideRail
+    participant A as adminStore
+    participant S as Máy chủ
+
+    U->>R: bấm nút 🛡 (LUÔN hiện)
+    R->>A: openDashboard()
+    Note over A: role = 'guest' → hiện cửa xác thực
+    U->>A: dán khoá, bấm Xác thực
+    A->>S: GET /api/admin/analytics<br/>X-API-Key: ...
+    alt khoá đúng
+        S-->>A: 200 + số liệu
+        Note over A: role = 'admin'<br/>khoá giữ TRONG BỘ NHỚ
+    else khoá sai / thiếu
+        S-->>A: 401
+        Note over A: role vẫn 'guest'<br/>hiện lỗi, không giữ khoá
+    end
+    loop mỗi 10 giây
+        A->>S: GET /api/admin/analytics
+        alt 401 (khoá bị đổi ở máy chủ)
+            S-->>A: 401
+            Note over A: revoke() — hạ vai trò NGAY,<br/>không gọi tiếp mỗi 10s
+        end
+    end
+```
+
+<details>
+<summary><b>Xem bản chữ (ASCII)</b></summary>
+
+```
+   [nút 🛡 luôn hiện]
+            │
+            ▼
+   role == 'admin' ? ──── không ──► AdminLogin ──► POST thử khoá thật
+            │                            │              │
+            có                           │        401 ──┴── 200
+            │                            │         │        │
+            ▼                            │      giữ guest  role = 'admin'
+      Dashboard  ◄───────────────────────┴──────────────────┘
+            │
+            └── mỗi 10s: GET /api/admin/analytics
+                              └── 401 ⇒ revoke() ⇒ về cửa xác thực
+```
+
+</details>
+
+#### Ba nguyên tắc, và vì sao chúng quan trọng hơn giao diện
+
+**1. Giao diện phân quyền để đỡ gây bối rối; máy chủ phân quyền để bảo vệ.**
+`adminStore.role` chỉ quyết định *vẽ cái gì*. Ai sửa được `role = 'admin'`
+trong bộ nhớ tiến trình sẽ mở được khung bảng điều khiển và thấy đúng một thứ:
+**401 từ máy chủ**. Nhầm hai vai này là gốc của lớp lỗ hổng "ẩn nút đi là xong".
+
+**2. Nút vào khu vực quản trị không bị ẩn khi chưa đăng nhập.** Ẩn nó không
+chặn được gì (`curl` không có khoá vẫn nhận 401), lại giấu mất lối vào của
+chính người có quyền.
+
+**3. Khoá không được lưu bền.** Xem `adminStore` ở §9.2.
+
+#### Số liệu đến từ đâu
+
+| Khối trên bảng | Nguồn | Vòng đời |
+|---|---|---|
+| **Lưu lượng** — phiên, truy vấn, liên kết được bấm, độ trễ | `UsageAnalyticsService` (bộ nhớ máy chủ), nạp bởi `POST /api/events` mà chính giao diện này gửi | Mất khi máy chủ khởi động lại; cửa sổ 24 giờ |
+| **Dữ liệu đã thu thập** — trang, tên miền, liên kết, ngôn ngữ | `CorpusStats`, tính **một lần lúc dựng chỉ mục** | Đổi khi crawl/reindex |
+| **Chỉ mục** — term, kích thước, tỉ lệ trúng cache | Đọc trực tiếp từ `SearchEngineFacade` | Tức thời |
+
+Cú bấm vào một kết quả **không đi qua máy chủ** — nó mở thẳng một thẻ mới tới
+trang đích. Không có `telemetry.ts` thì cột "liên kết người dùng truy cập" và
+mọi phép đo chất lượng xếp hạng đều không tồn tại.
+
+#### Hai lối vào, một luồng
+
+```
+   popover tài khoản (280px)          màn hình đầy đủ
+   ─────────────────────────          ─────────────────────────
+   2 ô, gõ xong là xong               3 ô + thanh đo độ mạnh
+   cho người ĐÃ BIẾT mình làm gì      + các dòng nhắc lỗi
+                                      + phần giải thích luật
+            │                          cho lần ĐẦU
+            └── "Mở màn hình đầy đủ" ──────────┘
+```
+
+Không nhồi mọi thứ vào popover: hoặc là chật, hoặc là phải cắt phần giải thích
+— mà phần giải thích chính là thứ làm biểu mẫu dùng được.
+
+#### Ba trạng thái của avatar
+
+```
+   ┌──────────┐   ┌──────────┐   ┌──────────┐
+   │    👤    │   │    SI    │   │    AD    │
+   │ viền mờ  │   │ xanh lam │   │  tím     │
+   └──────────┘   └──────────┘   └──────────┘
+   chưa đăng      NGƯỜI DÙNG     QUẢN TRỊ
+   nhập           (USER)         (ADMIN)
+```
+
+Trước đây avatar đọc một hằng số cứng trong `lib/account.ts` và luôn hiện
+`admin / admin@gmail.com / Đã đăng nhập` cho **mọi** người, kể cả khi chưa ai
+đăng nhập — giao diện nói một đằng, máy chủ áp một nẻo. Tệp đó **đã bị xoá**;
+avatar và menu nay đọc `sessionStore`.
+
+#### Quy tắc vẽ biểu đồ được áp trong `charts.tsx`
+
+| Quy tắc | Vì sao |
+|---|---|
+| Không bao giờ **hai trục Y** trên một hình | Cách căn hai thang đo là tuỳ tiện, nên hình sẽ bịa ra một tương quan không có trong dữ liệu |
+| Màu gán theo **thực thể**, theo thứ tự ô cố định | Lọc bớt một chuỗi mà các chuỗi còn lại đổi màu thì người đã học "phiên = xanh dương" bị đánh lừa |
+| Thứ tự ô màu là **cơ chế an toàn**, không phải thẩm mỹ | Bảng được chọn sao cho các cặp *đứng cạnh nhau* còn phân biệt được dưới mắt người mù màu. Chuỗi thứ 5 phải gộp vào "khác", không được cấp màu tự chế |
+| Mọi cột cùng **một** màu trong biểu đồ một chuỗi | Tô cột cao đậm hơn là mã hoá chiều cao thêm lần nữa bằng màu — tốn kênh thông tin duy nhất còn trống |
+| Biểu đồ đường có nút **Bảng số** và điều khiển bằng phím ←/→ | Tooltip không được là cách *duy nhất* đọc giá trị; ở nền sáng, hai ô màu có tương phản dưới 3:1 nên bắt buộc phải có lối đọc khác |
+| Thanh xếp chồng thay cho hình vành khuyên | Mắt so sánh **độ dài** tốt hơn hẳn so sánh **góc** |
+
 ---
 
-## 11. Tầng lib — 9 file tiện ích
+## 11. Tầng lib — 16 file tiện ích
 
 | File | Dòng | Việc |
 |---|---:|---|
@@ -725,6 +881,13 @@ Nếu đo trực tiếp hàng đang hiện: cắt bớt → hàng ngắn lại �
 | `site.ts` | 38 | `hostOf`, `prettyUrl`, và **favicon giả**: băm FNV-1a 32 bit tên miền → hue → gradient ổn định |
 | **`Stack.ts`** | 31 | **DSA tự cài** — LIFO cho back/forward. Xem [Stack.md](Math/08-frontend/Stack.md) |
 | `seedSites.ts` | 13 | 6 báo seed của crawler. **Một nguồn cho ba chỗ dùng**: dấu trang, lối tắt, thanh dấu trang |
+| `adminApi.ts` | 160 | Cổng ra các endpoint `/api/admin/**`. **Tách khỏi `searchApi.ts` có chủ ý**: `searchApi` không bao giờ được gửi khoá quản trị, tệp này thì luôn phải gửi — tách ra thì trình kiểm kiểu bắt buộc mọi lời gọi ở đây có khoá. Lớp lỗi riêng `AdminAuthError` để phân biệt "bị từ chối quyền" (phải đăng nhập lại) với "mất mạng" (giữ nguyên phiên) |
+| `authApi.ts` | 143 | Cổng ra `/api/auth/**`. Khác `telemetry.ts`, **mọi hàm ở đây đều có thể ném**: người dùng đang chờ kết quả và cần biết vì sao hỏng. Giữ nguyên thông báo của máy chủ ("mật khẩu phải dài ít nhất 8 ký tự") thay vì thay bằng câu chung chung |
+| `validation.ts` | 122 | Luật tên tài khoản và mật khẩu, **lặp lại** luật của máy chủ. Không phải lớp bảo vệ — chỉ để người dùng biết mình gõ sai *ngay khi gõ*. Phải khớp với máy chủ: lỏng hơn thì giao diện hứa một đằng máy chủ bác một nẻo |
+| `authToken.ts` | 80 | **Một** chỗ duy nhất giữ token. Là module lá để `sessionStore`, `telemetry` và `adminApi` cùng phụ thuộc vào nó mà không tệp `lib/` nào phải import ngược lên `store/` |
+| `telemetry.ts` | 125 | Báo hành vi về `POST /api/events`. **Bắn rồi quên**: không trả về gì, không bao giờ ném. Cờ `keepalive` để cú bấm vào kết quả không bị huỷ khi trang đổi |
+| `format.ts` | 124 | Định dạng số kiểu Việt Nam cho bảng điều khiển (`1.234`, `12,3 N`, `1,5 KB`, `< 1 ms`). `shortUrl` cắt ở **giữa** vì đuôi URL mới là phần phân biệt |
+| `analysis.ts` | 122 | Entropy Shannon, độ tập trung top-3, độ phủ crawl — tính ở giao diện vì chúng chỉ ăn vào những con số máy chủ đã gửi |
 | `account.ts` | 6 | Tài khoản tượng trưng — tách một chỗ để avatar và menu không hiện hai tên khác nhau |
 
 > **`newsApi.ts` từng không gọi `/api/feed`.** Bản đầu chạy 6 truy vấn

@@ -4,7 +4,7 @@
 > dự án. Nó không giải thích thuật toán — nó nói cho bạn biết **đọc gì, theo
 > thứ tự nào, và bỏ qua được cái gì**.
 >
-> Kho tài liệu này có **69 tệp, hơn 40.000 dòng**. Đọc tuần tự từ đầu đến cuối
+> Kho tài liệu này có **74 tệp, hơn 40.000 dòng**. Đọc tuần tự từ đầu đến cuối
 > là cách chắc chắn bỏ cuộc. Hãy chọn một lộ trình bên dưới.
 
 ---
@@ -79,6 +79,7 @@ THUẬT TOÁN   →  Math/00-KY-HIEU-TOAN.md  →  Math/README.md
 SỬA / THÊM   →  CONFIGURATION.md  →  bảng §4 dưới đây
 VẬN HÀNH     →  INFRASTRUCTURE.md  →  Math/12-devops/
 BẢO MẬT      →  SECURITY.md  →  Math/13-security/
+                →  ACCOUNTS-AND-DASHBOARD.md (tài khoản, vai trò, bảng số liệu)
 ```
 
 ---
@@ -115,12 +116,13 @@ tra** — làm được thì đi tiếp, không làm được thì dừng lại 
 | [`CONFIGURATION.md`](CONFIGURATION.md) | **Đổi được gì mà không phải sửa mã?** | — |
 | [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md) | Chạy ở đâu, ai canh nó? Docker, Kubernetes, giám sát | ~490 |
 | [`DEVOPS.md`](DEVOPS.md) | Mã đi từ máy tới cụm bằng cách nào? CI/CD, 7 cổng chặn | ~530 |
-| [`SECURITY.md`](SECURITY.md) | Chống lại cái gì, và **còn hở chỗ nào**? | ~580 |
+| [`SECURITY.md`](SECURITY.md) | Chống lại cái gì, và **còn hở chỗ nào**? | ~700 |
+| [`ACCOUNTS-AND-DASHBOARD.md`](ACCOUNTS-AND-DASHBOARD.md) | **Tài khoản nào là admin, ai được xem gì?** Phân quyền + bảng số liệu, kèm 6 lỗi thật | ~830 |
 | [`DSA-REPORT.md`](DSA-REPORT.md) | Big-O và số đo thực nghiệm | ~1.670 |
 | [`SO-SANH-PHUONG-AN.md`](SO-SANH-PHUONG-AN.md) | 13 bài toán, các phương án đã bác bỏ, và vì sao | ~1.120 |
 | [`EVALUATION.md`](EVALUATION.md) | Đo chất lượng tìm kiếm: MRR, P@k, nDCG | ~290 |
 | [`GIN-BASELINE.md`](GIN-BASELINE.md) | Đọ sức với full-text search của PostgreSQL | ~150 |
-| [`api-examples.http`](api-examples.http) | 18 lệnh gọi thật, chạy được ngay — kèm 4 ca lỗi | — |
+| [`api-examples.http`](api-examples.http) | 30 lệnh gọi thật, chạy được ngay — kèm 7 ca lỗi | — |
 
 ### 3.2. `Math/` — một trang cho mỗi lớp
 

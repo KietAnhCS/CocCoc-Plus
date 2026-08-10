@@ -48,11 +48,29 @@ public class CorsConfig implements WebMvcConfigurer {
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/api/**")
                 .allowedOriginPatterns(allowedOrigins, "file://*", "null")
-                // Chi GET va POST: toan bo API chi co hai loai endpoint —
-                // doc (/search, /suggest, /images, /feed, /health) va hai lenh
-                // quan tri POST (/admin/crawl, /admin/reindex).
-                .allowedMethods("GET", "POST", "OPTIONS")
-                .allowedHeaders("Accept", "Content-Type", ApiKeyAuthFilter.HEADER)
+                // DELETE duoc them cung luc voi DELETE /api/admin/users/{ten}.
+                //
+                // Nho bai hoc cua chinh tep nay: mot phuong thuc thieu o day bi
+                // trinh duyet chan o buoc PREFLIGHT, may chu khong nhan duoc gi,
+                // log sach tinh, va `curl` van 200 vi no khong bi CORS rang buoc.
+                // Them endpoint moi ma quen dong nay = endpoint do khong dung
+                // duoc tu giao dien, va rat kho lan ra vi sao.
+                //
+                // PUT/PATCH van khong co: khong endpoint nao dung chung. Quyen
+                // thua khong dung den van la quyen thua.
+                .allowedMethods("GET", "POST", "DELETE", "OPTIONS")
+                // "Authorization" la header cua TOKEN PHIEN (TokenAuthFilter).
+                //
+                // THIEU DONG NAY LA HONG CA TANG DANG NHAP, va no hong theo kieu
+                // kho lan nhat: trinh duyet chan request o buoc PREFLIGHT, nen
+                // may chu khong nhan duoc gi va log hoan toan sach. Moi phep thu
+                // bang `curl` deu 200 — curl khong bi CORS rang buoc. Chi khi mo
+                // ung dung that moi thay: dang nhap duoc (POST /login chi gui
+                // Content-Type), nhung /api/auth/me va moi endpoint quan tri deu
+                // "khong ket noi duoc", va phien khong bao gio khoi phuc lai
+                // duoc sau khi tai lai trang.
+                .allowedHeaders("Accept", "Content-Type", "Authorization",
+                        ApiKeyAuthFilter.HEADER)
                 // TUONG MINH, du day la mac dinh cua Spring: xem muc (1) o
                 // Javadoc lop. Ghi ro de mot thay doi sau nay phai la mot quyet
                 // dinh co y thuc chu khong phai mot dong them vao cho tien.

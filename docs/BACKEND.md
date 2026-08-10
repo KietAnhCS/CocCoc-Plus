@@ -29,7 +29,7 @@
 2. [Mười ba gói và trách nhiệm](#2-mười-ba-gói-và-trách-nhiệm)
 3. [Mười hai interface — các mối nối](#3-mười-hai-interface--các-mối-nối)
 4. [Tầng cấu hình: 11 lớp trong `config/`](#4-tầng-cấu-hình-11-lớp-trong-config)
-5. [Tầng controller: 6 endpoint](#5-tầng-controller-6-endpoint)
+5. [Tầng controller: 23 endpoint](#5-tầng-controller-23-endpoint)
 6. [Tầng service: điều phối](#6-tầng-service-điều-phối)
 7. [Tầng storage: ba nguồn dữ liệu](#7-tầng-storage-ba-nguồn-dữ-liệu)
 8. [Vòng đời một request tìm kiếm](#8-vòng-đời-một-request-tìm-kiếm)
@@ -45,7 +45,7 @@
 mindmap
   root((Backend<br/>Spring Boot 3.5.16<br/>Java 17 bytecode))
     Vỏ ngoài
-      controller 6 endpoint
+      controller 23 endpoint
       GlobalExceptionHandler
       SecurityConfig + 2 filter
       CorsConfig
@@ -77,7 +77,7 @@ mindmap
 Sơ đồ dạng chữ, cho nơi không dựng được Mermaid:
 ```
                         ┌──────────────────────────────┐
-   HTTP ───────────────▶│  controller/   (6 endpoint)  │
+   HTTP ───────────────▶│  controller/  (23 endpoint)  │
                         │  + GlobalExceptionHandler    │
                         └──────────────┬───────────────┘
    ┌────────────────────────────────────┼──────────────────────┐
@@ -237,7 +237,7 @@ flowchart TB
 
 ---
 
-## 5. Tầng controller: 6 endpoint
+## 5. Tầng controller: 23 endpoint
 
 | Endpoint | Quyền | Tham số | Trả về |
 |---|:---:|---|---|
@@ -246,10 +246,23 @@ flowchart TB
 | `GET /api/images` | công khai | `q`, `page` (mặc định 1, trần 100), `size` (mặc định 30, trần 100) | `ImageResponse`: `results[]`, `hasMore`, `pagesScanned`, `totalResults` |
 | `GET /api/feed` | công khai | `seed` (mặc định 0 — hạt giống hoán vị), `page` (mặc định 1, trần 100), `size` (mặc định 12, trần 50) | Duyệt chỉ mục theo `docId` — **không** qua truy vấn |
 | `GET /api/health` | công khai | — | `200` khi chỉ mục có tài liệu, **`503` khi rỗng** |
+| `POST /api/events` | công khai | `{type, sessionId, query?, url?, position?, resultCount?, tookMs?}` | `204`. Chiều **GHI** của số liệu sử dụng — mở có chủ ý, xem §5.3 |
+| `POST /api/auth/register` | công khai | `{username, password}` | `201` + tài khoản. **Luôn** tạo vai trò `USER` |
+| `POST /api/auth/login` | công khai | `{username, password}` | `{token, expiresAt, user}`. `401` khi sai, không phân biệt sai tên hay sai mật khẩu |
+| `POST /api/auth/logout` | đã đăng nhập | — | `204`. Huỷ phiên **ngay**, không đợi hết hạn |
+| `GET /api/auth/me` | đã đăng nhập | — | `{authenticated, via, user}`. `via` = `session` hoặc `api-key` |
+| `POST /api/auth/password` | đã đăng nhập | `{currentPassword, newPassword}` | Đổi mật khẩu + đóng mọi phiên **khác**. Trả `closedOtherSessions` |
+| `POST /api/auth/logout-all` | đã đăng nhập | — | Đóng **mọi** phiên, kể cả phiên đang gọi |
+| `GET /api/admin/users` | ADMIN | — | Danh sách tài khoản, **không** kèm hash mật khẩu |
+| `POST /api/admin/users/{tên}/role` | ADMIN | `{role}` | Đổi vai trò + đóng mọi phiên của người đó |
+| `POST /api/admin/users/{tên}/disable` · `/enable` | ADMIN | — | Khoá/mở tài khoản mà không xoá dữ liệu |
+| `DELETE /api/admin/users/{tên}` | ADMIN | — | Xoá hẳn + đóng phiên. `404` nếu không có, `400` nếu tự xoá mình |
 | `POST /api/admin/crawl` | `X-API-Key` | `{seedUrls, maxDepth, maxPages}` | `jobId`, crawl chạy nền |
 | `GET /api/admin/crawl/{jobId}/status` | `X-API-Key` | — | `status`, `pagesCrawled`, `queueSize` |
 | `POST /api/admin/reindex` | `X-API-Key` | — | Dựng lại chỉ mục + PageRank + Trie + xoá cache |
 | `GET /api/admin/stats` | `X-API-Key` | — | `totalDocuments`, `totalTerms`, `indexSizeBytes`, `cacheHitRate`, `bloomFilterBits`, `scorer` |
+| `GET /api/admin/analytics` | `X-API-Key` | `top` (mặc định 10, trong [1,50]) | Ba khối `traffic` / `crawl` / `index` trong **một** phản hồi |
+| `POST /api/admin/analytics/reset` | `X-API-Key` | — | `204`. Xoá số liệu lưu lượng, KHÔNG đụng chỉ mục |
 
 **Ba endpoint mà tài liệu cũ bỏ sót:** `/api/health`, `/api/images`, `/api/feed`.
 
@@ -275,6 +288,105 @@ Hiện tại hậu quả bằng không, vì `MinHeap.topK` không bao giờ gi�
 ứng viên thật. Nhưng đó là một bất biến do lớp **khác** giữ hộ — đúng loại phụ
 thuộc ngầm mà phần còn lại của dự án cẩn thận tránh. Chặn ngay tại chỗ người
 dùng nhập vào.
+
+### 5.3. Hai đường xác thực, một bảng phân quyền
+
+```
+   CON NGƯỜI                        CÔNG CỤ
+   Authorization: Bearer <token>    X-API-Key: <khoá tĩnh>
+   ─────────────────────────────    ────────────────────────────
+   TokenAuthFilter                  ApiKeyAuthFilter
+   vai trò USER hoặc ADMIN          luôn ADMIN
+   hết hạn 12 giờ, thu hồi được     không hết hạn, không thu hồi
+   ghi được "ai đã làm gì"          không có danh tính
+                    │                        │
+                    └────────┬───────────────┘
+                             ▼
+            SecurityConfig — phân quyền theo VAI TRÒ
+            (không quan tâm vai trò đến từ filter nào)
+```
+
+Điểm của thiết kế này: bảng phân quyền nói về **vai trò**, không nói về **cơ
+chế đăng nhập**. Thêm một cách xác thực nữa sau này (OAuth, LDAP) không phải
+sửa một dòng nào trong bảng — chỉ thêm một filter cấp đúng vai trò.
+
+`TokenAuthFilter` chạy **trước**, nên một request mang cả hai header thì phiên
+có danh tính thắng — lựa chọn đúng, vì nó ghi lại được *ai* đã gọi.
+
+Chi tiết về băm mật khẩu, chống dò, và vì sao không dùng JWT: `docs/SECURITY.md`
+§3b.
+
+**Vì sao đổi mật khẩu vẫn phải nhập mật khẩu hiện tại** dù người gọi đã có
+token hợp lệ: đó chính là kịch bản cần chặn — một chiếc **token bị đánh cắp**.
+Không hỏi mật khẩu cũ thì kẻ cầm token đổi được mật khẩu và *khoá chính chủ
+nhân ra ngoài*, biến một phiên bị lộ tạm thời thành mất tài khoản vĩnh viễn.
+Mật khẩu là thứ token không chứa, nên hỏi nó biến bước này thành một lần xác
+thực lại thật sự.
+
+**Hai nút đăng xuất khác nhau**, và khác biệt là có chủ ý:
+
+| | `/logout` | `/logout-all` |
+|---|---|---|
+| Đóng | phiên tại đây | mọi phiên, mọi thiết bị |
+| Dành cho | rời máy | nghi phiên bị lộ ở nơi khác |
+
+Còn `/password` thì ở giữa: đóng mọi phiên **trừ** phiên đang gọi — người vừa
+đổi mật khẩu không nên bị đá khỏi chính thiết bị họ đang ngồi, nhưng mọi phiên
+khác phải chết, vì lý do phổ biến nhất để đổi mật khẩu là nghi có người khác
+đang dùng tài khoản của mình.
+
+### 5.4. Vì sao `/api/events` công khai còn `/api/admin/analytics` thì không
+
+Cùng một tài nguyên — số liệu sử dụng — nhưng hai **chiều** có hai mức quyền:
+
+```
+   GHI  POST /api/events           ĐỌC  GET /api/admin/analytics
+   ─ ai cũng gọi được              ─ cần vai trò ADMIN
+   vì mọi người dùng đều phải      vì số liệu tổng hợp phơi bày
+   báo được hành vi; đóng lại      TOÀN BỘ truy vấn mà mọi người
+   thì không còn số liệu nào       dùng khác đã gõ
+```
+
+Cú bấm vào một kết quả **không đi qua máy chủ** — nó mở thẳng một thẻ mới tới
+trang đích. Nên nếu không có endpoint ghi này thì không có cách nào biết người
+dùng bấm vào liên kết nào, ở thứ hạng bao nhiêu — tức là mất luôn phép đo chất
+lượng xếp hạng.
+
+Ba thứ giữ cho một endpoint ghi công khai không thành cửa tấn công: giới hạn
+tần suất đã bọc sẵn `/api/*`, chặn độ dài mọi chuỗi ở cả controller lẫn service,
+và **trần bộ nhớ** cho mọi bảng thống kê. Chi tiết: `docs/SECURITY.md` §5.
+
+Hệ quả phải chấp nhận: số liệu này không đáng tin để ra quyết định pháp lý —
+ai cũng gửi được sự kiện giả. Nó đủ tin cho việc nó phục vụ.
+
+### 5.5. Số liệu corpus được tính lúc DỰNG chỉ mục, không lúc hỏi
+
+`CorpusStats` (tên miền phân biệt, tổng liên kết, phân bố ngôn ngữ, trung vị độ
+dài tài liệu) đòi một lượt duyệt toàn bộ corpus. Bảng điều khiển làm mới 10 giây
+một lần, nên tính lại mỗi lần hỏi sẽ đặt khối lượng công việc tỉ lệ với kích
+thước chỉ mục lên một endpoint chỉ để hiển thị.
+
+Corpus chỉ đổi ở đúng một thời điểm: khi chỉ mục được dựng lại. Nên số liệu được
+tính **ngay tại đó**, trong `SearchEngineFacade.refreshDerivedState()` — cùng
+khuôn với PageRank và Trie gợi ý: *trạng thái dẫn xuất được làm mới cùng nguồn
+của nó, không phải khi có người hỏi.*
+
+> **Cái bẫy thứ hai: một `HashSet` làm hết bộ nhớ.** Bản đầu đếm số đích liên
+> kết phân biệt bằng `HashSet<String>`. Trên corpus thật — 31.030 trang × 69
+> liên kết — đó là **2,1 triệu chuỗi URL** trong heap chỉ để hiện một con số, và
+> nó đã làm **cả bộ test chết vì `OutOfMemoryError`** khi ba `ApplicationContext`
+> cùng sống trong một JVM. Nay đếm bằng **Bloom Filter** (chính cấu trúc crawler
+> dùng cho bài toán "URL này gặp chưa"): bộ nhớ hằng số vài MB, đổi lại con số
+> là xấp xỉ. Sai số đi về **một phía** — Bloom chỉ có dương tính giả, nên nó chỉ
+> có thể đếm *thiếu*, không bao giờ đếm *thừa*.
+
+> **Một cái bẫy đã gặp thật.** Bản đầu đo độ dài tài liệu bằng
+> `document.getBodyText().length()`. `WebDocument` lấy từ chỉ mục **không mang
+> theo thân bài** (thân bài nằm ở dạng nén, chỉ giải nén khi sinh đoạn trích),
+> nên con số trả về là **0 cho mọi tài liệu** — một giá trị trông như thật mà
+> sai hoàn toàn. Nay độ dài lấy từ `SearchIndex.getDocLength()` (số token, O(1)),
+> cũng chính là đơn vị BM25 dùng để chuẩn hoá. Trên corpus 31.030 trang: trung
+> bình 888 token, trung vị 781.
 
 ---
 

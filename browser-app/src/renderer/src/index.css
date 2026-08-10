@@ -21,6 +21,31 @@
   --color-omni: rgb(241 243 248);
   --color-bookmarks: rgb(232 236 243);
 
+  /*
+   * Bảng màu BIỂU ĐỒ — tách riêng khỏi màu giao diện, có chủ ý.
+   *
+   * Màu giao diện chọn theo thẩm mỹ; màu biểu đồ phải chọn theo thứ ĐO ĐƯỢC:
+   * hai đường kề nhau còn phân biệt được không khi người xem bị mù màu. Bốn ô
+   * dưới là bốn ô đầu của một bảng đã qua kiểm định (kiểm tra tách biệt CVD,
+   * dải độ sáng, sàn sắc độ) trên đúng hai nền mà ứng dụng này dùng:
+   * nền sáng #ffffff và nền tối #1b1e24.
+   *
+   *   ô 1 xanh dương   ô 2 cam   ô 3 xanh ngọc   ô 4 vàng
+   *
+   * Thứ tự ô là CƠ CHẾ AN TOÀN, không phải trang trí: nó được chọn sao cho các
+   * cặp ĐỨNG CẠNH NHAU cách nhau đủ xa. Vì vậy luôn gán màu theo thứ tự ô, và
+   * không bao giờ "quay vòng" sang ô thứ 5 tự chế — chuỗi thứ 5 phải gộp vào
+   * mục "khác".
+   *
+   * Ở nền sáng, ô 3 và ô 4 có độ tương phản dưới 3:1 so với nền. Đó là lý do
+   * mọi biểu đồ dùng chúng đều PHẢI kèm chú giải nhìn thấy được hoặc bảng số —
+   * không để màu là kênh thông tin duy nhất.
+   */
+  --color-viz-1: rgb(42 120 214);
+  --color-viz-2: rgb(235 104 52);
+  --color-viz-3: rgb(27 175 122);
+  --color-viz-4: rgb(237 161 0);
+
   --font-display: 'Segoe UI Variable Display', 'Segoe UI', system-ui, -apple-system, sans-serif;
   --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
 
@@ -79,6 +104,17 @@
   --color-danger: rgb(255 130 130);
   --color-omni: rgb(42 46 55);
   --color-bookmarks: rgb(20 22 27);
+
+  /*
+   * Cùng bốn sắc màu, nhưng ĐƯỢC CHỌN LẠI BƯỚC cho nền tối — không phải lật
+   * ngược tự động. Một màu đạt chuẩn trên nền trắng gần như luôn quá chói hoặc
+   * quá tối trên nền #1b1e24, nên bốn giá trị này được kiểm định lại như một
+   * bộ riêng, trên đúng nền tối đó.
+   */
+  --color-viz-1: rgb(57 135 229);
+  --color-viz-2: rgb(217 89 38);
+  --color-viz-3: rgb(25 158 112);
+  --color-viz-4: rgb(201 133 0);
 }
 
 @layer base {

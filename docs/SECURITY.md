@@ -812,6 +812,12 @@ Chi tiết mạng và một lỗi NetworkPolicy đã suýt xảy ra:
 Bí mật gắn theo môi trường, nên `KUBE_CONFIG` của staging **không dùng được** cho
 production kể cả khi ai đó sửa nhầm workflow.
 
+Chặng triển khai còn một cổng chặn nữa ở phía trước: biến kho
+`CD_TRIEN_KHAI_THAT`. Chưa đặt bằng `true` thì job `trien-khai` bị bỏ qua và
+`KUBE_CONFIG` không bao giờ được đọc tới. Hai lớp phục vụ hai mục đích khác
+nhau — biến trả lời "kho này đã được phép chạm vào cụm nào chưa", secret trả
+lời "chạm vào cụm nào".
+
 Sinh khoá:
 
 ```bash

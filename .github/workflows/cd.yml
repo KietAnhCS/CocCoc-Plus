@@ -24,6 +24,28 @@
 # Vì sao production không tự động: kiểm thử tự động bắt được lỗi hồi quy, chứ
 # không bắt được "tính năng này đúng nhưng chưa nên phát hành". Một người bấm
 # nút là chỗ để phán đoán đó xảy ra.
+#
+# ═══════════════════════════════════════════════════════════════════════════
+# CỔNG CHẶN: CHƯA CÓ CỤM THÌ KHÔNG TRIỂN KHAI
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# Chặng triển khai chỉ chạy khi biến kho `CD_TRIEN_KHAI_THAT` được đặt bằng
+# `true`. Chưa đặt thì job bị BỎ QUA, không phải THẤT BẠI — và đó là khác biệt
+# quan trọng chứ không phải chuyện thẩm mỹ:
+#
+#   - Một job thất bại thường trực dạy cả nhóm bỏ qua màu đỏ. Sau vài tuần thì
+#     lần đỏ THẬT cũng chẳng ai nhìn nữa. Cổng chặn nào cũng vô hiệu hoá theo
+#     đúng cách đó.
+#   - Job có `environment:` sẽ tạo một bản ghi Deployment trên GitHub NGAY KHI
+#     bắt đầu chạy. Thất bại ở bước đầu tiên vẫn để lại một deployment đỏ
+#     thường trực ở trang chủ kho — báo sai rằng bản phát hành đang hỏng, trong
+#     khi sự thật là chưa hề có bản phát hành nào.
+#
+# Bật khi đã có cụm thật:
+#   Settings > Secrets and variables > Actions > Variables
+#     CD_TRIEN_KHAI_THAT = true
+#   Settings > Environments > staging > Environment secrets
+#     KUBE_CONFIG = <kubeconfig đã mã hoá base64>
 name: CD
 
 on:
@@ -173,6 +195,20 @@ jobs:
   trien-khai:
     name: Triển khai lên ${{ github.event.inputs.moi-truong || 'staging' }}
     needs: dung-anh
+
+    # Vì sao cổng chặn dùng `vars` chứ không phải `secrets`:
+    #
+    # Ngữ cảnh `secrets` KHÔNG dùng được trong `if` ở cấp job — GitHub chỉ mở
+    # nó ra bên trong các bước. Mà muốn đọc được secret gắn theo môi trường thì
+    # job buộc phải khai `environment:`, và chính việc khai đó đã sinh ra bản
+    # ghi Deployment trước khi bước nào chạy. Nói cách khác, mọi cách kiểm tra
+    # `KUBE_CONFIG` từ BÊN TRONG job đều đến quá muộn: deployment đỏ đã được
+    # tạo rồi mới phát hiện là không có gì để triển khai.
+    #
+    # `vars` thì đọc được ngay ở đây, nên job bị bỏ qua trọn vẹn: không
+    # deployment, không màu đỏ, và lần chạy CD kết thúc xanh vì phần việc nó
+    # thật sự làm được (dựng, ký, quét ảnh) đã làm xong.
+    if: vars.CD_TRIEN_KHAI_THAT == 'true'
     runs-on: ubuntu-latest
 
     # GitHub Environment. Đây là chỗ đặt quy tắc "phải có người duyệt": cấu
@@ -192,6 +228,11 @@ jobs:
         with:
           version: v1.30.0
 
+      # Lưới an toàn lớp hai. Cổng `vars` bên trên đã chặn trường hợp "chưa có
+      # cụm nào cả"; bước này bắt trường hợp hẹp hơn và dễ xảy ra hơn: biến đã
+      # bật, staging đã có KUBE_CONFIG, nhưng môi trường production vừa tạo thì
+      # chưa. Không có bước này thì lỗi đó nổ ra muộn hơn nhiều, ở giữa một lệnh
+      # kubectl, với thông báo khó hiểu hơn nhiều.
       - name: Nạp kubeconfig
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
@@ -263,3 +304,33 @@ jobs:
           kubectl -n vnsearch run kiem-tra-cd \
             --image=curlimages/curl:8.10.1 --rm -i --restart=Never --quiet -- \
             curl -sSf --max-time 10 http://vnsearch-backend/api/health
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Một job bị bỏ qua trong im lặng trông hệt như một job bị quên. Job này nói
+  # rõ ràng vào phần tóm tắt của lần chạy rằng việc bỏ qua là CÓ CHỦ Ý, và cần
+  # làm gì để mở cổng — nên không ai phải đọc ngược YAML mới hiểu chuyện gì.
+  #
+  # Nó KHÔNG khai `environment:`, nên không sinh ra bản ghi Deployment nào.
+  bo-qua-trien-khai:
+    name: Bỏ qua triển khai (chưa trỏ tới cụm thật)
+    needs: dung-anh
+    if: vars.CD_TRIEN_KHAI_THAT != 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Giải thích vì sao không triển khai
+        run: |
+          {
+            echo "## Đã dựng xong ảnh, chưa triển khai"
+            echo
+            echo "Ảnh đã được dựng, ký bằng cosign và quét CVE thành công."
+            echo "Chặng triển khai bị bỏ qua vì kho chưa được trỏ tới một cụm"
+            echo "Kubernetes thật."
+            echo
+            echo "Bật khi đã có cụm:"
+            echo
+            echo '1. `Settings > Secrets and variables > Actions > Variables`'
+            echo '   thêm `CD_TRIEN_KHAI_THAT` = `true`'
+            echo '2. `Settings > Environments > staging > Environment secrets`'
+            echo '   thêm `KUBE_CONFIG` = kết quả của `base64 -w0 ~/.kube/config`'
+          } >> "$GITHUB_STEP_SUMMARY"

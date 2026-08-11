@@ -452,9 +452,27 @@ Test Files  5 passed (5)
    tay mới xem được.
 3. **`release.yml` chưa sinh changelog tự động** từ Conventional Commits, dù
    `pr-title.yml` đã ép đúng định dạng để làm được việc đó.
-4. **CD chưa chạy hết đường.** Nó dừng ở bước nạp `KUBE_CONFIG` vì chưa có cụm
-   thật — mọi bước trước đó (dựng, đẩy GHCR, ký cosign, quét CVE) đã kiểm chứng
-   xong.
+4. **CD chưa chạy hết đường.** Chặng triển khai bị **bỏ qua có chủ ý** vì chưa
+   có cụm thật — mọi bước trước đó (dựng, đẩy GHCR, ký cosign, quét CVE) đã
+   kiểm chứng xong.
+
+   Cổng chặn là biến kho `CD_TRIEN_KHAI_THAT`; chưa đặt bằng `true` thì job
+   `trien-khai` bị bỏ qua. Đây là **bỏ qua**, không phải **thất bại**, và khác
+   biệt đó có lý do: job có `environment:` sinh ra bản ghi Deployment ngay khi
+   bắt đầu chạy, nên một job thất bại ở bước đầu vẫn để lại deployment đỏ
+   thường trực ở trang chủ kho — báo sai rằng bản phát hành đang hỏng, trong
+   khi thật ra chưa có bản phát hành nào. Thêm nữa, một cổng đỏ thường trực sẽ
+   dạy cả nhóm bỏ qua màu đỏ, và lần đỏ thật cũng chìm theo.
+
+   Mở cổng khi đã có cụm:
+
+   ```
+   Settings > Secrets and variables > Actions > Variables
+     CD_TRIEN_KHAI_THAT = true
+
+   Settings > Environments > staging > Environment secrets
+     KUBE_CONFIG = $(base64 -w0 ~/.kube/config)
+   ```
 
 ---
 

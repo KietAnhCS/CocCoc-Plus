@@ -5,6 +5,11 @@
 
 > 📖 Chưa quen ký hiệu toán? Đọc [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md) trước.
 
+> 📊 **Số đo trong trang này thuộc mốc A** — corpus **5.011 trang**. Repo có
+> **bốn mốc corpus** đo trên bốn phiên crawl khác nhau; trộn chúng vào một bảng
+> là cách nhanh nhất để ra số vô nghĩa. Bảng quy chiếu đầy đủ ở đầu
+> [`DSA-REPORT.md`](../../DSA-REPORT.md). Mốc hiện hành là **D — 31.030 trang**.
+
 ---
 
 ## 📌 Hiểu trong 30 giây
@@ -14,6 +19,7 @@ Crawler đã có [BloomFilter](BloomFilter.md) để không tải lại cùng m�
 Lớp này băm phần thân bài rồi đối chiếu với tập vân tay đã thấy. Trùng thì vứt trang, và vứt **trước** khi bóc liên kết.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     U1["vnexpress.net/bai-viet-123"]
     U2["vnexpress.net/bai-viet-123?utm_source=fb"]
@@ -87,11 +93,21 @@ Và vân tay chiếm 64 ký tự bất kể trang dài bao nhiêu: với 5.011 t
 
 ## 3. Chuẩn hoá trước khi băm — quan hệ tương đương
 
+**`ContentSeenFilter.java:114-117`:**
+
 ```java
+/** Hạ chữ thường và gộp mọi chuỗi khoảng trắng thành một dấu cách. */
 private static String normalize(String text) {
     return text.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ").trim();
 }
 ```
+
+> **Vì sao `Locale.ROOT` chứ không `toLowerCase()` trần.** `toLowerCase()` dùng
+> locale mặc định của máy, và có locale làm chuyện bất ngờ — nổi tiếng nhất là
+> tiếng Thổ Nhĩ Kỳ, nơi `"I".toLowerCase()` cho `"ı"` (không có dấu chấm) chứ
+> không phải `"i"`. Hệ quả: **cùng một trang cho hai vân tay khác nhau trên hai
+> máy khác nhau**, và corpus mất tính tái lập. Cùng lý do ở
+> `UrlCanonicalizer.java:58-59` và `UrlFilter.java:230`.
 
 Băm là hàm **rất nhạy**: đổi một ký tự thì toàn bộ vân tay đổi. Nên phép băm chỉ hữu ích khi đứng sau một phép chuẩn hoá.
 
@@ -144,16 +160,41 @@ $$P(\text{đụng độ}) \approx \frac{n^2}{2 \cdot 2^{256}}$$
 
 ## 6. Test-and-set nguyên tử
 
+**`ContentSeenFilter.java:83-94`**, với trường ở `:63`:
+
 ```java
-String fingerprint = fingerprint(bodyText);
-boolean isNew = fingerprints.add(fingerprint);   // ConcurrentHashMap.newKeySet()
-if (!isNew) duplicates.incrementAndGet();
-return !isNew;
+private final Set<String> fingerprints = ConcurrentHashMap.newKeySet();   // dòng 63
+...
+public boolean seenBefore(String bodyText) {
+    if (bodyText == null || bodyText.isBlank()) {
+        blankSkipped.incrementAndGet();
+        return false;
+    }
+    String fingerprint = fingerprint(bodyText);
+    boolean isNew = fingerprints.add(fingerprint);   // ← test-and-set NGUYÊN TỬ
+    if (!isNew) {
+        duplicates.incrementAndGet();
+    }
+    return !isNew;
+}
 ```
 
 `Set.add` của `ConcurrentHashMap.newKeySet()` là **nguyên tử** và chỉ trả về `true` cho đúng một luồng. Nên khi 12 worker cùng lúc tải về hai bản sao của cùng một bài, đúng **một** bản đi tiếp.
 
-Tách rời thành "hỏi rồi thêm" sẽ hỏng: hai worker cùng thấy "chưa có", cả hai cùng lưu, và bản trùng lọt lưới. Đây là cùng một lỗi mà [UrlSeenFilter](CrawlerService.md) phải xử lý bằng khối `synchronized`.
+Tách rời thành "hỏi rồi thêm" sẽ hỏng: hai worker cùng thấy "chưa có", cả hai cùng lưu, và bản trùng lọt lưới.
+
+**Cùng một bài toán, hai lời giải khác nhau — và sự khác nhau có lý do.**
+
+| | `ContentSeenFilter` | `UrlSeenFilter` |
+|---|---|---|
+| Cơ chế | `ConcurrentHashMap.newKeySet().add()` | khối `synchronized` |
+| Dòng mã | `ContentSeenFilter.java:89` | `UrlSeenFilter.java:101-109` |
+| Vì sao đủ / vì sao phải nặng hơn | Cấu trúc nền **đã thread-safe**, và `add` **đã là** test-and-set trong một lời gọi | `BloomFilter` **không** thread-safe (`bits[i] \|= mask`), **và** `mightContain` + `add` là hai lời gọi riêng — cần khoá cho cả hai lý do |
+
+Nói cách khác: `ContentSeenFilter` được cho không tính nguyên tử vì nó chọn được
+một cấu trúc sẵn có đúng ngữ nghĩa; `UrlSeenFilter` phải tự dựng vì `BloomFilter`
+là cấu trúc tự cài. Đây là một minh hoạ tốt cho nguyên tắc: **chọn cấu trúc có
+sẵn đúng ngữ nghĩa thì rẻ hơn tự đồng bộ**.
 
 ---
 
@@ -214,5 +255,5 @@ với $k \approx 3$ là ngưỡng Google từng công bố cho vân tay 64 bit. 
 - Khối trước và sau nó: [ContentParser-LinkExtractor.md](ContentParser-LinkExtractor.md)
 - Người gọi: [CrawlerService.md](CrawlerService.md)
 - Khử trùng lặp ở tầng URL: [BloomFilter.md](BloomFilter.md) · [UrlCanonicalizer.md](UrlCanonicalizer.md)
-- Nơi bản trùng gây hại nếu lọt: [PageRankService.md](../05-ranking/PageRankService.md)
+- Nơi bản trùng gây hại nếu lọt: [PageRankService.md](../04-ranking/PageRankService.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

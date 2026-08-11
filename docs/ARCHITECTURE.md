@@ -50,6 +50,7 @@ cấu trúc dữ liệu độc lập nữa.
 ## 2. Sơ đồ thành phần
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     subgraph Electron["browser-app (Electron + React + TypeScript)"]
         UI[SearchHomePage / SearchResultList]
@@ -144,7 +145,7 @@ flowchart LR
 > service chạy ở tiến trình riêng, co giãn độc lập). Đổi giữa hai chế độ chỉ là
 > một khoá cấu hình `app.crawler.bus`. Vì sao Kafka mà không phải hàng đợi công
 > việc, và vì sao URL Frontier **không** bị thay:
-> [`Math/10-kafka/`](Math/10-kafka/00-SO-DO-TU-DUY.md).
+> [`Math/09-kafka/`](Math/09-kafka/00-SO-DO-TU-DUY.md).
 
 ### Mười ba interface là "khớp nối" của sơ đồ trên
 
@@ -171,7 +172,7 @@ thẳng tới lớp cụ thể. Đây là thứ làm sơ đồ này **thay đư�
 Kafka — chúng là phần mà các bản tài liệu trước bỏ sót.
 
 Phân tích từng mẫu thiết kế:
-[`Math/09-design-patterns/`](Math/09-design-patterns/README.md).
+[`Math/08-design-patterns/`](Math/08-design-patterns/README.md).
 Chi tiết lắp ráp Spring: [`BACKEND.md`](BACKEND.md).
 
 ### Hai lưu ý kiến trúc quan trọng nhất
@@ -220,6 +221,7 @@ viết một bản sao. Hai bản sao chắc chắn sẽ trôi lệch theo thờ
 **Thứ hai: PostgreSQL chỉ là kho lưu trữ, không phải máy tìm kiếm.**
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     PG[("PostgreSQL<br/>bảng documents + outlinks")] -->|"repo.findAll()"| Build["IndexBuilder.build(docs)"]
     Build --> Idx["InvertedIndex trong RAM<br/>(tự cài)"]
@@ -253,6 +255,7 @@ Luồng crawl được cài đúng theo sơ đồ kiến trúc crawler kinh đi�
 là một lớp**:
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     Seed["19 seed URL báo điện tử<br/>11 tiếng Việt + 8 tiếng Anh"] --> Frontier
     Frontier["<b>URL Frontier</b><br/>2 tầng: f1..fn theo ưu tiên<br/>b1..bn mỗi hàng một host"] -->|"nextUrl(): O(log n)"| Robots
@@ -376,6 +379,7 @@ trong khối `synchronized` nên tính chất đó được khôi phục, đồn
 ### 3.2. Luồng INDEX — từ `WebDocument` về posting list
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     Doc[WebDocument] --> Join["ghép title + metaDescription + bodyText"]
     Join --> Tok["VietnameseTokenizer.tokenize()"]
@@ -438,6 +442,7 @@ tra tần suất của một tài liệu cụ thể, và **delta encoding** cho 
 ### 3.3. Luồng QUERY + RANK — sơ đồ tuần tự đầy đủ
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 sequenceDiagram
     participant User as Người dùng
     participant Home as SearchHomePage (React)
@@ -512,6 +517,7 @@ cuối. Đây là mô hình phân trang không trạng thái, đơn giản nhưn
 đã sai theo **hai** cách cùng lúc.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     Titles["Tiêu đề của mọi tài liệu"] --> Filter{"looksVietnamese?<br/>(< 15 ký tự → cho qua;<br/>dài hơn thì phải có ít nhất 1 dấu)"}
     Filter -->|không| Skip[bỏ]
@@ -778,6 +784,7 @@ mặc định là `false`, và `loadFromPostgres()` trả về `false` khi khôn
 thành công:
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     Start["@PostConstruct init()"] --> IndexJson{"data/index.json<br/>tồn tại?"}
     IndexJson -->|có| Load["IndexPersistence.load()<br/>— nhanh nhất, không tokenize lại"]
@@ -872,7 +879,7 @@ một **nguyên tắc phân công** viết thẳng trong Javadoc — *ràng bu�
 posting list** thuộc về cây; ràng buộc trên **siêu dữ liệu** thuộc về đường
 ống lọc*. Nhờ nguyên tắc đó, người thứ hai vào sửa biết ngay nên đặt tính
 năng mới ở gói nào. Chi tiết:
-[`Math/09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md`](Math/09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md).
+[`Math/08-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md`](Math/08-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md).
 
 ### Hợp đồng REST — 23 endpoint
 
@@ -991,7 +998,7 @@ Ghi lại để đối chiếu với các bản tài liệu cũ:
 
 Phân tích đầy đủ hơn về những điểm vỡ ở quy mô lớn: mục 13 của
 `docs/Math/`. Số liệu đo và Big-O: `DSA-REPORT.md`. Từng mẫu thiết
-kế và lỗi mà nó sửa: [`Math/09-design-patterns/`](Math/09-design-patterns/README.md).
+kế và lỗi mà nó sửa: [`Math/08-design-patterns/`](Math/08-design-patterns/README.md).
 
 ---
 
@@ -1002,7 +1009,7 @@ Tài liệu được chia theo **câu hỏi cần trả lời**, không theo th�
 | Câu hỏi | Tài liệu |
 |---|---|
 | *Thuật toán bên trong hoạt động ra sao?* | [`Math/`](Math/README.md) — **một trang cho mỗi lớp**, kèm ví dụ tính tay |
-| *Mẫu thiết kế nào, sửa lỗi gì?* | [`Math/09-design-patterns/`](Math/09-design-patterns/README.md) — 12 trang, mỗi mẫu một trang |
+| *Mẫu thiết kế nào, sửa lỗi gì?* | [`Math/08-design-patterns/`](Math/08-design-patterns/README.md) — 12 trang, mỗi mẫu một trang |
 | *Big-O và số đo thực nghiệm?* | [`DSA-REPORT.md`](DSA-REPORT.md) |
 | **Ứng dụng Spring được lắp ra sao?** | [`BACKEND.md`](BACKEND.md) |
 | **Chạy ở đâu, ai canh nó?** | [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md) |

@@ -21,6 +21,7 @@ Crawl 5.011 trang thu về **394.940 outlink**. Trước **mỗi** lần fetch p
 Chênh **~95 lần**. Bí quyết: Bloom Filter **không lưu URL nào cả**. Nó chỉ lưu một mảng bit, và mỗi URL để lại "dấu chân" là $k$ bit được bật. Vì thế bộ nhớ **hoàn toàn không phụ thuộc độ dài chuỗi** — URL dài 200 ký tự và URL dài 20 ký tự tốn đúng như nhau.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     U["URL<br/>https://vnexpress.net/abc"]
     H1["hàm băm 1"]
@@ -52,6 +53,7 @@ flowchart LR
 chỗ này:
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     Q["Bloom hỏi: URL này gặp chưa?"]
     A["trả lời CHƯA GẶP"]
@@ -174,20 +176,33 @@ $$P(\text{bit} = 1) = 1 - e^{-k^*n/m} = 1 - e^{-\ln 2} = 1 - \tfrac{1}{2} = \mat
 
 Đây là một trong những kết quả gọn nhất của khoa học máy tính: nếu ít hơn nửa số bit được bật thì ta đang **lãng phí bộ nhớ** (còn chỗ trống mà không dùng); nếu nhiều hơn nửa thì ta đang **bão hoà** mảng. Đúng một nửa là điểm mà mỗi bit mang **nhiều thông tin nhất** — đúng một bit entropy.
 
-**Và $\ln 2$ trong code chính là con số này:**
+**Và $\ln 2$ trong code chính là con số này** — `BloomFilter.java:57-63`, cả hai công thức nằm cạnh nhau trong constructor:
 
 ```java
 double ln2 = Math.log(2);
+int m = (int) Math.ceil(-expectedItems * Math.log(falsePositiveRate) / (ln2 * ln2));
+m = Math.max(m, 64);                                   // sàn: ít nhất một ô long
 int k = (int) Math.round((double) m / expectedItems * ln2);
+this.numBits = m;
+this.numHashes = Math.max(k, 1);                       // sàn: ít nhất một hàm băm
+this.bits = new long[(m + 63) / 64];                   // làm tròn LÊN, không mất bit
 ```
 
-Với $p^* = 2^{-k}$ tại điểm tối ưu, ta cũng giải ngược ra $m$:
+Với $p^* = 2^{-k}$ tại điểm tối ưu, ta giải ngược ra $m$:
 
 $$\boxed{\;m = \left\lceil \frac{-n \ln p}{(\ln 2)^2} \right\rceil\;}$$
 
-```java
-int m = (int) Math.ceil(-expectedItems * Math.log(falsePositiveRate) / (ln2 * ln2));
-```
+**Ba chi tiết phòng thủ trong bảy dòng trên**, mỗi cái chặn một ca biên:
+
+| Dòng | Chặn ca nào |
+|---|---|
+| `Math.max(m, 64)` | $n$ rất nhỏ → $m < 64$ → mảng `long[0]`, mọi `setBit` ném `ArrayIndexOutOfBounds` |
+| `Math.max(k, 1)` | $m/n$ nhỏ → `round(...)` ra **0** → `add` không bật bit nào, `mightContain` luôn trả `true` |
+| `(m + 63) / 64` | Làm tròn **lên**; dùng `m / 64` sẽ thiếu một ô cho mọi $m$ không chia hết 64 |
+
+Tham số vào cũng được kiểm ngay ở `BloomFilter.java:51-56`: `expectedItems > 0`
+và `falsePositiveRate` phải nằm trong khoảng mở $(0, 1)$ — $p = 0$ cho
+$\ln p = -\infty$, $p = 1$ cho $m = 0$.
 
 ---
 
@@ -216,17 +231,83 @@ Suy ra từ công thức: $m/n = -\ln p / (\ln 2)^2$, và $-\ln(0{,}1)/(\ln 2)^2
 
 ## 6. Cách dự án chọn kích thước — một chi tiết dễ sai
 
+Phép cấp phát **không** nằm trong lớp này — `BloomFilter` chỉ nhận `expectedItems`
+rồi áp công thức. Người quyết định con số đó là `UrlSeenFilter`, và đây là chỗ dễ
+viết sai nhất của cả dự án.
+
+**`UrlSeenFilter.java:79-84`:**
+
 ```java
-visited = new BloomFilter(Math.max(200_000, config.maxPages * 200), 0.01);
+public static UrlSeenFilter forMaxPages(int maxPages, UrlStorage urlStorage) {
+    // Tính bằng long rồi mới kẹp về int: phép nhân này tràn số nguyên với
+    // maxPages từ khoảng 10,7 triệu trở lên.
+    long expected = Math.max(MIN_EXPECTED_URLS, (long) maxPages * URLS_SEEN_PER_PAGE);
+    return new UrlSeenFilter((int) Math.min(expected, MAX_EXPECTED_URLS), urlStorage);
+}
 ```
 
-Chú ý hệ số **200**, không phải 1.
+Chú ý hệ số `URLS_SEEN_PER_PAGE = 200` (`UrlSeenFilter.java:49`), không phải 1.
 
-**Vì sao:** Bloom Filter này không chỉ chứa các trang **đã lưu**, mà chứa mọi URL **đã kiểm tra**. Mỗi trang tin tức sinh trung bình **78,8 outlink**, và mỗi outlink đều đi qua `mightContain` rồi `add`. Nếu cấp phát theo `maxPages` thì với `maxPages = 5000`, filter chỉ có sức chứa 5.000 phần tử trong khi thực tế phải chứa gần **400.000** URL.
+**Vì sao:** Bloom Filter này không chỉ chứa các trang **đã lưu**, mà chứa mọi URL **đã kiểm tra**. Mỗi trang tin tức sinh trung bình **78,8 outlink** *(mốc A)*, và mỗi outlink đều đi qua `mightContain` rồi `add`. Nếu cấp phát theo `maxPages` thì với `maxPages = 5000`, filter chỉ có sức chứa 5.000 phần tử trong khi thực tế phải chứa gần **400.000** URL.
 
-Hậu quả nếu tính sai: $n$ thật lớn hơn $n$ thiết kế 80 lần, nên tỉ lệ bit bật vọt lên gần 100%, và $p$ tăng từ 1% lên **gần như 100%** — nghĩa là Bloom Filter báo "đã thấy" cho **mọi** URL và crawler dừng ngay sau vài trang.
+Hậu quả nếu tính sai: $n$ thật lớn hơn $n$ thiết kế 80 lần, nên tỉ lệ bit bật vọt lên gần 100%, và $p$ tăng từ 1% lên **gần như 100%** — nghĩa là Bloom Filter báo "đã thấy" cho **mọi** URL và crawler dừng ngay sau vài trang. §11.8 tính con số cụ thể cho ca nhẹ hơn nhiều ($n$ chỉ gấp **ba**): $p' = 43{,}6\%$.
 
 Ước lượng $n$ theo **số URL sẽ gặp**, không phải số trang sẽ lưu, là quyết định thiết kế đúng. Hệ số 200 là biên an toàn trên mức 78,8 đo được.
+
+### 6.1 Hai cái chặn ít ai nghĩ tới
+
+```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
+flowchart TD
+    IN["maxPages từ CrawlConfig"]
+    MUL["maxPages × 200"]
+
+    F["SÀN: MIN_EXPECTED_URLS<br/>= 200.000<br/>UrlSeenFilter.java:52"]
+    C["TRẦN: MAX_EXPECTED_URLS<br/>= 50.000.000<br/>UrlSeenFilter.java:63"]
+    L["Tính bằng long TRƯỚC<br/>rồi mới kẹp về int"]
+
+    P1["Không có SÀN:<br/>phiên crawl nhỏ có bộ lọc quá đặc"]
+    P2["Không có TRẦN:<br/>maxPages ≥ 10,7 triệu → tràn int<br/>→ BloomFilter nhận kích thước ÂM<br/>→ hỏng ở chỗ KHÔNG liên quan nguyên nhân"]
+
+    IN --> MUL
+    MUL --> L
+    L --> F
+    L --> C
+    F -.->|"thiếu nó thì"| P1
+    C -.->|"thiếu nó thì"| P2
+```
+
+<details>
+<summary><b>Xem bản chữ (ASCII)</b></summary>
+
+```
+   maxPages (từ CrawlConfig)
+        │
+        ▼
+   maxPages × 200          ← ước lượng theo SỐ URL SẼ GẶP
+        │
+        ▼
+   tính bằng long TRƯỚC, rồi mới kẹp về int
+        │
+   ┌────┴────┐
+   ▼         ▼
+ SÀN       TRẦN
+ 200.000   50.000.000
+   │         │
+   │         └─► thiếu: maxPages ≥ 10,7 triệu ⇒ tràn int
+   │                    ⇒ BloomFilter nhận kích thước ÂM
+   │                    ⇒ hỏng ở chỗ KHÔNG liên quan nguyên nhân
+   └─► thiếu: phiên crawl nhỏ có bộ lọc quá đặc
+```
+
+</details>
+
+Con số **10,7 triệu** ở đâu ra? `Integer.MAX_VALUE / 200 = 2\,147\,483\,647 / 200 ≈ 10\,737\,418`. Đúng ngưỡng mà `maxPages * 200` tính bằng `int` sẽ tràn.
+
+> **Bài học tổng quát:** khi một tham số cấu hình được **nhân lên** trước khi
+> dùng, phép nhân đó là một chỗ tràn số tiềm ẩn. Chặn nó tại nơi tính, không
+> chờ tới nơi dùng — vì nơi dùng (`new BloomFilter(...)`) sẽ ném một ngoại lệ
+> chẳng liên quan gì tới `maxPages`.
 
 ---
 
@@ -239,6 +320,8 @@ Hậu quả nếu tính sai: $n$ thật lớn hơn $n$ thiết kế 80 lần, n�
 $$h_i(x) = \bigl(h_1(x) + i \cdot h_2(x)\bigr) \bmod m, \qquad i = 0, 1, \dots, k-1$$
 
 Bài báo gốc chứng minh tỉ lệ false positive **không xấu đi về mặt tiệm cận** so với dùng $k$ hàm băm độc lập thật.
+
+**`BloomFilter.java:82-89` và `:108-111`:**
 
 ```java
 public void add(String item) {
@@ -255,6 +338,35 @@ private int indexFor(long h1, long h2, int i) {
     return (int) Math.floorMod(combined, (long) numBits);
 }
 ```
+
+**Chứng minh "không false negative" đọc thẳng từ code.** `mightContain`
+(`BloomFilter.java:96-106`) gọi **đúng** `indexFor(h1, h2, i)` với cùng $h_1, h_2$
+và cùng dãy $i$ mà `add` đã dùng:
+
+```java
+public boolean mightContain(String item) {
+    long h1 = hash1(item);
+    long h2 = hash2(item);
+    for (int i = 0; i < numHashes; i++) {
+        int idx = indexFor(h1, h2, i);
+        if (!getBit(idx)) {
+            return false;        // ← thoát sớm ngay khi gặp bit 0
+        }
+    }
+    return true;
+}
+```
+
+Ba điều kiện cho phép chứng minh §2 chạy được, và cả ba đều kiểm chứng được bằng mắt:
+
+| Điều kiện | Kiểm ở đâu |
+|---|---|
+| Hàm băm **tất định** — cùng chuỗi cho cùng $h_1, h_2$ | `hash1`/`hash2` là `static`, không đọc trạng thái nào ngoài `s` (`:125`, `:139`) |
+| `numBits`, `numHashes` **bất biến** sau khi dựng | cả hai là `final` (`:47-48`) |
+| `add` **chỉ bật**, không bao giờ tắt | `setBit` chỉ có `\|=` (`:113-115`), không có `&= ~` ở đâu trong lớp |
+
+Đổi bất kỳ điều nào trong ba điều đó — ví dụ thêm một phương thức `remove` dùng
+`&= ~mask` — là phá vỡ tính chất quan trọng nhất của cấu trúc. Xem §8.1.
 
 **Lợi ích đo được:** duyệt chuỗi URL đúng **2 lần** thay vì 7 lần. Với 394.940 URL × trung bình 60 ký tự, đó là chênh lệch khoảng **118 triệu** lần đọc ký tự.
 
@@ -370,7 +482,53 @@ Muốn xoá được phải dùng **Counting Bloom Filter**: thay mỗi bit bằ
 1. **Không co giãn động.** Nếu số URL thực tế vượt xa $n$ thiết kế, tỉ lệ sai tăng mà không có cảnh báo. Giải pháp chuẩn: **Scalable Bloom Filter** — tạo filter mới khi filter cũ đầy, `mightContain` kiểm tra qua tất cả các tầng.
 2. **Không đo được tỉ lệ sai thực tế.** Lớp này không đếm số bit đang bật, nên không tính được $p$ thực tại thời điểm chạy. Thêm một bộ đếm `popcount` sẽ cho phép log cảnh báo khi vượt 50%.
 3. **`numBits` là `int`**, nên trần cứng ở $2^{31}$ bit ≈ 268 MB. Đủ cho ~200 triệu URL ở $p = 1\%$, nhưng sẽ là rào cản nếu mở rộng quy mô.
-4. **Không thread-safe về mặt hình thức.** Thực tế `add` chỉ dùng `|=` nên các thread crawler đua nhau chỉ có thể làm **mất** một lần bật bit (dẫn tới một false negative hiếm gặp). Ở quy mô hiện tại chưa quan sát được vấn đề, nhưng đúng ra `bits` nên là `AtomicLongArray` hoặc dùng `VarHandle.getAndBitwiseOr`.
+4. ~~**Không thread-safe về mặt hình thức.** Ở quy mô hiện tại chưa quan sát được vấn đề, nhưng đúng ra `bits` nên là `AtomicLongArray`.~~
+   ✅ **ĐÃ SỬA — và hoá ra đây là một lỗi thật, không phải rủi ro lý thuyết.**
+
+   Lớp `BloomFilter` **vẫn** không thread-safe (cố ý: nó là một cấu trúc dữ liệu
+   thuần, không gánh chính sách đồng bộ). Việc đó được đẩy lên `UrlSeenFilter`,
+   và Javadoc ở `UrlSeenFilter.java:18-27` gọi thẳng tên vấn đề:
+
+   > `BloomFilter` **không** thread-safe: `add` thực hiện `bits[i] |= mask` —
+   > một phép đọc-sửa-ghi không nguyên tử trên mảng `long[]`. Hai worker cùng
+   > bật hai bit khác nhau nằm trong *cùng một phần tử mảng* có thể làm mất một
+   > trong hai phép ghi. Bit bị mất nghĩa là bộ lọc **false negative**.
+
+   **`UrlSeenFilter.java:97-110`** — mọi truy cập nằm trong một khối `synchronized`:
+
+   ```java
+   public boolean markSeenIfNew(String url) {
+       if (url == null || url.isBlank()) {
+           return false;
+       }
+       synchronized (lock) {
+           if (bloomFilter.mightContain(url)) {
+               return false;
+           }
+           bloomFilter.add(url);
+           seenCount++;
+           urlStorage.append(url);
+           return true;
+       }
+   }
+   ```
+
+   **Khối khoá này mua được hai thứ cùng lúc**, và đó là lý do nó đáng giá:
+
+   | Thứ mua được | Nếu thiếu |
+   |---|---|
+   | Khôi phục tính chất "không false negative" | Crawler **tải lại trang cũ** — đúng thứ Bloom Filter sinh ra để chặn |
+   | Biến "hỏi" + "ghi nhận" thành **một** thao tác nguyên tử | Hai worker cùng thấy "chưa gặp" cho một URL và **cùng xếp nó vào hàng đợi** |
+
+   **Chi phí của khoá là không đáng kể** (`UrlSeenFilter.java:34-36`): thân
+   phương thức chỉ có $O(k)$ phép băm với $k = 7$, và **không có thao tác vào/ra
+   nào bên trong khoá** — `UrlStorage.append` có đệm nên cũng không chờ đĩa.
+
+   > **Vì sao không dùng `AtomicLongArray` như bản trước đề xuất.** Nó sửa được
+   > phép `|=` nhưng **không** sửa được cửa sổ đua giữa `mightContain` và `add`
+   > — hai lời gọi riêng biệt. Muốn nguyên tử cả cặp thì vẫn phải có khoá. Đặt
+   > khoá ở tầng trên giải quyết **cả hai** vấn đề bằng một cơ chế, thay vì hai
+   > cơ chế cho hai vấn đề.
 
 ---
 
@@ -552,5 +710,5 @@ Nhận xét: ở đây $k^*= 9{,}966$ gần số nguyên hơn nhiều so với 6
 
 - Người dùng chính: [CrawlerService.md](CrawlerService.md)
 - Cùng vấn đề khử trùng lặp, tầng khác: [UrlCanonicalizer.md](UrlCanonicalizer.md)
-- Anh em cấu trúc dữ liệu tự cài: [MinHeap.md](../06-datastructures/MinHeap.md) · [Trie.md](../06-datastructures/Trie.md) · [LRUCache.md](../06-datastructures/LRUCache.md)
+- Anh em cấu trúc dữ liệu tự cài: [MinHeap.md](../05-datastructures/MinHeap.md) · [Trie.md](../05-datastructures/Trie.md) · [LRUCache.md](../05-datastructures/LRUCache.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

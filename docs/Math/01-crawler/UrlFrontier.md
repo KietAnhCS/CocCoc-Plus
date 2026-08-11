@@ -33,6 +33,7 @@ Riêng lẻ thì mỗi bài toán đều dễ: bài 1 dùng heap, bài 2 dùng m
 Lời giải của Mercator (Heydon & Najork, 1999) là **không ghép**: dùng hai tầng hàng đợi, mỗi tầng lo đúng một bài toán và không biết gì về bài toán kia.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     IN["addUrl(url, depth, backlinks)"]
     PRI["Prioritizer<br/>mức 0..4"]
@@ -124,12 +125,19 @@ Mỗi trục dễ thay đổi đều là một giao diện: `Prioritizer` (xếp
 
 ## 1. Prioritizer — ưu tiên là MỨC, không phải điểm
 
+**`DefaultPrioritizer.java:57-67`** — cả chính sách ưu tiên gói trong sáu dòng:
+
 ```java
+@Override
 public int levelOf(String url, String host, int depth, int knownBacklinks) {
     int level = depth;
-    if (host != null && host.endsWith(".vn")) level--;
-    if (knownBacklinks >= BACKLINK_BOOST_THRESHOLD) level--;
-    return Math.max(0, Math.min(level, levels - 1));
+    if (host != null && host.endsWith(".vn")) {
+        level--;
+    }
+    if (knownBacklinks >= BACKLINK_BOOST_THRESHOLD) {   // = 5, dòng :37
+        level--;
+    }
+    return Math.max(0, Math.min(level, levels - 1));    // levels = 5, dòng :34
 }
 ```
 
@@ -166,7 +174,7 @@ Khi ưu tiên là **chỉ số hàng đợi**, chính sách phục vụ tách h�
 
 Tầng trước là $n$ hàng đợi **FIFO thuần**, mỗi hàng một mức. Câu hỏi còn lại: lấy từ hàng nào?
 
-**Chính sách tất định** (`StrictPrioritySelector`) — luôn lấy mức cao nhất còn URL. Đây là hành vi của bản cũ, và nó **bỏ đói** mức thấp: mỗi trang crawl được lại sinh khoảng 90 liên kết mới, phần lớn nông, nên mức 0 gần như không bao giờ cạn và mức 4 không bao giờ tới lượt.
+**Chính sách tất định** (`StrictPrioritySelector`) — luôn lấy mức cao nhất còn URL. Đây là hành vi của bản cũ, và nó **bỏ đói** mức thấp: mỗi trang crawl được lại sinh trung bình **78,8 liên kết mới** *(mốc A)*, phần lớn nông, nên mức 0 gần như không bao giờ cạn và mức 4 không bao giờ tới lượt.
 
 **Chính sách ngẫu nhiên có trọng số** (`WeightedRandomSelector`, mặc định) — mức $i$ có trọng số $2^{\,n-1-i}$:
 
@@ -196,7 +204,7 @@ Hạt giống của `Random` cố định, nên phiên crawl vẫn **lặp lại
 
 $$\underbrace{n \cdot O(\log n)}_{\text{rút cạn}} \;+\; \underbrace{n \cdot O(\log n)}_{\text{nhét lại}} \;=\; O(n \log n) \quad \textbf{cho MỖI URL lấy ra}$$
 
-Ở quy mô vài trăm URL không thấy được. Nhưng mỗi trang tin sinh hơn 90 outlink, nên crawl 10.000 trang đẩy $n$ lên hàng trăm nghìn — và crawler thực tế đứng hình.
+Ở quy mô vài trăm URL không thấy được. Nhưng mỗi trang tin sinh **78,8 outlink** *(mốc A)*, nên crawl 10.000 trang đẩy $n$ lên hàng trăm nghìn — và crawler thực tế đứng hình.
 
 **Gốc rễ:** heap chỉ cho phép truy cập **cực trị**, trong khi bài toán cần "phần tử tốt nhất **thoả một điều kiện**". Không cấu trúc một-chiều nào làm được cả hai.
 
@@ -208,7 +216,7 @@ Bất biến cốt lõi: **hàng đợi sau thứ $i$ chỉ chứa URL của đ�
 
 ### 4.1 Nạp theo yêu cầu, không định tuyến ngay
 
-Số hàng đợi sau là **cố định** (mặc định 128), số host thì không — một phiên crawl 6 tờ báo chạm tới **49 host** vì các subdomain. Nếu định tuyến ngay lúc `addUrl`, host vượt quá số hàng đợi sẽ không có chỗ đi.
+Số hàng đợi sau là **cố định** (`DEFAULT_BACK_QUEUE_COUNT = 128`, `UrlFrontier.java:108`), số host thì không — một phiên crawl 6 tờ báo chạm tới **52 host** *(mốc A)* vì các subdomain; mốc D chạm **93 host** trong cache DNS. Nếu định tuyến ngay lúc `addUrl`, host vượt quá số hàng đợi sẽ không có chỗ đi.
 
 Lời giải Mercator: hàng đợi sau được **nạp lại khi cạn**, kéo từ tầng trước cho tới khi gặp một host chưa có chủ. Host thừa nằm yên ở tầng trước — **tầng trước chính là vùng đệm**.
 
@@ -252,7 +260,23 @@ Hàng đợi cạn vẫn **giữ nguyên** host và `availableAt`, chỉ rời h
 
 Đây cũng là cách Mapping Table được chặn kích thước: tối đa đúng `queueCount` mục, vì mỗi lần một slot đổi host thì host cũ bị gỡ khỏi bảng.
 
-> **Rò rỉ đã sửa.** Bản trước dùng `Map<domain, thời điểm truy cập>` **lớn dần theo mọi host từng gặp và không bao giờ co lại** — `it.remove()` chỉ dọn `byDomain`, không dọn `lastAccessTime`. Với 49 host thì vô hại; crawl rộng hàng chục nghìn host thì đó là rò rỉ thật.
+> ✅ **Rò rỉ đã sửa.** Bản trước dùng `Map<domain, thời điểm truy cập>` **lớn dần theo mọi host từng gặp và không bao giờ co lại** — `it.remove()` chỉ dọn `byDomain`, không dọn `lastAccessTime`. Với 52 host thì vô hại; crawl rộng hàng chục nghìn host thì đó là rò rỉ thật.
+>
+> Bản hiện tại chặn kích thước bằng cách **gỡ host cũ khi một slot đổi chủ** — `BackQueues.java:252-259`:
+>
+> ```java
+> private void bind(int slot, String host) {
+>     String previous = boundHost[slot];
+>     if (previous != null && !previous.equals(host)) {
+>         hostToQueue.remove(previous); // giữ Mapping Table không phình quá số hàng đợi
+>     }
+>     boundHost[slot] = host;
+>     hostToQueue.put(host, slot);
+> }
+> ```
+>
+> Bất biến thu được: `hostToQueue.size() ≤ queueCount`, **luôn luôn**, bất kể
+> phiên crawl chạm bao nhiêu host.
 
 ### 4.4 Xoá lười cho danh sách hàng đợi rỗng
 
@@ -281,7 +305,22 @@ $$\text{thông lượng tối đa} = \frac{H}{1 \text{ giây}} \text{ trang/giâ
 
 Đây là **trần cứng**, không thuật toán nào vượt qua được — thêm thread cũng vô ích. Muốn crawl nhanh hơn thì chỉ có một cách: **crawl nhiều host hơn**.
 
-Số hàng đợi sau chính là chặn trên của $H$. Mặc định 128 cho trần 128 trang/giây, cao hơn hẳn mức mà mạng và số worker cho phép, nên nó không phải nút thắt. Đo thực tế trên 6 tờ báo (49 host): **26,6 trang/giây**.
+Số hàng đợi sau chính là chặn trên của $H$: `DEFAULT_BACK_QUEUE_COUNT = 128` (`UrlFrontier.java:108`) cho trần 128 trang/giây, cao hơn hẳn mức mà mạng và số worker cho phép, nên **nó không phải nút thắt**.
+
+**Số đo thực tế xác nhận điều đó** — và so hai mốc là cách rõ nhất để thấy trần thật nằm ở đâu:
+
+| | **Mốc A** — 6 hạt giống | **Mốc D** — 11 hạt giống, `maxDepth=4` |
+|---|---|---|
+| Host phân biệt | **52** | **93** trong cache DNS, 45 host có trang |
+| Trần lý thuyết theo politeness | 52 trang/giây | ~45 trang/giây *(chỉ host có trang mới cạnh tranh)* |
+| Trần theo số hàng đợi sau | 128 | 128 |
+| **Thực đo** | **26,2** trang/giây | **14,03** trang/giây |
+| Đạt bao nhiêu phần trần | ~50 % | ~31 % |
+
+Hai điều đọc được từ bảng:
+
+1. **Trần có hiệu lực là $\min(H, \text{số hàng đợi sau})$**, và ở cả hai mốc thì $H$ nhỏ hơn 128 rất nhiều — nên 128 chưa từng cắn vào kết quả.
+2. **Thực đo luôn thấp hơn trần** vì politeness chỉ là một trong ba ràng buộc; hai cái kia là độ trễ mạng và số worker. Mốc D thấp hơn vì đi sâu hơn (`maxDepth=4`) nên số trang phân bố lệch về vài host lớn.
 
 Đây cũng là lý do `MultiDomainCrawlRunner` đặt `threadCount = 2 × số domain`: thread không được là nút thắt, phần còn lại đã bị politeness khống chế.
 
@@ -289,11 +328,21 @@ Số hàng đợi sau chính là chặn trên của $H$. Mặc định 128 cho t
 
 ## 6. Chặn trên kích thước — kiểm soát bộ nhớ
 
+**`UrlFrontier.java:98`:**
+
 ```java
+/** Số URL đang chờ tối đa, chặn bộ nhớ khi crawl quy mô lớn. */
 public static final int DEFAULT_MAX_SIZE = 500_000;
 ```
 
-Mỗi trang sinh hơn 90 outlink, nên crawl 10.000 trang có thể đẩy vào frontier hơn một triệu URL (vài trăm MB chuỗi). Chặn trên này giới hạn số URL đang chờ; khi đầy, URL mới bị bỏ và `droppedDueToCapacity` đếm lại.
+Mỗi trang sinh **78,8 outlink** *(mốc A)*, nên crawl 10.000 trang có thể đẩy vào frontier gần **800.000** URL (vài trăm MB chuỗi). Chặn trên này giới hạn số URL đang chờ; khi đầy, URL mới bị bỏ và `droppedDueToCapacity` đếm lại — `UrlFrontier.java:189-192`:
+
+```java
+if (totalSize >= maxSize) {
+    droppedDueToCapacity++;
+    return false;
+}
+```
 
 Đây là đánh đổi có chủ ý: crawler ưu tiên theo bề rộng nên URL bị bỏ hầu hết là URL độ sâu lớn, vốn nằm ở mức ưu tiên thấp nhất. **Đếm số bị bỏ** quan trọng không kém việc bỏ — không có con số đó thì không biết chặn trên có đang cắn vào kết quả hay không.
 
@@ -364,9 +413,32 @@ Bản này còn ngủ **đúng tới thời điểm hàng đợi sớm nhất kh
 
 ## 11. Hạn chế đã biết
 
-1. **`knownBacklinks` chưa hoạt động thật.** Crawler truyền hằng số 1 cho mọi outlink, nên tín hiệu thứ hai của prioritizer hiện không phân biệt được gì. Muốn dùng thật phải đếm số lần một URL được trỏ tới trước khi crawl nó.
-2. **Không bền vững qua lần khởi động.** Frontier nằm hoàn toàn trong RAM; crawler dừng giữa chừng là mất sạch. `UrlStorage` lưu được các URL *đã gặp* nhưng **không** lưu hàng đợi, nên "tiếp tục một phiên dang dở" vẫn chưa làm được.
-3. **Politeness cố định 1 giây**, không đọc `Crawl-delay` từ robots.txt (parser có bỏ qua trường này — xem [RobotsTxtParser](RobotsTxtParser.md)).
+1. **`knownBacklinks` chưa hoạt động thật.** Crawler truyền hằng số `1` cho mọi outlink — `CrawlerService.java:347` và `:710` — nên tín hiệu thứ hai của prioritizer chỉ phân biệt được **seed với không-seed** (`SEED_BACKLINK_SCORE = 10`, `:105`, dùng ở `:513`). Ngưỡng `BACKLINK_BOOST_THRESHOLD = 5` (`DefaultPrioritizer.java:37`) vì thế **không bao giờ** được kích hoạt bởi một outlink. Muốn dùng thật phải đếm số lần một URL được trỏ tới **trước** khi crawl nó — tức phải giữ một `Map<url, đếm>` song song với frontier.
+
+2. ~~**Không bền vững qua lần khởi động.** `UrlStorage` lưu được các URL đã gặp nhưng không lưu hàng đợi, nên "tiếp tục một phiên dang dở" chưa làm được.~~
+   ✅ **ĐÃ GIẢI — bằng một hướng khác, và hướng cũ hoá ra là sai.**
+
+   Frontier vẫn hoàn toàn nằm trong RAM (`UrlFrontier.java:124-127`: `HashSet` +
+   `HashMap` thuần), và **đúng ra là không nên lưu bền**. Javadoc
+   `CrawlerService.java:380-391` giải thích vì sao lưu `UrlStorage` rồi nạp lại
+   là một cái bẫy:
+
+   > `UrlStorage` ghi mọi URL **được xếp hàng** — bao gồm hàng chục nghìn URL còn
+   > nằm trong frontier lúc phiên dừng, những URL **chưa hề được tải**. Nạp lại
+   > tệp đó sẽ đánh dấu tất cả là "đã gặp", và `enqueue` loại thẳng chúng, nên
+   > chúng **KHÔNG BAO GIỜ được crawl nữa** — khoá vĩnh viễn phần lớn không gian
+   > tìm kiếm còn lại.
+
+   Lời giải đúng: **nối tiếp qua corpus** (`CrawlerService.java:457-495`). Mỗi
+   tài liệu trong corpus là một trang *thật sự đã tải*; frontier được **tái tạo**
+   từ `outlinks` của chính chúng. Frontier không cần lưu bền chút nào.
+
+   > **Bài học tổng quát đáng ghi vào báo cáo:** khi khôi phục trạng thái, phải
+   > phân biệt *"việc đã làm xong"* với *"việc đã lên lịch"*. Ghi nhớ nhóm thứ
+   > hai như thể nó thuộc nhóm thứ nhất là cách đánh mất công việc một cách im
+   > lặng.
+
+3. **Politeness cố định 1 giây** (`POLITENESS_DELAY_MS = 1000L`, `UrlFrontier.java:95`), không đọc `Crawl-delay` từ robots.txt — parser cố ý bỏ qua trường này, `RobotsTxtParser.java:147-149`. Xem [RobotsTxtParser](RobotsTxtParser.md) §6.3.
 4. **Hàng đợi tái sử dụng thừa hưởng đồng hồ cũ.** Một slot vừa phục vụ host $A$ rồi đổi sang host $B$ sẽ bắt $B$ chờ nốt phần còn lại của delay. Chờ thừa thì vô hại, chờ thiếu mới vi phạm politeness — nên đây là hướng làm tròn an toàn, nhưng nó có làm giảm thông lượng chút ít khi số host vượt số hàng đợi.
 5. **Vòng lặp bận có ngủ.** `nextUrl` ngủ rồi thử lại thay vì `wait`/`notify`. Đơn giản hơn nhưng thêm độ trễ tối đa 50ms.
 
@@ -374,7 +446,7 @@ Bản này còn ngủ **đúng tới thời điểm hàng đợi sớm nhất kh
 
 ## 12. Liên kết
 
-- Cấu trúc nền: [MinHeap.md](../06-datastructures/MinHeap.md)
+- Cấu trúc nền: [MinHeap.md](../05-datastructures/MinHeap.md)
 - Người dùng: [CrawlerService.md](CrawlerService.md)
 - Chuẩn hoá tại cửa vào: [UrlCanonicalizer.md](UrlCanonicalizer.md)
 - Khử trùng lặp ở tầng khác: [BloomFilter.md](BloomFilter.md) · [ContentSeenFilter.md](ContentSeenFilter.md)

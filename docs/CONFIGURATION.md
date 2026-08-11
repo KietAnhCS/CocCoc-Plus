@@ -57,6 +57,7 @@ tắc trên. Cột "Biến môi trường" trong các bảng dưới ghi đúng 
 ## 1b. Bản đồ: 45 khoá chia thành 9 nhóm
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 mindmap
   root((45 khoá<br/>cấu hình))
     Bảo mật · 5
@@ -368,7 +369,7 @@ Muốn đổi thì đặt qua biến môi trường hoặc thêm vào
 ảnh vẫn chạy được ở chế độ mặc định vì nó trỏ thẳng tới URL gốc.
 
 Chi tiết thuật toán chấm chất lượng ảnh:
-[`Math/11-images/`](Math/11-images/00-SO-DO-TU-DUY.md).
+[`Math/10-images/`](Math/10-images/00-SO-DO-TU-DUY.md).
 
 ---
 

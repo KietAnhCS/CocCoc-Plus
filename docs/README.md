@@ -38,6 +38,7 @@ Trên đó còn một tầng **tài khoản và bảng điều khiển quản tr
 ## 1. Chọn lộ trình theo việc bạn định làm
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     START(["Bạn muốn gì?"])
 
@@ -67,10 +68,10 @@ flowchart TD
     D1 --> D2["bảng §4 trang này<br/>sửa X thì đọc gì"]
 
     R5 --> E1["INFRASTRUCTURE.md<br/>chạy ở đâu"]
-    E1 --> E2["Math/12-devops/<br/>CI-CD chi tiết"]
+    E1 --> E2["Math/11-devops/<br/>CI-CD chi tiết"]
 
     R6 --> F1["SECURITY.md<br/>tổng quan + còn hở gì"]
-    F1 --> F2["Math/13-security/<br/>từng lớp phòng thủ"]
+    F1 --> F2["Math/12-security/<br/>từng lớp phòng thủ"]
 ```
 
 Dạng chữ, cho nơi không dựng được Mermaid:
@@ -80,8 +81,8 @@ KIẾN TRÚC    →  ARCHITECTURE.md  →  BACKEND.md  →  FRONTEND.md
 THUẬT TOÁN   →  Math/00-KY-HIEU-TOAN.md  →  Math/README.md
                 →  <tầng>/00-SO-DO-TU-DUY.md  →  trang từng lớp  →  DSA-REPORT.md
 SỬA / THÊM   →  CONFIGURATION.md  →  bảng §4 dưới đây
-VẬN HÀNH     →  INFRASTRUCTURE.md  →  Math/12-devops/
-BẢO MẬT      →  SECURITY.md  →  Math/13-security/
+VẬN HÀNH     →  INFRASTRUCTURE.md  →  Math/11-devops/
+BẢO MẬT      →  SECURITY.md  →  Math/12-security/
                 →  ACCOUNTS-AND-DASHBOARD.md (tài khoản, vai trò, bảng số liệu)
 ```
 
@@ -99,8 +100,8 @@ tra** — làm được thì đi tiếp, không làm được thì dừng lại 
 | 3 | Mở được giao diện | `run-frontend.bat` | Cửa sổ trình duyệt mini hiện lên |
 | 4 | Hiểu các mảnh ghép | [`ARCHITECTURE.md`](ARCHITECTURE.md) §1–§3 | Vẽ lại được sơ đồ 4 khối từ trí nhớ |
 | 5 | Hiểu một truy vấn đi qua đâu | [`BACKEND.md`](BACKEND.md) §8 | Kể được 6 chặng từ HTTP tới kết quả |
-| 6 | Hiểu chỉ mục đảo | [`Math/03-index/00-SO-DO-TU-DUY.md`](Math/03-index/00-SO-DO-TU-DUY.md) | Giải thích được vì sao tra term là $O(\log n)$ |
-| 7 | Hiểu xếp hạng | [`Math/05-ranking/00-SO-DO-TU-DUY.md`](Math/05-ranking/00-SO-DO-TU-DUY.md) | Nói được TF-IDF khác BM25 ở đâu |
+| 6 | Hiểu chỉ mục đảo | [`Math/02-index/00-SO-DO-TU-DUY.md`](Math/02-index/00-SO-DO-TU-DUY.md) | Giải thích được vì sao tra term là $O(\log n)$ |
+| 7 | Hiểu xếp hạng | [`Math/04-ranking/00-SO-DO-TU-DUY.md`](Math/04-ranking/00-SO-DO-TU-DUY.md) | Nói được TF-IDF khác BM25 ở đâu |
 | 8 | Đọc số đo | [`DSA-REPORT.md`](DSA-REPORT.md) §3 | Hiểu 1 trong 6 lỗi hiệu năng |
 
 **Đến bước 8 là đủ để bảo vệ phần "hiểu hệ thống".** Từ đó trở đi là đào sâu.
@@ -137,21 +138,23 @@ tra** — làm được thì đi tiếp, không làm được thì dừng lại 
 |---|---|
 | [`00-KY-HIEU-TOAN.md`](Math/00-KY-HIEU-TOAN.md) | **Đọc trước tiên** nếu chưa quen ký hiệu toán |
 | [`01-crawler/`](Math/01-crawler/00-SO-DO-TU-DUY.md) | Bloom filter, URL Frontier hai tầng, robots.txt, chuẩn hoá URL |
-| [`03-index/`](Math/03-index/00-SO-DO-TU-DUY.md) | Tách từ tiếng Việt, chỉ mục đảo, nén VByte, từ điển term |
-| [`04-query/`](Math/04-query/00-SO-DO-TU-DUY.md) | Phân tích truy vấn, cây AST, hợp/giao posting list |
-| [`05-ranking/`](Math/05-ranking/00-SO-DO-TU-DUY.md) | TF-IDF, BM25, PageRank, top-K |
-| [`06-datastructures/`](Math/06-datastructures/00-SO-DO-TU-DUY.md) | 6 cấu trúc tự cài, và vì sao không dùng thư viện |
-| [`07-eval/`](Math/07-eval/00-SO-DO-TU-DUY.md) | Lấy đâu ra "đáp án đúng" để chấm điểm |
-| [`08-frontend/`](Math/08-frontend/00-SO-DO-TU-DUY.md) | DSA phía trình duyệt: Stack, BookmarkTrie |
-| [`09-design-patterns/`](Math/09-design-patterns/README.md) | 11 mẫu thiết kế, **và lỗi mà mỗi mẫu đã chữa** |
-| [`10-kafka/`](Math/10-kafka/00-SO-DO-TU-DUY.md) | Kafka và cụm Modular Services |
-| [`11-images/`](Math/11-images/00-SO-DO-TU-DUY.md) | Thu thập, chấm chất lượng và tìm kiếm ảnh |
-| [`12-devops/`](Math/12-devops/00-SO-DO-TU-DUY.md) | CI/CD, Docker, Kubernetes, giám sát — chi tiết từng tệp |
-| [`13-security/`](Math/13-security/00-SO-DO-TU-DUY.md) | Spring Security, chuỗi filter, CSP, sandbox Electron |
+| [`02-index/`](Math/02-index/00-SO-DO-TU-DUY.md) | Tách từ tiếng Việt, chỉ mục đảo, nén VByte, từ điển term |
+| [`03-query/`](Math/03-query/00-SO-DO-TU-DUY.md) | Phân tích truy vấn, cây AST, hợp/giao posting list |
+| [`04-ranking/`](Math/04-ranking/00-SO-DO-TU-DUY.md) | TF-IDF, BM25, PageRank, top-K |
+| [`05-datastructures/`](Math/05-datastructures/00-SO-DO-TU-DUY.md) | 6 cấu trúc tự cài, và vì sao không dùng thư viện |
+| [`06-eval/`](Math/06-eval/00-SO-DO-TU-DUY.md) | Lấy đâu ra "đáp án đúng" để chấm điểm |
+| [`07-frontend/`](Math/07-frontend/00-SO-DO-TU-DUY.md) | DSA phía trình duyệt: Stack, BookmarkTrie |
+| [`08-design-patterns/`](Math/08-design-patterns/README.md) | 11 mẫu thiết kế, **và lỗi mà mỗi mẫu đã chữa** |
+| [`09-kafka/`](Math/09-kafka/00-SO-DO-TU-DUY.md) | Kafka và cụm Modular Services |
+| [`10-images/`](Math/10-images/00-SO-DO-TU-DUY.md) | Thu thập, chấm chất lượng và tìm kiếm ảnh |
+| [`11-devops/`](Math/11-devops/00-SO-DO-TU-DUY.md) | CI/CD, Docker, Kubernetes, giám sát — chi tiết từng tệp |
+| [`12-security/`](Math/12-security/00-SO-DO-TU-DUY.md) | Spring Security, chuỗi filter, CSP, sandbox Electron |
 
-> **Không có nhóm `02-`.** Nhóm `02-tokenize/` cũ đã gộp vào `03-index/` vì
-> `VietnameseTokenizer.java` vốn nằm trong package `index/`. Đánh số giữ
-> nguyên để các liên kết cũ không chết.
+> **Đánh số liền mạch 01 → 12.** Trước đây mục lục nhảy cóc từ `01-` sang `03-`
+> vì nhóm `02-tokenize/` cũ đã gộp vào nhóm chỉ mục (`VietnameseTokenizer.java`
+> vốn nằm trong package `index/`). Khoảng trống đó nay đã được dồn lại: mỗi
+> nhóm từ 03 trở đi lùi một số. Nếu bạn có liên kết cũ dạng `Math/03-index/`,
+> đổi thành `Math/02-index/`.
 
 ---
 
@@ -162,15 +165,15 @@ tra** — làm được thì đi tiếp, không làm được thì dừng lại 
 | Muốn làm | Đọc | Sửa ở đâu |
 |---|---|---|
 | Đổi mô hình chấm điểm TF-IDF ⇄ BM25 | [`CONFIGURATION.md`](CONFIGURATION.md) | `app.ranking.scorer` — **không cần sửa mã** |
-| Chỉnh trọng số PageRank / tiêu đề | [`Math/05-ranking/ResultRanker.md`](Math/05-ranking/ResultRanker.md) | `app.ranking.beta`, `app.ranking.gamma` |
+| Chỉnh trọng số PageRank / tiêu đề | [`Math/04-ranking/ResultRanker.md`](Math/04-ranking/ResultRanker.md) | `app.ranking.beta`, `app.ranking.gamma` |
 | Thêm một endpoint REST | [`BACKEND.md`](BACKEND.md) §5 | `controller/`, nhớ cập nhật `api-examples.http` |
 | Thêm một nguồn báo để crawl | [`Math/01-crawler/00-SO-DO-TU-DUY.md`](Math/01-crawler/00-SO-DO-TU-DUY.md) | seed trong `run-crawl.bat` + `seedSites.ts` phía giao diện |
-| Đổi cách tách từ tiếng Việt | [`Math/03-index/VietnameseTokenizer.md`](Math/03-index/VietnameseTokenizer.md) | `index/MaxWeightSegmenter.java` |
+| Đổi cách tách từ tiếng Việt | [`Math/02-index/VietnameseTokenizer.md`](Math/02-index/VietnameseTokenizer.md) | `index/MaxWeightSegmenter.java` |
 | Thêm một kênh IPC cho trình duyệt | [`FRONTEND.md`](FRONTEND.md) §7 + §13.1 | **4 nơi** phải khớp — bảng ở §13.1 |
 | Thêm một store Zustand | [`FRONTEND.md`](FRONTEND.md) §9 + §13.2 | `renderer/src/store/` |
-| Bật crawl phân tán bằng Kafka | [`Math/10-kafka/`](Math/10-kafka/00-SO-DO-TU-DUY.md) §9 | `docker compose --profile kafka` |
-| Thêm một cổng chặn trong CI | [`Math/12-devops/`](Math/12-devops/00-SO-DO-TU-DUY.md) | `.github/workflows/ci.yml` |
-| Siết một quy tắc bảo mật | [`Math/13-security/`](Math/13-security/00-SO-DO-TU-DUY.md) | `config/SecurityConfig.java` |
+| Bật crawl phân tán bằng Kafka | [`Math/09-kafka/`](Math/09-kafka/00-SO-DO-TU-DUY.md) §9 | `docker compose --profile kafka` |
+| Thêm một cổng chặn trong CI | [`Math/11-devops/`](Math/11-devops/00-SO-DO-TU-DUY.md) | `.github/workflows/ci.yml` |
+| Siết một quy tắc bảo mật | [`Math/12-security/`](Math/12-security/00-SO-DO-TU-DUY.md) | `config/SecurityConfig.java` |
 | Đo lại chất lượng tìm kiếm | [`EVALUATION.md`](EVALUATION.md) | chạy `EvaluationRunner` |
 
 ---

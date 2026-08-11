@@ -16,6 +16,7 @@ Dự án này đã dính đúng lỗi đó: **23 cặp trang trùng nhau** chỉ
 Hậu quả không chỉ là lãng phí băng thông: **các bản sao cùng lọt vào chỉ mục và cùng xuất hiện trong kết quả tìm kiếm**, làm giảm chất lượng thấy rõ — người dùng thấy hai kết quả y hệt nhau ở hạng 1 và 2.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     A["HTTPS://A.com:443/x/?b=1#top"]
     S1["① hạ chữ thường<br/>scheme + host"]
@@ -51,6 +52,7 @@ không phát hiện được; bỏ sót chỉ gây trùng lặp — mà trùng l
 `ContentSeenFilter` bắt ở tầng sau.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     E["hai URL"]
     C["canonicalize"]
@@ -98,6 +100,8 @@ Tất cả đều là những phép **an toàn** theo RFC 3986 — tức không 
 | Hạ chữ thường scheme + host | `HTTPS://A.COM/X` → `https://a.com/X` | RFC 3986 §3.1, §3.2.2: hai thành phần này **không** phân biệt hoa thường |
 | Bỏ cổng mặc định | `a.com:443/x` → `a.com/x` | `:443` với https, `:80` với http là mặc định — máy chủ nhận request y hệt |
 | Bỏ `/` cuối | `a.com/tin/` → `a.com/tin` | Quy ước; đường dẫn gốc rút hẳn thành chuỗi rỗng |
+
+**`UrlCanonicalizer.java:46-89`** — toàn bộ hàm, không cắt xén:
 
 ```java
 public static String canonicalize(String rawUrl) {
@@ -213,15 +217,44 @@ Cùng logic với `if (scheme == null || host == null) return withoutFragment;`:
 
 Đây là bài học kiến trúc quan trọng nhất của lớp này.
 
+**`UrlFrontier.java:164-178`** — Javadoc và dòng đầu tiên của thân hàm:
+
 ```java
+/**
+ * $O(1)$ — chuẩn hoá URL, xếp mức ưu tiên, rồi đưa vào hàng đợi trước
+ * tương ứng.
+ *
+ * <p>Chuẩn hoá ngay tại cửa vào: đây là choke point duy nhất mà mọi URL
+ * đều phải đi qua, nên chuẩn hoá ở đây bảo đảm tập {@code enqueued} không
+ * bao giờ chứa hai biến thể của cùng một trang.
+ */
 public boolean addUrl(String rawUrl, int depth, int knownBacklinks) {
-    // Chuan hoa ngay tai cua vao: day la choke point duy nhat ma moi URL
-    // deu phai di qua, nen chuan hoa o day dam bao tap enqueued khong bao
-    // gio chua 2 bien the cua cung mot trang.
-    String url = com.vnsearch.crawler.UrlCanonicalizer.canonicalize(rawUrl);
+    String url = UrlCanonicalizer.canonicalize(rawUrl);
+    if (url == null || url.isBlank()) {
+        return false;
+    }
     ...
 }
 ```
+
+**Bằng chứng rằng choke point này thật sự là duy nhất.** Ba đường vào frontier,
+cả ba đều đổ về `addUrl`:
+
+| Đường vào | Dòng mã | Đã chuẩn hoá ở đâu |
+|---|---|---|
+| Seed | `CrawlerService.java:507` rồi `:513` | chuẩn hoá **hai lần** — xem ghi chú dưới |
+| Outlink (qua bus) | `CrawlerService.java:347` | `LinkExtractor.java:58` đã chuẩn hoá |
+| Phiên nối tiếp | `CrawlerService.java:488` → `:710` | `outlinks` trong corpus đã chuẩn hoá sẵn |
+
+> **Chuẩn hoá hai lần cho seed không phải lỗi.** `seed()` gọi
+> `canonicalize` ở `:507` vì `UrlFilter.accept` phải nhận chuỗi **đã chuẩn hoá**
+> mới rút host đúng; rồi `addUrl` gọi lần nữa vì nó là choke point. Phép chuẩn
+> hoá **idempotent** — $c(c(u)) = c(u)$ — nên lần thứ hai chỉ lặp lại đúng kết
+> quả cũ. `UrlCanonicalizerTest` kiểm chứng đúng tính chất này.
+>
+> Chính vì idempotent mà `enqueue()` **cố ý không** chuẩn hoá lại
+> (`CrawlerService.java:696-699`): *"Gọi thêm một lần nữa chỉ lặp lại đúng kết
+> quả cũ — phép chuẩn hoá là idempotent nên không sai, chỉ thừa."*
 
 **Vấn đề với cách rải rác.** Nếu để mỗi nơi gọi tự nhớ chuẩn hoá, ta có 4 điểm phải nhớ: seed URL, outlink, kiểm tra Bloom Filter, và khoá của `crawled`. Quên **một** chỗ là lỗi quay lại — và lỗi này **im lặng**, không có ngoại lệ nào, chỉ là vài trang trùng trong kết quả.
 

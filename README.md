@@ -311,11 +311,11 @@ Docs are organised by **the question they answer**, not by source folder:
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | The mini browser (Electron + React) |
 | [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Big-O and measured numbers |
 | [`docs/Math/`](docs/Math/README.md) | One page per class — formulas, worked examples, mind maps |
-| [`docs/Math/09-design-patterns/`](docs/Math/09-design-patterns/README.md) | One page per design pattern, and the bug each one fixed |
-| [`docs/Math/10-kafka/`](docs/Math/10-kafka/00-SO-DO-TU-DUY.md) | Kafka and the Modular Services — where the pipeline is cut, and why the URL Frontier is **not** replaced |
-| [`docs/Math/11-images/`](docs/Math/11-images/00-SO-DO-TU-DUY.md) | Image crawling and search — why filtering happens at crawl time |
-| [`docs/Math/12-devops/`](docs/Math/12-devops/00-SO-DO-TU-DUY.md) | CI/CD in detail — every workflow, every gate, file by file |
-| [`docs/Math/13-security/`](docs/Math/13-security/00-SO-DO-TU-DUY.md) | Every defence layer, and what breaks if you remove it |
+| [`docs/Math/08-design-patterns/`](docs/Math/08-design-patterns/README.md) | One page per design pattern, and the bug each one fixed |
+| [`docs/Math/09-kafka/`](docs/Math/09-kafka/00-SO-DO-TU-DUY.md) | Kafka and the Modular Services — where the pipeline is cut, and why the URL Frontier is **not** replaced |
+| [`docs/Math/10-images/`](docs/Math/10-images/00-SO-DO-TU-DUY.md) | Image crawling and search — why filtering happens at crawl time |
+| [`docs/Math/11-devops/`](docs/Math/11-devops/00-SO-DO-TU-DUY.md) | CI/CD in detail — every workflow, every gate, file by file |
+| [`docs/Math/12-security/`](docs/Math/12-security/00-SO-DO-TU-DUY.md) | Every defence layer, and what breaks if you remove it |
 | [`docs/EVALUATION.md`](docs/EVALUATION.md) | Search quality measurement (MRR, P@k, nDCG) |
 | [`docs/SO-SANH-PHUONG-AN.md`](docs/SO-SANH-PHUONG-AN.md) | 13 problems, the alternatives rejected, and why |
 | [`docs/GIN-BASELINE.md`](docs/GIN-BASELINE.md) | Head-to-head against PostgreSQL GIN |

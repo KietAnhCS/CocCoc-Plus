@@ -1,6 +1,11 @@
 # Sơ đồ tư duy — Toàn bộ tầng Crawler
 
-**Phạm vi:** 25 file trong `com.vnsearch.crawler` (16 file gốc + 9 file trong `crawler/frontier/`).
+**Phạm vi:** **43 file** trong `com.vnsearch.crawler` — 20 file ở thư mục gốc, cộng ba thư mục con `frontier/` (9), `bus/` (8), `modular/` (6).
+
+> **Tự kiểm chứng con số này:**
+> ```bash
+> find search-engine/src/main/java/com/vnsearch/crawler -name "*.java" | wc -l
+> ```
 
 **Trang này khác gì các trang kia trong thư mục?** Các trang kia đi sâu vào *toán* của từng lớp. Trang này trả lời câu hỏi khác: **các file liên hệ với nhau ra sao** — file nào gọi file nào, dữ liệu chảy theo đường nào, và nếu xoá một file đi thì hỏng chính xác cái gì.
 
@@ -9,6 +14,8 @@
 > - Mọi sơ đồ đều vẽ bằng **Mermaid**. GitHub hiển thị được thành hình; VS Code cần extension *Markdown Preview Mermaid Support*.
 > - **Nếu trình xem của bạn không hiện hình:** mỗi sơ đồ đều có một khối *"Xem bản chữ (ASCII)"* bấm mở được ngay bên dưới, nội dung y hệt.
 > - Đọc theo thứ tự §1 → §4 là đủ hiểu tổng thể. §5 trở đi là đi sâu từng nhóm.
+> - **Mọi sơ đồ đều là trắng đen thuần** — nền trắng, viền và chữ đen, chữ đơn cách. Lý do thực dụng: tài liệu này còn để **in ra nộp**, mà máy in đen trắng biến các mảng màu pastel mặc định của Mermaid thành những vùng xám khó đọc. Khối `%%{init:...}%%` ở đầu mỗi sơ đồ chính là chỗ đặt bảng màu đó.
+> - **Dòng mã được trích dưới dạng `File.java:123`** — bấm được trong hầu hết trình soạn thảo. Quy ước chung của repo, xem [`docs/README.md`](../../README.md) §6.
 >
 > 📖 **Các trang đi sâu:** [CrawlerService](CrawlerService.md) · [UrlFrontier](UrlFrontier.md) · [BloomFilter](BloomFilter.md) · [RobotsTxtParser](RobotsTxtParser.md) · [UrlCanonicalizer](UrlCanonicalizer.md) · [ContentParser & LinkExtractor](ContentParser-LinkExtractor.md) · [ContentSeenFilter](ContentSeenFilter.md)
 
@@ -24,6 +31,7 @@ Crawler nhìn thì rối, nhưng thật ra chỉ có **6 nhóm việc**. Nhớ �
 > cách các mảnh nói chuyện với nhau chứ không đổi thuật toán nào.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     ROOT["CRAWLER<br/>43 file"]
 
@@ -124,13 +132,13 @@ MultiDomain…   WeightedRandomSelector
 | 13 | `StrictPrioritySelector` | 2 | Luôn lấy mức cao nhất — tất định, dùng cho test |
 | 14 | `BackQueues` | 2 | n hàng đợi — **mỗi hàng đợi đúng một host**, dùng MinHeap để chọn |
 | 15 | `DnsResolver` | 3 | Phân giải tên miền, cache LRU, **loại host chết trước khi tốn 30 giây** |
-| 16 | `HtmlDownloader` | 3 | Tải HTML bằng Jsoup, thử lại tối đa 3 lần |
+| 16 | `HtmlDownloader` | 3 | Tải HTML bằng Jsoup, thử lại tối đa 3 lần, **tự đi từng chặng redirect** để kiểm tra đích mỗi chặng |
 | 17 | `ContentParser` | 4 | Từ cây DOM lấy ra tiêu đề, mô tả meta, văn bản thân bài |
 | 18 | `ContentSeenFilter` | 4 | Băm SHA-256 nội dung để phát hiện **hai URL khác nhau, cùng một bài** |
 | 19 | `ContentStorage` | 4 | Kho `WebDocument` trong bộ nhớ, ghi JSON ở cuối phiên |
 | 20 | `LinkExtractor` | 4 | Bóc mọi thẻ `a href`, đổi sang URL tuyệt đối, khử trùng |
 | 21 | `UrlCanonicalizer` | 5 | Đưa URL về **một dạng biểu diễn duy nhất** |
-| 22 | `UrlFilter` | 5 | 4 luật rẻ: độ sâu, giao thức, domain, đuôi tệp — cộng bộ đếm từng nguyên nhân |
+| 22 | `UrlFilter` | 5 | **5 luật rẻ** (độ sâu, giao thức, domain, tiền tố host, đuôi tệp) + **1 luật đắt** (robots) — mỗi luật một bộ đếm riêng |
 | 23 | `RobotsTxtParser` | 5 | Tự parse `robots.txt`, so khớp tiền tố đường dẫn dài nhất |
 | 24 | `UrlSeenFilter` | 5 | Bọc `BloomFilter` — hỏi "URL này gặp chưa" một cách **nguyên tử** |
 | 25 | `UrlStorage` | 5 | Ghi bền danh sách URL đã gặp, để phiên sau nạp lại đi tiếp |
@@ -151,7 +159,7 @@ MultiDomain…   WeightedRandomSelector
 | 40 | `modular/CrawlAnalyticsService` | 6 | Thang đo Prometheus. `host` **không** được làm nhãn — nổ cardinality |
 | 41 | `modular/ImageStore` | 6 | `Map: pageUrl → đúng MỘT ảnh`, trần 50.000 trang |
 | 42 | `modular/ImageStorage` | 6 | Ghi/đọc `data/crawled-documents.images.json` |
-| 43 | `modular/ImageQuality` | 6 | Chọn tấm ảnh đại diện — **4 bậc**, xem [`11-images/`](../11-images/ImageQuality.md) |
+| 43 | `modular/ImageQuality` | 6 | Chọn tấm ảnh đại diện — **4 bậc**, xem [`10-images/`](../10-images/ImageQuality.md) |
 
 ### Vì sao `urls.discovered` và `outlinks` **không** gộp làm một
 
@@ -174,6 +182,7 @@ vẫn là một cạnh thật của đồ thị, dù vòng lặp crawl không c�
 Đây là sơ đồ crawler kinh điển (kiến trúc Mercator). Điểm mạnh của dự án nằm ở chỗ: **không có khối nào bị chôn bên trong vòng lặp của lớp khác** — mỗi ô vuông dưới đây là một file `.java` riêng.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     SEED["seed URLs<br/>6 trang chủ báo"]
@@ -181,10 +190,12 @@ flowchart TD
     HD["HTML DOWNLOADER<br/>HtmlDownloader"]
     DNS["DNS RESOLVER<br/>DnsResolver"]
     CP["CONTENT PARSER<br/>ContentParser"]
+    LF{"LANGUAGE FILTER<br/>LanguageFilter"}
     CS{"CONTENT SEEN?<br/>ContentSeenFilter"}
     DROP1["VỨT<br/>và KHÔNG bóc liên kết"]
     CST["CONTENT STORAGE<br/>ContentStorage"]
-    LE["LINK EXTRACTOR<br/>LinkExtractor"]
+    BUS["CrawlEventBus<br/>publishPage"]
+    LE["LINK EXTRACTOR<br/>LinkExtractor<br/>trong UrlExtractorService"]
     UFIL["URL FILTER<br/>UrlFilter + RobotsTxtParser"]
     US{"URL SEEN?<br/>UrlSeenFilter"}
     UST["URL STORAGE<br/>UrlStorage"]
@@ -194,10 +205,13 @@ flowchart TD
     UF --> HD
     HD -->|"hỏi trước khi mở kết nối"| DNS
     HD --> CP
-    CP --> CS
+    CP --> LF
+    LF -->|"không phải vi/en"| DROP1
+    LF -->|"vi hoặc en"| CS
     CS -->|"Yes - trùng nội dung"| DROP1
     CS -->|"No - nội dung mới"| CST
-    CST --> LE
+    CST --> BUS
+    BUS --> LE
     LE --> UFIL
     UFIL --> US
     US -->|"ghi bền"| UST
@@ -211,32 +225,49 @@ flowchart TD
   seed URLs
       │
       ▼
- URL Frontier ───► HTML Downloader ───► Content Parser ───► Content Seen? ──(Yes)──► vứt
-      ▲                   │                                       │
-      │                   ▼                                       │ (No)
-      │             DNS Resolver                                  ▼
-      │                                                   Content Storage
-      │                                                           │
-      │                                                           ▼
-      │                                                    Link Extractor
-      │                                                           │
-      │                                                           ▼
-      │                                                       URL Filter
-      │                                                           │
-      │                                                           ▼
-      └────────────────── (chưa gặp) ────────────────────── URL Seen? ◄──► URL Storage
-                                                                  │
-                                                               (đã gặp) ──► vứt
+ URL Frontier ──► HTML Downloader ──► Content Parser ──► Language Filter ─(không vi/en)─► vứt
+      ▲                  │                                      │
+      │                  ▼                                      │ (vi hoặc en)
+      │            DNS Resolver                                 ▼
+      │                                              Content Seen? ──(Yes)──► vứt
+      │                                                         │              KHÔNG bóc
+      │                                                         │ (No)         liên kết
+      │                                                         ▼
+      │                                                  Content Storage
+      │                                                         │
+      │                                                         ▼
+      │                                          CrawlEventBus.publishPage
+      │                                                         │
+      │                                                         ▼
+      │                                                  Link Extractor
+      │                                                         │
+      │                                                         ▼
+      │                                                     URL Filter
+      │                                                         │
+      │                                                         ▼
+      └───────────────── (chưa gặp) ──────────────────── URL Seen? ◄──► URL Storage
+                                                                │
+                                                             (đã gặp) ──► vứt
 ```
 
 </details>
 
+> **Hai khối được thêm sau khi sơ đồ này được vẽ lần đầu**, và cả hai đều nằm ở
+> chỗ có ý nghĩa chứ không phải nhét vào cho đủ:
+>
+> | Khối | Vì sao ở đúng chỗ đó | Dẫn chứng |
+> |---|---|---|
+> | `Language Filter` | Sau `Content Parser` vì nó cần văn bản đã bóc; **trước** `Content Seen?` vì trang ngoại ngữ không đáng tốn một lần băm SHA-256, và quan trọng hơn — nó **không bị bóc liên kết**, nên crawler không đi sâu thêm vào vùng ngoại ngữ | `CrawlerService.java:83-86`, `:617-623` |
+> | `CrawlEventBus` | Ranh giới giữa crawler và cụm Modular Services. Phần **tải trang** cố ý ở lại phía crawler vì nó là thứ duy nhất phải tôn trọng politeness theo host | `CrawlerService.java:640-659` |
+
 ### Thứ tự các khối **không tuỳ tiện** — hai chỗ có lý do rất cụ thể
 
-| Cặp khối | Vì sao khối này phải đứng trước khối kia |
-|---|---|
-| `Content Seen?` **trước** `Link Extractor` | Trang trùng nội dung bị vứt mà **không** phải bóc liên kết — vì các liên kết đó đã lấy từ bản gốc rồi. Nếu gộp việc bóc liên kết vào `ContentParser` (như bản cũ), công đoạn này vẫn chạy cho cả những trang sắp bị vứt. |
-| `URL Filter` **trước** `URL Seen?` | Các luật rẻ (so sánh số nguyên, xét đuôi tệp) chạy trước phép tra bộ lọc Bloom. Mỗi trang sinh khoảng 79 liên kết, **phần lớn bị loại ngay ở luật rẻ nhất**, nên không đáng để tra Bloom Filter cho chúng. |
+| Cặp khối | Vì sao khối này phải đứng trước khối kia | Dẫn chứng |
+|---|---|---|
+| `Content Seen?` **trước** `Link Extractor` | Trang trùng nội dung bị vứt mà **không** phải bóc liên kết — vì các liên kết đó đã lấy từ bản gốc rồi. Nếu gộp việc bóc liên kết vào `ContentParser` (như bản cũ), công đoạn này vẫn chạy cho cả những trang sắp bị vứt. | `CrawlerService.java:626-629`; `ContentParser.java:15-22` |
+| `URL Filter` **trước** `URL Seen?` | Các luật rẻ (so sánh số nguyên, xét đuôi tệp) chạy trước phép tra bộ lọc Bloom. Mỗi trang sinh ~79 liên kết *(mốc A)*, **phần lớn bị loại ngay ở luật rẻ nhất**, nên không đáng để tra Bloom Filter cho chúng. | `CrawlerService.java:703-711`; `UrlFilter.java:29-32` |
+| **`Language Filter` trước `Content Seen?`** | Hai lẽ: nó chỉ cần văn bản đã bóc (không cần vân tay), và trang ngoại ngữ bị vứt ở đó thì **không bóc liên kết** — nếu vẫn bóc, crawler tiếp tục đi sâu vào vùng ngoại ngữ để rồi vứt tiếp. | `CrawlerService.java:83-86` |
+| **`Language Filter` trước cả pipeline: `UrlFilter` chặn theo tiền tố host** | Tuyến phòng thủ **thứ nhất**, rẻ hơn hẳn: loại URL **trước khi tải**, chỉ bằng vài phép so chuỗi. `LanguageFilter` là tuyến thứ hai, bắt được thứ tuyến một bỏ sót nhưng phải trả giá bằng một lượt tải trang. | `UrlFilter.java:62-66`, `:107-118` |
 
 ### Hai mức chống trùng — rất dễ nhầm là một
 
@@ -255,6 +286,82 @@ flowchart TD
 
 Thiếu mức thứ hai thì các bản sao **cùng lọt vào chỉ mục, cùng hiện trong một trang kết quả**, và còn làm nhiễu PageRank (một bài bị đếm như nhiều trang độc lập).
 
+### Ba tuyến chặn SSRF — một sơ đồ mà bản trước của trang này không có
+
+Crawler là một cỗ máy **tải URL tuỳ ý do người ngoài đưa vào**. Đó đúng là định
+nghĩa của một lỗ hổng SSRF nếu không có gì chặn. Ba tuyến phòng thủ nằm ở ba lớp
+khác nhau, và **mỗi tuyến bịt một đường vào riêng**:
+
+```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
+flowchart TD
+    subgraph D1["TUYẾN 1 — cửa vào API"]
+        A1["POST /api/admin/crawl<br/>người dùng đưa seed URL"]
+        A2["SeedUrlValidator<br/>chặn tên máy + dải địa chỉ nội bộ"]
+    end
+
+    subgraph D2["TUYẾN 2 — mỗi chặng chuyển hướng"]
+        B1["HtmlDownloader.fetchFollowingRedirects<br/>followRedirects(false)"]
+        B2["assertTargetAllowed<br/>chạy TRƯỚC mỗi lần mở kết nối"]
+        B3["MAX_REDIRECTS = 5<br/>chặn vòng lặp chuyển hướng"]
+    end
+
+    subgraph D3["TUYẾN 3 — liên kết moi từ trang đã tải"]
+        C1["LinkExtractor bóc a href<br/>KHÔNG đi qua AdminController"]
+        C2["cũng phải qua assertTargetAllowed<br/>mới tải được"]
+    end
+
+    A1 --> A2 --> B1
+    B1 --> B2 --> B3
+    C1 --> C2
+    C2 -.->|"dùng lại ĐÚNG một phép kiểm tra"| B2
+```
+
+<details>
+<summary><b>Xem bản chữ (ASCII)</b></summary>
+
+```
+ ĐƯỜNG VÀO 1: seed do người dùng đưa
+   POST /api/admin/crawl
+        │
+        ▼
+   SeedUrlValidator.isBlockedHostname / isBlockedAddress     ← TUYẾN 1
+        │
+        ▼
+ ĐƯỜNG VÀO 2: chuyển hướng HTTP 3xx
+   Jsoup followRedirects(false) — TỰ đi từng chặng
+        │
+        ├─► assertTargetAllowed  (chặng 1)                   ← TUYẾN 2
+        ├─► assertTargetAllowed  (chặng 2)
+        ├─► ...
+        └─► MAX_REDIRECTS = 5 thì dừng hẳn
+
+ ĐƯỜNG VÀO 3: liên kết moi ra từ trang đã tải
+   LinkExtractor → KHÔNG đi qua AdminController
+        │
+        └─► vẫn phải qua assertTargetAllowed mới tải được    ← TUYẾN 3
+             (dùng lại ĐÚNG phép kiểm tra của tuyến 1)
+```
+
+</details>
+
+| Tuyến | Chặn đường vào nào | Dòng mã |
+|---|---|---|
+| 1 | Seed do người dùng đưa qua REST API | `SeedUrlValidator.isBlockedHostname` / `isBlockedAddress` |
+| 2 | **Chuyển hướng HTTP** — trước đây Jsoup tự đi, không ai kiểm tra | `HtmlDownloader.java:161-167`, `:194-224` |
+| 3 | **Liên kết moi từ trang đã tải** — không đi qua API nên chưa từng được kiểm tra | `HtmlDownloader.java:145-148` |
+
+**Điểm thiết kế đáng học nhất ở đây** — `HtmlDownloader.java:188-192`:
+
+> Dùng lại đúng phép kiểm tra của `SeedUrlValidator` thay vì viết bản thứ hai:
+> **hai cài đặt song song của cùng một quy tắc bảo mật thì sớm muộn cũng lệch
+> nhau, và bản bị quên cập nhật chính là lỗ hổng.**
+
+Và một chi tiết tinh tế: `BlockedTargetException` là **kiểu riêng**, không phải
+`IOException` chung (`:233-237`). Lý do ở `:104-106`: lỗi mạng thì đáng thử lại,
+còn **địa chỉ nội bộ thì thử lại bao nhiêu lần cũng vẫn là địa chỉ nội bộ** — và
+mỗi lần thử lại là thêm một lần chạm vào hạ tầng nội bộ.
+
 ---
 
 ## 3. Ai gọi ai — đồ thị phụ thuộc
@@ -264,6 +371,7 @@ Mũi tên `A → B` đọc là **"A dùng B"**. Tôi tách thành hai sơ đồ 
 ### 3.1 Bức tranh tổng thể
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     MDR["MultiDomainCrawlRunner<br/>hàm main"]
@@ -348,6 +456,7 @@ CrawlJobManager ────────┘         │           ├──► H
 ### 3.2 Riêng cụm Frontier — 9 file
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     FR["UrlFrontier<br/>FACADE: chỉ lộ addUrl và nextUrl"]
@@ -394,6 +503,7 @@ Hai ô ghi *"giao diện"* — `Prioritizer` và `FrontQueueSelector` — chính
 ## 4. Vòng đời của một URL — nó phải qua bao nhiêu cửa?
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 sequenceDiagram
     autonumber
@@ -403,9 +513,11 @@ sequenceDiagram
     participant D as HtmlDownloader
     participant DNS as DnsResolver
     participant CP as ContentParser
+    participant LF as LanguageFilter
     participant CS as ContentSeenFilter
-    participant LE as LinkExtractor
     participant ST as ContentStorage
+    participant B as CrawlEventBus
+    participant UX as UrlExtractorService
     participant US as UrlSeenFilter
 
     W->>F: nextUrl()
@@ -414,25 +526,25 @@ sequenceDiagram
     Note right of UF: Luật ĐẮT. Lần đầu gặp một host<br/>có thể phải tải robots.txt qua mạng
     UF-->>W: cho phép
     W->>D: download(url)
-    D->>DNS: resolveHostOf(url)
+    D->>DNS: resolve(host) — trước MỖI chặng redirect
     DNS-->>D: địa chỉ IP, thường lấy từ cache LRU
     D-->>W: cây DOM đã phân tích
     W->>CP: parse(url, html)
-    CP-->>W: WebDocument gồm title, meta, bodyText
+    CP-->>W: WebDocument gồm title, meta, bodyText, language
+    W->>LF: accept(doc)
+    Note right of LF: không phải vi/en thì DỪNG,<br/>và KHÔNG bóc liên kết
+    LF-->>W: true
     W->>CS: seenBefore(bodyText)
     CS-->>W: false, nội dung mới
-    W->>LE: extract(url, html)
-    LE-->>W: danh sách outlink đã chuẩn hoá
     W->>ST: save(doc)
-    Note right of W: docId được cấp SAU khi lưu thành công<br/>nên dãy docId luôn đặc, không thủng lỗ
-
-    loop với mỗi outlink bóc được
-        W->>UF: accept(url, depth + 1)
-        Note right of UF: Luật RẺ: độ sâu, giao thức,<br/>domain, đuôi tệp
-        W->>US: markSeenIfNew(url)
-        Note right of US: test-and-set NGUYÊN TỬ,<br/>đồng thời ghi xuống UrlStorage
-        W->>F: addUrl(url, depth + 1)
-    end
+    Note right of W: LƯU TRƯỚC, rồi mới phát sự kiện.<br/>docId cấp SAU khi lưu OK
+    W->>B: publishPage(PageEvent)
+    B->>UX: onPage(event)
+    UX->>UF: accept(url, depth + 1)
+    Note right of UF: Luật RẺ: độ sâu, giao thức, domain,<br/>tiền tố host, đuôi tệp
+    UX->>US: markSeenIfNew(url)
+    Note right of US: test-and-set NGUYÊN TỬ,<br/>đồng thời ghi xuống UrlStorage
+    UX->>F: acceptDiscoveredUrl → addUrl(url, depth + 1)
 ```
 
 <details>
@@ -443,20 +555,33 @@ Worker                                                          Kết quả
   ├─1─► UrlFrontier.nextUrl()                        ──► CrawlTask{url, host, depth}
   ├─2─► UrlFilter.isAllowedByRobots(url)             ──► cho phép / cấm  [ĐẮT: chạm mạng]
   ├─3─► HtmlDownloader.download(url)
-  │        └──► DnsResolver.resolveHostOf(url)       ──► IP (thường trúng cache)
+  │        └──► DnsResolver.resolve(host)            ──► IP, trước MỖI chặng redirect
   │                                                  ──► cây DOM
-  ├─4─► ContentParser.parse(url, html)               ──► WebDocument{title, meta, body}
-  ├─5─► ContentSeenFilter.seenBefore(body)           ──► trùng? nếu trùng thì DỪNG TẠI ĐÂY
-  ├─6─► LinkExtractor.extract(url, html)             ──► ~79 outlink
-  ├─7─► ContentStorage.save(doc)                     ──► docId được cấp SAU khi lưu OK
+  ├─4─► ContentParser.parse(url, html)               ──► WebDocument{title, meta, body, lang}
+  ├─5─► LanguageFilter.accept(doc)                   ──► không vi/en ⇒ DỪNG, KHÔNG bóc link
+  ├─6─► ContentSeenFilter.seenBefore(body)           ──► trùng? nếu trùng thì DỪNG TẠI ĐÂY
+  ├─7─► ContentStorage.save(doc)                     ──► docId cấp SAU khi lưu OK
+  ├─8─► CrawlEventBus.publishPage(PageEvent)         ──► RANH GIỚI crawler / Modular Services
   │
-  └─8─► với MỖI outlink:
+  └─9─► UrlExtractorService nhận sự kiện, với MỖI outlink:
            UrlFilter.accept(url, depth+1)            [RẺ: không chạm mạng]
            UrlSeenFilter.markSeenIfNew(url)          [nguyên tử + ghi UrlStorage]
-           UrlFrontier.addUrl(url, depth+1)
+           acceptDiscoveredUrl ─► UrlFrontier.addUrl(url, depth+1)
 ```
 
 </details>
+
+> ⚠️ **Hai chỗ bản trước của sơ đồ này vẽ sai**, đều kiểm chứng được bằng thứ tự dòng mã:
+>
+> | Sai ở đâu | Bản trước vẽ | Code thật |
+> |---|---|---|
+> | Thứ tự bóc liên kết và lưu | `LinkExtractor.extract` **rồi mới** `ContentStorage.save` | `save` ở `:631`, phát sự kiện ở `:660`, bóc liên kết diễn ra **sau đó** — **lưu trước, bóc sau** |
+> | Ai bóc liên kết | Worker gọi thẳng `LinkExtractor` | Worker chỉ `publishPage`; `UrlExtractorService` mới là bên bóc (`:302-303`) |
+>
+> Thứ tự "lưu trước, phát sau" **không tuỳ tiện**: `acceptOutlinks` (`:351-361`)
+> phải tìm được tài liệu trong `ContentStorage` để ghi outlinks vào. Phát sự kiện
+> trước khi lưu thì mọi outlink đều thành `orphanOutlinks` — và bộ đếm ở `:174`
+> sinh ra chính là để bắt ca đó.
 
 ### Bảng 8 cửa — một liên kết phải qua hết mới được tải
 
@@ -485,6 +610,7 @@ Trong sơ đồ kiến trúc gốc, `URL Frontier` có **hai** mũi tên đi và
 Phần dưới đây phóng to **mũi tên thứ nhất** — mọi thứ xảy ra **trước** khi `UrlFrontier.addUrl` được gọi lần đầu tiên.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     SEED["MultiDomainCrawlRunner.DEFAULT_SEEDS<br/>hoặc CrawlJobManager.start(seedUrls)<br/>ra: List&lt;String&gt; URL thô"]
@@ -592,6 +718,7 @@ CrawlConfig.builder()...build() ───────┘  cấu hình bất bi�
 ### 5.2 Bên trong `UrlFrontier`
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     IN["addUrl(url, depth, backlinks)"]
     CANO["UrlCanonicalizer.canonicalize"]
@@ -682,6 +809,7 @@ flowchart TD
 ### 5.4 Ba quyết định thiết kế — mỗi cái sửa một lỗi cụ thể
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     P1["VẤN ĐỀ 1: BỎ ĐÓI<br/>Nếu luôn lấy mức cao nhất còn URL,<br/>thì chừng nào mức 0 còn URL mới chảy vào,<br/>mức 4 KHÔNG BAO GIỜ tới lượt.<br/>Trên web điều này xảy ra liên tục."]
@@ -796,6 +924,7 @@ Bản trước cộng các trọng số `double` tuỳ chọn: `−2·depth + 0,
 ## 6. Đi sâu nhóm 5 — dây chuyền lọc URL
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     RAW["URL thô từ thẻ a href"]
@@ -929,6 +1058,7 @@ Bốn phép được áp dụng, tất cả đều **an toàn** theo RFC 3986, n
 ## 7. Đa luồng — cái gì dùng chung, khoá đặt ở đâu
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     POOL["ExecutorService<br/>threadCount worker cố định"]
@@ -986,6 +1116,7 @@ ExecutorService (threadCount worker)
 ### 7.1 Điều kiện dừng — phần tinh tế nhất của cả tầng crawler
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     A["Vào vòng lặp worker"]
@@ -1057,6 +1188,7 @@ $$P(\text{nhầm}) \approx \left(\frac{\text{vài } \mu s}{200\,000\ \mu s}\righ
 ## 8. Design pattern dùng ở đâu, và giải quyết vấn đề gì
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 
 flowchart TD
     ROOT["DESIGN PATTERN<br/>trong tầng crawler"]
@@ -1156,9 +1288,27 @@ Chi tiết nhỏ nhưng quan trọng: **một listener hỏng không được l�
 
 ### Trần thông lượng — con số cần nhớ
 
-$$\text{trần} = \frac{\text{số hàng đợi sau}}{\text{politeness delay}} = \frac{128}{1\text{ giây}} = 128 \text{ trang/giây}$$
+$$\text{trần} = \frac{\min(H,\ \text{số hàng đợi sau})}{\text{politeness delay}}$$
 
-Con số này **cao hơn hẳn** mức mà mạng và số worker cho phép, nên **nó không phải nút thắt cổ chai**. Trên thực tế `MultiDomainCrawlRunner` chỉ crawl 6 domain, nên trần thực tế là ~6 trang/giây — và đó chính là lý do số thread được đặt bằng **gấp đôi số domain**: đủ để thread không thành nút thắt, phần còn lại đã bị politeness khống chế.
+với $H$ = số **host** đang hoạt động — **không phải** số domain hạt giống.
+
+> ⚠️ **Chỗ rất dễ nhầm, và bản trước của trang này đã nhầm.** Nó viết *"chỉ crawl
+> 6 domain nên trần thực tế ~6 trang/giây"* — mâu thuẫn thẳng với con số **26,2
+> trang/giây** đo được ở cùng phiên đó. Sai lầm nằm ở chỗ lẫn **domain** với
+> **host**: `UrlFilter.isAllowedDomain` khớp bằng `host.endsWith(domain)`
+> (`UrlFilter.java:232`), nên 6 domain hạt giống kéo theo **52 host** phân biệt
+> qua các subdomain. Politeness áp theo **host**, không theo domain — xem
+> `BackQueues.java:17-20`, bất biến "mỗi hàng đợi sau đúng một host".
+
+| Mốc | Số hàng đợi sau | $H$ (host thật) | Trần có hiệu lực | Thực đo |
+|---|---|---|---|---|
+| **A** — 6 hạt giống | 128 | **52** | 52 trang/giây | **26,2** (~50 % trần) |
+| **D** — 11 hạt giống, `maxDepth=4` | 128 | **93** trong cache DNS, 45 có trang | ~45 trang/giây | **14,03** (~31 % trần) |
+
+Ở cả hai mốc, $H \ll 128$ — nên **số hàng đợi sau chưa từng là nút thắt**. Thực
+đo thấp hơn trần vì politeness chỉ là một trong ba ràng buộc; hai cái kia là độ
+trễ mạng và số worker. Đó chính là lý do số thread được đặt bằng **gấp đôi số
+domain**: đủ để thread không thành nút thắt, phần còn lại đã bị politeness khống chế.
 
 ---
 
@@ -1182,27 +1332,58 @@ Bảng này để trả lời câu hỏi *"file này có thật sự cần khôn
 
 ---
 
-## 11. Bản đồ kiểm thử
+## 11. Bản đồ kiểm thử — **24 file test cho 43 file mã**
+
 ```
-test/java/com/vnsearch/crawler/
+test/java/com/vnsearch/crawler/                                   [24 file]
 │
-├── frontier/
+├── frontier/                                                     [4 file]
 │   ├── UrlFrontierTest.java        → Facade: thứ tự, politeness, trần kích thước
 │   ├── FrontQueuesTest.java        → FIFO trong mỗi mức, hành vi của bộ chọn
 │   ├── BackQueuesTest.java         → bất biến "một hàng đợi một host", nạp lại khi cạn
 │   └── DefaultPrioritizerTest.java → luật depth/.vn/backlink, phép kẹp về [0,4]
 │
+├── bus/                                                          [3 file]
+│   ├── CrawlEventTest.java             → 4 thông điệp: bất biến, bản sao phòng thủ
+│   ├── InProcessCrawlEventBusTest.java → đăng ký, phát, nhiều bên nhận một kênh
+│   └── KafkaCrawlBusIT.java            → integration test, cần broker thật
+│
+├── modular/                                                      [5 file]
+│   ├── UrlExtractorServiceTest.java    → bóc → lọc → seen → phát DiscoveredUrl
+│   ├── ImageDownloadServiceTest.java   → chỉ lấy siêu dữ liệu, không tải nội dung
+│   ├── ImageStorageTest.java           → ghi/đọc tệp ảnh
+│   ├── ImageStoreTest.java             → Map pageUrl → MỘT ảnh, trần 50.000
+│   └── CrawlAnalyticsServiceTest.java  → thang đo, host KHÔNG làm nhãn
+│
 ├── UrlCanonicalizerTest.java       → tính idempotent, mọi dạng biến thể
-├── UrlFilterTest.java              → 5 nguyên nhân loại bỏ + kiểm chứng bộ đếm
+├── UrlFilterTest.java              → các nguyên nhân loại bỏ + kiểm chứng bộ đếm
 ├── UrlSeenFilterTest.java          → test-and-set, replay từ storage
 ├── RobotsTxtParserTest.java        → khớp tiền tố dài nhất, section riêng đè section *
 ├── ContentParserTest.java          → bóc title/meta/body, loại script + nav + footer
 ├── ContentSeenFilterTest.java      → chuẩn hoá khoảng trắng, văn bản rỗng được cho qua
 ├── LinkExtractorTest.java          → khử trùng, bỏ link neo, bỏ mailto
-└── CrawlConfigTest.java            → Builder chặn mọi tham số không hợp lệ
+├── LanguageFilterTest.java         → nhận diện vi/en, ghi đè giá trị trang tự khai
+├── CrawlConfigTest.java            → Builder chặn mọi tham số không hợp lệ
+├── CrawlerServiceBusWiringTest.java→ ba Modular Service được nối đúng vào bus
+├── CheckpointCrawlListenerTest.java→ ghi corpus định kỳ, không mất dữ liệu
+└── SsrfProtectionTest.java         → chặn địa chỉ nội bộ, chặn redirect vào mạng nội bộ
 ```
 
-**Nói thẳng về chỗ chưa có test:** `CrawlerService`, `HtmlDownloader`, `DnsResolver`, `UrlStorage`, `ContentStorage` chưa có test, vì đều cần **mạng thật hoặc đĩa thật**. Cách sửa đúng là tách một giao diện `Downloader` để giả lập — đúng như cách `Tokenizer` và `SearchIndex` đã được tách ở tầng chỉ mục.
+> **Tự kiểm chứng:**
+> ```bash
+> find search-engine/src/test/java/com/vnsearch/crawler -name "*.java" | wc -l
+> ```
+
+**Nói thẳng về chỗ vẫn chưa có test:** `HtmlDownloader`, `DnsResolver`,
+`UrlStorage`, `ContentStorage` — đều cần **mạng thật hoặc đĩa thật**. Cách sửa
+đúng là tách một giao diện `Downloader` để giả lập, đúng như cách `Tokenizer` và
+`SearchIndex` đã được tách ở tầng chỉ mục.
+
+> ✅ **Đã sửa so với bản trước của trang này.** Bản trước liệt kê 12 file và
+> khẳng định *"`CrawlerService` chưa có test"*. Cả hai đều đã lỗi thời:
+> `CrawlerServiceBusWiringTest.java` kiểm tra phần khó nhất của lớp đó — việc
+> nối bus — và `SsrfProtectionTest.java` phủ đúng lỗ hổng mà `HtmlDownloader`
+> vá. Phần chưa có test thu hẹp lại còn bốn lớp chạm vào tài nguyên ngoài.
 
 ---
 
@@ -1235,27 +1416,145 @@ cd search-engine
 === THONG KE THEO TUNG KHOI ===
 DNS Resolver   : N host trong cache, ty le trung XX%, N host chet bi loai som
 HTML Downloader: tai N trang, N lan thu lai, N that bai
+Language Filter: giu N trang vi/en, VUT N trang ngoai ngu
 Content Seen?  : N noi dung phan biet, VUT N ban trung, N trang than bai rong
 URL Filter     : nhan N, loai N
-                 (domain N | duoi tep N | do sau N | scheme N | robots N)
+                 (domain N | tien to host N | duoi tep N | do sau N | scheme N | robots N)
 URL Seen?      : N URL phan biet, bo loc N bit, N ham bam
 URL Storage    : N URL da ghi vao ...
 ```
+
+> ⚠️ **`UrlFilter` có SÁU bộ đếm, không phải bốn hay năm.** Bản trước của trang
+> này ghi "4 luật rẻ" ở §1 và "5 nguyên nhân" ở §11, còn mẫu output trên thiếu
+> hẳn `tien to host`. Danh sách đúng, lấy từ `UrlFilter.java:126-132`:
+>
+> | Bộ đếm | Loại vì | Dòng |
+> |---|---|---|
+> | `rejectedByDepth` | `depth > maxDepth` | `:167` |
+> | `rejectedByScheme` | URL rỗng, không parse được, sai scheme, không có host | `:171-194` |
+> | `rejectedByDomain` | ngoài `allowedDomains` | `:195` |
+> | **`rejectedByHostPrefix`** | **subdomain ngoại ngữ** (`cn.`, `ja.`, `ru.`…) | `:199` |
+> | `rejectedByExtension` | đuôi tệp bị chặn — **48 đuôi**, `:46-56` | `:203` |
+> | `rejectedByRobots` | `robots.txt` cấm — ở `isAllowedByRobots`, không ở `accept` | `:220` |
+>
+> Bộ đếm thứ tư được thêm **sau** khi phiên crawl 30.001 trang lộ ra **12.677
+> trang (42,3 %)** không phải tiếng Việt.
 
 Ngoài ra nó còn in **phân bố theo domain** (kiểm chứng crawler không bị lệch hẳn về một site) và **số cạnh chéo domain** — chính là thứ làm cho PageRank có ý nghĩa.
 
 ---
 
-## 13. Đọc tiếp gì
+## 13. Bản đồ đối chiếu tài liệu ↔ code
+
+Trang tài liệu nào nói về file mã nào, và **kiểm chứng bằng cách nào**. Bảng này
+tồn tại vì một lý do cụ thể: tài liệu trôi khỏi code là chuyện xảy ra thật ở
+chính thư mục này, và cách duy nhất để bắt được là **đối chiếu có hệ thống**.
+
+```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
+flowchart LR
+    subgraph DOC["TÀI LIỆU"]
+        D1["BloomFilter.md"]
+        D2["UrlFrontier.md"]
+        D3["CrawlerService.md"]
+        D4["UrlCanonicalizer.md"]
+        D5["ContentSeenFilter.md"]
+        D6["RobotsTxtParser.md"]
+        D7["ContentParser-<br/>LinkExtractor.md"]
+    end
+
+    subgraph SRC["MÃ NGUỒN"]
+        S1["datastructure/BloomFilter<br/>crawler/UrlSeenFilter"]
+        S2["crawler/frontier/<br/>9 file"]
+        S3["crawler/CrawlerService<br/>HtmlDownloader, DnsResolver"]
+        S4["crawler/UrlCanonicalizer"]
+        S5["crawler/ContentSeenFilter"]
+        S6["crawler/RobotsTxtParser<br/>crawler/UrlFilter"]
+        S7["crawler/ContentParser<br/>crawler/LinkExtractor"]
+    end
+
+    D1 --> S1
+    D2 --> S2
+    D3 --> S3
+    D4 --> S4
+    D5 --> S5
+    D6 --> S6
+    D7 --> S7
+```
+
+<details>
+<summary><b>Xem bản chữ (ASCII)</b></summary>
+
+```
+ TÀI LIỆU                          MÃ NGUỒN
+ ────────────────────────────      ──────────────────────────────────────────
+ BloomFilter.md              ───►  datastructure/BloomFilter.java
+                                   crawler/UrlSeenFilter.java   (nơi cấp phát)
+ UrlFrontier.md              ───►  crawler/frontier/  (cả 9 file)
+ CrawlerService.md           ───►  crawler/CrawlerService.java
+                                   crawler/HtmlDownloader.java
+                                   crawler/DnsResolver.java
+ UrlCanonicalizer.md         ───►  crawler/UrlCanonicalizer.java
+ ContentSeenFilter.md        ───►  crawler/ContentSeenFilter.java
+ RobotsTxtParser.md          ───►  crawler/RobotsTxtParser.java
+                                   crawler/UrlFilter.java
+ ContentParser-LinkExtractor ───►  crawler/ContentParser.java
+                                   crawler/LinkExtractor.java
+```
+
+</details>
+
+### 13.1 Chỗ nào có code chứng minh tính đúng đắn
+
+Không phải khẳng định nào cũng cần dẫn chứng như nhau. Ba mức, và mỗi mức có cách kiểm khác nhau:
+
+| Mức | Loại khẳng định | Kiểm bằng cách nào | Ví dụ trong thư mục này |
+|---|---|---|---|
+| **1 — chứng minh được từ code** | Tính chất bất biến của thuật toán | Đọc code, lập luận | "Không có false negative" — [BloomFilter §2](BloomFilter.md), chứng minh dựa trên ba điều kiện đọc thẳng từ `BloomFilter.java:47-48`, `:113-115`, `:125-149` |
+| **2 — tính lại được** | Công thức, độ phức tạp, con số suy ra | Thay số vào công thức | $m = 9\,585\,059$, $k = 7$, $p = 1{,}003\%$ — [BloomFilter §11](BloomFilter.md) chạy tay khép kín 8 bước |
+| **3 — chỉ đo được** | Số liệu thực nghiệm | **Chạy lại phép đo** | 78,8 outlink/trang, 52 host, 26,2 trang/giây — phụ thuộc mốc corpus; lệnh chạy lại ở §12 |
+
+> ⚠️ **Mức 3 là chỗ duy nhất tài liệu có thể sai mà không ai phát hiện bằng cách
+> đọc.** Đó cũng chính là chỗ đã sai thật: một bản trước của `UrlFrontier.md`
+> ghi *49 host / 26,6 trang/giây / hơn 90 outlink* trong khi mọi tài liệu khác
+> ghi *52 / 26,2 / 78,8*. Không công thức nào bắt được sai lệch đó — chỉ có
+> đối chiếu chéo mới bắt được.
+>
+> **Cách phòng:** mọi số ở mức 3 phải kèm **nhãn mốc corpus**. Bảng quy chiếu
+> bốn mốc nằm ở đầu [`DSA-REPORT.md`](../../DSA-REPORT.md).
+
+### 13.2 Ba lệnh tự kiểm chứng tài liệu này
+
+```bash
+# 1. Số file có đúng 43 không?
+find search-engine/src/main/java/com/vnsearch/crawler -name "*.java" | wc -l
+
+# 2. Số file test có đúng 24 không?
+find search-engine/src/test/java/com/vnsearch/crawler -name "*.java" | wc -l
+
+# 3. Mọi đoạn code trích trong docs có còn tồn tại không?
+#    Lấy một dòng đặc trưng bất kỳ rồi tìm ngược lại trong mã nguồn.
+grep -rn "URLS_SEEN_PER_PAGE" search-engine/src/main/java/
+grep -rn "followRedirects" search-engine/src/main/java/
+```
+
+Lệnh số 3 chính là lệnh đã phát hiện ra đoạn
+`visited = new BloomFilter(Math.max(200_000, config.maxPages * 200), 0.01)`
+**không còn tồn tại ở đâu trong repo** — nó bị trích trong hai trang tài liệu
+suốt nhiều tháng sau khi code đã đổi.
+
+---
+
+## 14. Đọc tiếp gì
 
 | Muốn hiểu | Đọc trang nào |
 |---|---|
-| Toán của Bloom Filter — vì sao 1,1 MB đủ cho 200.000 URL | [BloomFilter.md](BloomFilter.md) |
+| Toán của Bloom Filter — vì sao **1,14 MB đủ cho 1 triệu URL** | [BloomFilter.md](BloomFilter.md) |
 | Chứng minh trần thông lượng, chống bỏ đói bằng xác suất | [UrlFrontier.md](UrlFrontier.md) |
 | Phát hiện kết thúc phân tán, $P(\text{nhầm}) \approx 10^{-15}$ | [CrawlerService.md](CrawlerService.md) |
 | Nghịch lý ngày sinh cho SHA-256 | [ContentSeenFilter.md](ContentSeenFilter.md) |
 | Quan hệ tương đương và dạng chuẩn tắc của URL | [UrlCanonicalizer.md](UrlCanonicalizer.md) |
 | Khớp tiền tố dài nhất, máy trạng thái hai cờ | [RobotsTxtParser.md](RobotsTxtParser.md) |
-| **Nhóm 6 — bus và chế độ phân tán** | [Sơ đồ tư duy Kafka](../10-kafka/00-SO-DO-TU-DUY.md) |
-| **Nhóm 6 — kho ảnh và cách chọn ảnh đại diện** | [Sơ đồ tư duy tầng ảnh](../11-images/00-SO-DO-TU-DUY.md) |
-| **Dữ liệu crawl được đi tiếp về đâu** | [Sơ đồ tư duy tầng chỉ mục](../03-index/00-SO-DO-TU-DUY.md) |
+| **Nhóm 6 — bus và chế độ phân tán** | [Sơ đồ tư duy Kafka](../09-kafka/00-SO-DO-TU-DUY.md) |
+| **Nhóm 6 — kho ảnh và cách chọn ảnh đại diện** | [Sơ đồ tư duy tầng ảnh](../10-images/00-SO-DO-TU-DUY.md) |
+| **Dữ liệu crawl được đi tiếp về đâu** | [Sơ đồ tư duy tầng chỉ mục](../02-index/00-SO-DO-TU-DUY.md) |

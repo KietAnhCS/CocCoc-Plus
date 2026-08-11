@@ -35,6 +35,7 @@ luật **cụ thể hơn**, và cái cụ thể bao giờ cũng là ngoại lệ
 tổng quát.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     P["đường dẫn /admin/public/x"]
     C["thu mọi luật KHỚP tiền tố"]
@@ -49,6 +50,7 @@ flowchart TD
 Máy trạng thái đọc tệp — chỗ dễ sai nhất là **khối `User-agent` nào đang mở**:
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 stateDiagram-v2
     [*] --> NgoaiKhoi
     NgoaiKhoi --> TrongKhoiCuaTa : User-agent khớp * hoặc tên ta
@@ -80,9 +82,10 @@ IS-PATH-ALLOWED(rules, path):
     trả về (best = null) hoặc best.isAllow      # không luật nào khớp → cho phép
 ```
 
-**Mã thật:**
+**Mã thật — `RobotsTxtParser.java:59-70`:**
 
 ```java
+/** Luat co duong dan CU THE (dai) nhat khop se thang (chuan robots.txt). */
 boolean isPathAllowed(List<Rule> rules, String path) {
     Rule best = null;
     for (Rule rule : rules) {
@@ -95,6 +98,17 @@ boolean isPathAllowed(List<Rule> rules, String path) {
     return best == null || best.isAllow();
 }
 ```
+
+> ⚠️ **Toán tử `>` chặt, không phải `>=` — và đó là một sai lệch nhỏ so với chuẩn.**
+> Khi hai luật khớp **cùng độ dài**, `>` giữ nguyên luật gặp **trước**. Chuẩn
+> quy định `Allow` thắng trong ca hoà. Đổi thành `>=` cũng chưa đúng — nó chỉ
+> lật thành "luật gặp **sau** thắng". Muốn đúng chuẩn phải viết:
+> ```java
+> if (best == null
+>         || rule.path().length() > best.path().length()
+>         || (rule.path().length() == best.path().length() && rule.isAllow())) {
+> ```
+> Ghi lại ở §6.2 như một hạn chế đã biết.
 
 **Chạy tay với ví dụ ở đầu bài:**
 
@@ -149,13 +163,20 @@ private final Map<String, List<Rule>> cache = new ConcurrentHashMap<>();
 List<Rule> rules = cache.computeIfAbsent(domainKey, key -> fetchAndParse(key, userAgent));
 ```
 
-Fetch robots.txt qua mạng mất khoảng **100–500 ms**. Không cache thì với 5.011 trang:
+Fetch robots.txt qua mạng mất khoảng **100–500 ms**. Không cache thì với 5.011 trang *(mốc A)*:
 
 $$5011 \times 200\text{ms} \approx \mathbf{17 \text{ phút}} \text{ chỉ để tải robots.txt}$$
 
 — gấp hơn 5 lần toàn bộ thời gian crawl thật (3,2 phút). Có cache, ta tải đúng **52 lần** (mỗi host một lần):
 
 $$52 \times 200\text{ms} \approx \mathbf{10 \text{ giây}}$$
+
+**Độ lợi tăng theo quy mô, không giảm.** Ở mốc D (31.030 trang, 93 host):
+
+$$\underbrace{31030 \times 200\text{ms} \approx 103 \text{ phút}}_{\text{không cache}} \quad\text{so với}\quad \underbrace{93 \times 200\text{ms} \approx 19 \text{ giây}}_{\text{có cache}}$$
+
+Tỷ lệ tiết kiệm đi từ ~96× lên ~330×, vì số lần tải chỉ tăng theo **số host** còn
+số lần hỏi tăng theo **số trang** — hai đại lượng lệch nhau ngày càng xa.
 
 **Vì sao `ConcurrentHashMap` mà không phải `synchronized Map`:** nhiều worker thread cùng gọi `isAllowed` đồng thời. `computeIfAbsent` của `ConcurrentHashMap` khoá **theo bucket** chứ không khoá cả bảng, nên hai thread hỏi hai domain khác nhau không chặn nhau.
 
@@ -257,7 +278,7 @@ $$394\,940 \times 50 \times 60 \approx 1{,}2 \times 10^9 \text{ phép so ký t�
 
 Nghe lớn, nhưng đó là khoảng **1 giây CPU** — không đáng kể so với 3,2 phút chờ mạng.
 
-> **Nếu $R$ lớn.** Có site có hàng nghìn luật. Khi đó nên dựng một **Trie** trên các đường dẫn luật: longest-prefix-match trở thành "đi sâu nhất có thể trong trie", tức $O(L)$ thay vì $O(R \cdot L)$. Đây đúng là cấu trúc mà bộ định tuyến IP dùng. Dự án đã có sẵn một `Trie` tự cài ([Trie.md](../06-datastructures/Trie.md)) nên chi phí tái sử dụng rất thấp — một hướng mở rộng tự nhiên.
+> **Nếu $R$ lớn.** Có site có hàng nghìn luật. Khi đó nên dựng một **Trie** trên các đường dẫn luật: longest-prefix-match trở thành "đi sâu nhất có thể trong trie", tức $O(L)$ thay vì $O(R \cdot L)$. Đây đúng là cấu trúc mà bộ định tuyến IP dùng. Dự án đã có sẵn một `Trie` tự cài ([Trie.md](../05-datastructures/Trie.md)) nên chi phí tái sử dụng rất thấp — một hướng mở rộng tự nhiên.
 
 ---
 
@@ -288,5 +309,5 @@ Nghe lớn, nhưng đó là khoảng **1 giây CPU** — không đáng kể so v
 ## 7. Liên kết
 
 - Người dùng: [CrawlerService.md](CrawlerService.md)
-- Cấu trúc có thể dùng để tăng tốc `isPathAllowed`: [Trie.md](../06-datastructures/Trie.md)
+- Cấu trúc có thể dùng để tăng tốc `isPathAllowed`: [Trie.md](../05-datastructures/Trie.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

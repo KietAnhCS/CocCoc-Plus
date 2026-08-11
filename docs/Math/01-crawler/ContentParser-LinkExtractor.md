@@ -16,6 +16,7 @@ Một trang tin tức 200 KB HTML chứa: menu, quảng cáo, script theo dõi, 
 Nó cũng là nơi **đồ thị web được sinh ra**: mỗi thẻ `<a href>` trở thành một cạnh, và tập hợp 239.691 cạnh này chính là đầu vào của PageRank.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     H["HTML thô<br/>200 KB"]
     D["cây DOM<br/>Jsoup"]
@@ -128,6 +129,8 @@ Vẫn phải kiểm tra `null` ở đó vì tài liệu có thể đến từ JS
 
 ## 3. Trích xuất thân bài — loại nhiễu bằng danh sách đen
 
+**`ContentParser.java:80-84`:**
+
 ```java
 private String extractBodyText(Document document) {
     Document clone = document.clone();
@@ -171,7 +174,85 @@ Bài ngắn bị phạt nặng hơn bài dài (vì boilerplate chiếm tỉ lệ
 
 > **Hạn chế của cách làm này.** Danh sách đen theo tên thẻ chỉ bắt được boilerplate được đánh dấu ngữ nghĩa đúng. Rất nhiều site dùng `<div class="menu">` thay vì `<nav>` — và những chỗ đó lọt lưới. Các thuật toán chuyên dụng (**Boilerpipe**, **Readability**, hoặc phương pháp **mật độ liên kết** — đoạn nào có tỉ lệ ký tự-trong-thẻ-`<a>` cao thì là menu) làm việc này tốt hơn nhiều. Đây là một hướng nâng cấp rõ ràng cho đồ án tốt nghiệp.
 
-### 3.3 `.text()` làm gì
+### 3.3 Ngôn ngữ trang tự khai — một trường mới, và vì sao nó chỉ là "gợi ý"
+
+`ContentParser.parse` nay điền thêm một trường thứ tư (`ContentParser.java:44`),
+lấy bằng một **chuỗi dự phòng ba tầng** — `ContentParser.java:59-70`:
+
+```java
+private String extractDeclaredLanguage(Document document) {
+    Element html = document.selectFirst("html");
+    String declared = html != null ? html.attr("lang") : "";
+    if (declared.isBlank()) {
+        Element meta = document.selectFirst("meta[http-equiv=content-language]");
+        if (meta == null) {
+            meta = document.selectFirst("meta[property=og:locale]");
+        }
+        declared = meta != null ? meta.attr("content") : "";
+    }
+    return LanguageFilter.normalizeLanguageTag(declared);
+}
+```
+
+**Điểm quan trọng nhất nằm ở Javadoc `:50-57`, không ở code:**
+
+> Đây mới chỉ là một **gợi ý**, không phải kết luận: rất nhiều mã nguồn website
+> để mặc định `lang="en"` trên toàn bộ site kể cả trang tiếng Việt.
+> `LanguageFilter` sẽ **ghi đè** trường này bằng kết quả nhận diện theo **nội
+> dung**, và chỉ dùng tới giá trị khai báo khi trang quá ngắn để có bằng chứng
+> nội dung.
+
+```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
+flowchart TD
+    H["thẻ html lang"]
+    M1["meta http-equiv=content-language"]
+    M2["meta property=og:locale"]
+    N["normalizeLanguageTag"]
+    D["doc.language — GỢI Ý"]
+    LF["LanguageFilter nhìn NỘI DUNG thật"]
+    OUT["doc.language — KẾT LUẬN"]
+    SHORT["trang quá ngắn:<br/>không đủ bằng chứng nội dung"]
+
+    H -->|"rỗng thì thử tiếp"| M1
+    M1 -->|"rỗng thì thử tiếp"| M2
+    H --> N
+    M1 --> N
+    M2 --> N
+    N --> D
+    D --> LF
+    LF -->|"có bằng chứng"| OUT
+    LF -->|"không đủ"| SHORT --> D
+```
+
+<details>
+<summary><b>Xem bản chữ (ASCII)</b></summary>
+
+```
+   <html lang="...">                 ─┐
+        │ rỗng thì thử tiếp           │
+        ▼                             ├─► normalizeLanguageTag ──► doc.language
+   <meta http-equiv=content-language> │                            (mới là GỢI Ý)
+        │ rỗng thì thử tiếp           │                                  │
+        ▼                             │                                  ▼
+   <meta property=og:locale>         ─┘                        LanguageFilter
+                                                          nhìn NỘI DUNG thật
+                                                                  │
+                                              ┌───────────────────┴──────────┐
+                                              ▼                              ▼
+                                     có bằng chứng nội dung        trang quá ngắn
+                                     ⇒ GHI ĐÈ, thành kết luận      ⇒ dùng giá trị tự khai
+```
+
+</details>
+
+**Bài học thiết kế:** trang web là **nguồn dữ liệu không đáng tin**. Lấy giá trị
+nó tự khai là đúng, nhưng coi đó là kết luận thì sai. Cách làm ở đây — *lấy làm
+gợi ý, kiểm chứng bằng bằng chứng độc lập, chỉ quay về gợi ý khi không có bằng
+chứng* — là mẫu đáng dùng lại cho mọi siêu dữ liệu do trang tự khai (`canonical`,
+`published_time`, `author`).
+
+### 3.4 `.text()` làm gì
 
 Jsoup `.text()` duyệt cây DOM theo thứ tự tài liệu, thu thập mọi nút văn bản, **chèn khoảng trắng ở ranh giới thẻ khối**, và gộp các khoảng trắng liên tiếp.
 
@@ -185,8 +266,9 @@ Chi tiết chèn khoảng trắng quan trọng: nếu nối thẳng, ta được
 
 ## 4. Trích xuất outlink — nơi đồ thị web sinh ra
 
+**`LinkExtractor.java:45-64`** — cả lớp chỉ có đúng một phương thức này:
+
 ```java
-// LinkExtractor.java - khoi "Link Extractor" trong so do
 public List<String> extract(String baseUrl, Document document) {
     String canonicalBase = UrlCanonicalizer.canonicalize(baseUrl);
     Set<String> seen = new LinkedHashSet<>();
@@ -250,13 +332,21 @@ Chú ý **cả hai vế đều được chuẩn hoá** — đây chính là ví 
 
 ## 5. Số liệu thực tế
 
-| Đại lượng | Giá trị |
-|---|---|
-| Tổng outlink trích được | **394.940** |
-| Trung bình mỗi trang | **78,8** |
-| Trong đó trỏ **vào** corpus (thành cạnh PageRank) | **239.691** (60,7 %) |
-| — liên kết nội bộ domain | 197.689 (82,5 % số cạnh) |
-| — **liên kết chéo domain** | **42.002 (17,5 %)** |
+> 📊 Bảng này đo trên **mốc A** (5.011 trang). Repo có bốn mốc corpus — bảng quy
+> chiếu ở đầu [`DSA-REPORT.md`](../../DSA-REPORT.md).
+
+| Đại lượng | **Mốc A** — 5.011 trang | **Mốc D** — 31.030 trang |
+|---|---|---|
+| Tổng outlink trích được | **394.940** | **2.100.699** |
+| Trung bình mỗi trang | **78,8** | **70,0** |
+| Trong đó trỏ **vào** corpus (thành cạnh PageRank) | **239.691** (60,7 %) | **1.611.135** (76,7 %) |
+| — liên kết nội bộ domain | 197.689 (82,5 % số cạnh) | 1.439.708 (89,4 %) |
+| — **liên kết chéo domain** | **42.002 (17,5 %)** | **171.427 (10,6 %)** |
+
+**Hai xu hướng đọc được khi corpus lớn lên gấp 6 lần:**
+
+1. **Tỷ lệ cạnh giữ lại tăng** (60,7 % → 76,7 %): corpus càng lớn thì càng nhiều outlink trỏ tới trang **đã có trong corpus**, nên ít cạnh bị bỏ hơn. Thiên lệch nêu ở dưới **giảm dần** theo quy mô.
+2. **Tỷ lệ chéo domain lại giảm** (17,5 % → 10,6 %): đi sâu hơn (`maxDepth=4`) sinh ra rất nhiều liên kết điều hướng nội bộ. Với PageRank, đây là chiều **xấu** — xem ghi chú cuối mục.
 
 **Đọc con số 60,7 %.** Gần 40% outlink trỏ ra ngoài corpus (site khác không nằm trong 6 báo được crawl, hoặc trang trong 6 báo nhưng chưa kịp crawl). Những cạnh đó bị bỏ khi dựng ma trận PageRank:
 
@@ -321,6 +411,6 @@ Với trang 200 KB: khoảng $2 \times 10^5 + 78{,}8 \times 60 \approx 2{,}05 \t
 - Người gọi: [CrawlerService.md](CrawlerService.md)
 - Khối đứng giữa hai lớp này: [ContentSeenFilter.md](ContentSeenFilter.md)
 - Chuẩn hoá URL: [UrlCanonicalizer.md](UrlCanonicalizer.md)
-- Nơi dùng `bodyText`: [VietnameseTokenizer.md](../03-index/VietnameseTokenizer.md) · [InvertedIndex.md](../03-index/InvertedIndex.md)
-- Nơi dùng `outlinks`: [PageRankService.md](../05-ranking/PageRankService.md)
+- Nơi dùng `bodyText`: [VietnameseTokenizer.md](../02-index/VietnameseTokenizer.md) · [InvertedIndex.md](../02-index/InvertedIndex.md)
+- Nơi dùng `outlinks`: [PageRankService.md](../04-ranking/PageRankService.md)
 - Ký hiệu chưa hiểu: [00 — Từ điển ký hiệu toán](../00-KY-HIEU-TOAN.md)

@@ -11,7 +11,7 @@
 > - **Chuẩn bị bảo vệ / review?** Đọc **§15 — Đánh giá kiến trúc theo chuẩn doanh nghiệp**. Mục đó nói thẳng chỗ nào đạt, chỗ nào chưa, và sửa thế nào.
 > - Sơ đồ vẽ bằng **Mermaid**. Trình xem nào không hiện hình thì bấm khối *"Xem bản chữ (ASCII)"* ngay dưới mỗi sơ đồ.
 >
-> 📖 **Liên quan:** [Kiến trúc backend](ARCHITECTURE.md) · [Stack — hai ngăn xếp back/forward](Math/08-frontend/Stack.md) · [BookmarkTrie](Math/08-frontend/BookmarkTrie.md) · [Sơ đồ tư duy tầng frontend](Math/08-frontend/00-SO-DO-TU-DUY.md)
+> 📖 **Liên quan:** [Kiến trúc backend](ARCHITECTURE.md) · [Stack — hai ngăn xếp back/forward](Math/07-frontend/Stack.md) · [BookmarkTrie](Math/07-frontend/BookmarkTrie.md) · [Sơ đồ tư duy tầng frontend](Math/07-frontend/00-SO-DO-TU-DUY.md)
 
 ---
 
@@ -42,6 +42,7 @@
 ## 1. Sơ đồ tư duy — toàn cảnh frontend
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     ROOT["TRÌNH DUYỆT VnSearch<br/>browser-app/ · 42 file"]
 
@@ -160,6 +161,7 @@ Ba con số **122 / 48 / 340** là toàn bộ "vật lý" của ứng dụng nà
 ## 4. Ba tiến trình của Electron
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TB
     subgraph MAIN["TIẾN TRÌNH CHÍNH (Node.js đầy đủ quyền)"]
         TM["TabManager<br/>tạo/đóng/chuyển tab<br/>bố trí view"]
@@ -245,6 +247,7 @@ Một trình duyệt phải hiện *đồng thời*: vỏ (thanh tab, ô địa 
 - **Nhiều** `tabView` — mỗi tab đang mở một URL thật có một cái, **chồng lên trên** `chromeView`, chỉ phủ vùng nội dung.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TB
     W["BrowserWindow.contentView"]
     W --> CV["chromeView<br/>(0, 0, W, H) — React app<br/>LUÔN có mặt, nằm DƯỚI"]
@@ -325,6 +328,7 @@ Khi con trỏ ở trong trang ngoài, phím bấm đi thẳng vào `tabView`. V�
 Giải pháp: `tabManager.forwardShortcuts()` bắt `before-input-event` trên mỗi `tabView`, nhận ra tổ hợp trình duyệt, `preventDefault()`, rồi `send('browser:shortcut', name)` về vỏ. Vỏ là **nơi duy nhất** thực thi lệnh.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     K1["Bàn phím trong VỎ<br/>(trang chủ/kết quả)"] --> H["runShortcut(name)<br/>useBrowserShortcuts.ts:36<br/>MỘT chỗ thực thi duy nhất"]
     K2["Bàn phím trong TRANG NGOÀI"] --> BIE["before-input-event<br/>tabManager.ts:314"]
@@ -445,7 +449,7 @@ Lịch sử **không** đi qua IPC, và đó là lựa chọn có chủ ý. Lị
 tự giữ bằng **hai ngăn xếp** trong `historyStore.ts` thay vì gọi
 `webContents.goBack()` của Electron — hai lý do, ghi ở §9.2: để trạng thái hai
 bên không lệch nhau, và để phần cấu trúc dữ liệu tự cài được thể hiện. Xem
-[`Math/08-frontend/Stack.md`](Math/08-frontend/Stack.md).
+[`Math/07-frontend/Stack.md`](Math/07-frontend/Stack.md).
 
 Hệ quả thực tế: lùi/tiến chỉ là một lời gọi `browser:navigate` bình thường,
 nên nếu bạn đi tìm kênh `goBack` để sửa nút Lùi thì không có kênh nào cả.
@@ -457,6 +461,7 @@ nên nếu bạn đi tìm kênh `goBack` để sửa nút Lùi thì không có k
 ### 8.1. Gõ từ khoá → thấy kết quả
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 sequenceDiagram
     participant U as Người dùng
     participant AB as AddressBar
@@ -516,6 +521,7 @@ Ngược lại, `navigate(id, HOME_URL)` **huỷ hẳn** `tabView` (`removeChild
 Đây là quyết định thiết kế có chủ đích, phục vụ mục tiêu học thuật của đồ án.
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart LR
     B["Bấm Back"] --> TS["tabStore.goBack()"]
     TS --> HS["historyStore.goBack(tabId)"]
@@ -527,7 +533,7 @@ flowchart LR
     UPD --> REC["recordNavigation()<br/>thấy cờ → CHỈ cập nhật currentUrl<br/>KHÔNG push lại"]
 ```
 
-Cờ `suppressNextRecord` là chỗ tinh tế nhất: nếu không có nó, chính lượt điều hướng do `goBack` gây ra sẽ quay lại push vào `backStack` → nút Back thành vòng lặp vô tận giữa hai trang. Phân tích đầy đủ ở [Math/08-frontend/Stack.md](Math/08-frontend/Stack.md).
+Cờ `suppressNextRecord` là chỗ tinh tế nhất: nếu không có nó, chính lượt điều hướng do `goBack` gây ra sẽ quay lại push vào `backStack` → nút Back thành vòng lặp vô tận giữa hai trang. Phân tích đầy đủ ở [Math/07-frontend/Stack.md](Math/07-frontend/Stack.md).
 
 ### 8.4. Mở bảng bên phải
 ```
@@ -566,6 +572,7 @@ Tương tự, lớp `Maximizer` **tự đặt bounds** bằng `screen.getDisplay
 ### 9.1. Bản đồ phụ thuộc
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 flowchart TD
     TS["tabStore<br/>141 dòng · danh sách tab, tab đang mở"]
     HS["historyStore<br/>165 dòng · 2 Stack/tab"]
@@ -756,6 +763,7 @@ Nếu đo trực tiếp hàng đang hiện: cắt bớt → hàng ngắn lại �
 #### Vòng đời của một quyền
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 sequenceDiagram
     participant U as Người dùng
     participant R as SideRail
@@ -880,9 +888,9 @@ avatar và menu nay đọc `sessionStore`.
 | `apps.tsx` | 245 | 10 ứng dụng cột bên phải, logo SVG nội tuyến (phỏng theo, không phải logo chính thức) |
 | `newsApi.ts` | 90 | Khu "Tin nóng". Gọi **`/api/feed`** — một vòng mạng mỗi lô, chỉ lấy bài có ảnh, phân trang được. Truyền `seed` để lô sau nối đúng vào lô trước |
 | `useBrowserShortcuts.ts` | 96 | Hook gộp hai nguồn sự kiện phím thành **một** chỗ thực thi |
-| **`BookmarkTrie.ts`** | 55 | **DSA tự cài** — cây tiền tố tìm dấu trang. Bản TypeScript song song với `Trie.java`. Xem [BookmarkTrie.md](Math/08-frontend/BookmarkTrie.md) |
+| **`BookmarkTrie.ts`** | 55 | **DSA tự cài** — cây tiền tố tìm dấu trang. Bản TypeScript song song với `Trie.java`. Xem [BookmarkTrie.md](Math/07-frontend/BookmarkTrie.md) |
 | `site.ts` | 38 | `hostOf`, `prettyUrl`, và **favicon giả**: băm FNV-1a 32 bit tên miền → hue → gradient ổn định |
-| **`Stack.ts`** | 31 | **DSA tự cài** — LIFO cho back/forward. Xem [Stack.md](Math/08-frontend/Stack.md) |
+| **`Stack.ts`** | 31 | **DSA tự cài** — LIFO cho back/forward. Xem [Stack.md](Math/07-frontend/Stack.md) |
 | `seedSites.ts` | 13 | 6 báo seed của crawler. **Một nguồn cho ba chỗ dùng**: dấu trang, lối tắt, thanh dấu trang |
 | `adminApi.ts` | 160 | Cổng ra các endpoint `/api/admin/**`. **Tách khỏi `searchApi.ts` có chủ ý**: `searchApi` không bao giờ được gửi khoá quản trị, tệp này thì luôn phải gửi — tách ra thì trình kiểm kiểu bắt buộc mọi lời gọi ở đây có khoá. Lớp lỗi riêng `AdminAuthError` để phân biệt "bị từ chối quyền" (phải đăng nhập lại) với "mất mạng" (giữ nguyên phiên) |
 | `authApi.ts` | 143 | Cổng ra `/api/auth/**`. Khác `telemetry.ts`, **mọi hàm ở đây đều có thể ném**: người dùng đang chờ kết quả và cần biết vì sao hỏng. Giữ nguyên thông báo của máy chủ ("mật khẩu phải dài ít nhất 8 ký tự") thay vì thay bằng câu chung chung |

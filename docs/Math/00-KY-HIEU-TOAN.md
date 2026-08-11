@@ -8,6 +8,7 @@
 ### Ký hiệu nào dùng ở tầng nào
 
 ```mermaid
+%%{init:{'theme':'base','themeVariables':{'background':'#ffffff','primaryColor':'#ffffff','primaryTextColor':'#000000','primaryBorderColor':'#000000','secondaryColor':'#ffffff','secondaryTextColor':'#000000','secondaryBorderColor':'#000000','tertiaryColor':'#ffffff','tertiaryTextColor':'#000000','tertiaryBorderColor':'#000000','lineColor':'#000000','textColor':'#000000','mainBkg':'#ffffff','nodeBorder':'#000000','clusterBkg':'#ffffff','clusterBorder':'#000000','edgeLabelBackground':'#ffffff','actorBkg':'#ffffff','actorBorder':'#000000','actorTextColor':'#000000','actorLineColor':'#000000','signalColor':'#000000','signalTextColor':'#000000','labelBoxBkgColor':'#ffffff','labelBoxBorderColor':'#000000','labelTextColor':'#000000','loopTextColor':'#000000','noteBkgColor':'#ffffff','noteBorderColor':'#000000','noteTextColor':'#000000','sequenceNumberColor':'#ffffff','fontFamily':'ui-monospace, SFMono-Regular, Consolas, monospace'}}}%%
 mindmap
   root((Ký hiệu<br/>theo tầng))
     Chỉ mục
@@ -191,7 +192,7 @@ for (int i = 1; i <= 4; i++) sum += 1.0 / i;   // sum = 2.083
 | số ở trên ($4$) | `i <= 4` |
 | biểu thức sau $\Sigma$ | thân vòng lặp, `sum +=` |
 
-Ví dụ thật trong dự án — công thức BM25 (tài liệu [BM25Scorer](05-ranking/BM25Scorer.md)):
+Ví dụ thật trong dự án — công thức BM25 (tài liệu [BM25Scorer](04-ranking/BM25Scorer.md)):
 
 $$\text{score}(d, q) = \sum_{t \in q} \text{IDF}(t) \cdot \frac{f(t,d)\,(k_1+1)}{f(t,d) + k_1\bigl(1 - b + b\frac{\lvert d\rvert}{\text{avgdl}}\bigr)}$$
 
@@ -253,7 +254,7 @@ Logarit là ký hiệu bị hiểu sai nhiều nhất. Cách đọc đúng và d
 
 $$\log_{10} x = \frac{\ln x}{\ln 10} = 0{,}434 \cdot \ln x$$
 
-Nên với **xếp hạng**, chọn cơ số nào **không đổi thứ tự kết quả** — chỉ đổi thang điểm. Đó là lý do TF-IDF dùng $\log_{10}$ còn BM25 dùng $\ln$ mà không ai thấy vấn đề gì. Nhưng khi **cộng hai điểm khác thang** thì chuyện lại hoàn toàn khác — xem [ResultRanker §6](05-ranking/ResultRanker.md).
+Nên với **xếp hạng**, chọn cơ số nào **không đổi thứ tự kết quả** — chỉ đổi thang điểm. Đó là lý do TF-IDF dùng $\log_{10}$ còn BM25 dùng $\ln$ mà không ai thấy vấn đề gì. Nhưng khi **cộng hai điểm khác thang** thì chuyện lại hoàn toàn khác — xem [ResultRanker §6](04-ranking/ResultRanker.md).
 
 Java không có `log2`, nên code viết đổi cơ số thủ công:
 
@@ -285,7 +286,7 @@ $$n^2 = 5011^2 = 25\,110\,121 \text{ ô} \times 8 \text{ byte} = \mathbf{191{,}5
 
 $$\text{nnz} = 239\,691 \text{ phần tử khác 0} \Rightarrow \approx \mathbf{3{,}7\ MB}$$
 
-Chênh **52 lần**, và tỉ lệ này còn **xấu đi** khi corpus lớn hơn. Xem [SparseMatrix](06-datastructures/SparseMatrix.md).
+Chênh **52 lần**, và tỉ lệ này còn **xấu đi** khi corpus lớn hơn. Xem [SparseMatrix](05-datastructures/SparseMatrix.md).
 
 ---
 
@@ -300,7 +301,7 @@ Chênh **52 lần**, và tỉ lệ này còn **xấu đi** khi corpus lớn hơn
 | $\emptyset$ | rỗng | Tập không có phần tử nào | Giao rỗng → dừng sớm |
 | $\le$, $\ge$ | nhỏ/lớn hơn hoặc bằng | | |
 
-Bất đẳng thức quan trọng nhất của module truy vấn (xem [PostingListMerger](04-query/PostingListMerger.md)):
+Bất đẳng thức quan trọng nhất của module truy vấn (xem [PostingListMerger](03-query/PostingListMerger.md)):
 
 $$\lvert A \cap B \rvert \;\le\; \min\bigl(\lvert A \rvert, \lvert B \rvert\bigr)$$
 
@@ -327,7 +328,7 @@ $$\cos(\vec{q}, \vec{d_1}) = \frac{2}{1 \cdot 2} = 1{,}0 \qquad \cos(\vec{q}, \v
 
 $\vec{d_1}$ dài gấp đôi nhưng **cùng hướng hoàn toàn** với truy vấn → điểm tuyệt đối. Đúng trực giác.
 
-Xem [TfIdfScorer](05-ranking/TfIdfScorer.md).
+Xem [TfIdfScorer](04-ranking/TfIdfScorer.md).
 
 ---
 
@@ -394,7 +395,7 @@ for (int row = 0; row < rows; row++) {
 }
 ```
 
-Đó là toàn bộ khác biệt giữa $O(n^2)$ và $O(\text{nnz})$. Xem [SparseMatrix](06-datastructures/SparseMatrix.md) và [PageRankService](05-ranking/PageRankService.md).
+Đó là toàn bộ khác biệt giữa $O(n^2)$ và $O(\text{nnz})$. Xem [SparseMatrix](05-datastructures/SparseMatrix.md) và [PageRankService](04-ranking/PageRankService.md).
 
 ---
 
@@ -454,20 +455,20 @@ Ba công thức, ba câu hỏi: *"Từ này quan trọng thế nào?"*, *"Trang 
 
 | Công thức | Dòng code tương ứng | Tài liệu |
 |---|---|---|
-| $\sum_{t \in q}$ | `for (Map.Entry<String,Integer> e : queryTermFrequency.entrySet())` | [TfIdfScorer](05-ranking/TfIdfScorer.md) |
-| $\log_{10}(N/\text{df})$ | `Math.log10((double) totalDocs / documentFrequency)` | [TfIdfScorer](05-ranking/TfIdfScorer.md) |
-| $\ln\!\left(1 + \frac{N-\text{df}+0{,}5}{\text{df}+0{,}5}\right)$ | `Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5))` | [BM25Scorer](05-ranking/BM25Scorer.md) |
-| $\lVert \text{PR}_{k+1} - \text{PR}_k \rVert_1 < \varepsilon$ | `while (diff >= EPSILON && iteration < MAX_ITERATIONS)` | [PageRankService](05-ranking/PageRankService.md) |
+| $\sum_{t \in q}$ | `for (Map.Entry<String,Integer> e : queryTermFrequency.entrySet())` | [TfIdfScorer](04-ranking/TfIdfScorer.md) |
+| $\log_{10}(N/\text{df})$ | `Math.log10((double) totalDocs / documentFrequency)` | [TfIdfScorer](04-ranking/TfIdfScorer.md) |
+| $\ln\!\left(1 + \frac{N-\text{df}+0{,}5}{\text{df}+0{,}5}\right)$ | `Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5))` | [BM25Scorer](04-ranking/BM25Scorer.md) |
+| $\lVert \text{PR}_{k+1} - \text{PR}_k \rVert_1 < \varepsilon$ | `while (diff >= EPSILON && iteration < MAX_ITERATIONS)` | [PageRankService](04-ranking/PageRankService.md) |
 | $\lceil -n\ln p/(\ln 2)^2 \rceil$ | `Math.ceil(-expectedItems * Math.log(fpRate) / (ln2*ln2))` | [BloomFilter](01-crawler/BloomFilter.md) |
 | $h_i = (h_1 + i\,h_2) \bmod m$ | `Math.floorMod(h1 + (long) i * h2, (long) numBits)` | [BloomFilter](01-crawler/BloomFilter.md) |
-| $\lfloor (i-1)/2 \rfloor$ | `int parent = (i - 1) / 2;` | [MinHeap](06-datastructures/MinHeap.md) |
-| $(2^{\text{rel}}-1)/\log_2(i+2)$ | `gain(grade) / discount(i)` | [EvaluationMetrics](07-eval/EvaluationMetrics.md) |
-| $\lvert A \cap B \rvert \le \min(\lvert A\rvert, \lvert B\rvert)$ | `sorted.sort(Comparator.comparingInt(List::size))` | [PostingListMerger](04-query/PostingListMerger.md) |
-| $\alpha r + \beta p + \gamma t$ | `alpha * relevance + beta * pageRank + gamma * titleBonus` | [ResultRanker](05-ranking/ResultRanker.md) |
+| $\lfloor (i-1)/2 \rfloor$ | `int parent = (i - 1) / 2;` | [MinHeap](05-datastructures/MinHeap.md) |
+| $(2^{\text{rel}}-1)/\log_2(i+2)$ | `gain(grade) / discount(i)` | [EvaluationMetrics](06-eval/EvaluationMetrics.md) |
+| $\lvert A \cap B \rvert \le \min(\lvert A\rvert, \lvert B\rvert)$ | `sorted.sort(Comparator.comparingInt(List::size))` | [PostingListMerger](03-query/PostingListMerger.md) |
+| $\alpha r + \beta p + \gamma t$ | `alpha * relevance + beta * pageRank + gamma * titleBonus` | [ResultRanker](04-ranking/ResultRanker.md) |
 
 ---
 
 ## 17. Liên kết
 
 - Quay lại mục lục: [README.md](README.md)
-- Ba tài liệu toán đặc nhất, đọc sau trang này: [PageRankService](05-ranking/PageRankService.md) · [BloomFilter](01-crawler/BloomFilter.md) · [EvaluationMetrics](07-eval/EvaluationMetrics.md)
+- Ba tài liệu toán đặc nhất, đọc sau trang này: [PageRankService](04-ranking/PageRankService.md) · [BloomFilter](01-crawler/BloomFilter.md) · [EvaluationMetrics](06-eval/EvaluationMetrics.md)

@@ -286,7 +286,14 @@ services:
     volumes:
       - ./search-engine/data:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health/liveness || exit 1"]
+      # PHẢI là /actuator/health, KHÔNG phải /actuator/health/liveness. Nhóm
+      # probe liveness/readiness chỉ tự bật khi Spring Boot nhận ra mình đang
+      # chạy trong Kubernetes; ở đây là Docker Compose thuần nên đường dẫn đó
+      # trả 404 và container không bao giờ đạt healthy — tiến trình vẫn tiêu
+      # thụ Kafka bình thường, chỉ mỗi cột STATUS đứng mãi ở "starting" rồi
+      # "unhealthy". Muốn dùng lại /liveness thì phải thêm biến môi trường
+      # MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=true.
+      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10

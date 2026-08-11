@@ -2,47 +2,62 @@
 rem KHONG viet tieng Viet co dau trong file .bat: cmd.exe phan tich file theo
 rem byte offset, ky tu da byte lam lech con tro doc va cat vun cac dong lenh
 rem phia sau (ke ca khi da chcp 65001, ke ca khi luu kem BOM). Ly do day du xem
-rem trong run-crawl.bat. Phan chcp ben duoi la cho OUTPUT cua Java - thu ma cmd
-rem chi in ho chu khong phan tich.
+rem trong run-crawl.bat. Phan chcp ben duoi la cho OUTPUT cua Docker/Java - thu
+rem ma cmd chi in ho chu khong phan tich.
 setlocal
 
 rem ===========================================================================
-rem Khoi dong backend Spring Boot TREN MAY THAT (khong Docker).
+rem Dung TOAN BO he thong VnSearch bang Docker: build lai anh roi bat het dich vu.
 rem
-rem   run-backend.bat              corpus JSON + bus in-memory  <-- mac dinh
-rem   run-backend.bat --postgres   lay PostgreSQL lam nguon corpus uu tien
-rem   run-backend.bat --kafka      bus Kafka phan tan (can broker dang chay)
-rem   run-backend.bat --bm25       doi mo hinh cham diem sang BM25
+rem   run-backend.bat              FULL - 8 container, ~4 GB RAM   <-- mac dinh
+rem   run-backend.bat --kafka      backend + postgres + cum Kafka  ~3 GB
+rem   run-backend.bat --core       backend + postgres              ~1,5 GB
+rem   run-backend.bat --no-build   dung anh da co, khong build lai
+rem   run-backend.bat --logs       bam theo log backend sau khi len
 rem   run-backend.bat --help       in phan huong dan nay
 rem
-rem File nay danh cho vong lap phat trien: sua ma, Ctrl+C, chay lai. Muon chay
-rem ca backend + PostgreSQL trong container thi dung `docker compose up -d
-rem --build` (xem README.md) - o do khong can file .bat nao.
+rem Tat va giai phong RAM: end-backend.bat
+rem
+rem File nay KHONG con chay Maven tren may that nua. Moi thu chay trong
+rem container, nen ban chay giong het ban se cham diem - khong con canh "tren
+rem may em no chay duoc".
 rem ===========================================================================
 
 rem Chot duong dan goc TRUOC vong lap doc tham so. `shift` dich ca %0, nen sau
-rem hai lan shift thi `%~dp0` khong con la thu muc chua file .bat nua ma la
-rem thu muc suy ra tu mot THAM SO - trieu chung la "khong tim thay thu muc
-rem ...\search-engine\search-engine". Loi nay chi lo ra khi co truyen tham so,
-rem tuc chay tran van dung.
+rem hai lan shift thi `%~dp0` khong con la thu muc chua file .bat nua ma la thu
+rem muc suy ra tu mot THAM SO. Loi nay chi lo ra khi co truyen tham so.
 set "ROOT=%~dp0"
 set "ENV_FILE=%ROOT%.env"
 
 rem --- Doc tham so ---
-set "USE_POSTGRES="
-set "USE_KAFKA="
-set "SCORER="
+rem Mac dinh la FULL. Mot lan bam ra ca chuoi phan tan lan chuoi quan sat.
+set "MODE=full"
+set "PROFILES=--profile kafka --profile monitoring"
+set "BUS=kafka"
+set "BUILD=--build"
+set "FOLLOW_LOGS="
 
 :parse
 if "%~1"=="" goto :parsed
 if /i "%~1"=="--help" goto :usage
 if /i "%~1"=="-h" goto :usage
-if /i "%~1"=="--postgres" (
-    set "USE_POSTGRES=1"
+if /i "%~1"=="--full" (
+    set "MODE=full"
+    set "PROFILES=--profile kafka --profile monitoring"
+    set "BUS=kafka"
 ) else if /i "%~1"=="--kafka" (
-    set "USE_KAFKA=1"
-) else if /i "%~1"=="--bm25" (
-    set "SCORER=bm25"
+    set "MODE=kafka"
+    set "PROFILES=--profile kafka"
+    set "BUS=kafka"
+) else if /i "%~1"=="--core" (
+    set "MODE=core"
+    set "PROFILES="
+    rem Bus PHAI ve memory o che do nay. Xem muc "BUS SU KIEN" ben duoi.
+    set "BUS=memory"
+) else if /i "%~1"=="--no-build" (
+    set "BUILD="
+) else if /i "%~1"=="--logs" (
+    set "FOLLOW_LOGS=1"
 ) else (
     echo [LOI] Tham so khong hieu: %~1
     echo.
@@ -52,68 +67,94 @@ shift
 goto :parse
 :parsed
 
-rem Bang ma console: log khoi dong va thong bao loi cua ung dung deu la tieng
-rem Viet co dau. O bang ma mac dinh cua Windows (437/1258) chung ra dau hoi.
+rem Bang ma console: log cua backend va thong bao loi deu la tieng Viet co dau.
+rem O bang ma mac dinh cua Windows (437/1258) chung ra dau hoi.
 for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
 set "OLD_CP=%OLD_CP: =%"
 chcp 65001 >nul
 
-rem --- Kiem tra thu muc va cong cu ---
-cd /d "%ROOT%search-engine" 2>nul
+rem --- Thu muc goc ---
+cd /d "%ROOT%" 2>nul
+if not exist "docker-compose.yml" (
+    echo [LOI] Khong thay docker-compose.yml trong "%CD%".
+    echo       File .bat nay phai nam o THU MUC GOC cua repo.
+    goto :fail
+)
+
+rem ===========================================================================
+rem DOCKER
+rem ===========================================================================
+where docker >nul 2>nul
 if errorlevel 1 (
-    echo [LOI] Khong tim thay thu muc "%ROOT%search-engine".
-    echo       File .bat nay phai nam o THU MUC GOC cua repo, canh docker-compose.yml.
+    echo [LOI] Khong tim thay lenh `docker`.
+    echo       Cai Docker Desktop tai https://docker.com/products/docker-desktop
+    echo       roi MO LAI cua so nay ^(PATH chi duoc nap luc mo terminal^).
     goto :fail
 )
 
-if not exist "pom.xml" (
-    echo [LOI] Khong thay pom.xml trong "%CD%".
-    echo       Thu muc search-engine co ve khong day du.
-    goto :fail
-)
-
-rem Goi wrapper bang duong dan tuyet doi: neu bien moi truong
-rem NoDefaultCurrentDirectoryInExePath duoc bat, cmd KHONG tim lenh trong thu
-rem muc hien tai va "call mvnw.cmd" tran se bao khong tim thay lenh.
-set "MVNW=%CD%\mvnw.cmd"
-if not exist "%MVNW%" (
-    echo [LOI] Khong thay Maven Wrapper ^(mvnw.cmd^) trong "%CD%".
-    goto :fail
-)
-
-where java >nul 2>nul
+rem Phan biet ro hai loi khac nhau: thieu plugin compose v2, va engine chua chay.
+rem `docker compose version` chi hoi CLI nen tra loi duoc ngay ca khi engine tat.
+docker compose version >nul 2>nul
 if errorlevel 1 (
-    echo [LOI] Khong tim thay Java.
-    echo       Can JDK 17 tro len - cai tai https://adoptium.net roi mo lai cua so nay.
+    echo [LOI] Docker co, nhung khong co plugin `docker compose` ^(v2^).
+    echo       Ban Docker Desktop qua cu. Cap nhat len ban moi nhat.
     goto :fail
 )
-for /f "delims=" %%v in ('java -version 2^>^&1 ^| findstr /i "version"') do (
-    echo Java %%v
-    goto :java_done
-)
-:java_done
 
-rem --- Cong 8080 ---
-rem Spring Boot se bao "Port 8080 was already in use" roi thoat sau khi da nap
-rem xong ngu canh - tuc sau vai chuc giay lap chi muc. Kiem tra truoc o day de
-rem hong ngay lap tuc, va de noi duoc TIEN TRINH NAO dang giu cong (thuong la
-rem mot ban backend cu chua tat han, hoac container vnsearch-backend).
-set "PORT_PID="
-for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":8080 .*LISTENING"') do set "PORT_PID=%%p"
-if defined PORT_PID (
-    echo [LOI] Cong 8080 dang bi tien trinh PID %PORT_PID% chiem.
-    echo       Xem no la gi   : tasklist /FI "PID eq %PORT_PID%"
-    echo       Tat di         : taskkill /PID %PORT_PID% /F
-    echo       Neu la Docker  : docker compose stop backend
+rem Engine da chay chua. `docker info` phai NOI CHUYEN duoc voi daemon moi
+rem thanh cong, nen day la phep thu that chu khong phai kiem tra su ton tai.
+docker info >nul 2>nul
+if not errorlevel 1 goto :docker_ready
+
+echo Docker Desktop chua chay - dang bat...
+
+set "DOCKER_DESKTOP=%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+if not exist "%DOCKER_DESKTOP%" set "DOCKER_DESKTOP=%ProgramW6432%\Docker\Docker\Docker Desktop.exe"
+if not exist "%DOCKER_DESKTOP%" set "DOCKER_DESKTOP=%LocalAppData%\Docker\Docker Desktop.exe"
+if not exist "%DOCKER_DESKTOP%" (
+    echo [LOI] Khong tim thay Docker Desktop.exe o cac vi tri quen thuoc.
+    echo       Mo Docker Desktop bang tay, doi bieu tuong ca voi xanh, roi chay lai.
     goto :fail
 )
+
+start "" "%DOCKER_DESKTOP%"
+
+rem Doi engine. Lan khoi dong nguoi thuong mat 30-60 giay vi Docker Desktop
+rem phai dung may ao WSL2 truoc; may nguoi mat lau hon. Cho toi 240 giay roi
+rem moi bo cuoc - het thoi gian o day de dang hon la de `compose up` bao mot
+rem loi socket kho hieu.
+set /a DOCKER_WAIT=0
+:wait_docker
+rem `ping -n 4` = cho 3 giay. Dung ping chu khong dung `timeout /t` vi `timeout`
+rem hong ngay khi stdin bi chuyen huong (chay tu IDE, tu script khac).
+ping -n 4 127.0.0.1 >nul
+docker info >nul 2>nul
+if not errorlevel 1 goto :docker_started
+set /a DOCKER_WAIT+=3
+if %DOCKER_WAIT% GEQ 240 (
+    echo.
+    echo [LOI] Doi 4 phut ma Docker engine van chua san sang.
+    echo       Mo Docker Desktop xem no bao gi ^(hay gap: WSL2 chua cai, hoac
+    echo       Virtualization tat trong BIOS^).
+    goto :fail
+)
+echo    ... %DOCKER_WAIT%s
+goto :wait_docker
+
+:docker_started
+echo Docker Desktop da san sang sau %DOCKER_WAIT%s.
+
+:docker_ready
 
 rem ===========================================================================
 rem KHOA QUAN TRI
 rem ===========================================================================
-rem SecurityConfig TU CHOI khoi dong khi thieu app.security.admin-api-key: cac
-rem endpoint /api/admin/** dieu khien crawler va tai duoc URL tuy y, nen chay
-rem khong khoa la mot lo hong SSRF hoan chinh. Thu tu tim khoa o day:
+rem docker-compose.yml khai bao ADMIN_API_KEY voi cu phap `${...:?}`, tuc
+rem `docker compose` DUNG NGAY neu bien nay trong. Co y: cac endpoint
+rem /api/admin/** dieu khien crawler va tai duoc URL tuy y, nen chay khong khoa
+rem la mot lo hong SSRF hoan chinh.
+rem
+rem Thu tu tim khoa:
 rem   1. bien moi truong ADMIN_API_KEY cua phien terminal hien tai
 rem   2. tep .env o goc repo (cung tep ma docker compose doc)
 rem   3. sinh moi bang RNG mat ma va GHI vao .env de lan sau khong doi khoa
@@ -122,23 +163,14 @@ rem Khoa doi moi lan chay se lam moi lenh curl da luu trong tai lieu thanh 401.
 if defined ADMIN_API_KEY goto :key_ok
 if not exist "%ENV_FILE%" goto :key_new
 
-rem CHI lay dung nhung khoa can, KHONG nap ca .env vao moi truong.
+rem CHI lay dung khoa can, KHONG nap ca .env vao moi truong: nhung gia tri con
+rem lai trong .env viet cho MANG NOI BO cua compose (host `postgres`, host
+rem `kafka`) - keo ra terminal la vo nghia.
 rem
-rem Ly do cu the: .env la tep cau hinh cua DOCKER COMPOSE, noi ten dich vu
-rem trong mang noi bo mang y nghia khac han. Vi du no thuong chua
-rem APP_CRAWLER_BUS=kafka va APP_STORAGE_POSTGRES_URL tro toi host `postgres` -
-rem hai gia tri do dung o trong container, nhung o may that thi `postgres`
-rem khong phan giai duoc, con bus=kafka khien KafkaCrawlConfig
-rem (fatalIfBrokerNotAvailable=true) TU CHOI khoi dong khi khong co broker.
-rem Nap ca tep vao day nghia la mot lan `docker compose up` co the lam
-rem run-backend.bat het chay ma khong ai hieu vi sao.
-rem
-rem eol=# de bo qua dong chu thich; tokens=1,* delims== de gia tri con giu
-rem duoc dau `=` (chuoi ket noi JDBC co dau nay).
+rem eol=# de bo qua dong chu thich; tokens=1,* delims== de gia tri con giu duoc
+rem dau `=` neu co.
 for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
     if /i "%%a"=="ADMIN_API_KEY" set "ADMIN_API_KEY=%%b"
-    if /i "%%a"=="POSTGRES_PASSWORD" set "POSTGRES_PASSWORD=%%b"
-    if /i "%%a"=="APP_CORS_ALLOWED_ORIGINS" set "APP_CORS_ALLOWED_ORIGINS=%%b"
 )
 if defined ADMIN_API_KEY (
     echo Khoa quan tri : doc tu "%ENV_FILE%"
@@ -165,8 +197,7 @@ echo                 da ghi vao "%ENV_FILE%" ^(tep nay khong len Git^)
 
 :key_ok
 rem Do dai toi thieu 16 ky tu - dung nguong ma SecurityConfig kiem tra. Bat o
-rem day thi thay loi truoc khi mat vai chuc giay bien dich; de Spring bat thi
-rem thay loi sau.
+rem day thi thay loi truoc khi mat vai phut build anh.
 set "KEY_PROBE=%ADMIN_API_KEY:~15,1%"
 if not defined KEY_PROBE (
     echo [LOI] ADMIN_API_KEY ngan hon 16 ky tu nen SecurityConfig se tu choi khoi dong.
@@ -176,149 +207,205 @@ if not defined KEY_PROBE (
 )
 
 rem ===========================================================================
-rem CHE DO CHAY
+rem BUS SU KIEN
 rem ===========================================================================
+rem Dat TUONG MINH trong phien nay. Bien moi truong cua terminal DE LEN gia tri
+rem trong .env khi compose noi suy `${APP_CRAWLER_BUS}`, va day chinh la cho can
+rem no de len:
+rem
+rem   - Che do full/kafka: phai la `kafka`. Neu backend van chay bus `memory`
+rem     thi ha tang phan tan dung day du - kafka healthy, topic ton tai,
+rem     crawler-worker healthy - ma KHONG CO GI chay qua, vi backend giu
+rem     endpoint POST /api/admin/crawl lai crawl in-process. Loi nay im lang
+rem     tuyet doi: khong mot dong log loi nao, chi la topic rong mai mai.
+rem
+rem   - Che do --core: phai la `memory`. Tep .env cua may nay dang de
+rem     APP_CRAWLER_BUS=kafka; de nguyen thi backend khoi dong voi
+rem     fatalIfBrokerNotAvailable=true trong khi khong bat Kafka, va no TU CHOI
+rem     khoi dong. Co y - hong to hon hong am tham - nhung khong duoc de nguoi
+rem     bam file nay dam vao.
+set "APP_CRAWLER_BUS=%BUS%"
 
-rem Bus su kien. Dat TUONG MINH ca hai chieu: neu chi dat khi co --kafka thi
-rem gia tri APP_CRAWLER_BUS sot lai trong terminal se am tham quyet dinh ho.
-if defined USE_KAFKA (
-    set "APP_CRAWLER_BUS=kafka"
-    rem Cong 29092 chu KHONG phai 9092. Kafka tra ve dia chi ADVERTISED cho
-    rem client roi client ket noi lai bang dia chi do; docker-compose.yml khai
-    rem bao hai listener - `kafka:9092` cho container va `localhost:29092` cho
-    rem tien trinh tren may that. Dung 9092 o day thi bat tay dau tien thanh
-    rem cong, sau do client doi sang ten `kafka` va treo.
-    if not defined APP_CRAWLER_KAFKA_BOOTSTRAP set "APP_CRAWLER_KAFKA_BOOTSTRAP=localhost:29092"
-) else (
-    set "APP_CRAWLER_BUS=memory"
-)
+rem ===========================================================================
+rem CHAY
+rem ===========================================================================
+rem KHONG dat dau ngoac don vao cac chuoi nay. Trong `set "X=..."` dau ngoac
+rem duoc luu nguyen van, va `^(` cung vay - echo se in ra ca dau mu. Muon co
+rem ngoac thi phai echo thang, khong qua bien.
+if "%MODE%"=="full"  set "MODE_SHOW=FULL - backend + postgres + kafka + monitoring, ~4 GB RAM"
+if "%MODE%"=="kafka" set "MODE_SHOW=KAFKA - backend + postgres + cum Kafka, ~3 GB RAM"
+if "%MODE%"=="core"  set "MODE_SHOW=CORE - backend + postgres, ~1,5 GB RAM"
 
-rem Kho tai lieu.
-if defined USE_POSTGRES (
-    set "APP_STORAGE_POSTGRES_ENABLED=true"
-    if not defined APP_STORAGE_POSTGRES_URL set "APP_STORAGE_POSTGRES_URL=jdbc:postgresql://localhost:5432/vnsearch"
-) else (
-    set "APP_STORAGE_POSTGRES_ENABLED=false"
-)
-
-set "SCORER_SHOW=tfidf - mac dinh trong application.properties"
-if defined SCORER set "APP_RANKING_SCORER=%SCORER%"
-if defined SCORER set "SCORER_SHOW=%SCORER%"
-
-rem Bo nho heap. Mac dinh cua JVM la 1/4 RAM may (khoang 3,8 GB tren may 16 GB),
-rem con corpus data/crawled-documents.json thi lon hon nhieu so voi kich thuoc
-rem tep khi da dung thanh doi tuong Java. Uoc luong trong
-rem docs/Math/03-index/IndexPersistence.md: dinh diem 1,5-2,5 GB chi rieng cho
-rem buoc nap chi muc. Dat rong tay o day; muon khac thi `set BACKEND_XMX=2g`
-rem truoc khi chay.
-if not defined BACKEND_XMX set "BACKEND_XMX=6g"
-
-rem Bang ma cua tien trinh Maven. Con tien trinh UNG DUNG la mot JVM khac do
-rem spring-boot:run tach ra, nen tham so cua no phai di qua
-rem -Dspring-boot.run.jvmArguments ben duoi - MAVEN_OPTS khong voi toi.
-set "MAVEN_OPTS=-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -Dfile.encoding=UTF-8 %MAVEN_OPTS%"
-set "JVM_ARGS=-Xmx%BACKEND_XMX% -Dfile.encoding=UTF-8 -Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8"
-
-rem --- Nguon corpus se duoc dung ---
-if exist "data\crawled-documents.json" (
-    set "CORPUS=data\crawled-documents.json - corpus da crawl"
-) else (
-    set "CORPUS=data\seed-documents.json - mau demo di kem repo"
-)
+set "BUILD_SHOW=co - build lai anh tu ma nguon"
+if not defined BUILD set "BUILD_SHOW=khong - dung anh da co, do co --no-build"
 
 echo.
-echo === BACKEND VNSEARCH ===
+echo === VNSEARCH ===
 echo Thu muc      : %CD%
-echo Corpus       : %CORPUS%
-echo Kho tai lieu : PostgreSQL=%APP_STORAGE_POSTGRES_ENABLED%
+echo Che do       : %MODE_SHOW%
+echo Build        : %BUILD_SHOW%
 echo Bus crawler  : %APP_CRAWLER_BUS%
-echo Cham diem    : %SCORER_SHOW%
-echo Heap toi da  : %BACKEND_XMX%
 echo Khoa quan tri: %ADMIN_API_KEY:~0,8%... ^(day du trong .env^)
-
 rem --- Chi muc dung san co con khop voi corpus khong ---
 rem SearchEngineFacade UU TIEN data\index.json: co tep do thi no nap thang va
-rem KHONG doc corpus. Nho vay khoi dong nhanh, nhung sau mot phien crawl thi
-rem chi muc thanh cu hon corpus - bo tim kiem chay binh thuong, khong mot dong
-rem loi nao, chi la nhung trang vua crawl khong he co trong ket qua. Trieu
-rem chung de nham nhat: "crawl xong 5.000 trang ma tim gi cung khong ra".
+rem KHONG doc corpus. Nho vay khoi dong nhanh, nhung sau mot phien crawl thi chi
+rem muc thanh cu hon corpus - bo tim kiem chay binh thuong, khong mot dong loi
+rem nao, chi la nhung trang vua crawl khong he co trong ket qua. Trieu chung de
+rem nham nhat: "crawl xong 5.000 trang ma tim gi cung khong ra".
+rem
+rem Van kiem tra duoc du chay trong container: docker-compose.yml mount
+rem ./search-engine/data vao /app/data, tuc hai tep nay nam tren may that.
 set "INDEX_STALE="
-if not exist "data\index.json" goto :stale_done
-if not exist "data\crawled-documents.json" goto :stale_done
-for /f "delims=" %%s in ('powershell -NoProfile -Command "if ((Get-Item data\index.json).LastWriteTime -lt (Get-Item data\crawled-documents.json).LastWriteTime) { Write-Output STALE }"') do set "INDEX_STALE=%%s"
+if not exist "search-engine\data\index.json" goto :stale_done
+if not exist "search-engine\data\crawled-documents.json" goto :stale_done
+for /f "delims=" %%s in ('powershell -NoProfile -Command "if ((Get-Item search-engine\data\index.json).LastWriteTime -lt (Get-Item search-engine\data\crawled-documents.json).LastWriteTime) { Write-Output STALE }"') do set "INDEX_STALE=%%s"
 if not defined INDEX_STALE goto :stale_done
-echo.
 echo [CANH BAO] data\index.json CU HON data\crawled-documents.json.
 echo            Backend se nap chi muc cu, nen cac trang crawl gan day chua tim
 echo            duoc. Sau khi backend len, lap lai chi muc mot lan:
-echo                curl -X POST -H "X-API-Key: khoa-trong-.env" http://localhost:8080/api/admin/reindex
+echo                curl -X POST -H "X-API-Key: %ADMIN_API_KEY:~0,8%..." http://localhost:8080/api/admin/reindex
 :stale_done
 
-if defined USE_POSTGRES (
-    set "PG_PID="
-    for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":5432 .*LISTENING"') do set "PG_PID=%%p"
-    if not defined PG_PID (
-        echo.
-        echo [CANH BAO] Khong co gi lang nghe o cong 5432 - chua thay PostgreSQL.
-        echo            Backend van khoi dong duoc: PostgresDocumentStore bao khong
-        echo            san sang va chuoi du phong tu lui ve corpus JSON. Muon dung
-        echo            CSDL that thi: docker compose up -d postgres
-    )
-)
-
-if defined USE_KAFKA (
-    set "KAFKA_PID="
-    for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":29092 .*LISTENING"') do set "KAFKA_PID=%%p"
-    if not defined KAFKA_PID (
-        echo.
-        echo [LOI] Che do --kafka nhung khong co broker o localhost:29092.
-        echo       Voi app.crawler.bus=kafka, ung dung TU CHOI khoi dong khi thieu
-        echo       broker - co y, de khong chay am tham trong trang thai nua voi.
-        echo       Bat broker: docker compose --profile kafka up -d kafka
-        goto :fail
-    )
+rem --- Container mac ket o mot mang Docker da bi xoa ---
+rem Container ghi CUNG dinh danh mang vao cau hinh cua no luc duoc tao, chu
+rem khong tra cuu lai theo ten. Khi Docker Desktop khoi dong lai giua hai phien
+rem lam viec, mang `search-engine_default` bi xoa roi tao lai voi mot dinh danh
+rem MOI - va nhung container tu phien truoc van tro vao dinh danh cu da chet.
+rem Compose khong tu chua: no tao mang moi, roi `up` gay giua chung voi
+rem     failed to set up container networking: network <id> not found
+rem Trieu chung de nham: mot vai container len binh thuong (nhung container
+rem compose vua TAO LAI se nam tren mang moi), so con lai chet - nen nhin nhu
+rem loi cua rieng kafka hay prometheus.
+rem
+rem Cach chua duy nhat la XOA HAN container do de compose tao lai. `docker rm`
+rem khong dung toi volume, nen CSDL va lich su so lieu do van con nguyen.
+set "STALE_LIST="
+for /f "delims=" %%c in ('docker compose %PROFILES% ps -a --format "{{.Name}}" 2^>nul') do call :check_net %%c
+if defined STALE_LIST (
+    echo.
+    echo Don container mac ket o mang cu:%STALE_LIST%
+    docker rm -f %STALE_LIST% >nul 2>nul
 )
 
 echo.
-echo Dang bien dich va khoi dong... ^(Ctrl+C de dung^)
-echo Lan dau lap chi muc tren corpus lon mat vai chuc giay - chua tra loi ngay duoc.
-echo.
-echo Khi thay dong "Started SearchEngineApplication":
-echo     http://localhost:8080/api/health
-echo     http://localhost:8080/api/search?q=ha+noi
-echo     chay run-frontend.bat o mot cua so khac de mo giao dien
+echo Dang build va khoi dong... ^(lan dau tai anh nen mat vai phut^)
 echo.
 
-call "%MVNW%" spring-boot:run "-Dspring-boot.run.jvmArguments=%JVM_ARGS%"
+docker compose %PROFILES% up -d %BUILD%
 if errorlevel 1 (
     echo.
-    echo [LOI] Backend ket thuc bat thuong. Cuon len xem dong loi dau tien - dong
-    echo       DAU TIEN moi la nguyen nhan, phan con lai chi la chuoi goi keo theo.
-    echo       Vai nguyen nhan hay gap:
-    echo         - OutOfMemoryError       : set BACKEND_XMX=8g roi chay lai
-    echo         - Port 8080 in use       : con mot ban backend chua tat
-    echo         - Thieu admin-api-key    : xoa dong ADMIN_API_KEY trong .env, chay lai
+    echo [LOI] `docker compose up` that bai. Cuon len xem dong loi DAU TIEN -
+    echo       phan con lai thuong chi la he qua. Vai nguyen nhan hay gap:
+    echo         - port is already allocated : con mot ban cu dang chay.
+    echo                                       Chay end-backend.bat roi thu lai.
+    echo         - no space left on device   : docker system prune -a
+    echo         - build that bai o buoc mvn : loi bien dich that trong ma nguon
     goto :fail
 )
 
+rem --- Doi backend that su san sang ---
+rem `up -d` tra ve ngay khi container DA TAO, khong phai khi ung dung da phuc
+rem vu duoc. Backend con phai nap corpus va lap chi muc - vai chuc giay tren
+rem corpus lon. Mo trinh duyet trong khoang do thi nhan Connection refused va
+rem tuong la hong.
 echo.
-echo Backend da dung.
+echo Container da tao. Dang doi backend nap chi muc...
+set /a HEALTH_WAIT=0
+:wait_backend
+set "HEALTH="
+for /f "delims=" %%s in ('docker inspect -f "{{.State.Health.Status}}" vnsearch-backend 2^>nul') do set "HEALTH=%%s"
+if "%HEALTH%"=="healthy" goto :backend_up
+if "%HEALTH%"=="" (
+    echo [CANH BAO] Khong doc duoc trang thai container vnsearch-backend.
+    goto :backend_unknown
+)
+set /a HEALTH_WAIT+=5
+if %HEALTH_WAIT% GEQ 420 (
+    echo.
+    echo [CANH BAO] Doi 7 phut ma backend van "%HEALTH%".
+    echo            Xem no ket o dau : docker compose logs -f backend
+    goto :backend_unknown
+)
+ping -n 6 127.0.0.1 >nul
+echo    ... %HEALTH_WAIT%s ^(%HEALTH%^)
+goto :wait_backend
+
+:backend_up
+echo Backend san sang sau %HEALTH_WAIT%s.
+:backend_unknown
+
+echo.
+docker compose %PROFILES% ps
+echo.
+echo === DIA CHI ===
+echo   Backend API   http://localhost:8080/api/health
+echo   Thu tim kiem  http://localhost:8080/api/search?q=ha+noi
+if not "%MODE%"=="core" (
+    echo   Kafka UI      http://localhost:8081
+)
+if "%MODE%"=="full" (
+    echo   Grafana       http://localhost:3000    admin / xem GRAFANA_PASSWORD trong .env
+    echo   Prometheus    http://localhost:9090
+    echo   Alertmanager  http://localhost:9093
+)
+echo.
+echo   Giao dien     chay run-frontend.bat o mot cua so khac
+echo   Xem log       docker compose logs -f backend
+echo   TAT HET       end-backend.bat        ^<-- nho chay de tra lai RAM
+echo.
+
+if defined FOLLOW_LOGS (
+    echo Dang bam theo log backend. Ctrl+C de thoat - container VAN CHAY tiep.
+    echo.
+    docker compose logs -f backend
+)
+
 call :restore_cp
 endlocal
 exit /b 0
 
 rem ===========================================================================
+rem Container %1 co dinh vao mot mang khong con ton tai khong. Co thi ghi ten no
+rem vao STALE_LIST.
+rem
+rem Phai la mot chuong trinh con chu khong the viet gon trong vong lap goi no:
+rem trong mot khoi ngoac don, cmd noi suy %STALE_LIST% mot lan duy nhat luc phan
+rem tich CA KHOI, nen moi lan gan deu ghi de len chinh gia tri ban dau va danh
+rem sach chi con dung mot ten. `call` bat cmd phan tich lai tung dong ngay truoc
+rem khi chay, nen phep noi chuoi tich luy dung. (Cach khac la
+rem `setlocal enabledelayedexpansion` voi cu phap !VAR!, nhung enabledelayed
+rem expansion an ca dau `!` trong moi chuoi khac cua file - gia dat hon.)
+:check_net
+set "NETS="
+for /f "delims=" %%n in ('docker inspect -f "{{range .NetworkSettings.Networks}}{{.NetworkID}} {{end}}" %1 2^>nul') do set "NETS=%%n"
+if not defined NETS goto :eof
+for %%i in (%NETS%) do (
+    rem `network inspect` HOI daemon nen day la phep thu that. Dinh danh cua mot
+    rem mang da xoa khong con tra loi duoc, va do la toan bo phep thu.
+    docker network inspect %%i >nul 2>nul
+    if errorlevel 1 goto :net_stale
+)
+goto :eof
+rem `goto` nhay ra khoi vong lap va cat luon phan con lai cua no - vua thoat som
+rem vua khoi phai chong trung khi container dinh nhieu mang chet cung luc.
+:net_stale
+set "STALE_LIST=%STALE_LIST% %1"
+goto :eof
+
+rem ===========================================================================
 :usage
 echo.
-echo   run-backend.bat              corpus JSON + bus in-memory  ^(mac dinh^)
-echo   run-backend.bat --postgres   lay PostgreSQL lam nguon corpus uu tien
-echo   run-backend.bat --kafka      bus Kafka phan tan ^(can broker o localhost:29092^)
-echo   run-backend.bat --bm25       doi mo hinh cham diem sang BM25
+echo   run-backend.bat              FULL - backend + postgres + kafka + monitoring
+echo   run-backend.bat --kafka      backend + postgres + cum Kafka
+echo   run-backend.bat --core       backend + postgres
+echo   run-backend.bat --no-build   dung anh da co, khong build lai
+echo   run-backend.bat --logs       bam theo log backend sau khi len
+echo.
+echo   Tat va giai phong RAM: end-backend.bat
 echo.
 echo   Bien moi truong:
 echo     ADMIN_API_KEY   khoa cho /api/admin/**. Khong dat thi lay tu .env,
 echo                     khong co nua thi tu sinh va ghi vao .env.
-echo     BACKEND_XMX     heap toi da cua JVM ung dung. Mac dinh 6g.
 echo.
 call :restore_cp
 endlocal
@@ -340,8 +427,8 @@ call :restore_cp
 endlocal
 exit /b 1
 
-rem Tra bang ma ve nhu cu: chcp doi trang thai cua CA cua so console, khong
-rem phai bien moi truong, nen endlocal khong don dep ho.
+rem Tra bang ma ve nhu cu: chcp doi trang thai cua CA cua so console, khong phai
+rem bien moi truong, nen endlocal khong don dep ho.
 :restore_cp
 if defined OLD_CP chcp %OLD_CP% >nul
 goto :eof

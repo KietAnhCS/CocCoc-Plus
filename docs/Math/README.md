@@ -147,7 +147,7 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 
 | Tài liệu | File nguồn | Nội dung chính |
 |---|---|---|
-| 🗺️ [**Sơ đồ tư duy — toàn tầng frontend**](08-frontend/00-SO-DO-TU-DUY.md) | cả 50 file `browser-app/src/` | **Bắt đầu từ đây.** Ba tiến trình nói chuyện ra sao, vỏ nằm dưới trang nằm trên, DSA tự cài nằm ở đâu, bản đồ 9 store, bảng "xoá file này thì hỏng gì" |
+| 🗺️ [**Sơ đồ tư duy — toàn tầng frontend**](08-frontend/00-SO-DO-TU-DUY.md) | cả 72 file `browser-app/src/` | **Bắt đầu từ đây.** Ba tiến trình nói chuyện ra sao, vỏ nằm dưới trang nằm trên, DSA tự cài nằm ở đâu, bản đồ 12 store, bảng "xoá file này thì hỏng gì" |
 | [Stack](08-frontend/Stack.md) | `lib/Stack.ts`, `store/historyStore.ts` | **Hai ngăn xếp + bất biến back/forward**, cờ một lần dùng cắt vòng phản hồi |
 | [BookmarkTrie](08-frontend/BookmarkTrie.md) | `lib/BookmarkTrie.ts` | **Cùng cấu trúc, hai chuyên biệt hoá** — so sánh chi tiết Java vs TypeScript |
 | 📘 [**FRONTEND.md**](../FRONTEND.md) | cả `browser-app/` | **Tài liệu đầy đủ 17 mục** — kiến trúc, hợp đồng IPC, 5 luồng xử lý, **12 công thức hướng dẫn sửa code**, và **đánh giá kiến trúc theo chuẩn doanh nghiệp có bảng điểm** |
@@ -156,7 +156,7 @@ Mọi ký hiệu lạ xuất hiện trong 35 tài liệu phân tích mã nguồn
 
 | Tài liệu | Nội dung chính |
 |---|---|
-| 🗺️ [**Sơ đồ tư duy — toàn bộ design pattern**](09-design-patterns/00-SO-DO-TU-DUY.md) | **Bắt đầu từ đây.** 10 mẫu chia theo nhóm GoF, mẫu nào ở tầng nào, bộ ba Strategy → Factory → Decorator, ba mẫu sửa lỗi **đo được bằng số** |
+| 🗺️ [**Sơ đồ tư duy — toàn bộ design pattern**](09-design-patterns/00-SO-DO-TU-DUY.md) | **Bắt đầu từ đây.** 11 mẫu chia theo nhóm GoF, mẫu nào ở tầng nào, bộ ba Strategy → Factory → Decorator, ba mẫu sửa lỗi **đo được bằng số** |
 | [**README**](09-design-patterns/README.md) | Chỉ mục loạt bài học OOP, lộ trình đọc, tra cứu ngược theo khái niệm |
 
 **Loạt 12 trang học OOP — mỗi mẫu một trang:**

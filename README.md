@@ -150,7 +150,9 @@ bash deploy/kind/down.sh                     # tear the cluster down
 
 ## API
 
-| Endpoint | Key required? | Description |
+23 endpoints. The middle column is the *role* required, not the mechanism.
+
+| Endpoint | Access | Description |
 |---|:---:|---|
 | `GET /api/search?q=&page=&size=` | — | Search |
 | `GET /api/suggest?prefix=&limit=` | — | Prefix suggestions (Trie). Note: `prefix`, **not** `q` |
@@ -158,16 +160,40 @@ bash deploy/kind/down.sh                     # tear the cluster down
 | `GET /api/feed?seed=&page=&size=` | — | Browse the index without a query. Same `seed` ⇒ same order, so pages join up |
 | `GET /api/health` | — | Liveness. Returns `503` when the index is empty |
 | `GET /actuator/prometheus` | — | Prometheus metrics |
-| `POST /api/admin/crawl` | ✅ | Start a crawl job |
-| `GET /api/admin/crawl/{id}/status` | ✅ | Crawl job status |
-| `POST /api/admin/reindex` | ✅ | Rebuild the index |
-| `GET /api/admin/stats` | ✅ | Detailed statistics |
+| `POST /api/events` | — | Write side of usage analytics — deliberately open |
+| `POST /api/auth/register` | — | Always creates a `USER`; there is no way to self-assign `ADMIN` |
+| `POST /api/auth/login` | — | Returns an opaque 256-bit token, valid 12 hours |
+| `POST /api/auth/logout` | — | Revokes the token immediately; open so an *expired* token can still log out |
+| `GET /api/auth/me` | 🔑 | Who am I |
+| `POST /api/auth/password` | 🔑 | Requires the current password even with a valid token |
+| `POST /api/auth/logout-all` | 🔑 | Revokes every session of this account |
+| `POST /api/admin/crawl` | 👑 | Start a crawl job |
+| `GET /api/admin/crawl/{id}/status` | 👑 | Crawl job status |
+| `POST /api/admin/reindex` | 👑 | Rebuild the index |
+| `GET /api/admin/stats` | 👑 | Detailed statistics |
+| `GET /api/admin/analytics` | 👑 | One JSON with traffic, crawl, index and account figures |
+| `POST /api/admin/analytics/reset` | 👑 | Clears traffic figures only — never touches the index |
+| `GET /api/admin/users` | 👑 | Never includes password hashes |
+| `POST /api/admin/users/{name}/role` | 👑 | Also closes every session of that user |
+| `POST /api/admin/users/{name}/disable` · `/enable` | 👑 | Keeps the data, blocks login |
+| `DELETE /api/admin/users/{name}` | 👑 | `400` if you try to delete yourself |
 
-Protected endpoints take an `X-API-Key` header:
+🔑 = signed in · 👑 = `ADMIN`
+
+**Two ways to authenticate, one authorisation table.** Tools use a static
+`X-API-Key` (no identity, never expires, always full `ADMIN`); people use an
+account and get `Authorization: Bearer` (identity, 12-hour expiry, revocable
+instantly). Both feed the *same* role check in `SecurityConfig` — adding OAuth
+later means adding a filter, not editing the table.
 
 ```bash
 curl -H "X-API-Key: $ADMIN_API_KEY" http://localhost:8080/api/admin/stats
+curl -H "Authorization: Bearer $TOKEN"  http://localhost:8080/api/auth/me
 ```
+
+The first admin account is created at boot from `BOOTSTRAP_ADMIN_PASSWORD` —
+there is no default password, on purpose. See
+[`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) §3b.
 
 Full examples: [`docs/api-examples.http`](docs/api-examples.http)
 
@@ -198,8 +224,8 @@ Four independent layers, each blocking something different:
 ## Development
 
 ```bash
-cd search-engine && ./mvnw clean verify   # 521 tests + coverage gate + static analysis
-cd browser-app  && npm run typecheck && npm run lint && npm test   # 53 tests
+cd search-engine && ./mvnw clean verify   # 640 tests + coverage gate + static analysis
+cd browser-app  && npm run typecheck && npm run lint && npm test   # 128 tests
 ```
 
 `verify` (not `test`) is what CI runs — it is the only phase that executes the
@@ -228,13 +254,13 @@ drifting apart.
 Four quality gates block a merge, each catching a different kind of breakage:
 
 ```
-521 tests           → per-unit logic errors
+640 tests           → per-unit logic errors
 JaCoCo coverage     → new code with no tests          (line ≥ 68%, branch ≥ 65%)
 SpotBugs            → bugs no test path reaches       (0 findings)
 Ranking quality     → search got worse, tests stayed green
 ```
 
-The frontend has three gates of its own — `typecheck`, `lint` and **53 Vitest
+The frontend has three gates of its own — `typecheck`, `lint` and **128 Vitest
 cases**. The last one is the only one that checks *behaviour*: it pins down the
 main-process navigation policy, which is a security boundary (`file://` and
 `javascript:` must be refused — see `src/main/urlPolicy.ts`).

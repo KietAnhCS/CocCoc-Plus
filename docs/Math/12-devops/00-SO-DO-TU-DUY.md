@@ -82,14 +82,14 @@ flowchart TD
     TRIG --> K["kafka-integration<br/>Testcontainers"]
     TRIG --> N["infrastructure<br/>kubeconform + promtool"]
 
-    B --> B1["528 test JUnit"]
+    B --> B1["640 test JUnit"]
     B --> B2["JaCoCo: line ≥ 68%, branch ≥ 65%"]
     B --> B3["SpotBugs: 0 bug"]
     B --> B4["Chất lượng xếp hạng"]
 
     F --> F1["typecheck"]
     F --> F2["eslint"]
-    F --> F3["53 test Vitest"]
+    F --> F3["128 test Vitest"]
 
     I --> I1["Chặn lệch schema.sql"]
     I --> I2["Dựng ảnh"]
@@ -108,11 +108,11 @@ flowchart TD
 
 | # | Cổng | Bắt loại lỗi mà cổng khác **không** bắt được | Job |
 |---|---|---|---|
-| 1 | **528 test Java** | Logic từng khối sai | `backend` |
+| 1 | **640 test Java** | Logic từng khối sai | `backend` |
 | 2 | **Độ phủ JaCoCo** | Mã mới **không có test** — line ≥ 68%, branch ≥ 65% | `backend` |
 | 3 | **SpotBugs** | Lỗi mà test **không chạy tới**: null, tài nguyên rò, so sánh sai | `backend` |
 | 4 | **Chất lượng xếp hạng** | Tìm kiếm **tệ đi** mà test đơn vị vẫn xanh | `backend` |
-| 5 | **53 test Vitest** | Hành vi frontend, gồm ranh giới bảo mật `urlPolicy` | `frontend` |
+| 5 | **128 test Vitest** | Hành vi frontend, gồm ranh giới bảo mật `urlPolicy` | `frontend` |
 | 6 | **Tích hợp Kafka** | Serialize hỏng, phân hoạch sai, thông điệp quá lớn — **chỉ broker thật mới thấy** | `kafka-integration` |
 | 7 | **Kiểm định manifest** | YAML sai lược đồ, quy tắc cảnh báo sai cú pháp | `infrastructure` |
 
@@ -401,7 +401,7 @@ hoặc phải cập nhật cả hai nơi cùng lúc.
 ```bash
 # ① Chạy đúng những gì cổng backend chạy
 cd search-engine
-./mvnw -B clean verify            # 528 test + JaCoCo + SpotBugs
+./mvnw -B clean verify            # 640 test + JaCoCo + SpotBugs
 
 # ② Cổng frontend
 cd browser-app

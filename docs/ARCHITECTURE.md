@@ -59,7 +59,10 @@ flowchart LR
     end
 
     subgraph Backend["search-engine (Spring Boot 3.5.16, Java 17)"]
-        Ctl["Controller: Search / Suggest / Admin"]
+        Sec["SecurityFilterChain<br/>RateLimit → TokenAuth → ApiKey"]
+        Auth["auth/ — UserService, SessionStore<br/>UserStore ← JsonUserStore"]
+        Anl["analytics/ — UsageAnalyticsService<br/>CorpusStats"]
+        Ctl["Controller: Search / Suggest / Images / Feed<br/>Auth / Admin / AdminUser / AdminAnalytics"]
         Facade["SearchEngineFacade<br/>(chỉ điều phối)"]
         Svc["IndexBuilder / SuggestionService<br/>CrawlJobManager / LanguageDetector"]
         Cache["LRUCache — 200 mục"]
@@ -94,7 +97,12 @@ flowchart LR
     Data[("data/*.json")]
     PG[("PostgreSQL — kho tài liệu thô")]
 
-    UI -->|"REST /api/search /suggest /images /feed"| Ctl
+    UI -->|"REST /api/search /suggest /images /feed<br/>/api/auth /api/admin /api/events"| Sec
+    Sec -->|"vai trò: USER / ADMIN"| Ctl
+    Sec --> Auth
+    Ctl --> Auth
+    Ctl --> Anl
+    Anl --> Idx
     Ctl --> Facade
     Facade --> Cache
     Facade --> Svc
@@ -138,9 +146,9 @@ flowchart LR
 > việc, và vì sao URL Frontier **không** bị thay:
 > [`Math/10-kafka/`](Math/10-kafka/00-SO-DO-TU-DUY.md).
 
-### Mười hai interface là "khớp nối" của sơ đồ trên
+### Mười ba interface là "khớp nối" của sơ đồ trên
 
-Mỗi mũi tên đi qua một trong mười hai interface tự định nghĩa, chứ không đi
+Mỗi mũi tên đi qua một trong mười ba interface tự định nghĩa, chứ không đi
 thẳng tới lớp cụ thể. Đây là thứ làm sơ đồ này **thay được từng mảnh**:
 
 | Interface | Tách *cái gì* khỏi *làm thế nào* | Cài đặt hiện có |
@@ -148,7 +156,8 @@ thẳng tới lớp cụ thể. Đây là thứ làm sơ đồ này **thay đư�
 | `SearchIndex` | "tra posting list" | `InvertedIndex` |
 | `Tokenizer` | "tách từ" | `VietnameseTokenizer` |
 | `RelevanceScorer` | "chấm điểm liên quan" | `TfIdfScorer`, `BM25Scorer`, 2 Decorator |
-| `DocumentStore` | "nạp corpus" | `PostgresDocumentStore`, `JsonDocumentStore` ×2 |
+| `DocumentStore` | "nạp corpus" | `PostgresDocumentStore`, `JsonDocumentStore` |
+| `UserStore` | "lưu tài khoản ở đâu" | `JsonUserStore` |
 | `CandidateFilter` | "thu hẹp ứng viên" | `DomainFilter`, `MaxCandidatesFilter` |
 | `QueryNode` (`sealed`) | "đánh giá một mệnh đề" | `TermNode`, `PhraseNode`, `AndNode`, `OrNode`, `NotNode` |
 | `PostingCursor` | "duyệt posting list" | `ArrayPostingCursor` |
@@ -245,7 +254,7 @@ là một lớp**:
 
 ```mermaid
 flowchart TD
-    Seed["6 seed URL báo điện tử"] --> Frontier
+    Seed["19 seed URL báo điện tử<br/>11 tiếng Việt + 8 tiếng Anh"] --> Frontier
     Frontier["<b>URL Frontier</b><br/>2 tầng: f1..fn theo ưu tiên<br/>b1..bn mỗi hàng một host"] -->|"nextUrl(): O(log n)"| Robots
     Robots{"<b>URL Filter</b> (mức đắt)<br/>robots.txt cho phép?"} -->|"Không"| Drop[bỏ]
     Robots -->|"Có"| Fetch["<b>HTML Downloader</b><br/>timeout 10s, retry ≤ 2"]
@@ -291,20 +300,27 @@ chạy ngay trước khi thật sự tải một trang. Trích `crawler/CrawlerS
 
 ```java
 // Chặng URL Filter -> URL Seen? -> URL Frontier, cho một liên kết vừa bóc được
-private void enqueue(String rawUrl, int depth) {
-    String url = UrlCanonicalizer.canonicalize(rawUrl);
+private boolean enqueue(String url, int depth) {
     if (!urlFilter.accept(url, depth)) {        // URL Filter (mức rẻ)
-        return;
+        return false;
     }
     if (!urlSeenFilter.markSeenIfNew(url)) {    // URL Seen? -> URL Storage
-        return;
+        return false;
     }
     frontier.addUrl(url, depth, 1);             // URL Frontier
+    return true;
 }
 ```
 
 Ghi nhận "đã gặp" xảy ra lúc **xếp hàng**, không phải lúc lấy ra khỏi hàng đợi:
 ghi nhận muộn thì suốt khoảng thời gian URL nằm chờ, nó vẫn bị coi là chưa gặp.
+
+**Chỗ này *không* gọi `UrlCanonicalizer.canonicalize`, và đó là có chủ đích.**
+Bản đầu có gọi. Nhưng mọi đường vào `enqueue` đều đã chuẩn hoá từ trước — liên
+kết đi ra từ `LinkExtractor`, hạt giống đi qua `seed()` — nên lần gọi thứ hai
+chỉ lặp lại đúng kết quả cũ. Phép chuẩn hoá là *idempotent* nên không sai, chỉ
+thừa; và nó thừa ở đúng chỗ chạy khoảng 90 lần cho mỗi trang tải về. Lý do đầy
+đủ nằm trong Javadoc của phương thức (`CrawlerService.java:696`).
 
 **Điểm tinh tế về điều kiện dừng.** Frontier rỗng **không** đồng nghĩa với
 hết việc: một worker khác có thể đang fetch một trang và sắp thêm hàng trăm
@@ -556,7 +572,7 @@ vì sao chọn thế này**. Đây là dạng câu hỏi hay bị hỏi khi bả
 |---|---|
 | **Phương án thay thế** | Đặt luôn logic parse → giao posting list → rank → cache vào `SearchController` |
 | **Vì sao không** | Muốn kiểm thử logic đó thì phải dựng cả tầng web (MockMvc, ApplicationContext). Test sẽ chậm và mỗi lần lỗi thì không biết lỗi ở logic hay ở tầng HTTP |
-| **Kết quả** | `controller/` chỉ còn 29 dòng mỗi lớp, làm đúng một việc: chuẩn hoá tham số và trả mã trạng thái. Xem `SearchEngineFacadeApiTest` (8 test) gọi thẳng facade |
+| **Kết quả** | Controller làm đúng một việc: chuẩn hoá tham số và trả mã trạng thái. `SuggestController` còn **29 dòng**, `SearchController` **51** — phần dài hơn ở `AuthController` (216) là Javadoc giải thích lựa chọn, không phải logic. Xem `SearchEngineFacadeApiTest` (8 test) gọi thẳng facade |
 
 **Nhưng Facade rất dễ thoái hoá thành God Object** — và bản đầu của dự án
 này đúng là như vậy: **420 dòng, bảy trách nhiệm**. Sáu trong số đó đã được
@@ -564,7 +580,7 @@ tách ra:
 
 | Trách nhiệm cũ trong Facade | Nay ở | Mẫu |
 |---|---|---|
-| Nạp dữ liệu từ 4 nguồn (chuỗi `else if`) | `DocumentStore` + 3 cài đặt | Strategy |
+| Nạp dữ liệu từ 4 nguồn (chuỗi `else if`) | `DocumentStore` + `JsonDocumentStore` / `PostgresDocumentStore`, ghép thành `List<DocumentStore>` theo thứ tự ưu tiên | Strategy |
 | Dựng chỉ mục (tiền đề sort lặp ở 3 nơi) | `IndexBuilder` | — |
 | Quản lý job crawl (`String status`) | `CrawlJobManager` + `CrawlStatus` | State |
 | Dựng Trie gợi ý | `SuggestionService` | — |
@@ -647,26 +663,40 @@ Snippet:  Nhiều <mark>ngân</mark> <mark>hàng</mark> cắt giảm cả <mark>
 đơn giản bỏ hẳn việc bỏ dấu** — vì như vậy người gõ `may tinh` sẽ không
 được bôi sáng `máy tính` nữa.
 
-Quy tắc đúng, cài trong `ResultRanker.QuerySyllables`: **giữ hai tập, và để
+Quy tắc đúng, cài trong `ranking/QuerySyllables.java`: **giữ hai tập, và để
 chính truy vấn quyết định dùng tập nào.**
 
 ```java
-private QuerySyllables extractSyllables(Set<String> terms) {
-    Set<String> exact = new HashSet<>();
-    Set<String> loose = new HashSet<>();
-    for (String term : terms) {
-        for (String syllable : term.split("_")) {
-            String lower = syllable.toLowerCase();
-            exact.add(lower);
-            // Chỉ mở khớp lỏng khi CHÍNH tiếng trong truy vấn không có dấu.
-            if (VietnameseTokenizer.stripDiacritics(lower).equalsIgnoreCase(lower)) {
-                loose.add(lower);
+public record QuerySyllables(Set<String> exact, Set<String> loose) {
+
+    /** Tách tập term truy vấn (có thể là từ ghép nối bằng "_") thành các tiếng. */
+    public static QuerySyllables from(Set<String> terms) {
+        Set<String> exact = new HashSet<>();
+        Set<String> loose = new HashSet<>();
+        for (String term : terms) {
+            for (String syllable : term.split("_")) {
+                String lower = syllable.toLowerCase(Locale.ROOT);
+                if (lower.isEmpty()) {
+                    continue;
+                }
+                exact.add(lower);
+                // Chỉ mở khớp lỏng khi CHÍNH tiếng trong truy vấn không có dấu.
+                if (VietnameseTokenizer.stripDiacritics(lower).equalsIgnoreCase(lower)) {
+                    loose.add(lower);
+                }
             }
         }
+        return new QuerySyllables(exact, loose);
     }
-    return new QuerySyllables(exact, loose);
+    ...
 }
 ```
+
+> **`QuerySyllables` là một `record` cấp cao nhất, không phải lớp lồng trong
+> `ResultRanker`.** Nó được tách ra vì có **ba** nơi dùng chung: `ResultRanker`
+> (`:115`), `TitleBoostScorer` (`:73`) và `SnippetBuilder.build(...)`. Để nguyên
+> làm phương thức `private` bên trong `ResultRanker` thì hai chỗ còn lại phải
+> chép lại logic — đúng cái bẫy "hai bản sao chắc chắn trôi lệch" đã nói ở §2.
 
 Diễn giải: nếu người dùng gõ `ngân` (**có** dấu) thì tiếng đó chỉ vào tập
 `exact`, nên `ngàn` không khớp. Nếu người dùng gõ `ngan` (**không** dấu) thì
@@ -825,8 +855,10 @@ vào** gói nào.
 | `eval/` | `EvaluationMetrics`, `KnownItemQueryGenerator`, `EvaluationHarness`, `PoolBuilder`, **`SignificanceTest`**, bốn runner CLI | `query/`, `ranking/`, `index/` |
 | `storage/` | **`DocumentStore`** (giao diện) + `JsonDocumentStore`, `PostgresDocumentStore`; `DocumentRepository` (JDBC), hai runner | `model/`, JDBC |
 | `service/` | `SearchEngineFacade` (chỉ điều phối) + **`IndexBuilder`**, **`SuggestionService`**, **`CrawlJobManager`** + **`CrawlStatus`**, **`LanguageDetector`** | Gần như tất cả gói trên |
-| `config/` | **11 lớp** — `SecurityConfig`, `ApiKeyAuthFilter`, `RateLimitFilter`, `CorsConfig`, `GlobalExceptionHandler`, `SearchConfig`, `MetricsConfig`, `KafkaCrawlConfig`, `CrawlKafkaListeners`, `ImageStoreListener`, `ImageStorePreloader` | tất cả |
-| `controller/` | **Sáu** REST controller: `SearchController`, `SuggestController`, `ImageSearchController`, `FeedController`, `HealthController`, `AdminController` | Chỉ `service/` và `model/` |
+| `auth/` | **Tài khoản và phiên**: **`UserStore`** (giao diện) + `JsonUserStore`, `UserService` (BCrypt cost 12, khoá tạm theo tài khoản), `SessionStore` (token mờ 256 bit, hết hạn 12 giờ), `TokenAuthFilter`, `User`, `Role` | `model/`, Spring Security |
+| `analytics/` | **Số liệu quản trị**: `UsageAnalyticsService` (trong bộ nhớ, cửa sổ 24 giờ, **mọi bảng có trần**), `CorpusStats`, `UsageSnapshot`, `AdminDashboard` | `datastructure/` (BloomFilter), `index/` |
+| `config/` | **12 lớp** — `SecurityConfig`, `ApiKeyAuthFilter`, `RateLimitFilter`, **`AuthConfig`**, `CorsConfig`, `GlobalExceptionHandler`, `SearchConfig`, `MetricsConfig`, `KafkaCrawlConfig`, `CrawlKafkaListeners`, `ImageStoreListener`, `ImageStorePreloader` | tất cả |
+| `controller/` | **Mười** REST controller: `SearchController`, `SuggestController`, `ImageSearchController`, `FeedController`, `HealthController`, `EventController`, `AuthController`, `AdminController`, `AdminUserController`, `AdminAnalyticsController` | Chỉ `service/`, `auth/`, `analytics/` và `model/` |
 
 > Bảng đầy đủ hơn — kèm số lớp mỗi gói và mô tả từng lớp cấu hình — nằm ở
 > [`BACKEND.md` §2](BACKEND.md) và [`BACKEND.md` §4](BACKEND.md).
@@ -842,7 +874,14 @@ posting list** thuộc về cây; ràng buộc trên **siêu dữ liệu** thu�
 năng mới ở gói nào. Chi tiết:
 [`Math/09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md`](Math/09-design-patterns/05-CHAIN-OF-RESPONSIBILITY.md).
 
-### Hợp đồng REST
+### Hợp đồng REST — 23 endpoint
+
+Cột **Quyền** có ba giá trị, và chúng đến từ **một** bảng duy nhất trong
+`SecurityConfig` chứ không phải từ kiểm tra rải rác trong controller:
+*công khai* → ai cũng gọi được; *đã đăng nhập* → cần `Authorization: Bearer`;
+*ADMIN* → cần vai trò ADMIN, cấp bởi **một trong hai** filter (`TokenAuthFilter`
+cho người, `ApiKeyAuthFilter` cho công cụ). Chi tiết phân quyền và lý do từng
+lựa chọn: [`ACCOUNTS-AND-DASHBOARD.md`](ACCOUNTS-AND-DASHBOARD.md).
 
 | Endpoint | Quyền | Tham số | Ghi chú |
 |---|:---:|---|---|
@@ -851,10 +890,28 @@ năng mới ở gói nào. Chi tiết:
 | `GET /api/images` | công khai | `q`, `page` (mặc định 1, trần 100), `size` (mặc định 30, trần 100) | Trả `results[]`, `hasMore`, `pagesScanned` — nguồn là `ImageStore` |
 | `GET /api/feed` | công khai | `seed` (mặc định 0), `page` (mặc định 1, trần 100), `size` (mặc định 12, trần 50) | **Duyệt** chỉ mục theo `docId`, không qua truy vấn |
 | `GET /api/health` | công khai | — | `200` khi chỉ mục có tài liệu, **`503` khi rỗng** |
-| `POST /api/admin/crawl` | `X-API-Key` | body `{seedUrls, maxDepth, maxPages}` | Trả `jobId` ngay, crawl chạy nền |
-| `GET /api/admin/crawl/{jobId}/status` | `X-API-Key` | — | `status`, `pagesCrawled`, `queueSize` |
-| `POST /api/admin/reindex` | `X-API-Key` | — | Dựng lại chỉ mục + PageRank + Trie + xoá cache |
-| `GET /api/admin/stats` | `X-API-Key` | — | `totalDocuments`, `totalTerms`, `indexSizeBytes`, `cacheHitRate`, `bloomFilterBits`, `scorer` |
+| `POST /api/events` | công khai | body `{type, sessionId, query?, url?, position?, …}` | `204`. Chiều **GHI** của số liệu sử dụng — mở có chủ ý, vì cú bấm vào kết quả không đi qua máy chủ. Danh tính lấy từ ngữ cảnh bảo mật, **không** từ thân request |
+| `POST /api/auth/register` | công khai | body `{username, password}` | `201`. **Luôn** tạo vai trò `USER` — `register()` không nhận tham số vai trò |
+| `POST /api/auth/login` | công khai | body `{username, password}` | `{token, expiresAt, user}`. `401` khi sai, **không phân biệt** sai tên hay sai mật khẩu |
+| `GET /api/auth/me` | đã đăng nhập | — | Nguồn sự thật về "tôi là ai" |
+| `POST /api/auth/password` | đã đăng nhập | body `{currentPassword, newPassword}` | Vẫn phải nhập mật khẩu **hiện tại** — chặn kịch bản token bị đánh cắp. Đóng mọi phiên **khác** |
+| `POST /api/auth/logout` | công khai¹ | — | `204`. Huỷ phiên tại đây, hiệu lực **ngay** |
+| `POST /api/auth/logout-all` | đã đăng nhập | — | Đóng **mọi** phiên, kể cả phiên đang gọi |
+| `POST /api/admin/crawl` | ADMIN | body `{seedUrls, maxDepth, maxPages}` | Trả `jobId` ngay, crawl chạy nền. **Endpoint rủi ro nhất** (SSRF) |
+| `GET /api/admin/crawl/{jobId}/status` | ADMIN | — | `status`, `pagesCrawled`, `queueSize` |
+| `POST /api/admin/reindex` | ADMIN | — | Dựng lại chỉ mục + PageRank + Trie + xoá cache |
+| `GET /api/admin/stats` | ADMIN | — | `totalDocuments`, `totalTerms`, `indexSizeBytes`, `cacheHitRate`, `bloomFilterBits`, `scorer` |
+| `GET /api/admin/analytics` | ADMIN | `top` (mặc định 10) | **Một** JSON gộp bốn khối: `traffic`, `crawl`, `index`, `accounts` — một lời gọi chứ không phải bốn, để bốn khối cùng một thời điểm |
+| `POST /api/admin/analytics/reset` | ADMIN | — | `204`. Xoá số liệu lưu lượng, **không** đụng chỉ mục |
+| `GET /api/admin/users` | ADMIN | — | **Không** kèm hash mật khẩu — `User.toPublic()` là ranh giới ra ngoài |
+| `POST /api/admin/users/{tên}/role` | ADMIN | body `{role}` | Đóng mọi phiên của người bị đổi. Không tự hạ quyền chính mình |
+| `POST /api/admin/users/{tên}/disable` | ADMIN | — | Giữ dữ liệu, chỉ chặn đăng nhập |
+| `POST /api/admin/users/{tên}/enable` | ADMIN | — | |
+| `DELETE /api/admin/users/{tên}` | ADMIN | — | `404` nếu không có, `400` nếu tự xoá chính mình |
+
+¹ `/api/auth/logout` cố ý để **công khai**: trước đó nó nằm trong nhóm
+`.authenticated()`, nên một token đã hết hạn thì không đăng xuất nổi — người
+dùng kẹt ở trạng thái "không vào được mà cũng không thoát được".
 
 **Hai chỗ dễ gõ sai, nói trước cho đỡ mất thời gian:**
 
@@ -930,7 +987,7 @@ Ghi lại để đối chiếu với các bản tài liệu cũ:
 | **Từ điển từ ghép chỉ 154 mục** | **`vietnamese-words.txt` — 49.793 mục, trong đó 40.390 từ ghép** |
 | Crawler chốt cứng vào ba service | `CrawlEventBus` — đổi in-process ↔ Kafka bằng một khoá cấu hình |
 | `navigate()` của Electron nhận mọi scheme | `urlPolicy.ts` — danh sách cho phép `http`/`https` |
-| Frontend không có test nào | 53 bài Vitest, chạy trong CI |
+| Frontend không có test nào | 128 bài Vitest, chạy trong CI |
 
 Phân tích đầy đủ hơn về những điểm vỡ ở quy mô lớn: mục 13 của
 `docs/Math/`. Số liệu đo và Big-O: `DSA-REPORT.md`. Từng mẫu thiết

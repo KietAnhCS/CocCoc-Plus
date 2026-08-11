@@ -17,18 +17,19 @@
 > | *Chống lại cái gì, bằng cách nào?* | [`SECURITY.md`](SECURITY.md) |
 > | *Giao diện Electron?* | [`FRONTEND.md`](FRONTEND.md) |
 
-**Số liệu đo trên cây mã hiện tại:** 21.162 dòng Java (main), 7.928 dòng test,
-145 lớp, 12 interface, 32 record, 6 REST controller, 11 lớp cấu hình.
-`./mvnw -B clean verify` → **528 test xanh**, SpotBugs **0 bug**, ~43 giây.
+**Số liệu đo trên cây mã hiện tại:** 24.195 dòng Java (main), 9.883 dòng test,
+143 tệp nguồn, 13 interface, 42 record, 10 REST controller / 23 endpoint,
+12 lớp cấu hình.
+`./mvnw -B clean verify` → **640 test xanh**, SpotBugs **0 bug**.
 
 ---
 
 ## Mục lục
 
 1. [Bản đồ tư duy toàn tầng backend](#1-bản-đồ-tư-duy-toàn-tầng-backend)
-2. [Mười ba gói và trách nhiệm](#2-mười-ba-gói-và-trách-nhiệm)
-3. [Mười hai interface — các mối nối](#3-mười-hai-interface--các-mối-nối)
-4. [Tầng cấu hình: 11 lớp trong `config/`](#4-tầng-cấu-hình-11-lớp-trong-config)
+2. [Mười lăm gói và trách nhiệm](#2-mười-lăm-gói-và-trách-nhiệm)
+3. [Mười ba interface — các mối nối](#3-mười-ba-interface--các-mối-nối)
+4. [Tầng cấu hình: 12 lớp trong `config/`](#4-tầng-cấu-hình-12-lớp-trong-config)
 5. [Tầng controller: 23 endpoint](#5-tầng-controller-23-endpoint)
 6. [Tầng service: điều phối](#6-tầng-service-điều-phối)
 7. [Tầng storage: ba nguồn dữ liệu](#7-tầng-storage-ba-nguồn-dữ-liệu)
@@ -47,8 +48,11 @@ mindmap
     Vỏ ngoài
       controller 23 endpoint
       GlobalExceptionHandler
-      SecurityConfig + 2 filter
+      SecurityConfig + 3 filter
       CorsConfig
+    Tài khoản
+      auth — UserService, SessionStore
+      analytics — số liệu quản trị
     Điều phối
       SearchEngineFacade
       IndexBuilder
@@ -81,11 +85,13 @@ Sơ đồ dạng chữ, cho nơi không dựng được Mermaid:
                         │  + GlobalExceptionHandler    │
                         └──────────────┬───────────────┘
    ┌────────────────────────────────────┼──────────────────────┐
-   │ config/  (11 lớp — CHẶN TRƯỚC)     │                      │
+   │ config/  (12 lớp — CHẶN TRƯỚC)     │                      │
    │   RateLimitFilter  ─┐              │                      │
+   │   TokenAuthFilter  ─┤              │                      │
    │   ApiKeyAuthFilter ─┴─▶ chạy TRƯỚC controller             │
-   │   SecurityConfig, CorsConfig, MetricsConfig, SearchConfig │
-   │   KafkaCrawlConfig, CrawlKafkaListeners, ImageStore*2     │
+   │   SecurityConfig, AuthConfig, CorsConfig, MetricsConfig   │
+   │   SearchConfig, KafkaCrawlConfig, CrawlKafkaListeners     │
+   │   ImageStore*2                                            │
    └────────────────────────────────────┼──────────────────────┘
                         ┌──────────────▼───────────────┐
                         │  service/SearchEngineFacade  │
@@ -103,7 +109,7 @@ Sơ đồ dạng chữ, cho nơi không dựng được Mermaid:
                    ┌──────────▼──────────┐
                    │ index/SearchIndex   │◀── storage/DocumentStore
                    │   InvertedIndex     │        ├─ PostgresDocumentStore
-                   └──────────┬──────────┘        └─ JsonDocumentStore ×2
+                   └──────────┬──────────┘        └─ JsonDocumentStore
                    ┌──────────▼──────────┐
                    │ datastructure/      │  Trie · BloomFilter · MinHeap
                    │ KHÔNG phụ thuộc gì  │  LRUCache · SparseMatrix · SyllableTrie
@@ -118,7 +124,7 @@ gì. Đó chính là thứ làm mỗi tầng kiểm thử được độc lập,
 
 ---
 
-## 2. Mười ba gói và trách nhiệm
+## 2. Mười lăm gói và trách nhiệm
 
 | Gói | Lớp | Trách nhiệm | Phụ thuộc |
 |---|---:|---|---|
@@ -137,8 +143,10 @@ gì. Đó chính là thứ làm mỗi tầng kiểm thử được độc lập,
 | `eval/` | 9 | `EvaluationMetrics`, `EvaluationHarness`, `KnownItemQueryGenerator`, `PoolBuilder`, `SignificanceTest`, 4 runner CLI | `query/`, `ranking/`, `index/` |
 | `storage/` | 6 | `DocumentStore` + `JsonDocumentStore`, `PostgresDocumentStore`; `DocumentRepository` (JDBC thuần), 2 runner | `model/`, JDBC |
 | `service/` | 6 | `SearchEngineFacade` (**Facade**), `IndexBuilder`, `SuggestionService`, `CrawlJobManager` + `CrawlStatus` (**State**), `LanguageDetector` | gần như tất cả |
-| `config/` | 11 | Xem [§4](#4-tầng-cấu-hình-11-lớp-trong-config) | tất cả |
-| `controller/` | 6 | Xem [§5](#5-tầng-controller-6-endpoint) | chỉ `service/`, `model/` |
+| `auth/` | 7 | `UserStore` + `JsonUserStore` (**Strategy**), `UserService`, `SessionStore`, `TokenAuthFilter`, `User`, `Role` | `model/`, Spring Security |
+| `analytics/` | 4 | `UsageAnalyticsService`, `CorpusStats`, `UsageSnapshot`, `AdminDashboard` | `datastructure/`, `index/` |
+| `config/` | 12 | Xem [§4](#4-tầng-cấu-hình-12-lớp-trong-config) | tất cả |
+| `controller/` | 10 | Xem [§5](#5-tầng-controller-23-endpoint) | chỉ `service/`, `auth/`, `analytics/`, `model/` |
 
 > **Điểm đáng chú ý nhất của bảng này:** `datastructure/` phụ thuộc **không gì
 > cả**. Nếu một cấu trúc dữ liệu chỉ chạy được khi cả hệ thống đã lên, thì nó đã
@@ -156,7 +164,7 @@ cd search-engine
 
 ---
 
-## 3. Mười hai interface — các mối nối
+## 3. Mười ba interface — các mối nối
 
 Mỗi mũi tên trong sơ đồ §1 đi qua một interface tự định nghĩa, chứ không đi
 thẳng tới lớp cụ thể. Đây là thứ làm từng mảnh **thay được**.
@@ -183,7 +191,7 @@ Phân tích từng mẫu: [`Math/09-design-patterns/`](Math/09-design-patterns/R
 
 ---
 
-## 4. Tầng cấu hình: 11 lớp trong `config/`
+## 4. Tầng cấu hình: 12 lớp trong `config/`
 
 Đây là tầng **ít được tài liệu hoá nhất trước đây** dù nó quyết định gần như
 mọi hành vi vận hành. Bảng đầy đủ:

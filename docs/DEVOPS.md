@@ -72,9 +72,9 @@ mindmap
    ┌────────────────────── ci.yml — 5 job SONG SONG ──────────────────────┐
    │                                                                       │
    │  backend          frontend        image        kafka-it   infra       │
-   │  ├ 528 test       ├ typecheck     ├ build      ├ broker   ├ kubeconform│
+   │  ├ 640 test       ├ typecheck     ├ build      ├ broker   ├ kubeconform│
    │  ├ JaCoCo         ├ lint          └ Trivy      │  THẬT    ├ promtool  │
-   │  ├ SpotBugs       └ 53 Vitest        (SARIF)   └ 1 phút   ├ amtool    │
+   │  ├ SpotBugs       └ 128 Vitest       (SARIF)   └ 1 phút   ├ amtool    │
    │  └ ranking                                                └ chống lệch│
    └───────────────────────────────┬───────────────────────────────────────┘
                                    │ tất cả xanh, trên nhánh main
@@ -126,11 +126,11 @@ vài Pod bản cũ. Ở đó, **xếp hàng chờ** mới là hành vi đúng.
 
 | # | Cổng | Bắt được gì | Job | Hỏng thì |
 |---|---|---|---|---|
-| 1 | **528 test Java** | Logic từng khối sai | `backend` | Build đỏ |
+| 1 | **640 test Java** | Logic từng khối sai | `backend` | Build đỏ |
 | 2 | **Độ phủ (JaCoCo)** | Mã mới không có test — line ≥ 68 %, branch ≥ 65 % | `backend` | Build đỏ |
 | 3 | **SpotBugs** | Lỗi mà test không chạy tới — hiện **0 bug** | `backend` | Build đỏ |
 | 4 | **Chất lượng xếp hạng** | Tìm kiếm tệ đi mà test vẫn xanh | `backend` | Build đỏ |
-| 5 | **53 test Vitest** | Hành vi frontend, gồm **ranh giới bảo mật** `urlPolicy` | `frontend` | Build đỏ |
+| 5 | **128 test Vitest** | Hành vi frontend, gồm **ranh giới bảo mật** `urlPolicy` | `frontend` | Build đỏ |
 | 6 | **Tích hợp Kafka** | Serialize hỏng, phân hoạch sai, thông điệp quá lớn | `kafka-integration` | Build đỏ |
 | 7 | **Kiểm định hạ tầng** | YAML sai, PromQL sai, hai bản quy tắc lệch nhau | `infrastructure` | Build đỏ |
 
@@ -155,7 +155,7 @@ Vitest      →  HÀNH VI có đúng không     ← cổng duy nhất kiểm cá
 ```
 
 Hai cổng đầu đều **xanh** trên một hàm trả về kết quả sai. Trước khi có Vitest,
-hơn 6.500 dòng TypeScript — trong đó có chính sách điều hướng, tức một **ranh
+hơn 12.000 dòng TypeScript — trong đó có chính sách điều hướng, tức một **ranh
 giới bảo mật** — không có gì canh cả.
 
 ---
@@ -414,12 +414,12 @@ giây thay vì bằng phút:
 ```bash
 # --- Backend: cổng 1–4 ---
 cd search-engine
-./mvnw -B clean verify            # 528 test + JaCoCo + SpotBugs + ranking
+./mvnw -B clean verify            # 640 test + JaCoCo + SpotBugs + ranking
 ./mvnw verify -Pkafka-it          # cổng 6 — cần Docker
 
 # --- Frontend: cổng 5 ---
 cd browser-app
-npm run typecheck && npm run lint && npm test     # 53 test
+npm run typecheck && npm run lint && npm test     # 128 test
 
 # --- Cổng 7: hạ tầng ---
 kubectl kustomize deploy/k8s/base          > /dev/null

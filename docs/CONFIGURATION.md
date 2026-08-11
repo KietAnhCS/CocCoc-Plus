@@ -54,16 +54,19 @@ tắc trên. Cột "Biến môi trường" trong các bảng dưới ghi đúng 
 
 ---
 
-## 1b. Bản đồ: 43 khoá chia thành 8 nhóm
+## 1b. Bản đồ: 45 khoá chia thành 9 nhóm
 
 ```mermaid
 mindmap
-  root((40 khoá<br/>cấu hình))
+  root((45 khoá<br/>cấu hình))
     Bảo mật · 5
       admin-api-key
       rate-limit ×2
       trust-proxy
       cors
+    Tài khoản · 3
+      users-path
+      bootstrap-admin ×2
     Xếp hạng · 6
       scorer
       bm25.k1 · bm25.b
@@ -95,12 +98,14 @@ mindmap
 ```
 
 ```
-   40 khoá — nhóm nào bạn sẽ đụng tới, và bao lâu một lần
+   45 khoá — nhóm nào bạn sẽ đụng tới, và bao lâu một lần
 
    HAY ĐỔI     ├─ Xếp hạng (6)      scorer, beta, gamma…
                ├─ Bus (3)           memory ⇄ kafka
                │
    THỈNH THOẢNG├─ Bảo mật (5)       khoá, rate-limit
+               ├─ Tài khoản (3)     ĐẶT MỘT LẦN, nhưng bỏ qua thì
+               │                    không đăng nhập được — xem §3b
                ├─ PostgreSQL (4)
                ├─ Ảnh (3)
                │
@@ -108,6 +113,10 @@ mindmap
                ├─ Kafka (12)        đổi là phải cẩn thận — xem §8
                └─ Quan sát (6)      đổi sai là hở /actuator/env
 ```
+
+Cộng lại: 5 + 3 + 6 + 3 + 4 + 3 + 12 + 3 + 6 = **45**. Trong đó 39 khoá `app.*`
+và 6 khoá `management.*` có mặt trong `application.properties`; ba khoá
+`app.crawler.kafka.worker.*` chỉ sống bằng mặc định trong mã (§8.1).
 
 ---
 
@@ -152,6 +161,44 @@ mindmap
 
 3. **Đừng đặt giá trị thật vào `application.properties`** — tệp đó được commit
    lên Git.
+
+---
+
+## 3b. Tài khoản người dùng
+
+Khoá API canh `/api/admin/**` cho **công cụ**; ba khoá dưới đây là của hệ **tài
+khoản con người** (`Authorization: Bearer`). Toàn cảnh: [`ACCOUNTS-AND-DASHBOARD.md`](ACCOUNTS-AND-DASHBOARD.md).
+
+| Khoá | Mặc định | Biến môi trường | Ý nghĩa |
+|---|---|---|---|
+| `app.auth.users-path` | `data/users.json` | `AUTH_USERS_PATH` | Kho tài khoản. Nằm trong `.gitignore` — tệp này chứa **hash mật khẩu** |
+| `app.auth.bootstrap-admin.username` | `admin` | `BOOTSTRAP_ADMIN_USERNAME` | Tên tài khoản quản trị tạo ở lần khởi động đầu |
+| `app.auth.bootstrap-admin.password` | **rỗng** | **`BOOTSTRAP_ADMIN_PASSWORD`** | Mật khẩu của tài khoản đó. **Không có mặc định, và đó là có ý** |
+
+⚠️ **Không đặt `BOOTSTRAP_ADMIN_PASSWORD` thì không ai đăng nhập được bằng tài
+khoản.** Ứng dụng **vẫn khởi động** (chỉ ghi một dòng cảnh báo) — khác hẳn
+`ADMIN_API_KEY`, thiếu là chặn khởi động. Lý do phân biệt: thiếu khoá API nghĩa
+là endpoint quản trị **không có gì bảo vệ**; còn thiếu tài khoản chỉ nghĩa là
+chưa ai đăng nhập được, máy tìm kiếm vẫn phục vụ bình thường và khoá API vẫn là
+lối vào.
+
+```bash
+export BOOTSTRAP_ADMIN_PASSWORD='...'                 # Linux/macOS
+$env:BOOTSTRAP_ADMIN_PASSWORD = '...'                 # PowerShell
+```
+
+**Vì sao không có mật khẩu mặc định** — ba phương án, hai bị loại:
+
+| Phương án | Vì sao |
+|---|---|
+| Mật khẩu cứng trong mã (`admin`/`admin`) | Mọi bản triển khai cùng một mật khẩu ai cũng biết → **loại** |
+| Người đăng ký **đầu tiên** tự thành admin | Kẻ nào tìm thấy máy chủ trước chủ nhân thì chiếm được quyền → **loại** |
+| Biến môi trường, không mặc định | Phải cấu hình thêm một bước → **chọn** |
+
+**Không có đường nào tự cấp vai trò ADMIN qua REST.** `UserService.register()`
+không nhận tham số vai trò — nó luôn tạo `USER`. Nâng quyền chỉ đi qua
+`POST /api/admin/users/{tên}/role`, tức phải đã là ADMIN từ trước. Đó là lý do
+tài khoản đầu tiên buộc phải sinh ra từ cấu hình chứ không từ một request.
 
 ---
 
@@ -354,9 +401,11 @@ histogram cho phép Prometheus gộp phân vị từ nhiều bản sao.
 | `spring.application.name` | `search-engine` | — |
 | `spring.autoconfigure.exclude` | `…UserDetailsServiceAutoConfiguration` | Tắt dòng log `Using generated security password: …` |
 
-Dòng log bị tắt kia vừa là rác vừa **gây hiểu nhầm**: nó gợi ý có một tài khoản
-đăng nhập dùng được, trong khi hệ thống xác thực bằng header `X-API-Key` và
-không có người dùng nào cả.
+Dòng log bị tắt kia vừa là rác vừa **gây hiểu nhầm**: nó quảng cáo một tài khoản
+do Spring tự sinh, trong khi tài khoản **thật** của hệ thống nằm ở
+`data/users.json` và được tạo qua `BOOTSTRAP_ADMIN_PASSWORD` (xem §3b). Người đọc
+log rất dễ đi thử cái mật khẩu vô dụng đó thay vì cấu hình cái đúng. Một dòng log
+nói sai sự thật còn tệ hơn không có.
 
 ---
 

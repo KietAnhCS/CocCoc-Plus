@@ -4,7 +4,7 @@
 > dự án. Nó không giải thích thuật toán — nó nói cho bạn biết **đọc gì, theo
 > thứ tự nào, và bỏ qua được cái gì**.
 >
-> Kho tài liệu này có **74 tệp, hơn 40.000 dòng**. Đọc tuần tự từ đầu đến cuối
+> Kho tài liệu này có **74 tệp, hơn 33.000 dòng**. Đọc tuần tự từ đầu đến cuối
 > là cách chắc chắn bỏ cuộc. Hãy chọn một lộ trình bên dưới.
 
 ---
@@ -18,7 +18,7 @@ Trie, Bloom filter, MinHeap, bộ tách từ tiếng Việt.
 ```
    ┌──────────┐      ┌──────────┐      ┌──────────┐      ┌──────────┐
    │ Crawler  │─────▶│  Index   │─────▶│ Ranking  │─────▶│ REST API │
-   │ 43 lớp   │      │ 14 lớp   │      │ 10 lớp   │      │ 6 endpoint│
+   │ 43 lớp   │      │ 14 lớp   │      │ 10 lớp   │      │23 endpoint│
    └──────────┘      └──────────┘      └──────────┘      └────┬─────┘
         │                                                      │
         │ Kafka (tuỳ chọn)                            ┌────────▼────────┐
@@ -27,8 +27,11 @@ Trie, Bloom filter, MinHeap, bộ tách từ tiếng Việt.
                                                       └─────────────────┘
 ```
 
-Quy mô: **21.162 dòng Java** (main) + **7.025 dòng TypeScript**, 528 test Java
-và 53 test Vitest, corpus **31.030 trang**.
+Quy mô: **24.195 dòng Java** (main) + **12.210 dòng TypeScript**, 640 test Java
+và 128 test Vitest, corpus **31.030 trang**.
+
+Trên đó còn một tầng **tài khoản và bảng điều khiển quản trị** (`auth/`,
+`analytics/`) — xem [`ACCOUNTS-AND-DASHBOARD.md`](ACCOUNTS-AND-DASHBOARD.md).
 
 ---
 
@@ -48,7 +51,7 @@ flowchart TD
     START --> R1 & R2 & R3 & R4 & R5 & R6
 
     R1 --> A1["README.md gốc<br/>§Quick start"]
-    A1 --> A2["api-examples.http<br/>gọi thử 18 lệnh"]
+    A1 --> A2["api-examples.http<br/>gọi thử 36 lệnh"]
 
     R2 --> B1["ARCHITECTURE.md<br/>toàn cảnh"]
     B1 --> B2["BACKEND.md<br/>lắp ráp Spring"]
@@ -110,19 +113,19 @@ tra** — làm được thì đi tiếp, không làm được thì dừng lại 
 
 | Tệp | Trả lời câu hỏi | Dòng |
 |---|---|---:|
-| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Các mảnh ghép lại thành hệ thống thế nào? | ~960 |
-| [`BACKEND.md`](BACKEND.md) | Ứng dụng Spring Boot lắp ra sao — bean, cấu hình, vòng đời request? | ~590 |
+| [`ARCHITECTURE.md`](ARCHITECTURE.md) | Các mảnh ghép lại thành hệ thống thế nào? | ~1.020 |
+| [`BACKEND.md`](BACKEND.md) | Ứng dụng Spring Boot lắp ra sao — bean, cấu hình, vòng đời request? | ~700 |
 | [`FRONTEND.md`](FRONTEND.md) | Trình duyệt mini Electron + React hoạt động thế nào? | ~1.850 |
 | [`CONFIGURATION.md`](CONFIGURATION.md) | **Đổi được gì mà không phải sửa mã?** | — |
 | [`INFRASTRUCTURE.md`](INFRASTRUCTURE.md) | Chạy ở đâu, ai canh nó? Docker, Kubernetes, giám sát | ~490 |
 | [`DEVOPS.md`](DEVOPS.md) | Mã đi từ máy tới cụm bằng cách nào? CI/CD, 7 cổng chặn | ~530 |
-| [`SECURITY.md`](SECURITY.md) | Chống lại cái gì, và **còn hở chỗ nào**? | ~700 |
+| [`SECURITY.md`](SECURITY.md) | Chống lại cái gì, và **còn hở chỗ nào**? | ~915 |
 | [`ACCOUNTS-AND-DASHBOARD.md`](ACCOUNTS-AND-DASHBOARD.md) | **Tài khoản nào là admin, ai được xem gì?** Phân quyền + bảng số liệu, kèm 6 lỗi thật | ~830 |
 | [`DSA-REPORT.md`](DSA-REPORT.md) | Big-O và số đo thực nghiệm | ~1.670 |
 | [`SO-SANH-PHUONG-AN.md`](SO-SANH-PHUONG-AN.md) | 13 bài toán, các phương án đã bác bỏ, và vì sao | ~1.120 |
 | [`EVALUATION.md`](EVALUATION.md) | Đo chất lượng tìm kiếm: MRR, P@k, nDCG | ~290 |
 | [`GIN-BASELINE.md`](GIN-BASELINE.md) | Đọ sức với full-text search của PostgreSQL | ~150 |
-| [`api-examples.http`](api-examples.http) | 30 lệnh gọi thật, chạy được ngay — kèm 7 ca lỗi | — |
+| [`api-examples.http`](api-examples.http) | 36 lệnh gọi thật, chạy được ngay — kèm cả các ca lỗi 400/401/404/405 | — |
 
 ### 3.2. `Math/` — một trang cho mỗi lớp
 

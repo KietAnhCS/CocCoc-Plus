@@ -1,6 +1,6 @@
 # Sơ đồ tư duy — Toàn tầng frontend (trình duyệt)
 
-**Phạm vi:** 42 file trong `browser-app/src` — tiến trình chính (Electron), cầu nối (preload), và giao diện (React).
+**Phạm vi:** 72 file trong `browser-app/src` — tiến trình chính (Electron), cầu nối (preload), và giao diện (React).
 
 **Trang này trả lời:** ba tiến trình nói chuyện với nhau ra sao, **cấu trúc dữ liệu tự cài nằm ở đâu trong trình duyệt**, và một thao tác của người dùng đi qua những lớp nào trước khi thành pixel trên màn hình.
 
@@ -16,40 +16,42 @@
 
 ```mermaid
 flowchart LR
-    ROOT["TRÌNH DUYỆT VnSearch<br/>42 file · 5.688 dòng TS"]
+    ROOT["TRÌNH DUYỆT VnSearch<br/>72 file · 10.968 dòng TS<br/>(chưa kể 1.242 dòng test)"]
 
     ROOT --> M["TIẾN TRÌNH CHÍNH<br/>Node.js đầy đủ quyền"]
     ROOT --> P["PRELOAD<br/>cầu nối bị cô lập"]
     ROOT --> R["RENDERER<br/>React, không có Node.js"]
 
-    M --> M1["tabManager · 393 dòng<br/>vòng đời tab, bố trí view"]
-    M --> M2["windowControls · 163 dòng<br/>kéo cửa sổ, phóng to thủ công"]
-    M --> M3["ipcHandler · 38 dòng<br/>10 kênh"]
-    M --> M4["index · 53 dòng<br/>cửa sổ frameless 1280x800"]
+    M --> M1["tabManager · 333 dòng<br/>vòng đời tab, bố trí view"]
+    M --> M2["urlPolicy · 130 dòng<br/>danh sách CHO PHÉP scheme"]
+    M --> M3["windowControls · 81 dòng<br/>kéo cửa sổ, phóng to thủ công"]
+    M --> M4["ipcHandler · 38 dòng<br/>10 kênh browser:*"]
+    M --> M5["index · 46 dòng<br/>cửa sổ frameless 1280x800"]
 
-    P --> P1["contextBridge<br/>window.browser · window.win<br/>16 kênh, hai chiều"]
+    P --> P1["contextBridge<br/>window.browser · window.win<br/>20 kênh, hai chiều"]
 
-    R --> R1["9 store Zustand<br/>toàn bộ TRẠNG THÁI"]
-    R --> R2["13 component<br/>toàn bộ HÌNH ẢNH"]
-    R --> R3["9 tiện ích lib<br/>API · DSA · phím tắt"]
+    R --> R1["12 store Zustand<br/>toàn bộ TRẠNG THÁI"]
+    R --> R2["23 component<br/>toàn bộ HÌNH ẢNH<br/>gồm admin/ và auth/"]
+    R --> R3["15 tiện ích lib<br/>API · DSA · phím tắt"]
 ```
 
 <details>
 <summary><b>Xem bản chữ (ASCII)</b></summary>
 ```
-TRÌNH DUYỆT VnSearch (42 file)
+TRÌNH DUYỆT VnSearch (72 file)
 │
-├── TIẾN TRÌNH CHÍNH (Node.js) ──── tabManager (393) ★ trái tim
-│                              ├─── windowControls (163)
+├── TIẾN TRÌNH CHÍNH (Node.js) ──── tabManager (333) ★ trái tim
+│                              ├─── urlPolicy (130)
+│                              ├─── windowControls (81)
 │                              ├─── ipcHandler (38)
-│                              └─── index (53)
+│                              └─── index (46)
 │
 ├── PRELOAD ─────────────────── contextBridge: window.browser + window.win
-│                               16 kênh, HỢP ĐỒNG DUY NHẤT giữa hai thế giới
+│                               20 kênh, HỢP ĐỒNG DUY NHẤT giữa hai thế giới
 │
-└── RENDERER (React) ────────── store/ (9)  · TRẠNG THÁI
-                            ├── components/ (13) · HÌNH ẢNH
-                            └── lib/ (9)  · API + DSA tự cài
+└── RENDERER (React) ────────── store/ (12) · TRẠNG THÁI
+                            ├── components/ (23) · HÌNH ẢNH, gồm admin/ + auth/
+                            └── lib/ (15) · API + DSA tự cài
 ```
 
 </details>
@@ -58,11 +60,11 @@ TRÌNH DUYỆT VnSearch (42 file)
 
 | # | Nhóm | Số file | Dòng | Vai trò một câu |
 |---|---|---:|---:|---|
-| 1 | `main/` | 4 | 641 | Sở hữu cửa sổ và mọi `WebContentsView` |
-| 2 | `preload/` | 2 | 104 | Nơi *duy nhất* renderer chạm được vào Electron |
-| 3 | `store/` | 9 | 786 | Nơi *duy nhất* giữ trạng thái |
-| 4 | `components/` | 13 | 3.348 | Nơi *duy nhất* vẽ ra pixel |
-| 5 | `lib/` | 9 | 722 | Hàm thuần: gọi API, cấu trúc dữ liệu, phím tắt |
+| 1 | `main/` | 6 | 628 | Sở hữu cửa sổ và mọi `WebContentsView` |
+| 2 | `preload/` | 2 | 75 | Nơi *duy nhất* renderer chạm được vào Electron |
+| 3 | `store/` | 14 | 1.169 | Nơi *duy nhất* giữ trạng thái — 12 store |
+| 4 | `components/` | 23 | 7.173 | Nơi *duy nhất* vẽ ra pixel |
+| 5 | `lib/` | 24 | 1.831 | Hàm thuần: gọi API, cấu trúc dữ liệu, phím tắt — 15 tiện ích |
 
 ---
 
@@ -100,10 +102,10 @@ flowchart TB
 
 | # | Hệ quả | Cơ chế | File |
 |---|---|---|---|
-| 1 | Vỏ phải chừa đúng 122px | Hằng `CHROME_HEIGHT` chép ở hai nơi | `tabManager.ts:11` ↔ `App.tsx` |
-| 2 | Bảng bên **neo**, không **phủ** | `setPanelWidth` → trang co lại | `App.tsx:46` → `tabManager.ts:144` |
-| 3 | Menu đổ dài bị trang che | `setOverlay` → **gỡ tạm** trang khỏi cây view | `overlayStore` → `tabManager.ts:160` |
-| 4 | Phím tắt chết khi ở trang ngoài | `before-input-event` chuyển tiếp về vỏ | `tabManager.ts:371` |
+| 1 | Vỏ phải chừa đúng 122px | Hằng `CHROME_HEIGHT` chép ở hai nơi | `tabManager.ts:6` ↔ `App.tsx` |
+| 2 | Bảng bên **neo**, không **phủ** | `setPanelWidth` → trang co lại | `App.tsx:44` → `tabManager.ts:235` |
+| 3 | Menu đổ dài bị trang che | `setOverlay` → **gỡ tạm** trang khỏi cây view | `overlayStore` → `tabManager.ts:240` |
+| 4 | Phím tắt chết khi ở trang ngoài | `before-input-event` chuyển tiếp về vỏ | `tabManager.ts:314` |
 
 > Giải thích đầy đủ từng hệ quả: [FRONTEND.md §5](../../FRONTEND.md#5-ý-tưởng-trung-tâm--vỏ-nằm-dưới-trang-nằm-trên).
 
@@ -194,7 +196,7 @@ sequenceDiagram
 
 ---
 
-## 5. Bản đồ trạng thái — 9 store, phụ thuộc một chiều
+## 5. Bản đồ trạng thái — 12 store, phụ thuộc một chiều
 
 ```mermaid
 flowchart TD

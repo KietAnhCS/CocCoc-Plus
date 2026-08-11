@@ -25,15 +25,15 @@
 | [4](#4-ba-tiến-trình-của-electron) | Ba tiến trình của Electron |
 | [5](#5-ý-tưởng-trung-tâm--vỏ-nằm-dưới-trang-nằm-trên) | **Ý tưởng trung tâm** — vỏ nằm dưới, trang nằm trên |
 | [6](#6-bản-đồ-thư-mục--64-file) | Bản đồ thư mục — 64 file |
-| [7](#7-hợp-đồng-ipc--16-kênh) | Hợp đồng IPC — 16 kênh |
+| [7](#7-hợp-đồng-ipc--20-kênh) | Hợp đồng IPC — 20 kênh |
 | [8](#8-năm-luồng-xử-lý-chính) | Năm luồng xử lý chính |
 | [9](#9-tầng-store--12-store-zustand) | Tầng store — 12 store Zustand |
 | [10](#10-tầng-component--23-component) | Tầng component — 23 component |
-| [11](#11-tầng-lib--16-file-tiện-ích) | Tầng lib — 16 file tiện ích |
+| [11](#11-tầng-lib--15-file-tiện-ích) | Tầng lib — 15 file tiện ích |
 | [12](#12-hệ-thống-giao-diện) | Hệ thống giao diện |
 | [13](#13-hướng-dẫn-thực-hành--12-công-thức) | **Hướng dẫn thực hành — 12 công thức** |
 | [14](#14-chạy-gỡ-lỗi-đóng-gói) | Chạy, gỡ lỗi, đóng gói |
-| [15](#15-đánh-giá-kiến-trúc-theo-chuẩn-doanh-nghiệp) | **Đánh giá kiến trúc theo chuẩn doanh nghiệp** |
+| [15](#15-đánh-giá-kiến-trúc-theo-chuẩn-doanh-nghiệp) | **Đánh giá kiến trúc theo chuẩn doanh nghiệp** — điểm mạnh, 15 mục rà soát, hướng cải thiện |
 | [16](#16-lộ-trình-nâng-cấp-theo-thứ-tự-ưu-tiên) | Lộ trình nâng cấp theo thứ tự ưu tiên |
 | [17](#17-tra-cứu-nhanh) | Tra cứu nhanh |
 
@@ -57,8 +57,8 @@ flowchart LR
     P --> P1["index.ts<br/>contextBridge: window.browser / window.win"]
     P --> P2["index.d.ts<br/>kiểu của hợp đồng"]
 
-    R --> S["store/ · 9 store Zustand<br/>toàn bộ trạng thái"]
-    R --> C["components/ · 13 component<br/>toàn bộ hình ảnh"]
+    R --> S["store/ · 12 store Zustand<br/>toàn bộ trạng thái"]
+    R --> C["components/ · 23 component<br/>toàn bộ hình ảnh"]
     R --> L["lib/ · 9 tiện ích<br/>gọi API, DSA, phím tắt"]
 
     S --> S1["tabStore · historyStore<br/>searchViewStore · bookmarkStore"]
@@ -89,22 +89,25 @@ TRÌNH DUYỆT VnSearch (browser-app/, 42 file)
 │
 └── src/renderer/ — GIAO DIỆN (React, KHÔNG có quyền Node.js)
       ├── App.tsx ............... xếp 3 thanh trên + vùng nội dung + cột phải
-      ├── store/ (9 file) ....... TOÀN BỘ trạng thái, Zustand
-      ├── components/ (13 file) . TOÀN BỘ hình ảnh
-      └── lib/ (9 file) ......... gọi API, Stack, BookmarkTrie, phím tắt
+      ├── store/ (12 store) ..... TOÀN BỘ trạng thái, Zustand
+      ├── components/ (23 file) . TOÀN BỘ hình ảnh, gồm admin/ và auth/
+      └── lib/ (15 file) ........ gọi API, Stack, BookmarkTrie, phím tắt
 ```
 
 </details>
 
-### Bảng tra nhanh — 42 file, dòng, việc
+### Bảng tra nhanh — 72 file, dòng, việc
+
+Cột "Số file" đếm cả tệp `*.test.ts(x)` nằm cạnh mã; cột "Số dòng" **không** kể
+chúng, để con số nói về mã sản phẩm.
 
 | Nhóm | Số file | Số dòng | Vai trò |
 |---|---:|---:|---|
-| `src/main/` | 4 | 641 | Cửa sổ, tab, IPC — chạy Node.js |
-| `src/preload/` | 2 | 104 | Hợp đồng giữa hai thế giới |
-| `src/renderer/store/` | 9 | 786 | Trạng thái |
-| `src/renderer/components/` | 13 | 3.348 | Giao diện |
-| `src/renderer/lib/` | 9 | 722 | Tiện ích + cấu trúc dữ liệu |
+| `src/main/` | 6 | 628 | Cửa sổ, tab, IPC, chính sách URL — chạy Node.js |
+| `src/preload/` | 2 | 75 | Hợp đồng giữa hai thế giới |
+| `src/renderer/store/` | 14 | 1.169 | Trạng thái — 12 store, xem §9 |
+| `src/renderer/components/` | 23 | 7.173 | Giao diện — gồm `admin/` (5) và `auth/` (2) |
+| `src/renderer/lib/` | 24 | 1.831 | 15 tiện ích + cấu trúc dữ liệu, xem §11 |
 | Cấu hình | 5 | ~200 | Vite, Tailwind, 3 tsconfig |
 
 ---
@@ -170,8 +173,8 @@ flowchart TB
 
     subgraph REN["RENDERER (React — KHÔNG có Node.js)"]
         APP["App.tsx"]
-        ST["9 store Zustand"]
-        CP["13 component"]
+        ST["12 store Zustand"]
+        CP["23 component"]
     end
 
     subgraph EXT["WebContentsView của trang ngoài (sandbox)"]
@@ -210,10 +213,10 @@ useTabStore.newTab()
 
 | Thiết lập | Giá trị | Ở đâu | Ý nghĩa |
 |---|---|---|---|
-| `contextIsolation` | `true` | `tabManager.ts:97`, `:326` | Renderer và preload chạy ở hai ngữ cảnh JS tách biệt. Trang không thể vá đè hàm của preload. |
-| `nodeIntegration` | `false` | `tabManager.ts:98`, `:327` | Renderer **không** có `require`, `fs`, `process`. Kể cả bị XSS cũng không đọc được ổ đĩa. |
-| `sandbox` (trang ngoài) | `true` | `tabManager.ts:328` | Trang của người lạ chạy trong sandbox của Chromium. |
-| `sandbox` (vỏ) | `false` | `tabManager.ts:98` | ⚠️ Xem §15.1 — chỗ này **nên** bật lên `true`. |
+| `contextIsolation` | `true` | `tabManager.ts:65` (vỏ), `:276` (trang) | Renderer và preload chạy ở hai ngữ cảnh JS tách biệt. Trang không thể vá đè hàm của preload. |
+| `nodeIntegration` | `false` | `tabManager.ts:66` (vỏ), `:276` (trang) | Renderer **không** có `require`, `fs`, `process`. Kể cả bị XSS cũng không đọc được ổ đĩa. |
+| `sandbox` (trang ngoài) | `true` | `tabManager.ts:276` — mặc định của Electron khi `nodeIntegration: false` | Trang của người lạ chạy trong sandbox của Chromium. |
+| `sandbox` (vỏ) | `true` ✅ | `tabManager.ts:77` | **Đã sửa** — trước là `false`. Đây là khung nhìn **duy nhất có preload**, tức duy nhất chạm được IPC; tắt sandbox nghĩa là một lỗ XSS trong giao diện chạy được với toàn quyền Node. Xem §15.10a |
 | CSP | `default-src 'self'` | `renderer/index.html:5-8` | Renderer chỉ được tải tài nguyên của chính nó và gọi `http://localhost:8080`. Không tải được ảnh/script từ bên ngoài. |
 
 > **Hệ quả dây chuyền của CSP** — vì không tải được ảnh từ máy chủ ngoài, **mọi thứ trông như ảnh trong ứng dụng đều được vẽ tại chỗ**: favicon là ô màu sinh từ hàm băm tên miền (`lib/site.ts`), ảnh nền trang chủ là SVG hoàng hôn vẽ tay (`NewTabPage.tsx:67`), logo ứng dụng ở cột bên là SVG nội tuyến (`lib/apps.tsx`). Đây không phải sự lười — đây là hệ quả trực tiếp của một quyết định bảo mật.
@@ -280,7 +283,7 @@ $$\text{CHROME\_HEIGHT} = \underbrace{40}_{\text{TabBar}} + \underbrace{48}_{\te
 
 | Hằng số | Bên main | Bên renderer | Ràng buộc |
 |---|---|---|---|
-| `CHROME_HEIGHT` | `tabManager.ts:11` = 122 | `App.tsx` — `h-10` + `h-12` + `h-[34px]` | Phải bằng nhau |
+| `CHROME_HEIGHT` | `tabManager.ts:6` = 122 | `App.tsx` — `h-10` + `h-12` + `h-[34px]` | Phải bằng nhau |
 | `SIDE_RAIL_WIDTH` | `tabManager.ts:19` = 48 | `sidePanelStore.ts:19` = 48, `SideRail.tsx` `w-12` | Phải bằng nhau |
 | `PANEL_WIDTH` | truyền động qua IPC | `sidePanelStore.ts:16` = 340 | main nhận qua `setPanelWidth` |
 
@@ -323,13 +326,13 @@ Giải pháp: `tabManager.forwardShortcuts()` bắt `before-input-event` trên m
 
 ```mermaid
 flowchart LR
-    K1["Bàn phím trong VỎ<br/>(trang chủ/kết quả)"] --> H["run(name)<br/>useBrowserShortcuts.ts:66<br/>MỘT chỗ thực thi duy nhất"]
-    K2["Bàn phím trong TRANG NGOÀI"] --> BIE["before-input-event<br/>tabManager.ts:372"]
+    K1["Bàn phím trong VỎ<br/>(trang chủ/kết quả)"] --> H["runShortcut(name)<br/>useBrowserShortcuts.ts:36<br/>MỘT chỗ thực thi duy nhất"]
+    K2["Bàn phím trong TRANG NGOÀI"] --> BIE["before-input-event<br/>tabManager.ts:314"]
     BIE --> IPC["send('browser:shortcut')"]
     IPC --> H
 ```
 
-> ⚠️ Bảng phím tắt bị **chép hai lần**: `shortcutName()` ở `tabManager.ts:30` và `shortcutFromEvent()` ở `useBrowserShortcuts.ts:18`. Hai tiến trình không dùng chung mã được (theo cách tổ chức hiện tại). Sửa chỗ nào phải sửa cả hai. Xem §15.3.
+> ⚠️ Bảng phím tắt bị **chép hai lần**: `shortcutName()` ở `tabManager.ts:28` và `shortcutFromEvent()` ở `useBrowserShortcuts.ts:18`. Hai tiến trình không dùng chung mã được (theo cách tổ chức hiện tại). Sửa chỗ nào phải sửa cả hai. Xem §15.3.
 
 ---
 
@@ -355,11 +358,11 @@ browser-app/
         ├── index.html          41  CSP nằm ở đây
         └── src/
             ├── main.tsx        15  ReactDOM.createRoot
-            ├── App.tsx         67  ★ bố cục tổng + 3 useEffect đồng bộ xuống main
+            ├── App.tsx         76  ★ bố cục tổng + 3 useEffect đồng bộ xuống main
             ├── index.css      206  biến màu, bảng màu biểu đồ, .icon-btn, .skeleton
-            ├── store/        1.277  ── 12 store, xem §9
-            ├── components/   7.076  ── 23 component (5 admin/, 2 auth/), xem §10
-            └── lib/          1.741  ── 15 tiện ích, xem §11
+            ├── store/        1.169  ── 12 store, xem §9
+            ├── components/   7.173  ── 23 component (5 admin/, 2 auth/), xem §10
+            └── lib/          1.831  ── 15 tiện ích, xem §11
 ```
 
 > **Không có `tailwind.config.js` và `postcss.config.js`.** Dự án dùng
@@ -425,7 +428,7 @@ Tiền tố là `win:`, **không phải** `window:` — gõ `window:minimize` th
 > `TabState` lẻ buộc renderer phải tự gộp vào mảng đang có — và ngay lập tức
 > sinh câu hỏi "tab bị xoá thì báo bằng gì". `TabManager.emit()` chọn cách
 > đơn giản hơn: mỗi lần có bất kỳ thay đổi nào, gửi **ảnh chụp toàn bộ**
-> (`tabManager.ts:327`). Renderer chỉ việc thay thế trạng thái, không có phép
+> (`tabManager.ts:331`). Renderer chỉ việc thay thế trạng thái, không có phép
 > gộp nào để làm sai.
 
 ### 7.4. Một chi tiết tinh tế: vì sao cần cả `listTabs` (kéo) lẫn `browser:tabs` (đẩy)
@@ -869,7 +872,7 @@ avatar và menu nay đọc `sessionStore`.
 
 ---
 
-## 11. Tầng lib — 16 file tiện ích
+## 11. Tầng lib — 15 file tiện ích
 
 | File | Dòng | Việc |
 |---|---:|---|
@@ -1168,7 +1171,7 @@ Chỉ sửa `renderer/src/index.css`, khối `:root` (sáng) và `.dark` (tối)
 .dark  { --c-brand: 248 113 113; }  /* đỏ nhạt hơn cho nền tối */
 ```
 
-Toàn bộ `bg-brand`, `text-brand`, `border-brand/40`, `ring-brand/60` trong 13 component đổi theo ngay, không phải đụng vào file nào khác.
+Toàn bộ `bg-brand`, `text-brand`, `border-brand/40`, `ring-brand/60` trong 23 component đổi theo ngay, không phải đụng vào file nào khác.
 
 ### 13.10. Thêm một chuyên mục vào khu "Tin nóng"
 
@@ -1260,7 +1263,7 @@ npm run build:win        # electron-vite build && electron-builder --win
 
 ---
 
-## 15. Giới hạn đã biết và hướng cải thiện
+## 15. Đánh giá kiến trúc theo chuẩn doanh nghiệp
 
 Phần này liệt kê thẳng những chỗ chưa đạt chuẩn một sản phẩm có đội nhiều người, có CI, có bàn giao. Mỗi mục ghi rõ **trạng thái hiện tại** và, nếu chưa đóng, **cách đóng**.
 
@@ -1268,7 +1271,7 @@ Phần này liệt kê thẳng những chỗ chưa đạt chuẩn một sản ph
 ```
    ĐÃ ĐÓNG                              CÒN LẠI
    ─────────────────────────────        ──────────────────────────────
-   ✅ Kiểm thử — 53 bài Vitest          ⚠️ Kiểu ở ranh giới IPC không
+   ✅ Kiểm thử — 128 bài Vitest         ⚠️ Kiểu ở ranh giới IPC không
    ✅ ESLint + Prettier + CI                kiểm tra lúc chạy      (15.2)
    ✅ sandbox: true                     ⚠️ Hằng số chép hai chỗ    (15.3)
    ✅ Chặn điều hướng vỏ giao diện      ⚠️ API_BASE viết cứng      (15.7)
@@ -1289,7 +1292,7 @@ Ba việc đáng làm tiếp, theo thứ tự: **(1) `src/shared/` cho hằng s�
 
 **b. Preload là hợp đồng thật sự.** Renderer không có `ipcRenderer`. Muốn thêm khả năng gì phải khai báo tường minh ở preload — đúng nguyên tắc đặc quyền tối thiểu.
 
-**c. Store chia theo miền, kích thước hợp lý.** 9 store, 18–165 dòng mỗi cái, phụ thuộc một chiều, không có vòng. Không có "god store".
+**c. Store chia theo miền, kích thước hợp lý.** 12 store, 13–187 dòng mỗi cái, phụ thuộc một chiều, không có vòng. Không có "god store".
 
 **d. Hệ màu ngữ nghĩa ba lớp.** Đây là thứ mà nhiều dự án doanh nghiệp làm sai và phải trả giá. Ở đây làm đúng từ đầu.
 
@@ -1381,10 +1384,10 @@ export type TabState = z.infer<typeof TabStateSchema>   // kiểu suy ra từ sc
 
 | Thứ | Bản 1 | Bản 2 | Hậu quả khi lệch |
 |---|---|---|---|
-| `CHROME_HEIGHT` = 122 | `tabManager.ts:11` | tổng `h-10`+`h-12`+`h-[34px]` trong `App.tsx` | Trang che thanh, hoặc khe hở |
+| `CHROME_HEIGHT` = 122 | `tabManager.ts:6` | tổng `h-10`+`h-12`+`h-[34px]` trong `App.tsx` | Trang che thanh, hoặc khe hở |
 | `SIDE_RAIL_WIDTH` = 48 | `tabManager.ts:19` | `sidePanelStore.ts:19` + `w-12` | Cột bị trang đè lên |
 | `HOME_URL` | `tabManager.ts:23` | `tabStore.ts:5` | Trang chủ không nhận ra chính nó |
-| Bảng phím tắt | `shortcutName()` `tabManager.ts:30` | `shortcutFromEvent()` `useBrowserShortcuts.ts:18` | Phím ăn ở vỏ nhưng chết ở trang ngoài |
+| Bảng phím tắt | `shortcutName()` `tabManager.ts:28` | `shortcutFromEvent()` `useBrowserShortcuts.ts:18` | Phím ăn ở vỏ nhưng chết ở trang ngoài |
 
 Comment trong mã có ghi *"chỗ nào sửa thì sửa cả hai"* — tốt, nhưng **chú thích không phải là cơ chế**. Trong đội nhiều người, chú thích sẽ bị bỏ qua.
 
@@ -1626,8 +1629,8 @@ phải sửa mã và biên dịch lại.
 > xếp đây là thiếu sót lớn nhất. Nay:
 >
 > ```
-> Backend  : 528 test / 21.162 dòng Java
-> Frontend :  53 test /  7.025 dòng TypeScript   (5 tệp, chạy trong CI)
+> Backend  : 640 test / 24.195 dòng Java
+> Frontend : 128 test / 12.210 dòng TypeScript   (12 tệp, chạy trong CI)
 > ```
 >
 > | Tệp test | Phủ gì | Số bài |
@@ -1953,7 +1956,7 @@ Lưu ý `appId` phải khớp với `electronApp.setAppUserModelId('com.vnsearch
 
 | Việc | Được gì | § |
 |---|---|---|
-| Vitest + 53 test cho `lib/` và `main/` | Chặn hồi quy, và canh **ranh giới bảo mật** | 15.8 |
+| Vitest + 128 test cho `lib/`, `main/` và `store/` | Chặn hồi quy, và canh **ranh giới bảo mật** | 15.8 |
 | ESLint + Prettier + Vitest trong CI | Bắt lỗi tự động, kể cả `useEffect` thiếu phụ thuộc | 15.9 |
 | `sandbox: true` | Thu hẹp bề mặt tấn công nếu React app bị XSS | 15.10a |
 | `will-navigate` + `setWindowOpenHandler` | Vỏ giao diện không rời được trang của nó | 15.10b |
@@ -1985,7 +1988,7 @@ Lưu ý `appId` phải khớp với `electronApp.setAppUserModelId('com.vnsearch
 
 | Hằng | Giá trị | Định nghĩa ở | Phải khớp với |
 |---|---:|---|---|
-| `CHROME_HEIGHT` | 122 | `main/tabManager.ts:11` | `App.tsx`: 40 + 48 + 34 |
+| `CHROME_HEIGHT` | 122 | `main/tabManager.ts:6` | `App.tsx`: 40 + 48 + 34 |
 | `SIDE_RAIL_WIDTH` | 48 | `main/tabManager.ts:19` | `store/sidePanelStore.ts:19`, `SideRail` `w-12` |
 | `PANEL_WIDTH` | 340 | `store/sidePanelStore.ts:16` | truyền động qua `setPanelWidth` |
 | `HOME_URL` | `vnsearch://home` | `main/tabManager.ts:23` | `store/tabStore.ts:5` |

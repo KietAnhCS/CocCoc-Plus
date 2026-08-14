@@ -27,10 +27,18 @@
 
       `https:` chứ KHÔNG phải `*`: ảnh qua http trần có thể bị sửa trên đường
       truyền, và cho phép nó là mở lại một lỗ hổng không cần thiết.
+
+      HAI cổng trong `connect-src`, không phải một: 8080 là backend tìm kiếm
+      (Java), 8090 là football-service (Go). Chúng là hai tiến trình riêng với
+      hai vòng đời riêng — đó là cả lý do football-service tồn tại. Thiếu 8090
+      ở đây thì mọi lời gọi của phần Thể thao bị CSP chặn TRƯỚC khi rời máy, và
+      giao diện chỉ thấy một `TypeError: Failed to fetch` không phân biệt được
+      với "service chưa bật" — nên nó hiện đúng câu hướng dẫn chạy docker, và
+      câu ấy không sửa được gì cả.
     -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://localhost:8080 ws://localhost:*"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' http://localhost:8080 http://localhost:8090 ws://localhost:*"
     />
   </head>
 

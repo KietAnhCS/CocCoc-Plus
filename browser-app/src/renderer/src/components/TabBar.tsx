@@ -85,6 +85,16 @@ function Tab({ tab, active, single, onSelect, onClose }: TabProps): JSX.Element 
           : 'text-muted hover:bg-surface/45 hover:text-ink')
       }
     >
+      {/* Vạch xanh trên đỉnh tab đang mở. Nền sáng hơn đã đủ để phân biệt,
+          nhưng thêm một vạch màu thì mắt tìm ra tab hiện hành ngay cả khi
+          hàng tab đã chật và chênh lệch nền chỉ còn vài pixel. */}
+      {active && (
+        <span
+          aria-hidden="true"
+          className="absolute inset-x-2 top-0 h-[2px] animate-scale-in rounded-full bg-linear-to-r from-brand to-accent"
+        />
+      )}
+
       {!active && !single && (
         <span className="absolute top-1/2 right-0 h-4 w-px -translate-y-1/2 bg-line group-hover:opacity-0" />
       )}
@@ -96,7 +106,7 @@ function Tab({ tab, active, single, onSelect, onClose }: TabProps): JSX.Element 
           <VnSearchMark className="h-4 w-4 text-muted" />
         ) : (
           <span
-            className="flex h-4 w-4 items-center justify-center rounded-[5px] text-[9px] font-bold text-white"
+            className="flex h-4 w-4 items-center justify-center rounded-[5px] text-[9px] font-bold text-white ring-1 ring-inset ring-white/25"
             style={{ background: siteGradient(tab.url) }}
           >
             {siteInitial(tab.url)}

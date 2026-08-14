@@ -3,23 +3,44 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Góc quay của vầng sáng quanh ô tìm kiếm. Khai báo bằng `@property` chứ không
+ * phải một biến CSS thường, vì chỉ biến ĐÃ ĐĂNG KÝ KIỂU mới nội suy được —
+ * biến thường nhảy cóc từ 0deg sang 360deg thay vì quay mượt.
+ */
+@property --glow-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
 @theme {
-  --color-chrome: rgb(223 227 235);
+  /*
+   * Bảng màu giao diện — XANH LÁ trên nền tối, theo hướng của Cốc Cốc.
+   *
+   * Nền tối ở đây không phải xám trung tính mà là xám ÁM XANH LÁ: kênh lục
+   * nhỉnh hơn kênh đỏ và lam vài đơn vị. Khác biệt nhỏ đến mức khó gọi tên khi
+   * nhìn riêng một mảng, nhưng đặt cạnh màu nhấn xanh lá thì cả khung hình
+   * trông như một hệ màu thống nhất, thay vì một nút xanh dán lên nền xám.
+   */
+  --color-chrome: rgb(224 233 227);
   --color-surface: rgb(255 255 255);
-  --color-raised: rgb(241 243 248);
-  --color-line: rgb(219 224 233);
-  --color-ink: rgb(24 26 31);
-  --color-muted: rgb(92 100 114);
-  --color-faint: rgb(140 148 162);
-  --color-brand: rgb(79 70 229);
-  --color-brand-soft: rgb(238 240 255);
-  --color-link: rgb(26 90 219);
-  --color-visited: rgb(105 60 190);
+  --color-raised: rgb(240 246 242);
+  --color-line: rgb(215 228 220);
+  --color-ink: rgb(17 26 21);
+  --color-muted: rgb(86 102 93);
+  --color-faint: rgb(131 149 139);
+  --color-brand: rgb(0 150 76);
+  --color-brand-strong: rgb(0 118 60);
+  --color-brand-soft: rgb(226 246 235);
+  --color-accent: rgb(122 190 20);
+  --color-link: rgb(8 116 74);
+  --color-visited: rgb(96 88 170);
   --color-success: rgb(16 122 87);
-  --color-warn: rgb(180 83 9);
-  --color-danger: rgb(200 45 55);
-  --color-omni: rgb(241 243 248);
-  --color-bookmarks: rgb(232 236 243);
+  --color-warn: rgb(176 82 8);
+  --color-danger: rgb(198 44 54);
+  --color-omni: rgb(240 246 242);
+  --color-bookmarks: rgb(232 240 235);
 
   /*
    * Bảng màu BIỂU ĐỒ — tách riêng khỏi màu giao diện, có chủ ý.
@@ -28,7 +49,7 @@
    * hai đường kề nhau còn phân biệt được không khi người xem bị mù màu. Bốn ô
    * dưới là bốn ô đầu của một bảng đã qua kiểm định (kiểm tra tách biệt CVD,
    * dải độ sáng, sàn sắc độ) trên đúng hai nền mà ứng dụng này dùng:
-   * nền sáng #ffffff và nền tối #1b1e24.
+   * nền sáng #ffffff và nền tối.
    *
    *   ô 1 xanh dương   ô 2 cam   ô 3 xanh ngọc   ô 4 vàng
    *
@@ -40,6 +61,10 @@
    * Ở nền sáng, ô 3 và ô 4 có độ tương phản dưới 3:1 so với nền. Đó là lý do
    * mọi biểu đồ dùng chúng đều PHẢI kèm chú giải nhìn thấy được hoặc bảng số —
    * không để màu là kênh thông tin duy nhất.
+   *
+   * Bảng này KHÔNG đổi theo màu thương hiệu. Đổi giao diện sang xanh lá là
+   * việc thẩm mỹ; bốn ô dưới là kết quả kiểm định, sửa chúng cho "hợp tông"
+   * sẽ phá đúng cái tính chất khiến chúng đáng tin.
    */
   --color-viz-1: rgb(42 120 214);
   --color-viz-2: rgb(235 104 52);
@@ -53,10 +78,28 @@
   --shadow-omni: 0 1px 6px rgb(0 0 0 / 0.1);
   --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.18), 0 2px 8px rgb(0 0 0 / 0.08);
   --shadow-card: 0 8px 24px rgb(0 0 0 / 0.12);
+  --shadow-glow: 0 0 0 1px rgb(0 150 76 / 0.35), 0 8px 30px rgb(0 150 76 / 0.28);
+
+  --ease-out-back: cubic-bezier(0.22, 1.2, 0.36, 1);
 
   --animate-shimmer: shimmer 1.6s ease-in-out infinite;
   --animate-fade-up: fade-up 0.28s ease-out both;
   --animate-scale-in: scale-in 0.14s ease-out;
+  --animate-pop-in: pop-in 0.42s var(--ease-out-back) both;
+  --animate-rise-in: rise-in 0.5s var(--ease-out-back) both;
+  --animate-blur-in: blur-in 0.6s ease-out both;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-float-slow: float 11s ease-in-out infinite;
+  --animate-glow-spin: glow-spin 4.5s linear infinite;
+  --animate-pulse-ring: pulse-ring 2.6s ease-out infinite;
+  --animate-progress: progress 1.15s ease-in-out infinite;
+  --animate-caret: caret 1.05s step-end infinite;
+  --animate-text-shine: text-shine 5s linear infinite;
+  --animate-grid-pan: grid-pan 26s linear infinite;
+  --animate-aurora-a: aurora-a 24s ease-in-out infinite;
+  --animate-aurora-b: aurora-b 31s ease-in-out infinite;
+  --animate-aurora-c: aurora-c 27s ease-in-out infinite;
+  --animate-sweep: sweep 2.8s ease-in-out infinite;
 
   @keyframes shimmer {
     100% {
@@ -85,31 +128,227 @@
       transform: none;
     }
   }
+
+  /* Vào kèm một nhịp nảy nhẹ — dùng cho ô lối tắt, thẻ tin, viên gợi ý. */
+  @keyframes pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(14px) scale(0.94);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(22px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  @keyframes blur-in {
+    from {
+      opacity: 0;
+      filter: blur(10px);
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+      transform: none;
+    }
+  }
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-9px);
+    }
+  }
+
+  @keyframes glow-spin {
+    to {
+      --glow-angle: 360deg;
+    }
+  }
+
+  /* Vòng sóng lan ra rồi tắt — dùng cho nút micrô khi đang "nghe". */
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.85);
+      opacity: 0.55;
+    }
+    70% {
+      transform: scale(1.9);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1.9);
+      opacity: 0;
+    }
+  }
+
+  /* Thanh tiến trình vô định: chạy qua rồi lặp, không hứa hẹn phần trăm nào. */
+  @keyframes progress {
+    0% {
+      transform: translateX(-100%) scaleX(0.35);
+    }
+    50% {
+      transform: translateX(20%) scaleX(0.8);
+    }
+    100% {
+      transform: translateX(120%) scaleX(0.35);
+    }
+  }
+
+  @keyframes caret {
+    50% {
+      opacity: 0;
+    }
+  }
+
+  @keyframes text-shine {
+    to {
+      background-position: 220% center;
+    }
+  }
+
+  @keyframes grid-pan {
+    to {
+      background-position: 44px 44px;
+    }
+  }
+
+  /*
+   * Ba quầng sáng nền, ba quỹ đạo KHÁC CHU KỲ nhau (24s / 31s / 27s). Chu kỳ
+   * không chia hết cho nhau nên tổ hợp ba lớp gần như không lặp lại trong một
+   * phiên làm việc — mắt không bắt được nhịp, nền trông "sống" chứ không
+   * trông như một ảnh GIF quay vòng.
+   */
+  @keyframes aurora-a {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    33% {
+      transform: translate3d(9%, -7%, 0) scale(1.16);
+    }
+    66% {
+      transform: translate3d(-6%, 6%, 0) scale(0.92);
+    }
+  }
+
+  @keyframes aurora-b {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(1.05);
+    }
+    40% {
+      transform: translate3d(-12%, 8%, 0) scale(0.9);
+    }
+    75% {
+      transform: translate3d(7%, 10%, 0) scale(1.2);
+    }
+  }
+
+  @keyframes aurora-c {
+    0%,
+    100% {
+      transform: translate3d(0, 0, 0) scale(0.95);
+    }
+    50% {
+      transform: translate3d(14%, 5%, 0) scale(1.25);
+    }
+  }
+
+  /* Vệt sáng quét ngang — dùng cho viền thẻ và thanh "đang tìm". */
+  @keyframes sweep {
+    0% {
+      transform: translateX(-120%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+}
+
+/*
+ * Hai khung hình dưới nằm NGOÀI `@theme`, có lý do kỹ thuật: Tailwind chỉ giữ
+ * lại `@keyframes` khai báo trong `@theme` khi có một biến `--animate-*` trỏ
+ * tới nó. Hai cái này được gọi thẳng từ luật CSS ở `@layer components`, không
+ * qua lớp tiện ích nào, nên đặt trong `@theme` là bị loại khi build.
+ */
+@keyframes sheen {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  100% {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+/*
+ * Vạch đếm ngược tới lần đổi trận của ô tỉ số trên trang chủ. Nằm ngoài
+ * `@theme` cùng lý do với `sheen`: nó được gọi thẳng từ thuộc tính `style`
+ * trong React chứ không qua một lớp tiện ích nào.
+ */
+@keyframes tile-rotate {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+@keyframes ripple-out {
+  from {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
 }
 
 .dark {
-  --color-chrome: rgb(17 19 24);
-  --color-surface: rgb(27 30 36);
-  --color-raised: rgb(39 43 51);
-  --color-line: rgb(51 56 65);
-  --color-ink: rgb(232 234 238);
-  --color-muted: rgb(158 165 176);
-  --color-faint: rgb(122 130 142);
-  --color-brand: rgb(129 140 248);
-  --color-brand-soft: rgb(44 46 78);
-  --color-link: rgb(138 180 248);
-  --color-visited: rgb(197 163 245);
+  --color-chrome: rgb(9 16 12);
+  --color-surface: rgb(13 21 17);
+  --color-raised: rgb(24 35 29);
+  --color-line: rgb(36 51 43);
+  --color-ink: rgb(226 238 231);
+  --color-muted: rgb(147 168 156);
+  --color-faint: rgb(110 132 121);
+  --color-brand: rgb(45 212 132);
+  --color-brand-strong: rgb(94 234 164);
+  --color-brand-soft: rgb(17 45 32);
+  --color-accent: rgb(163 230 53);
+  --color-link: rgb(118 226 172);
+  --color-visited: rgb(176 196 232);
   --color-success: rgb(74 202 152);
   --color-warn: rgb(240 180 80);
   --color-danger: rgb(255 130 130);
-  --color-omni: rgb(42 46 55);
-  --color-bookmarks: rgb(20 22 27);
+  --color-omni: rgb(22 33 27);
+  --color-bookmarks: rgb(11 18 14);
+
+  --shadow-glow: 0 0 0 1px rgb(45 212 132 / 0.4), 0 10px 40px rgb(45 212 132 / 0.22);
 
   /*
    * Cùng bốn sắc màu, nhưng ĐƯỢC CHỌN LẠI BƯỚC cho nền tối — không phải lật
    * ngược tự động. Một màu đạt chuẩn trên nền trắng gần như luôn quá chói hoặc
-   * quá tối trên nền #1b1e24, nên bốn giá trị này được kiểm định lại như một
-   * bộ riêng, trên đúng nền tối đó.
+   * quá tối trên nền tối, nên bốn giá trị này được kiểm định lại như một bộ
+   * riêng. Nền tối nay còn tối hơn lúc kiểm định (#0d1511 so với #1b1e24), nên
+   * mọi tỉ lệ tương phản chỉ TĂNG — bộ giá trị vẫn hợp lệ, không cần chỉnh.
    */
   --color-viz-1: rgb(57 135 229);
   --color-viz-2: rgb(217 89 38);
@@ -143,12 +382,35 @@
   button {
     -webkit-tap-highlight-color: transparent;
   }
+
+  /*
+   * Người bật "giảm chuyển động" trong hệ điều hành đang nói rằng chuyển động
+   * làm họ khó chịu hoặc chóng mặt, nên mọi hiệu ứng TRANG TRÍ phải tắt.
+   *
+   * Ngoại lệ duy nhất là con quay chờ: nó không trang trí mà là thứ DUY NHẤT
+   * cho biết ứng dụng còn đang làm việc. Đóng băng nó lại biến "đang tải" thành
+   * "đã treo" — đổi một khó chịu lấy một hiểu lầm.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+
+    .animate-spin {
+      animation: spin 0.8s linear infinite !important;
+    }
+  }
 }
 
 @layer components {
   .icon-btn {
     @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted
-           transition-colors duration-150 hover:bg-raised hover:text-ink
+           transition-all duration-150 hover:bg-raised hover:text-ink active:scale-90
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60
            disabled:pointer-events-none disabled:text-faint/50;
   }
@@ -166,7 +428,7 @@
 
   .rail-btn {
     @apply flex h-9 w-9 items-center justify-center rounded-xl text-muted
-           transition-colors duration-150 hover:bg-raised hover:text-ink
+           transition-all duration-150 hover:bg-raised hover:text-ink active:scale-90
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60;
   }
 
@@ -181,7 +443,150 @@
   }
 
   .dark .skeleton::after {
-    @apply via-white/[0.07];
+    @apply via-brand/[0.14];
+  }
+
+  /* ---- Chuyển động dùng chung ------------------------------------------ */
+
+  /**
+   * Nhấc nhẹ khi rê chuột. Tách thành lớp riêng chứ không lặp lại chuỗi
+   * `hover:-translate-y-1 hover:shadow-card` ở từng chỗ, để mọi thẻ trong ứng
+   * dụng nhấc lên CÙNG một quãng và cùng một nhịp — chênh nhau vài pixel giữa
+   * các khối là thứ mắt bắt được ngay dù không chỉ ra được vì sao.
+   */
+  .hover-lift {
+    @apply transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-card;
+  }
+
+  .press {
+    @apply transition-transform duration-100 active:scale-[0.97];
+  }
+
+  /**
+   * Vệt sáng quét qua khi rê chuột. Đặt trên phần tử cha có `.group` và
+   * `overflow-hidden`; vệt chỉ chạy khi chuột vào, không chạy nền.
+   */
+  .sheen {
+    @apply pointer-events-none absolute inset-0 -translate-x-[140%] bg-linear-to-r
+           from-transparent via-white/25 to-transparent opacity-0;
+  }
+
+  .group:hover .sheen {
+    opacity: 1;
+    animation: sheen 0.85s ease-out;
+  }
+
+  /**
+   * Vầng sáng xoay quanh ô tìm kiếm khi ô được chọn.
+   *
+   * Dùng `conic-gradient` xoay chứ không phải một viền phát sáng đứng yên: mắt
+   * người bỏ qua ánh sáng tĩnh sau nửa giây, nhưng vẫn dõi theo ánh sáng đang
+   * chuyển. Đây là chỗ DUY NHẤT trong ứng dụng đáng dùng thủ thuật đó — ô tìm
+   * kiếm là việc chính của cả trang.
+   */
+  .glow-ring {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .glow-ring::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    z-index: -1;
+    border-radius: inherit;
+    background: conic-gradient(
+      from var(--glow-angle),
+      transparent 0deg,
+      var(--color-brand) 55deg,
+      var(--color-accent) 115deg,
+      transparent 190deg,
+      transparent 360deg
+    );
+    filter: blur(7px);
+    opacity: 0;
+    transition: opacity 0.35s ease;
+    animation: glow-spin 4.5s linear infinite;
+  }
+
+  .glow-ring[data-lit='true']::before {
+    opacity: 0.9;
+  }
+
+  /** Lưới mờ chạy chậm phía sau khối hero — chiều sâu, không phải hoa văn. */
+  .grid-veil {
+    background-image:
+      linear-gradient(to right, rgb(255 255 255 / 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgb(255 255 255 / 0.05) 1px, transparent 1px);
+    background-size: 44px 44px;
+    -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 25%, transparent 78%);
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 25%, transparent 78%);
+    animation: grid-pan 26s linear infinite;
+  }
+
+  /* ---- Liquid Glass ----------------------------------------------------
+   *
+   * Bộ mặt của FootballTracker, chuyển từ SwiftUI sang CSS.
+   *
+   * `.glassEffect()` của Apple làm ba việc cùng lúc: làm mờ thứ phía sau, hút
+   * bớt màu của nó lên bề mặt, và vẽ một viền sáng mảnh ở mép trên để tấm kính
+   * trông có độ dày. Trên web, `backdrop-filter` lo được hai việc đầu; việc
+   * thứ ba phải tự dựng bằng một `inset` box-shadow trắng rất nhạt.
+   *
+   * QUY TẮC QUAN TRỌNG NHẤT, lấy nguyên từ hướng dẫn của bản gốc: KHÔNG lồng
+   * kính trong kính. Hai lớp mờ chồng lên nhau cho ra một mảng xám đục, mất
+   * hẳn cảm giác trong suốt. Nội dung nằm bên trong một tấm kính phải dùng nền
+   * phẳng `.glass-inner`.
+   */
+  .glass {
+    background: rgb(255 255 255 / 0.1);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.22),
+      inset 0 0 0 1px rgb(255 255 255 / 0.1),
+      0 8px 32px rgb(0 0 0 / 0.28);
+  }
+
+  /* Kính có sắc — dùng cho nút chính và chỉ báo trận đang đá. */
+  .glass-tinted {
+    background: rgb(0 200 83 / 0.22);
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    box-shadow:
+      inset 0 1px 0 0 rgb(255 255 255 / 0.25),
+      inset 0 0 0 1px rgb(0 200 83 / 0.35),
+      0 8px 28px rgb(0 200 83 / 0.25);
+  }
+
+  /** Nền PHẲNG cho nội dung nằm bên trong một tấm kính. Không mờ nền. */
+  .glass-inner {
+    background: rgb(255 255 255 / 0.07);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.12);
+  }
+
+  /**
+   * Dải cuộn ngang không có thanh cuộn.
+   *
+   * Chỉ dùng cho những dải mà mọi mục đều tới được bằng cách khác — hàng ngày
+   * và hàng giải trong bảng Thể thao đều có mục đang chọn tự cuộn vào tầm
+   * nhìn. Giấu thanh cuộn ở một danh sách không có lối đi khác là giấu luôn
+   * việc còn nội dung phía sau.
+   */
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /** Quầng sáng nền. Kích thước và vị trí do lớp gọi quyết định. */
+  .aurora-blob {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(72px);
+    will-change: transform;
   }
 }
 
@@ -202,5 +607,5 @@
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: color-mix(in srgb, var(--color-faint) 70%, transparent);
+  background-color: color-mix(in srgb, var(--color-brand) 70%, transparent);
 }

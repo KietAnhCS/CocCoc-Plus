@@ -112,13 +112,18 @@ function AddressBar(): JSX.Element {
       <div
         className={
           'flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-full border px-3.5 ' +
-          'transition-all duration-200 ' +
+          'transition-all duration-300 ' +
           (focused
-            ? 'border-brand/45 bg-omni shadow-omni ring-4 ring-brand/10'
-            : 'border-transparent bg-omni hover:brightness-110')
+            ? 'border-brand/50 bg-omni shadow-glow ring-4 ring-brand/12'
+            : 'border-transparent bg-omni hover:border-brand/20 hover:brightness-110')
         }
       >
-        <span className="flex shrink-0 items-center">
+        <span
+          className={
+            'flex shrink-0 items-center transition-transform duration-300 ' +
+            (focused ? 'scale-110' : '')
+          }
+        >
           {searchMode ? (
             <VnSearchMark className="h-[18px] w-[18px] text-muted" />
           ) : isSecure ? (

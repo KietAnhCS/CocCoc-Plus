@@ -111,10 +111,15 @@ set "ADMIN_API_KEY=khoa-tam-chi-de-compose-doc-duoc-file"
 rem ===========================================================================
 rem HA CONTAINER
 rem ===========================================================================
-rem Luon truyen CA HAI profile. Khong truyen thi compose chi nhin thay cac dich
-rem vu mac dinh, va kafka/grafana/prometheus... o lai chay tiep - dung nhung
-rem thu an nhieu RAM nhat.
-set "PROFILES=--profile kafka --profile monitoring"
+rem Luon truyen DU CA BA profile. Khong truyen thi compose chi nhin thay cac
+rem dich vu mac dinh, va kafka/grafana/prometheus... o lai chay tiep - dung
+rem nhung thu an nhieu RAM nhat.
+rem
+rem `football` cung phai co mat o day du no nhe: file nay la duong TAT chinh
+rem thuc, nen mot container no bo sot se song tiep va giu cong 8090. Lan sau
+rem `up` bao "port is already allocated" ma khong ai ngo la tai mot dich vu da
+rem tuong la da tat.
+set "PROFILES=--profile kafka --profile monitoring --profile football"
 
 if defined STOP_ONLY (
     echo.
@@ -173,15 +178,8 @@ rem Cac ban run-backend.bat truoc day chay Spring Boot bang Maven TREN MAY THAT.
 rem Mot tien trinh java nhu vay khong thuoc quyen cua docker compose: `down`
 rem khong dong toi no, no van an vai GB heap, va lan sau `up` se bao
 rem "port is already allocated" ma khong ro tai ai.
-set "PORT_PID="
-for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":8080 .*LISTENING"') do set "PORT_PID=%%p"
-if defined PORT_PID (
-    echo.
-    echo [CANH BAO] Cong 8080 VAN bi tien trinh PID %PORT_PID% chiem sau khi da ha container.
-    echo            Gan nhu chac chan la mot ban backend chay tay con sot lai.
-    echo            Xem no la gi : tasklist /FI "PID eq %PORT_PID%"
-    echo            Tat di       : taskkill /PID %PORT_PID% /F
-)
+call :check_port 8080 backend
+call :check_port 8090 football-service
 
 :shutdown_desktop
 if defined KEEP_DOCKER goto :report
@@ -256,6 +254,24 @@ endlocal
 exit /b 0
 
 rem ===========================================================================
+rem Con tien trinh nao giu cong %1 khong. %2 la ten dich vu, chi de in ra.
+rem
+rem Phai la chuong trinh con: `set` trong mot khoi ngoac don duoc noi suy MOT
+rem lan luc phan tich ca khoi, nen goi hai lan trong hai khoi se doc nham gia
+rem tri cua lan truoc. `call` bat cmd phan tich lai tung dong ngay truoc khi
+rem chay.
+:check_port
+set "PORT_PID="
+for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":%1 .*LISTENING"') do set "PORT_PID=%%p"
+if not defined PORT_PID goto :eof
+echo.
+echo [CANH BAO] Cong %1 VAN bi tien trinh PID %PORT_PID% chiem sau khi da ha container.
+echo            Gan nhu chac chan la mot ban %2 chay tay con sot lai.
+echo            Xem no la gi : tasklist /FI "PID eq %PORT_PID%"
+echo            Tat di       : taskkill /PID %PORT_PID% /F
+goto :eof
+
+rem ===========================================================================
 :compose_failed
 echo.
 echo [LOI] Lenh docker compose that bai. Cuon len xem thong bao o tren.
@@ -263,7 +279,7 @@ echo       Cach manh tay hon, dong theo TEN container:
 echo           docker rm -f vnsearch-backend vnsearch-postgres vnsearch-kafka
 echo           docker rm -f vnsearch-kafka-ui vnsearch-crawler-worker
 echo           docker rm -f vnsearch-prometheus vnsearch-grafana vnsearch-alertmanager
-echo           docker rm -f vnsearch-kafka-exporter
+echo           docker rm -f vnsearch-kafka-exporter vnsearch-football
 goto :fail
 
 :usage

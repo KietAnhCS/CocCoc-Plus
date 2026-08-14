@@ -1,0 +1,6 @@
+# Ngu canh build chi can ma nguon Go va hai tep manifest.
+.git
+.gitignore
+README.md
+Dockerfile
+.dockerignore

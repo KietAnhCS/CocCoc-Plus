@@ -34,7 +34,15 @@ function AutocompleteDropdown({
         const highlighted = index === highlightedIndex
 
         return (
-          <li key={suggestion}>
+          <li
+            key={suggestion}
+            className="animate-fade-up"
+            // Đổ xuống lần lượt, 22ms một dòng. Đủ để đọc ra một hướng chuyển
+            // động, và đủ ngắn để dòng cuối cùng vẫn hiện xong trước khi ngón
+            // tay kịp bấm — gợi ý mà đến chậm hơn thao tác thì thành chướng
+            // ngại chứ không phải trợ giúp.
+            style={{ animationDelay: `${index * 22}ms` }}
+          >
             <button
               type="button"
               onMouseEnter={() => onHighlight(index)}
@@ -43,12 +51,24 @@ function AutocompleteDropdown({
                 onSelect(suggestion)
               }}
               className={
-                'flex w-full items-center gap-3 px-4 py-2 text-left text-[15px] transition-colors ' +
+                'group relative flex w-full items-center gap-3 px-4 py-2 text-left text-[15px] ' +
+                'transition-colors duration-150 ' +
                 (highlighted ? 'bg-brand-soft text-ink' : 'text-ink hover:bg-raised')
               }
             >
+              <span
+                aria-hidden="true"
+                className={
+                  'absolute inset-y-1 left-0 w-[3px] rounded-full bg-brand transition-transform ' +
+                  'duration-200 ' +
+                  (highlighted ? 'scale-y-100' : 'scale-y-0')
+                }
+              />
               <SearchIcon
-                className={'h-4 w-4 shrink-0 ' + (highlighted ? 'text-brand' : 'text-faint')}
+                className={
+                  'h-4 w-4 shrink-0 transition-all duration-200 ' +
+                  (highlighted ? 'scale-110 text-brand' : 'text-faint')
+                }
               />
               <span className="truncate">
                 <span className="text-muted">{head}</span>

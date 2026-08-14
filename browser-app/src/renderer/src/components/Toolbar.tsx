@@ -116,8 +116,8 @@ function Toolbar(): JSX.Element {
               // kể cả khi chưa ai đăng nhập.
               (user
                 ? user.role === 'ADMIN'
-                  ? 'bg-linear-to-br from-indigo-500 to-violet-500 text-white'
-                  : 'bg-linear-to-br from-sky-500 to-teal-400 text-white'
+                  ? 'bg-linear-to-br from-emerald-500 to-lime-400 text-white'
+                  : 'bg-linear-to-br from-teal-500 to-emerald-400 text-white'
                 : 'border border-line bg-raised text-muted')
             }
             aria-label={user ? `Tài khoản ${user.username}` : 'Chưa đăng nhập'}

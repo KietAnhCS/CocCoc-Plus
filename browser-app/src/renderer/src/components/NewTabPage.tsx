@@ -8,6 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
 import AutocompleteDropdown from './AutocompleteDropdown'
+import MatchTile from './MatchTile'
 import { suggest } from '../lib/searchApi'
 import { fetchFeed, type FeedCard } from '../lib/newsApi'
 import { useSearchViewStore } from '../store/searchViewStore'
@@ -21,6 +22,7 @@ import {
   MicIcon,
   MoonCloudIcon,
   PlusIcon,
+  SearchIcon,
   SpinnerIcon,
   SunCloudIcon,
   VnSearchMark
@@ -35,19 +37,74 @@ const SAMPLE_QUERIES = [
   'site:vnexpress.net kinh tế'
 ]
 
+/** Nhịp gõ của chỗ giữ chỗ động, tính bằng mili-giây cho mỗi ký tự. */
+const TYPE_MS = 68
+const ERASE_MS = 28
+const HOLD_MS = 1700
+const SWAP_MS = 320
+
+/**
+ * Toạ độ các hạt sáng trong nền hero — CỐ ĐỊNH, không phải `Math.random()`.
+ *
+ * Vị trí ngẫu nhiên sinh lúc render sẽ đổi mỗi lần React dựng lại khối này,
+ * nên mở một thẻ mới rồi quay lại là cả đám hạt nhảy chỗ. Bảng cứng cho ra một
+ * bầu trời luôn giống nhau; sự "ngẫu nhiên" mà mắt cần chỉ là các hạt không
+ * thẳng hàng và không cùng chu kỳ.
+ */
+const PARTICLES = [
+  { left: '7%', top: '26%', size: 3, delay: '0s', duration: '9s' },
+  { left: '15%', top: '62%', size: 2, delay: '1.4s', duration: '11s' },
+  { left: '23%', top: '14%', size: 2, delay: '2.9s', duration: '8s' },
+  { left: '31%', top: '48%', size: 4, delay: '0.6s', duration: '12s' },
+  { left: '39%', top: '73%', size: 2, delay: '3.6s', duration: '10s' },
+  { left: '47%', top: '19%', size: 3, delay: '1.9s', duration: '13s' },
+  { left: '56%', top: '57%', size: 2, delay: '0.3s', duration: '9s' },
+  { left: '63%', top: '31%', size: 3, delay: '2.4s', duration: '11s' },
+  { left: '71%', top: '68%', size: 2, delay: '4.1s', duration: '8s' },
+  { left: '79%', top: '22%', size: 4, delay: '1.1s', duration: '12s' },
+  { left: '87%', top: '52%', size: 2, delay: '3.1s', duration: '10s' },
+  { left: '93%', top: '36%', size: 3, delay: '2.1s', duration: '14s' }
+]
+
 function NewTabPage(): JSX.Element {
   return (
     <div className="h-full overflow-y-auto overflow-x-hidden bg-surface">
+      {/* KHÔNG đặt `overflow-hidden` ở đây: các quầng sáng đã bị cắt bởi chính
+          `HeroBackdrop`, còn cắt thêm ở tầng này sẽ xén mất bảng gợi ý khi nó
+          đổ xuống quá mép dưới khối hero. */}
       <section className="relative isolate">
         <HeroBackdrop />
+        {/* Một cặp đối xứng ở hai góc trên của khối hero: thời tiết bên trái,
+            tỉ số bên phải. Cùng độ cao, cùng hình dáng — xem `MatchTile`. */}
         <WeatherOverlay />
+        <MatchTile />
 
-        <div className="relative mx-auto flex max-w-3xl flex-col items-center px-8 pb-16 pt-20">
-          <div className="flex items-center gap-3 animate-fade-up">
-            <VnSearchMark className="h-11 w-11 text-white drop-shadow" />
-            <h1 className="font-display text-[42px] font-semibold leading-none tracking-tight text-white drop-shadow">
+        <div className="relative mx-auto flex max-w-3xl flex-col items-center px-8 pb-20 pt-20">
+          <div className="flex animate-blur-in items-center gap-3.5">
+            {/* Quầng sáng nằm SAU dấu hiệu, không phải `drop-shadow` quanh nó:
+                bóng đổ bám theo đúng hình kính lúp nên cái tay cầm mảnh cũng
+                kéo theo một vệt sáng gầy, trông như lỗi vẽ. Một vòng tròn mờ
+                riêng cho ra quầng sáng tròn đều, đúng như mắt chờ đợi. */}
+            <span className="relative flex h-12 w-12 shrink-0 items-center justify-center">
+              <span className="absolute h-14 w-14 rounded-full bg-brand/25 blur-xl" />
+              <VnSearchMark className="relative h-11 w-11 animate-float text-white" />
+            </span>
+            <h1 className="font-display text-[44px] font-semibold leading-none tracking-tight text-white drop-shadow-[0_2px_10px_rgba(0,0,0,0.45)]">
               Vn
-              <span className="bg-gradient-to-r from-rose-300 via-orange-200 to-amber-200 bg-clip-text text-transparent">
+              {/*
+                Vệt sáng chạy qua chữ: nền chuyển sắc rộng gấp đôi khung chữ,
+                bị cắt theo hình chữ, rồi trượt ngang mãi. Đây là chỗ duy nhất
+                trên trang có chuyển động không ngừng ở tầng chữ — vì nó cũng
+                là chữ duy nhất người dùng không cần đọc lại.
+              */}
+              <span
+                className="animate-text-shine bg-clip-text text-transparent"
+                style={{
+                  backgroundImage:
+                    'linear-gradient(100deg, #5eead4 10%, #a3e635 35%, #2dd482 60%, #5eead4 90%)',
+                  backgroundSize: '220% auto'
+                }}
+              >
                 Search
               </span>
             </h1>
@@ -63,61 +120,121 @@ function NewTabPage(): JSX.Element {
   )
 }
 
+/**
+ * Nền khối hero — sáu lớp, mỗi lớp lo một việc.
+ *
+ *   1. dốc màu nền      — chiều sâu tĩnh, quyết định tông xanh lá của cả trang
+ *   2. ba quầng cực quang — chuyển động chậm, lệch chu kỳ nhau
+ *   3. lưới + hạt sáng   — kết cấu, để mảng gradient không trông "phẳng"
+ *   4. hai dải lụa       — chia khối hero với phần tin, và tạo đường chân trời
+ *   5. đèn rọi + tối viền — kéo mắt vào giữa, nơi có ô tìm kiếm
+ *   6. vệt hoà           — nối khối hero vào nền của phần tin bên dưới
+ *
+ * <h3>Vì sao là dải lụa cong chứ không phải dãy núi</h3>
+ *
+ * Bản trước vẽ ba dãy núi bằng đường gấp khúc. Vấn đề không nằm ở ý tưởng mà ở
+ * hình học: đường gấp khúc `preserveAspectRatio="none"` bị KÉO NGANG theo bề
+ * rộng cửa sổ, nên mọi đỉnh núi méo thành những mũi nhọn xiên, và mỗi lần đổi
+ * cỡ cửa sổ lại méo một kiểu khác. Đường cong Bézier bị kéo cùng cách ấy vẫn
+ * là đường cong — nó chỉ thoải ra chứ không gãy. Đó là lý do gần như mọi trang
+ * dùng hình nền co giãn đều dùng đường cong.
+ *
+ * Chuyển động chỉ có ở lớp 2 và 3, và đều chậm hơn 8 giây một chu kỳ. Nền
+ * chuyển động nhanh sẽ tranh sự chú ý với đúng thứ nằm trên nó — ô tìm kiếm.
+ */
 function HeroBackdrop(): JSX.Element {
   return (
     <div className="absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
-      <svg className="h-full w-full" viewBox="0 0 1440 520" preserveAspectRatio="xMidYMid slice">
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 130% 100% at 50% -18%, #0f3d29 0%, #082116 44%, #040f0a 100%)'
+        }}
+      />
+
+      <span className="aurora-blob animate-aurora-a left-[-14%] top-[-30%] h-[78%] w-[56%] bg-[#12b46a]/40" />
+      <span className="aurora-blob animate-aurora-b right-[-18%] top-[-16%] h-[88%] w-[52%] bg-[#0d9488]/34" />
+      <span className="aurora-blob animate-aurora-c bottom-[-38%] left-[24%] h-[74%] w-[64%] bg-[#65a30d]/20" />
+
+      <div className="grid-veil absolute inset-0" />
+
+      {PARTICLES.map((particle) => (
+        <span
+          key={particle.left + particle.top}
+          className="absolute animate-float rounded-full bg-white/45"
+          style={{
+            left: particle.left,
+            top: particle.top,
+            height: particle.size,
+            width: particle.size,
+            animationDelay: particle.delay,
+            animationDuration: particle.duration,
+            boxShadow: '0 0 9px rgba(110, 231, 200, 0.75)'
+          }}
+        />
+      ))}
+
+      <svg
+        className="absolute inset-x-0 bottom-0 h-[46%] w-full"
+        viewBox="0 0 1440 260"
+        preserveAspectRatio="none"
+      >
         <defs>
-          <linearGradient id="ntp-sky" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#131a3a" />
-            <stop offset="45%" stopColor="#3b2a63" />
-            <stop offset="75%" stopColor="#a4468a" />
-            <stop offset="100%" stopColor="#f0864f" />
+          <linearGradient id="ntp-silk-back" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#1d8f66" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="#062018" stopOpacity="0.9" />
           </linearGradient>
-          <radialGradient id="ntp-sun" cx="0.72" cy="0.86" r="0.42">
-            <stop offset="0%" stopColor="#ffd9a0" stopOpacity="0.95" />
-            <stop offset="55%" stopColor="#ff9d5c" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#ff9d5c" stopOpacity="0" />
-          </radialGradient>
-          <linearGradient id="ntp-hill-far" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#5b3a72" />
-            <stop offset="100%" stopColor="#3d2857" />
+          <linearGradient id="ntp-silk-front" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#0c5a3f" stopOpacity="0.95" />
+            <stop offset="100%" stopColor="#04120d" stopOpacity="1" />
           </linearGradient>
-          <linearGradient id="ntp-hill-mid" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#33224b" />
-            <stop offset="100%" stopColor="#241a39" />
-          </linearGradient>
-          <linearGradient id="ntp-fade" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#0f1220" stopOpacity="0" />
-            <stop offset="100%" stopColor="#0f1220" stopOpacity="0.85" />
+          {/* Đường viền sáng mờ dần về hai mép — sáng đều từ trái sang phải sẽ
+              lộ ra rằng đó là một đường vẽ, chứ không phải một mép đón sáng. */}
+          <linearGradient id="ntp-silk-edge" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#5eead4" stopOpacity="0" />
+            <stop offset="30%" stopColor="#5eead4" stopOpacity="0.55" />
+            <stop offset="62%" stopColor="#a3e635" stopOpacity="0.45" />
+            <stop offset="100%" stopColor="#a3e635" stopOpacity="0" />
           </linearGradient>
         </defs>
 
-        <rect width="1440" height="520" fill="url(#ntp-sky)" />
-        <rect width="1440" height="520" fill="url(#ntp-sun)" />
-
-        <g fill="#ffffff" opacity="0.10">
-          <ellipse cx="250" cy="120" rx="150" ry="12" />
-          <ellipse cx="380" cy="160" rx="200" ry="10" />
-          <ellipse cx="1120" cy="105" rx="175" ry="11" />
-          <ellipse cx="980" cy="150" rx="120" ry="8" />
-        </g>
-
         <path
-          d="M0 392 L150 330 L280 380 L430 300 L560 366 L700 322 L860 384 L1010 316 L1160 372 L1300 328 L1440 386 L1440 520 L0 520 Z"
-          fill="url(#ntp-hill-far)"
+          d="M0 96 C 210 34, 430 152, 670 110 C 910 68, 1150 162, 1440 92 L1440 260 L0 260 Z"
+          fill="url(#ntp-silk-back)"
         />
         <path
-          d="M0 448 L180 400 L330 444 L500 388 L660 440 L820 402 L980 448 L1140 404 L1300 446 L1440 412 L1440 520 L0 520 Z"
-          fill="url(#ntp-hill-mid)"
+          d="M0 160 C 270 106, 480 198, 730 162 C 990 124, 1210 202, 1440 154 L1440 260 L0 260 Z"
+          fill="url(#ntp-silk-front)"
         />
         <path
-          d="M0 486 L220 458 L420 490 L640 462 L880 492 L1120 464 L1330 494 L1440 476 L1440 520 L0 520 Z"
-          fill="#181228"
+          d="M0 160 C 270 106, 480 198, 730 162 C 990 124, 1210 202, 1440 154"
+          fill="none"
+          stroke="url(#ntp-silk-edge)"
+          strokeWidth="1.6"
+          vectorEffect="non-scaling-stroke"
         />
-
-        <rect width="1440" height="520" fill="url(#ntp-fade)" />
       </svg>
+
+      {/* Đèn rọi mềm ngay sau ô tìm kiếm, rồi làm tối bốn góc. Hai lớp này
+          không thêm chi tiết nào — chúng chỉ dựng lại thứ bậc: sáng nhất là
+          chỗ cần nhìn, tối dần ra rìa. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 46% 40% at 50% 64%, rgba(94,234,212,0.16) 0%, rgba(94,234,212,0) 70%)'
+        }}
+      />
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse 78% 72% at 50% 45%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.45) 100%)'
+        }}
+      />
+
+      <div className="absolute inset-x-0 bottom-0 h-24 bg-linear-to-b from-transparent to-surface" />
     </div>
   )
 }
@@ -144,14 +261,16 @@ function WeatherOverlay(): JSX.Element {
 
   return (
     <div
-      className="absolute left-6 top-5 z-10 flex items-center gap-3 rounded-2xl border border-white/15
-                 bg-black/30 px-4 py-2.5 text-white backdrop-blur-md"
+      className="absolute left-6 top-5 z-10 flex animate-fade-up items-center gap-3 rounded-2xl
+                 border border-white/12 bg-white/8 px-4 py-2.5 text-white shadow-lg
+                 backdrop-blur-xl transition-colors duration-300 hover:border-brand/40
+                 hover:bg-white/12"
       title="Nhiệt độ là số tượng trưng — ứng dụng chưa nối với dịch vụ thời tiết."
     >
       {daytime ? (
-        <SunCloudIcon className="h-7 w-7 text-amber-300" />
+        <SunCloudIcon className="h-7 w-7 animate-float text-lime-300" />
       ) : (
-        <MoonCloudIcon className="h-7 w-7 text-sky-200" />
+        <MoonCloudIcon className="h-7 w-7 animate-float text-emerald-200" />
       )}
       <div className="leading-tight">
         <p className="text-[17px] font-semibold">
@@ -173,42 +292,62 @@ function ShortcutRow(): JSX.Element {
 
   return (
     <>
-      <div className="mt-10 flex w-full flex-wrap items-start justify-center gap-1 animate-fade-up">
+      <div className="mt-10 flex w-full flex-wrap items-start justify-center gap-1">
         <button
           onClick={() => setAdding(true)}
-          className="group flex w-[92px] shrink-0 flex-col items-center gap-2 rounded-2xl p-2
-                     transition hover:bg-white/10 focus-visible:outline-none
-                     focus-visible:ring-2 focus-visible:ring-white/50"
+          className="group flex w-[92px] shrink-0 animate-pop-in flex-col items-center gap-2 rounded-2xl
+                     p-2 transition-colors hover:bg-white/10 focus-visible:outline-none
+                     focus-visible:ring-2 focus-visible:ring-brand/60"
           title="Thêm lối tắt mới"
         >
           <span
             className="flex h-12 w-12 items-center justify-center rounded-2xl border border-dashed
-                       border-white/35 text-white/80 transition group-hover:border-white/60
-                       group-hover:text-white"
+                       border-white/35 text-white/80 transition-all duration-300
+                       group-hover:rotate-90 group-hover:border-brand/70 group-hover:text-brand-strong"
           >
             <PlusIcon className="h-5 w-5" />
           </span>
           <span className="w-full truncate text-center text-[12px] text-white/80">Thêm mới</span>
         </button>
 
-        {shortcuts.map((shortcut) => (
-          <div key={shortcut.id} className="group relative">
+        {shortcuts.map((shortcut, index) => (
+          <div
+            key={shortcut.id}
+            className="group relative animate-pop-in"
+            // Vào lệch nhau chứ không cùng lúc: cả hàng bật lên một lượt trông
+            // như trang bị giật, còn lệch 45ms thì mắt đọc ra thành một chuyển
+            // động có hướng. Chặn ở ô thứ 9 để hàng dài không kéo lê.
+            style={{ animationDelay: `${Math.min(index + 1, 9) * 45}ms` }}
+          >
             <button
               onClick={() => navigate(shortcut.url)}
-              className="flex w-[92px] shrink-0 flex-col items-center gap-2 rounded-2xl p-2
-                         transition hover:bg-white/10 focus-visible:outline-none
-                         focus-visible:ring-2 focus-visible:ring-white/50"
+              className="press flex w-[92px] shrink-0 flex-col items-center gap-2 rounded-2xl p-2
+                         transition-colors hover:bg-white/10 focus-visible:outline-none
+                         focus-visible:ring-2 focus-visible:ring-brand/60"
               title={shortcut.url}
             >
+              {/* Ô đại diện: bốn lớp chồng lên nhau — nền chuyển sắc, vệt sáng
+                  mặt trên, viền trong, rồi mới tới chữ. Ba lớp đầu là thứ phân
+                  biệt "một ô màu có chữ" với "một biểu tượng": chúng dựng ra
+                  một mặt cong đón sáng từ trên xuống. */}
               <span
-                className="flex h-12 w-12 items-center justify-center rounded-2xl text-lg font-bold
-                           text-white shadow-card transition-transform duration-200
-                           group-hover:-translate-y-0.5"
-                style={{ background: siteGradient(shortcut.url) }}
+                className="relative flex h-12 w-12 items-center justify-center overflow-hidden
+                           rounded-[14px] text-lg font-bold text-white shadow-card
+                           ring-1 ring-inset ring-white/25 transition-all duration-300
+                           group-hover:-translate-y-1 group-hover:ring-white/40
+                           group-hover:shadow-[0_12px_26px_rgba(45,212,132,0.38)]"
               >
-                {siteInitial(shortcut.url)}
+                <span
+                  className="absolute inset-0"
+                  style={{ background: siteGradient(shortcut.url) }}
+                />
+                <span className="absolute inset-x-0 top-0 h-1/2 bg-linear-to-b from-white/28 to-transparent" />
+                <span className="sheen" />
+                <span className="relative drop-shadow-[0_1px_2px_rgba(0,0,0,0.35)]">
+                  {siteInitial(shortcut.url)}
+                </span>
               </span>
-              <span className="w-full truncate text-center text-[12px] text-white/80">
+              <span className="w-full truncate text-center text-[12px] text-white/80 transition-colors group-hover:text-white">
                 {shortcut.name}
               </span>
             </button>
@@ -216,8 +355,8 @@ function ShortcutRow(): JSX.Element {
             <button
               onClick={() => remove(shortcut.id)}
               className="absolute right-1 top-1 hidden h-5 w-5 items-center justify-center rounded-full
-                         bg-black/55 text-white/80 backdrop-blur transition hover:bg-black/75
-                         hover:text-white focus-visible:outline-none group-hover:flex"
+                         bg-black/55 text-white/80 backdrop-blur transition hover:scale-110
+                         hover:bg-danger/80 hover:text-white focus-visible:outline-none group-hover:flex"
               aria-label={`Bỏ lối tắt ${shortcut.name}`}
               title="Bỏ lối tắt"
             >
@@ -257,12 +396,17 @@ function AddShortcutDialog({ onClose }: { onClose: () => void }): JSX.Element {
     }
   }
 
+  const fieldClass =
+    'mt-1 h-9 w-full rounded-lg border border-line bg-omni px-3 text-[13px] text-ink ' +
+    'transition-all duration-200 placeholder:text-faint focus:border-brand/60 ' +
+    'focus:outline-none focus:ring-4 focus:ring-brand/15'
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-6">
+    <div className="fixed inset-0 z-50 flex animate-[fade-up_0.18s_ease-out] items-center justify-center bg-black/55 p-6 backdrop-blur-sm">
       <div className="absolute inset-0" onMouseDown={onClose} aria-hidden="true" />
       <form
         onSubmit={submit}
-        className="relative w-[380px] animate-scale-in rounded-2xl border border-line bg-surface p-5 shadow-pop"
+        className="relative w-[380px] animate-pop-in rounded-2xl border border-line bg-surface p-5 shadow-pop"
         role="dialog"
         aria-label="Thêm lối tắt"
       >
@@ -275,9 +419,7 @@ function AddShortcutDialog({ onClose }: { onClose: () => void }): JSX.Element {
           id="shortcut-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="mt-1 h-9 w-full rounded-lg border border-line bg-omni px-3 text-[13px] text-ink
-                     placeholder:text-faint focus:border-brand/50 focus:outline-none
-                     focus:ring-2 focus:ring-brand/15"
+          className={fieldClass}
           placeholder="Để trống thì lấy theo tên miền"
           spellCheck={false}
           autoFocus
@@ -293,14 +435,12 @@ function AddShortcutDialog({ onClose }: { onClose: () => void }): JSX.Element {
             setUrl(e.target.value)
             setError('')
           }}
-          className="mt-1 h-9 w-full rounded-lg border border-line bg-omni px-3 text-[13px] text-ink
-                     placeholder:text-faint focus:border-brand/50 focus:outline-none
-                     focus:ring-2 focus:ring-brand/15"
+          className={fieldClass}
           placeholder="vnexpress.net"
           spellCheck={false}
         />
 
-        {error && <p className="mt-2 text-[12px] text-danger">{error}</p>}
+        {error && <p className="mt-2 animate-fade-up text-[12px] text-danger">{error}</p>}
 
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -313,8 +453,8 @@ function AddShortcutDialog({ onClose }: { onClose: () => void }): JSX.Element {
           <button
             type="submit"
             disabled={!url.trim()}
-            className="rounded-lg px-3.5 py-2 text-[13px] font-medium transition
-                       enabled:bg-brand enabled:text-white enabled:hover:brightness-110
+            className="press rounded-lg px-3.5 py-2 text-[13px] font-medium transition
+                       enabled:bg-brand enabled:text-white enabled:shadow-glow enabled:hover:brightness-110
                        disabled:cursor-not-allowed disabled:bg-raised disabled:text-faint"
           >
             Thêm
@@ -323,6 +463,50 @@ function AddShortcutDialog({ onClose }: { onClose: () => void }): JSX.Element {
       </form>
     </div>
   )
+}
+
+/**
+ * Chỗ giữ chỗ tự gõ — gõ ra một truy vấn mẫu, giữ một nhịp, xoá đi, sang câu
+ * kế tiếp.
+ *
+ * Ba lý do dùng nó thay cho một dòng chữ tĩnh: nó dạy cú pháp `site:` mà không
+ * tốn thêm một dòng hướng dẫn; nó cho biết ứng dụng đang sống; và nó là chuyển
+ * động DUY NHẤT bên trong ô tìm kiếm, nên không tranh chấp sự chú ý với chính
+ * nó. Khi người dùng bắt đầu gõ, `active` thành `false` và mọi hẹn giờ dừng —
+ * không có chuyện chữ giả chạy dưới chữ thật.
+ */
+function useTypedPlaceholder(active: boolean): string {
+  const [index, setIndex] = useState(0)
+  const [length, setLength] = useState(0)
+  const [erasing, setErasing] = useState(false)
+
+  useEffect(() => {
+    if (!active) {
+      return undefined
+    }
+    const word = SAMPLE_QUERIES[index]
+
+    if (!erasing && length >= word.length) {
+      const timer = window.setTimeout(() => setErasing(true), HOLD_MS)
+      return () => window.clearTimeout(timer)
+    }
+
+    if (erasing && length <= 0) {
+      const timer = window.setTimeout(() => {
+        setErasing(false)
+        setIndex((current) => (current + 1) % SAMPLE_QUERIES.length)
+      }, SWAP_MS)
+      return () => window.clearTimeout(timer)
+    }
+
+    const timer = window.setTimeout(
+      () => setLength((current) => current + (erasing ? -1 : 1)),
+      erasing ? ERASE_MS : TYPE_MS
+    )
+    return () => window.clearTimeout(timer)
+  }, [active, index, length, erasing])
+
+  return SAMPLE_QUERIES[index].slice(0, Math.max(0, length))
 }
 
 function HeroSearchBox(): JSX.Element {
@@ -334,6 +518,7 @@ function HeroSearchBox(): JSX.Element {
   const runQuery = useSearchViewStore((state) => state.runSearch)
 
   const suggestible = text.trim().length > 0
+  const typed = useTypedPlaceholder(text.length === 0)
 
   useEffect(() => {
     if (!suggestible) {
@@ -372,45 +557,92 @@ function HeroSearchBox(): JSX.Element {
   }
 
   return (
-    <div className="mt-9 w-full animate-fade-up" style={{ animationDelay: '60ms' }}>
+    <div className="mt-9 w-full animate-blur-in" style={{ animationDelay: '90ms' }}>
       <div className="relative">
-        <div
-          className={
-            'flex items-center gap-3 rounded-full border px-5 backdrop-blur-md transition-all duration-200 ' +
-            (focused
-              ? 'border-white/45 bg-black/70 shadow-pop'
-              : 'border-white/15 bg-black/50 hover:border-white/30')
-          }
-        >
-          <VnSearchMark className="h-6 w-6 shrink-0 text-white" />
-
-          <input
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value)
-              setHighlighted(-1)
-            }}
-            onKeyDown={handleKeyDown}
-            onFocus={() => setFocused(true)}
-            onBlur={() => setFocused(false)}
-            className="min-w-0 flex-1 bg-transparent py-4 text-[16px] text-white
-                       placeholder:text-white/55 focus:outline-none"
-            placeholder="Tìm kiếm với VnSearch"
-            spellCheck={false}
-            aria-label="Ô tìm kiếm"
-            autoFocus
-          />
-
-          <button
-            onClick={() => setMicNote((v) => !v)}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/75
-                       transition hover:bg-white/15 hover:text-white focus-visible:outline-none
-                       focus-visible:ring-2 focus-visible:ring-white/50"
-            aria-label="Tìm kiếm bằng giọng nói"
-            title="Tìm kiếm bằng giọng nói"
+        <div className="glow-ring rounded-full" data-lit={focused}>
+          <div
+            className={
+              'group relative flex items-center gap-3 overflow-hidden rounded-full border pl-5 pr-2 ' +
+              'backdrop-blur-xl transition-all duration-300 ' +
+              (focused
+                ? 'scale-[1.015] border-brand/45 bg-black/72 shadow-pop'
+                : 'border-white/15 bg-black/50 hover:border-white/30')
+            }
           >
-            <MicIcon className="h-[19px] w-[19px]" />
-          </button>
+            <span className="sheen" />
+
+            <VnSearchMark
+              className={
+                'h-6 w-6 shrink-0 text-white transition-transform duration-300 ' +
+                (focused ? 'scale-110' : '')
+              }
+            />
+
+            <div className="relative min-w-0 flex-1">
+              <input
+                value={text}
+                onChange={(e) => {
+                  setText(e.target.value)
+                  setHighlighted(-1)
+                }}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
+                className="w-full bg-transparent py-4 text-[16px] text-white focus:outline-none"
+                spellCheck={false}
+                aria-label="Ô tìm kiếm"
+                autoFocus
+              />
+
+              {/*
+                Chỗ giữ chỗ tự vẽ, không dùng thuộc tính `placeholder`: thuộc
+                tính đó chỉ nhận chuỗi thuần, mà con trỏ nhấp nháy thì phải là
+                một phần tử riêng. Có `aria-hidden` vì tên gọi của ô đã nằm ở
+                `aria-label` — trình đọc màn hình không cần nghe câu mẫu đang
+                được gõ dở.
+              */}
+              {text.length === 0 && (
+                <span
+                  className="pointer-events-none absolute inset-0 flex items-center truncate
+                             text-[16px] text-white/55"
+                  aria-hidden="true"
+                >
+                  {typed || 'Tìm kiếm với VnSearch'}
+                  <span className="ml-[3px] inline-block h-[1.05em] w-[2px] animate-caret bg-brand/90" />
+                </span>
+              )}
+            </div>
+
+            <button
+              onClick={() => setMicNote((v) => !v)}
+              className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full
+                         text-white/75 transition hover:bg-white/15 hover:text-white
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+              aria-label="Tìm kiếm bằng giọng nói"
+              aria-pressed={micNote}
+              title="Tìm kiếm bằng giọng nói"
+            >
+              {/* Vòng sóng chỉ chạy khi nút đang bật — chuyển động = trạng thái. */}
+              {micNote && (
+                <span className="absolute inset-0 animate-pulse-ring rounded-full bg-brand/40" />
+              )}
+              <MicIcon className={'h-[19px] w-[19px] ' + (micNote ? 'text-brand-strong' : '')} />
+            </button>
+
+            <button
+              onClick={() => runSearch(text)}
+              disabled={!suggestible}
+              className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full
+                         transition-all duration-200 enabled:bg-brand enabled:text-white
+                         enabled:hover:brightness-110 enabled:hover:shadow-[0_0_20px_rgba(45,212,132,0.55)]
+                         disabled:bg-white/10 disabled:text-white/35
+                         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+              aria-label="Tìm kiếm"
+              title="Tìm kiếm"
+            >
+              <SearchIcon className="h-[18px] w-[18px]" />
+            </button>
+          </div>
         </div>
 
         <AutocompleteDropdown
@@ -426,23 +658,24 @@ function HeroSearchBox(): JSX.Element {
       </div>
 
       {micNote && (
-        <p className="mt-2 text-center text-[12px] text-white/70">
+        <p className="mt-2 animate-fade-up text-center text-[12px] text-white/70">
           Tìm bằng giọng nói chưa khả dụng — ứng dụng chưa xin quyền dùng micrô.
         </p>
       )}
 
-      <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
-        {SAMPLE_QUERIES.map((sample) => (
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+        {SAMPLE_QUERIES.map((sample, index) => (
           <button
             key={sample}
             onClick={() => {
               setText(sample)
               runSearch(sample)
             }}
-            className="rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-[12.5px]
-                       text-white/85 backdrop-blur transition hover:border-white/40 hover:bg-white/20
-                       hover:text-white focus-visible:outline-none focus-visible:ring-2
-                       focus-visible:ring-white/50"
+            className="press animate-pop-in rounded-full border border-white/18 bg-white/8 px-3.5 py-1.5
+                       text-[12.5px] text-white/85 backdrop-blur transition-all duration-300
+                       hover:-translate-y-0.5 hover:border-brand/50 hover:bg-brand/20 hover:text-white
+                       focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+            style={{ animationDelay: `${180 + index * 60}ms` }}
           >
             {sample}
           </button>
@@ -532,7 +765,8 @@ function HotNews(): JSX.Element {
 
   return (
     <section className="mx-auto max-w-6xl px-8 pb-14 pt-10">
-      <div className="mb-5 flex items-baseline gap-3">
+      <div className="mb-5 flex items-center gap-3">
+        <span className="h-5 w-[3px] rounded-full bg-linear-to-b from-brand to-accent" />
         <h2 className="font-display text-[19px] font-semibold text-ink">Tin nóng</h2>
         <span className="text-[12px] text-faint">
           {cards.length > 0 ? `${cards.length} bài · cuộn để xem thêm` : 'Lấy từ chỉ mục VnSearch'}
@@ -540,7 +774,7 @@ function HotNews(): JSX.Element {
       </div>
 
       {empty && failed && (
-        <div className="rounded-2xl border border-line bg-raised/40 px-6 py-10 text-center">
+        <div className="animate-fade-up rounded-2xl border border-line bg-raised/40 px-6 py-10 text-center">
           <p className="text-[13px] text-muted">Không lấy được tin từ backend.</p>
           <p className="mt-1 text-[12px] text-faint">
             Kiểm tra <code className="text-muted">http://localhost:8080</code> — chạy{' '}
@@ -565,7 +799,7 @@ function HotNews(): JSX.Element {
 
       {/* HAI ca rỗng khác hẳn nhau — nói nhầm thì người dùng đi sửa sai chỗ. */}
       {empty && !loading && !failed && !hasMore && (
-        <div className="rounded-2xl border border-line bg-raised/40 px-6 py-10 text-center">
+        <div className="animate-fade-up rounded-2xl border border-line bg-raised/40 px-6 py-10 text-center">
           {indexed && indexed > 0 ? (
             <>
               <p className="text-[13px] text-muted">
@@ -585,52 +819,65 @@ function HotNews(): JSX.Element {
 
       {cards.length > 0 && (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {cards.map((card) => {
+          {cards.map((card, index) => {
             const isBroken = broken.has(card.imageUrl)
             return (
               <button
                 key={card.url}
                 onClick={() => navigate(card.url)}
-                className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-surface
-                           text-left transition hover:-translate-y-0.5 hover:border-brand/35
-                           hover:shadow-card focus-visible:outline-none focus-visible:ring-2
-                           focus-visible:ring-brand/50"
+                className="group relative flex animate-rise-in flex-col overflow-hidden rounded-2xl
+                           border border-line bg-surface text-left transition-all duration-300
+                           hover:-translate-y-1.5 hover:border-brand/45
+                           hover:shadow-[0_14px_34px_rgba(0,0,0,0.16),0_0_0_1px_rgba(45,212,132,0.18)]
+                           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60"
+                // Lô nào cũng 12 thẻ, nên `% 12` cho ra đúng thứ tự trong lô
+                // vừa về. Dùng chỉ số tuyệt đối thì thẻ thứ 40 phải đợi gần
+                // hai giây mới hiện — hiệu ứng thành ra chờ đợi.
+                style={{ animationDelay: `${(index % 12) * 45}ms` }}
                 title={card.url}
               >
-                {isBroken ? (
+                <span className="relative block h-28 w-full overflow-hidden">
+                  {isBroken ? (
+                    <span
+                      className="flex h-full w-full items-center justify-center text-3xl font-bold text-white/90"
+                      style={{ background: siteGradient(card.url) }}
+                    >
+                      {siteInitial(card.url)}
+                    </span>
+                  ) : (
+                    <img
+                      src={card.imageUrl}
+                      alt={card.altText}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      onError={() =>
+                        setBroken((prev) => {
+                          const next = new Set(prev)
+                          next.add(card.imageUrl)
+                          return next
+                        })
+                      }
+                      className="h-full w-full bg-raised object-cover transition-transform duration-500
+                                 ease-out group-hover:scale-110"
+                    />
+                  )}
+                  {/* Màn xanh mờ dần khi rê chuột — buộc ảnh vào tông của trang. */}
                   <span
-                    className="flex h-28 w-full items-center justify-center text-3xl font-bold text-white/90"
-                    style={{ background: siteGradient(card.url) }}
-                  >
-                    {siteInitial(card.url)}
-                  </span>
-                ) : (
-                  <img
-                    src={card.imageUrl}
-                    alt={card.altText}
-                    loading="lazy"
-                    decoding="async"
-                    referrerPolicy="no-referrer"
-                    onError={() =>
-                      setBroken((prev) => {
-                        const next = new Set(prev)
-                        next.add(card.imageUrl)
-                        return next
-                      })
-                    }
-                    className="h-28 w-full bg-raised object-cover transition duration-300
-                               group-hover:scale-[1.03]"
+                    className="pointer-events-none absolute inset-0 bg-linear-to-t from-brand/35
+                               to-transparent opacity-0 transition-opacity duration-300
+                               group-hover:opacity-100"
                   />
-                )}
+                </span>
 
                 <span className="flex min-w-0 flex-1 flex-col gap-2 p-3">
                   <span className="flex items-center gap-1.5">
-                    <GlobeIcon className="h-3 w-3 shrink-0 text-faint" />
+                    <GlobeIcon className="h-3 w-3 shrink-0 text-faint transition-colors group-hover:text-brand" />
                     <span className="truncate text-[11px] text-faint">
                       {card.host || hostOf(card.url)}
                     </span>
                   </span>
-                  <span className="line-clamp-2 text-[13px] font-medium leading-snug text-ink group-hover:text-brand">
+                  <span className="line-clamp-2 text-[13px] font-medium leading-snug text-ink transition-colors group-hover:text-brand">
                     {card.title}
                   </span>
                   {card.snippet && (
@@ -650,7 +897,7 @@ function HotNews(): JSX.Element {
 
       {loading && cards.length > 0 && (
         <div className="flex items-center justify-center gap-2 py-6 text-[13px] text-muted">
-          <SpinnerIcon className="h-4 w-4" />
+          <SpinnerIcon className="h-4 w-4 text-brand" />
           Đang tải thêm tin…
         </div>
       )}
@@ -662,7 +909,7 @@ function HotNews(): JSX.Element {
       )}
 
       {failed && cards.length > 0 && (
-        <div className="flex items-center justify-center gap-2 py-4 text-[12px] text-danger">
+        <div className="flex animate-fade-up items-center justify-center gap-2 py-4 text-[12px] text-danger">
           <AlertIcon className="h-4 w-4" />
           Không tải được thêm tin.
         </div>

@@ -39,8 +39,8 @@ function SignedIn({ onNavigateAdmin }: { onNavigateAdmin: () => void }): JSX.Ele
           className={
             'flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white ' +
             (isAdmin
-              ? 'bg-linear-to-br from-indigo-500 to-violet-500'
-              : 'bg-linear-to-br from-sky-500 to-teal-400')
+              ? 'bg-linear-to-br from-emerald-500 to-lime-400'
+              : 'bg-linear-to-br from-teal-500 to-emerald-400')
           }
         >
           {user.username.slice(0, 2).toUpperCase()}

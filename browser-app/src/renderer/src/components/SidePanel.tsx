@@ -9,14 +9,17 @@ import { useTabStore } from '../store/tabStore'
 import { useBookmarkStore, collectBookmarks } from '../store/bookmarkStore'
 import { APP_GROUPS, findApp } from '../lib/apps'
 import AppTile from './AppTile'
+import FootballPanel from './FootballPanel'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
-import { CloseIcon, DownloadIcon, PinIcon, SparkleIcon } from './icons'
+import { useFootballAppStore } from '../store/footballAppStore'
+import { CloseIcon, DownloadIcon, FullscreenIcon, PinIcon, SparkleIcon } from './icons'
 
 const TITLES: Record<PanelKind, string> = {
   'add-site': 'Thêm trang web vào thanh bên',
   ai: 'Hỏi AI',
   downloads: 'Tải xuống',
   bookmarks: 'Tất cả dấu trang',
+  football: 'Bóng đá',
   app: 'Ứng dụng'
 }
 
@@ -25,6 +28,14 @@ function SidePanel(): JSX.Element | null {
   const pinned = useSidePanelStore((s) => s.pinned)
   const setPinned = useSidePanelStore((s) => s.setPinned)
   const closePanel = useSidePanelStore((s) => s.closePanel)
+  const openApp = useFootballAppStore((s) => s.openApp)
+
+  // Mở trang đầy đủ thì đóng bảng bên lại: hai giao diện cho cùng một dữ liệu
+  // hiện cùng lúc chỉ làm người xem phân vân nên nhìn cái nào.
+  function openFootballApp(): void {
+    closePanel()
+    openApp('home')
+  }
 
   if (!open) {
     return null
@@ -40,6 +51,21 @@ function SidePanel(): JSX.Element | null {
         <h2 className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">
           {TITLES[open]}
         </h2>
+        {/* Ba tầng cho cùng một dữ liệu, mỗi tầng một mục đích: ô tỉ số ở
+            trang chủ để LIẾC, bảng bên này để THEO DÕI trong lúc duyệt web, và
+            trang toàn màn hình để NGỒI XEM. Nút này là lối đi giữa hai tầng
+            sau — không có nó thì trang đầy đủ chỉ vào được từ trang chủ. */}
+        {open === 'football' && (
+          <button
+            onClick={openFootballApp}
+            className="icon-btn"
+            aria-label="Mở trang bóng đá đầy đủ"
+            title="Mở trang bóng đá đầy đủ"
+          >
+            <FullscreenIcon className="h-[16px] w-[16px]" />
+          </button>
+        )}
+
         <button
           onClick={() => setPinned(!pinned)}
           className={'icon-btn ' + (pinned ? 'bg-brand-soft text-brand hover:text-brand' : '')}
@@ -54,13 +80,24 @@ function SidePanel(): JSX.Element | null {
         </button>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {open === 'add-site' && <AddSiteBody />}
-        {open === 'app' && <AppBody />}
-        {open === 'downloads' && <DownloadsBody />}
-        {open === 'bookmarks' && <BookmarksBody />}
-        {open === 'ai' && <AskAiBody />}
-      </div>
+      {/*
+        Bảng Bóng đá tự cuộn phần thân của nó (hàng ngày và bộ lọc giải phải
+        đứng yên ở trên), nên nó KHÔNG được bọc trong khung cuộn dùng chung —
+        hai tầng cuộn lồng nhau sẽ làm thanh cuộn nhảy khi danh sách dài.
+      */}
+      {open === 'football' ? (
+        <div className="min-h-0 flex-1">
+          <FootballPanel />
+        </div>
+      ) : (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {open === 'add-site' && <AddSiteBody />}
+          {open === 'app' && <AppBody />}
+          {open === 'downloads' && <DownloadsBody />}
+          {open === 'bookmarks' && <BookmarksBody />}
+          {open === 'ai' && <AskAiBody />}
+        </div>
+      )}
     </section>
   )
 }

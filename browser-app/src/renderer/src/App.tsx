@@ -6,6 +6,7 @@ import SideRail from './components/SideRail'
 import SidePanel from './components/SidePanel'
 import NewTabPage from './components/NewTabPage'
 import SearchResultList from './components/SearchResultList'
+import FootballApp from './components/FootballApp'
 import AdminPanel from './components/admin/AdminPanel'
 import AuthScreen from './components/auth/AuthScreen'
 import { track } from './lib/telemetry'
@@ -58,8 +59,12 @@ function App(): JSX.Element {
       <BookmarksBar />
 
       <div className="flex min-h-0 flex-1">
-        <main className="min-w-0 flex-1 bg-surface">
+        {/* `relative` để trang bóng đá phủ ĐÚNG khung nội dung này, giữ nguyên
+            hàng tab, thanh địa chỉ và thanh bên — nó là một trang trong trình
+            duyệt, không phải một hộp thoại nuốt cả cửa sổ. */}
+        <main className="relative min-w-0 flex-1 bg-surface">
           {showInternalContent && (query ? <SearchResultList key={query} /> : <NewTabPage />)}
+          <FootballApp />
         </main>
         <SidePanel />
         <SideRail />

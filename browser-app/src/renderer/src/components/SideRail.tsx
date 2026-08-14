@@ -1,11 +1,13 @@
 import type { JSX } from 'react'
 import { useSidePanelStore, type RailItem } from '../store/sidePanelStore'
+import { useFootballAppStore } from '../store/footballAppStore'
 import { useThemeStore } from '../store/themeStore'
 import { useAdminCredential, useAdminStore } from '../store/adminStore'
 import { findApp } from '../lib/apps'
 import AppTile from './AppTile'
 import { siteGradient, siteInitial, hostOf } from '../lib/site'
 import {
+  BallIcon,
   ClockIcon,
   CloseIcon,
   MoonIcon,
@@ -32,6 +34,21 @@ function SideRail(): JSX.Element {
   const dashboardOpen = useAdminStore((s) => s.dashboardOpen)
   const openDashboard = useAdminStore((s) => s.openDashboard)
   const closeDashboard = useAdminStore((s) => s.closeDashboard)
+
+  const footballOpen = useFootballAppStore((s) => s.open)
+  const openFootball = useFootballAppStore((s) => s.openApp)
+  const closeFootball = useFootballAppStore((s) => s.closeApp)
+
+  function openFootballApp(): void {
+    if (footballOpen) {
+      closeFootball()
+      return
+    }
+    // Đóng bảng bên lại: hai giao diện cho cùng một dữ liệu hiện cùng lúc chỉ
+    // làm người xem phân vân nên nhìn cái nào.
+    closePanel()
+    openFootball('home')
+  }
 
   return (
     <aside
@@ -90,6 +107,21 @@ function SideRail(): JSX.Element {
           ) : (
             <ShieldIcon className="h-[18px] w-[18px]" />
           )}
+        </button>
+
+        {/* Một cú bấm là vào thẳng TRANG bóng đá, không phải bảng bên.
+            Trước đây nút này mở bảng, và trang đầy đủ nằm sau một nút thứ hai
+            trong tiêu đề bảng — tức là thứ nhiều người tìm nhất lại là thứ khó
+            thấy nhất. Bảng thu gọn không mất đi: nút "Thu gọn thành bảng bên"
+            ngay trên trang đưa về đúng nó. */}
+        <button
+          onClick={openFootballApp}
+          className={'rail-btn ' + (footballOpen ? 'bg-raised text-brand' : '')}
+          aria-label="Bóng đá"
+          title="Bóng đá — mở trang tỉ số và lịch thi đấu"
+          aria-pressed={footballOpen}
+        >
+          <BallIcon className="h-[18px] w-[18px]" />
         </button>
 
         <button className="rail-btn" aria-label="Dịch trang" title="Dịch trang này">

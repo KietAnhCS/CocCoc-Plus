@@ -6,7 +6,7 @@ export const PANEL_WIDTH = 340
 
 export const SIDE_RAIL_WIDTH = 48
 
-export type PanelKind = 'add-site' | 'ai' | 'downloads' | 'bookmarks' | 'app'
+export type PanelKind = 'add-site' | 'ai' | 'downloads' | 'bookmarks' | 'football' | 'app'
 
 export interface RailItem {
   id: string

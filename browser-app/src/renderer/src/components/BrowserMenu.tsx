@@ -198,8 +198,8 @@ function AccountRow(): JSX.Element {
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[12px] font-bold ' +
           (user
             ? isAdmin
-              ? 'bg-gradient-to-br from-indigo-500 to-violet-500 text-white'
-              : 'bg-gradient-to-br from-sky-500 to-teal-400 text-white'
+              ? 'bg-linear-to-br from-emerald-500 to-lime-400 text-white'
+              : 'bg-linear-to-br from-teal-500 to-emerald-400 text-white'
             : 'border border-line bg-raised text-muted')
         }
       >

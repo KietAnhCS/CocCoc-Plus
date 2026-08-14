@@ -9,12 +9,18 @@ setlocal
 rem ===========================================================================
 rem Dung TOAN BO he thong VnSearch bang Docker: build lai anh roi bat het dich vu.
 rem
-rem   run-backend.bat              FULL - 8 container, ~4 GB RAM   <-- mac dinh
-rem   run-backend.bat --kafka      backend + postgres + cum Kafka  ~3 GB
-rem   run-backend.bat --core       backend + postgres              ~1,5 GB
-rem   run-backend.bat --no-build   dung anh da co, khong build lai
-rem   run-backend.bat --logs       bam theo log backend sau khi len
-rem   run-backend.bat --help       in phan huong dan nay
+rem   run-backend.bat                FULL - 9 container, ~4 GB RAM   <-- mac dinh
+rem   run-backend.bat --kafka        backend + postgres + cum Kafka  ~3 GB
+rem   run-backend.bat --core         backend + postgres              ~1,5 GB
+rem   run-backend.bat --no-football  bo football-service ra ngoai
+rem   run-backend.bat --no-build     dung anh da co, khong build lai
+rem   run-backend.bat --logs         bam theo log backend sau khi len
+rem   run-backend.bat --help         in phan huong dan nay
+rem
+rem football-service di kem MOI che do, ke ca --core: no chi ton ~30 MB RAM va
+rem dung chung Postgres san co, nhung thieu no thi phan The thao cua giao dien
+rem chi con mot bang bao loi. Mot tinh nang tat ngam vi mot file .bat quen bat
+rem la thu rat lau sau moi co nguoi phat hien ra.
 rem
 rem Tat va giai phong RAM: end-backend.bat
 rem
@@ -36,6 +42,7 @@ set "PROFILES=--profile kafka --profile monitoring"
 set "BUS=kafka"
 set "BUILD=--build"
 set "FOLLOW_LOGS="
+set "NO_FOOTBALL="
 
 :parse
 if "%~1"=="" goto :parsed
@@ -54,6 +61,8 @@ if /i "%~1"=="--full" (
     set "PROFILES="
     rem Bus PHAI ve memory o che do nay. Xem muc "BUS SU KIEN" ben duoi.
     set "BUS=memory"
+) else if /i "%~1"=="--no-football" (
+    set "NO_FOOTBALL=1"
 ) else if /i "%~1"=="--no-build" (
     set "BUILD="
 ) else if /i "%~1"=="--logs" (
@@ -66,6 +75,12 @@ if /i "%~1"=="--full" (
 shift
 goto :parse
 :parsed
+
+rem Gan profile `football` SAU vong lap, khong gan trong tung nhanh: `--core`
+rem viet de len ca PROFILES, nen "run-backend.bat --core --no-football" va
+rem "run-backend.bat --no-football --core" phai cho cung mot ket qua bat ke thu
+rem tu nguoi dung go.
+if not defined NO_FOOTBALL set "PROFILES=%PROFILES% --profile football"
 
 rem Bang ma console: log cua backend va thong bao loi deu la tieng Viet co dau.
 rem O bang ma mac dinh cua Windows (437/1258) chung ra dau hoi.
@@ -236,6 +251,22 @@ if "%MODE%"=="full"  set "MODE_SHOW=FULL - backend + postgres + kafka + monitori
 if "%MODE%"=="kafka" set "MODE_SHOW=KAFKA - backend + postgres + cum Kafka, ~3 GB RAM"
 if "%MODE%"=="core"  set "MODE_SHOW=CORE - backend + postgres, ~1,5 GB RAM"
 
+rem Co khoa API-Football chua. Chi de BAO CHO BIET, khong phai dieu kien chay:
+rem thieu khoa thi service van len, chi la du lieu bong da la du lieu mau. Nhung
+rem "vi sao ti so khong doi" la cau hoi rat de mat thoi gian neu khong ai noi
+rem thang ra, nen no duoc in ngay o dong trang thai.
+set "FB_KEY="
+if defined FOOTBALL_API_KEY set "FB_KEY=%FOOTBALL_API_KEY%"
+if not defined FB_KEY if exist "%ENV_FILE%" (
+    for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
+        if /i "%%a"=="FOOTBALL_API_KEY" set "FB_KEY=%%b"
+    )
+)
+
+set "FOOTBALL_SHOW=co - nhung CHUA co khoa API, dang chay du lieu mau"
+if defined FB_KEY set "FOOTBALL_SHOW=co - co khoa API, du lieu that"
+if defined NO_FOOTBALL set "FOOTBALL_SHOW=khong - do co --no-football"
+
 set "BUILD_SHOW=co - build lai anh tu ma nguon"
 if not defined BUILD set "BUILD_SHOW=khong - dung anh da co, do co --no-build"
 
@@ -244,6 +275,7 @@ echo === VNSEARCH ===
 echo Thu muc      : %CD%
 echo Che do       : %MODE_SHOW%
 echo Build        : %BUILD_SHOW%
+echo Bong da      : %FOOTBALL_SHOW%
 echo Bus crawler  : %APP_CRAWLER_BUS%
 echo Khoa quan tri: %ADMIN_API_KEY:~0,8%... ^(day du trong .env^)
 rem --- Chi muc dung san co con khop voi corpus khong ---
@@ -340,6 +372,16 @@ echo.
 echo === DIA CHI ===
 echo   Backend API   http://localhost:8080/api/health
 echo   Thu tim kiem  http://localhost:8080/api/search?q=ha+noi
+if not defined NO_FOOTBALL (
+    echo   Bong da       http://localhost:8090/api/v1/status
+)
+if not defined NO_FOOTBALL if not defined FB_KEY (
+    echo.
+    echo   Phan bong da dang chay DU LIEU MAU. Muon ti so that:
+    echo     1. Lay khoa mien phi tai https://www.api-football.com/
+    echo     2. Dan vao dong FOOTBALL_API_KEY= trong tep .env o thu muc goc
+    echo     3. docker compose --profile football up -d football-service
+)
 if not "%MODE%"=="core" (
     echo   Kafka UI      http://localhost:8081
 )
@@ -395,17 +437,23 @@ goto :eof
 rem ===========================================================================
 :usage
 echo.
-echo   run-backend.bat              FULL - backend + postgres + kafka + monitoring
-echo   run-backend.bat --kafka      backend + postgres + cum Kafka
-echo   run-backend.bat --core       backend + postgres
-echo   run-backend.bat --no-build   dung anh da co, khong build lai
-echo   run-backend.bat --logs       bam theo log backend sau khi len
+echo   run-backend.bat                FULL - backend + postgres + kafka + monitoring
+echo   run-backend.bat --kafka        backend + postgres + cum Kafka
+echo   run-backend.bat --core         backend + postgres
+echo   run-backend.bat --no-football  bo football-service ra ngoai
+echo   run-backend.bat --no-build     dung anh da co, khong build lai
+echo   run-backend.bat --logs         bam theo log backend sau khi len
+echo.
+echo   football-service di kem MOI che do ^(cong 8090, ~30 MB RAM^). Thieu no thi
+echo   phan The thao cua giao dien chi con mot bang bao loi.
 echo.
 echo   Tat va giai phong RAM: end-backend.bat
 echo.
 echo   Bien moi truong:
-echo     ADMIN_API_KEY   khoa cho /api/admin/**. Khong dat thi lay tu .env,
-echo                     khong co nua thi tu sinh va ghi vao .env.
+echo     ADMIN_API_KEY     khoa cho /api/admin/**. Khong dat thi lay tu .env,
+echo                       khong co nua thi tu sinh va ghi vao .env.
+echo     FOOTBALL_API_KEY  khoa API-Football. Khong dat thi football-service
+echo                       chay bang du lieu mau - van len, van co giao dien.
 echo.
 call :restore_cp
 endlocal

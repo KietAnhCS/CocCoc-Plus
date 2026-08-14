@@ -1,4 +1,4 @@
-import type { JSX, SVGProps } from 'react'
+import { useId, type JSX, type SVGProps } from 'react'
 
 type IconProps = SVGProps<SVGSVGElement>
 
@@ -186,6 +186,62 @@ export function SpinnerIcon(props: IconProps): JSX.Element {
         style={{ animationDuration: '0.8s' }}
       />
     </svg>
+  )
+}
+
+/**
+ * Quả bóng — biểu tượng của bảng Bóng đá trên thanh bên.
+ *
+ * Vẽ bằng nét thay vì tô đặc để đứng cùng hàng với các biểu tượng khác trên
+ * thanh: một hình tô đặc ở giữa một dãy hình nét sẽ trông nặng hơn hẳn và kéo
+ * mắt về phía nó, dù nó chẳng quan trọng hơn cái nào.
+ */
+export function BallIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7.6 15.4 10 14.1 14h-4.2L8.6 10z" />
+      <path d="M12 3v4.6M19.5 9.4 15.4 10M17.2 18.4 14.1 14M6.8 18.4 9.9 14M4.5 9.4 8.6 10" />
+    </Icon>
+  )
+}
+
+/**
+ * Cúp vô địch — tab Giải đấu, thay cho `trophy.fill` của bản iOS.
+ *
+ * SF Symbols tô đặc; ở đây vẽ nét như mọi biểu tượng khác trong tệp này. Một
+ * hình tô đặc đứng giữa dãy hình nét sẽ nặng hơn hẳn phần còn lại của thanh
+ * tab và kéo mắt về phía nó dù nó chẳng quan trọng hơn.
+ */
+export function TrophyIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M7 4h10v5a5 5 0 0 1-10 0z" />
+      <path d="M7 5.5H4.5v1A3.5 3.5 0 0 0 8 10M17 5.5h2.5v1A3.5 3.5 0 0 1 16 10" />
+      <path d="M12 14v3m-3.5 3h7m-5.5 0 .6-3h3.8l.6 3" />
+    </Icon>
+  )
+}
+
+/** Người trong vòng tròn — tab Hồ sơ, thay cho `person.circle.fill`. */
+export function UserCircleIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="10" r="3.2" />
+      <path d="M6.2 18.4c1-2.2 3.2-3.4 5.8-3.4s4.8 1.2 5.8 3.4" />
+    </Icon>
+  )
+}
+
+/** Mũi tên rời khung — dấu hiệu "bấm vào đây sẽ mở một trang web ở thẻ mới". */
+export function ExternalLinkIcon(props: IconProps): JSX.Element {
+  return (
+    <Icon {...props}>
+      <path d="M13.5 5.5H18.5V10.5" />
+      <path d="M18.5 5.5 11 13" />
+      <path d="M17 13.5v4a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 5 17.5v-9A1.5 1.5 0 0 1 6.5 7h4" />
+    </Icon>
   )
 }
 
@@ -445,26 +501,73 @@ export function WinCloseIcon(props: IconProps): JSX.Element {
   )
 }
 
+/**
+ * Dấu hiệu nhận diện của VnSearch — kính lúp lồng chữ V.
+ *
+ * <h3>Vì sao là chữ V chứ không phải ngôi sao</h3>
+ *
+ * Bản đầu đặt một ngôi sao năm cánh trong lòng kính. Ngôi sao có mười đỉnh và
+ * mười cạnh trong một hình tròn rộng chưa tới 10px trên thanh địa chỉ; ở cỡ đó
+ * nó nhoè thành một đốm sáng, và một đốm sáng thì không nói được nó là ứng
+ * dụng nào. Chữ V chỉ có ba nét, giữ được hình dạng đến tận 16px, lại vừa là
+ * chữ đầu của "VnSearch" vừa là của "Việt".
+ *
+ * <h3>Vì sao mỗi lần vẽ lại sinh một `id` mới</h3>
+ *
+ * `id` trong SVG là DUY NHẤT TOÀN TRANG, không phải riêng từng thẻ `svg`. Dấu
+ * hiệu này xuất hiện đồng thời ở tab, thanh địa chỉ và trang chủ, nên nếu cả
+ * ba cùng khai báo `id="vn-mark"` thì cả ba đều tô theo định nghĩa xuất hiện
+ * ĐẦU TIÊN trong tài liệu — và khi thẻ đầu tiên đó bị gỡ khỏi cây, những thẻ
+ * còn lại trỏ vào một `id` không còn tồn tại. `useId` cắt hẳn cả lớp lỗi này.
+ */
 export function VnSearchMark({ className }: { className?: string }): JSX.Element {
+  const uid = useId()
+  const fill = `vn-fill-${uid}`
+  const gloss = `vn-gloss-${uid}`
+
   return (
     <svg viewBox="0 0 48 48" className={className} aria-hidden="true" focusable="false">
       <defs>
-        <linearGradient id="vn-mark" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#f43f5e" />
-          <stop offset="55%" stopColor="#f97316" />
-          <stop offset="100%" stopColor="#fbbf24" />
+        <linearGradient id={fill} x1="0.1" y1="0" x2="0.9" y2="1">
+          <stop offset="0%" stopColor="#6ee7c8" />
+          <stop offset="46%" stopColor="#2dd482" />
+          <stop offset="100%" stopColor="#a3e635" />
+        </linearGradient>
+        {/* Vệt sáng ở nửa trên — thứ khiến đĩa màu trông như một khối có mặt
+            cong, thay vì một mảng màu dán phẳng. */}
+        <linearGradient id={gloss} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.42" />
+          <stop offset="55%" stopColor="#ffffff" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <circle cx="21" cy="21" r="14.5" fill="url(#vn-mark)" />
-      <path
-        d="M21 12.2l2.36 4.79 5.29.77-3.83 3.73.9 5.27L21 24.28l-4.72 2.48.9-5.27-3.83-3.73 5.29-.77z"
-        fill="#fff"
-        fillOpacity="0.96"
+
+      <circle cx="20" cy="20" r="15" fill={`url(#${fill})`} />
+      <circle cx="20" cy="20" r="15" fill={`url(#${gloss})`} />
+      <circle
+        cx="20"
+        cy="20"
+        r="14.1"
+        fill="none"
+        stroke="#ffffff"
+        strokeOpacity="0.34"
+        strokeWidth="1.3"
       />
+
       <path
-        d="M31.6 31.6 41 41"
+        d="M13.5 13.4 20 27.1 26.5 13.4"
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+
+      {/* Tay cầm dùng `currentColor` để đổi theo màu chữ nơi đặt nó: trắng
+          trên nền hero, xám trên thanh địa chỉ. */}
+      <path
+        d="M31.1 31.1 40.6 40.6"
         stroke="currentColor"
-        strokeWidth="4.6"
+        strokeWidth="5"
         strokeLinecap="round"
         fill="none"
       />

@@ -379,6 +379,69 @@ services:
       - "9308:9308"
     restart: unless-stopped
 
+  # ═════════════════════════════════════════════════════════════════════════
+  # PROFILE `football` — du lieu bong da (microservice viet bang Go)
+  # ═════════════════════════════════════════════════════════════════════════
+  #
+  # Vi sao la mot service RIENG chu khong phai them mot controller vao backend
+  # Java: no co mot rang buoc ma phan con lai cua he thong khong co — han muc
+  # 100 luot goi ra ngoai moi ngay. Rang buoc do quyet dinh gan nhu moi thiet
+  # ke ben trong (dem bao lau, het han muc thi lam gi), va nhet no chung vao
+  # mot ung dung dang toi uu cho viec khac se lam ca hai ben kho hieu hon.
+  #
+  # No cung KHONG nam trong profile mac dinh: khong phai ai chay repo nay cung
+  # quan tam den bong da, va service nay tu no da chay duoc bang du lieu mau.
+  football-service:
+    build:
+      context: ./football-service
+    container_name: vnsearch-football
+    profiles: [football]
+    depends_on:
+      postgres:
+        # Bat buoc phai `service_healthy`: service nay TU tao schema `football`
+        # luc khoi dong, nen no can Postgres that su nhan ket noi chu khong chi
+        # can container da chay.
+        condition: service_healthy
+    environment:
+      # Dung chung CSDL `vnsearch` voi backend Java, nhung trong mot schema
+      # rieng ten `football`. Xem football-service/internal/store/store.go.
+      #
+      # Truyen TUNG PHAN thay vi mot URL ghep san — day la mot loi that da gap
+      # o lan chay dau: mat khau sinh ngau nhien chua dau `@`, no cat URL sai
+      # cho, va Postgres tra ve "password authentication failed" trong khi mat
+      # khau hoan toan dung. Service tu ghep bang url.UserPassword nen moi ky
+      # tu deu duoc ma hoa. Xem buildDatabaseURL trong internal/config.
+      FOOTBALL_DB_HOST: postgres
+      FOOTBALL_DB_PORT: "5432"
+      FOOTBALL_DB_USER: vnsearch
+      FOOTBALL_DB_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
+      FOOTBALL_DB_NAME: vnsearch
+
+      # Khoa API-Football. KHONG dung cu phap `:?` nhu ADMIN_API_KEY: thieu
+      # khoa nay khong mo ra lo hong nao, service chi lui ve du lieu mau. Xem
+      # football-service/internal/sample.
+      FOOTBALL_API_KEY: ${FOOTBALL_API_KEY:-}
+
+      # Cung mot du lieu duoc ban o hai noi: thang tu api-sports.io, hoac qua
+      # RapidAPI. Chi khac cach xung danh, va service TU SUY RA tu dia chi nay
+      # (xem rapidAPIHost trong internal/apifootball) — nen doi nha cung cap
+      # chi la doi mot dong trong .env, khong dung toi ma nguon.
+      FOOTBALL_API_BASE_URL: ${FOOTBALL_API_BASE_URL:-https://v3.football.api-sports.io}
+
+      FOOTBALL_PORT: "8090"
+      FOOTBALL_DAILY_BUDGET: "95"
+    ports:
+      - "8090:8090"
+    healthcheck:
+      # Anh chay la distroless — khong co shell, khong co wget. Tep nhi phan tu
+      # goi chinh no. Xem ham healthCheck trong cmd/server/main.go.
+      test: ["CMD", "/football-service", "--health-check"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   kafka-data:

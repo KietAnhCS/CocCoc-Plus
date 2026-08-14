@@ -667,8 +667,8 @@ function ImageCell({
       aria-pressed={active}
       style={{ width: placed.width, height: rowHeight }}
       className={`group relative shrink-0 overflow-hidden rounded-lg bg-raised text-left
-                  transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50
-                  ${active ? 'ring-2 ring-brand' : 'hover:brightness-95'}`}
+                  transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50
+                  ${active ? 'ring-2 ring-brand' : 'hover:ring-2 hover:ring-brand/45'}`}
     >
       {broken ? (
         <div className="flex h-full w-full flex-col items-center justify-center gap-1.5 px-2 text-center">
@@ -692,7 +692,8 @@ function ImageCell({
           // của ảnh, nên phần bị cắt chỉ xuất hiện ở hai ca — ảnh chưa đo được
           // tỉ lệ (đang dùng 4:3 tạm) và ảnh có tỉ lệ bị chặn ở MIN/MAX_RATIO.
           // `contain` ở hai ca đó để lại viền trống, xấu hơn hẳn.
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover transition-transform duration-500 ease-out
+                     group-hover:scale-[1.06]"
         />
       )}
 

@@ -140,8 +140,8 @@ function AccountRow({
               'flex h-6 w-6 shrink-0 items-center justify-center rounded-full ' +
               'text-[10px] font-bold text-white ' +
               (isAdmin
-                ? 'bg-linear-to-br from-indigo-500 to-violet-500'
-                : 'bg-linear-to-br from-sky-500 to-teal-400')
+                ? 'bg-linear-to-br from-emerald-500 to-lime-400'
+                : 'bg-linear-to-br from-teal-500 to-emerald-400')
             }
           >
             {account.username.slice(0, 2).toUpperCase()}

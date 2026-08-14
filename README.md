@@ -1,4 +1,4 @@
-# VnSearch
+# Browser app like CocCoc and Vietnamese search engine
 
 A Vietnamese search engine built from scratch — crawler, inverted index, ranking,
 and a mini browser to query it.
@@ -17,9 +17,10 @@ MinHeap, and a Vietnamese word segmenter.
 └──────────────┘    └──────────────┘    └──────────────┘    └──────┬───────┘
                                                                     │
                                                             ┌───────▼───────┐
-                                                            │  browser-app  │
-                                                            │  (Electron)   │
-                                                            └───────────────┘
+                        ┌──────────────────┐                │  browser-app  │
+                        │ football-service │───────────────▶│  (Electron)   │
+                        │   (Go, :8090)    │  Sports panel  └───────────────┘
+                        └──────────────────┘
 ```
 
 ---
@@ -63,6 +64,9 @@ docker compose --profile kafka up -d --build
 
 # + Prometheus, Grafana, Alertmanager, kafka-exporter    (~4 GB RAM)
 docker compose --profile kafka --profile monitoring up -d --build
+
+# + football-service (Go), feeding the browser's Sports panel   (~30 MB RAM)
+docker compose --profile football up -d --build
 ```
 
 | Address | What you get |
@@ -71,6 +75,7 @@ docker compose --profile kafka --profile monitoring up -d --build
 | <http://localhost:3000> | Grafana (`admin`/`admin`), dashboard pre-provisioned |
 | <http://localhost:9090/alerts> | Prometheus — the 7 alert rules and their state |
 | <http://localhost:9093> | Alertmanager |
+| <http://localhost:8090/api/v1/status> | football-service — daily API budget left |
 
 Details: [`docs/DEVOPS.md`](docs/DEVOPS.md).
 
@@ -309,6 +314,7 @@ Docs are organised by **the question they answer**, not by source folder:
 | [`docs/SECURITY.md`](docs/SECURITY.md) | What is it defended against, and **what is still open**? |
 | [**`docs/ACCOUNTS-AND-DASHBOARD.md`**](docs/ACCOUNTS-AND-DASHBOARD.md) | **Accounts, roles and the admin dashboard — who may see what, and six real bugs the tests missed** |
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | The mini browser (Electron + React) |
+| [`football-service/README.md`](football-service/README.md) | The football microservice — why a 100-calls/day quota decides every design choice inside it |
 | [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Big-O and measured numbers |
 | [`docs/Math/`](docs/Math/README.md) | One page per class — formulas, worked examples, mind maps |
 | [`docs/Math/08-design-patterns/`](docs/Math/08-design-patterns/README.md) | One page per design pattern, and the bug each one fixed |
@@ -334,6 +340,12 @@ search-engine/          Spring Boot backend (Java 17)
     datastructure/      Trie, BloomFilter, MinHeap, LRUCache, SparseMatrix
     eval/               Search quality harness
 browser-app/            Mini browser (Electron + React + TypeScript)
+  src/renderer/src/components/football/
+                        Full-screen football page, ported from the iOS app
+football-service/       Football data microservice (Go + Postgres), profile `football`
+  internal/apifootball/ API-Football client and normalisers
+  internal/service/     Cache-aside, daily call budget, fallback order
+  internal/sample/      Sample data, so every screen works with no API key
 deploy/
   k8s/                  Kustomize base + dev/prod overlays
   kind/                 Local three-node cluster

@@ -404,32 +404,7 @@ assertEquals(1, new JsonUserStore(p.toString()).count());
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Tính đúng đắn khi hỏng hóc | 8/10 | Tệp tạm + hoàn tác RAM rất bài bản; còn thiếu `fsync` |
-| Đồng bộ đa luồng | 9/10 | Đúng khoá đúng chỗ; đọc không bị chặn bởi ghi |
-| Hiệu năng ở quy mô mục tiêu | 9/10 | $O(1)$ trên đường nóng; ghi $O(n)$ chấp nhận được với $n$ nhỏ |
-| Khả năng mở rộng | 5/10 | Ghi cả tệp — trần ở vài nghìn tài khoản (đã tài liệu hoá) |
-| Xử lý lỗi | 9/10 | Bỏ qua bản ghi hỏng, dung thứ tệp cũ, có đường lui khi không nguyên tử |
-| Tài liệu trong mã | 10/10 | Javadoc 35 dòng giải thích **vì sao** cho từng quyết định |
-| Khả năng kiểm thử | 6/10 | Đường thành công có test; đường hỏng đĩa chưa có |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **`fsync` trước khi đổi tên.** Mở `.tmp` bằng `FileChannel`, gọi
-   `force(true)`, rồi mới `move`. Không có bước này, `ATOMIC_MOVE` chỉ bảo đảm
-   thứ tự thao tác chứ không bảo đảm dữ liệu đã nằm trên đĩa vật lý — vẫn có
-   thể mất khi mất điện đột ngột.
-2. **Test đường hỏng.** Hai kịch bản ở mục 5. Đây là phần *đắt giá nhất* của
-   lớp này mà lại chưa được test bảo vệ — hồi quy sẽ không ai phát hiện.
-3. **Giữ bản trước đó** (`users.json.bak`) trước khi đổi tên. Tệp bị hỏng do
-   sửa tay hoặc do lỗi ứng dụng thì hiện tại không có gì để quay về.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Hợp đồng phải tuân thủ: [`UserStore.md`](./UserStore.md)
 - Kiểu được lưu: [`User.md`](./User.md) · [`Role.md`](./Role.md)

@@ -215,31 +215,7 @@ void giaTriLaHaVeUser() {
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Thiết kế phù hợp bối cảnh | 9/10 | YAGNI có lập luận, ghi rõ điều kiện để mở rộng |
-| An toàn mặc định | 10/10 | Fail-safe về phía ít quyền; `@JsonCreator` bịt đúng đường của framework |
-| Chống lỗi lập trình | 10/10 | `authority()` xoá hẳn một lớp lỗi chuỗi |
-| Tài liệu trong mã | 10/10 | Giải thích cả quy ước Spring lẫn hệ quả của việc thiếu `@JsonCreator` |
-| Khả năng tiến hoá | 7/10 | Thêm vai trò cần sửa `SecurityConfig` bằng tay, không có kiểm tra tự động |
-| Khả năng quan sát | 6/10 | Giá trị lạ bị hạ về `USER` **im lặng** — không có log |
-
-**Ba đề xuất:**
-
-1. **Ghi log cảnh báo trong `parse()`** khi giá trị không khớp: hiện tại một tệp
-   `users.json` bị hỏng sẽ hạ quyền toàn bộ tài khoản mà không để lại dấu vết.
-   (Cần dùng logger tĩnh, và nhớ làm sạch chuỗi trước khi ghi — xem `forLog` ở
-   `UserService`.)
-2. **Test tham số hoá** cho ma trận vai trò × endpoint, để thêm vai trò mới là
-   thêm một dòng dữ liệu thay vì một bài test mới.
-3. **Đưa ánh xạ vai trò → endpoint vào một chỗ** (ví dụ một bảng hằng số dùng
-   chung giữa `SecurityConfig` và test), thay vì lặp lại luật ở hai nơi.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Nơi gắn quyền vào `SecurityContext`: [`TokenAuthFilter.md`](./TokenAuthFilter.md)
 - Nơi khai báo luật truy cập: `docs2/main/java/com/vnsearch/config/SecurityConfig.md`

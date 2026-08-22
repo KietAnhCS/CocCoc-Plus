@@ -690,48 +690,7 @@ và test đỏ đúng chỗ.
 
 ---
 
-## 11. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chất lượng phân tích | 10/10 | Nhận ra hai thay đổi **phụ thuộc nhau**, không tách bước được — hiểu biết về bản chất bài toán, không chỉ về mã |
-| Kiến thức miền | 10/10 | Xử lý riêng "đ"; NFC/NFD; từ ghép không bị lọc từ dừng — ba chi tiết chỉ người làm thật với tiếng Việt mới biết |
-| Tối ưu có mục tiêu | 10/10 | Ba mức tối ưu chồng nhau ở `stripDiacritics`, kèm lý do (tần suất gọi) chứ không phải tối ưu bừa |
-| Chọn mẫu đồng thời | 10/10 | Lazy holder thay double-checked locking, kèm lập luận vì sao hai cách kia tệ hơn |
-| Thiết kế phục vụ đo đạc | 10/10 | Hàm dựng nhận từ điển; `name()` phản ánh cấu hình ⇒ bảng ablation có nghĩa **và** hàng rào của `IndexPersistence` bắt được thay đổi |
-| Chất lượng demo | 10/10 | Phần "ca nhập nhằng" chứng minh đúng điều thuật toán mới giải quyết |
-| Bất biến & đa luồng | 9/10 | Mọi trường `final`; từ điển bất biến sau khi nạp — nhưng không có test canh giữ |
-| **Độ chính xác số liệu** | **4/10** | "185.000 mục" xuất hiện **hai lần**, thực tế 49.644; "154 mục" cũng còn |
-| Rò rỉ trừu tượng | 6/10 | `Token` là lớp lồng trong lớp này nhưng giao diện [`Tokenizer`](./Tokenizer.md) lại trả về nó |
-| Khả năng kiểm thử | 7/10 | Có test riêng 105 dòng; thiếu ca đa luồng và ca đường-nhanh-không-cấp-phát |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Sửa con số "185.000" ở cả hai chỗ (dòng 49 và dòng 96) thành 49.644.** Số
-   này sai gấp gần 4 lần, và nó là số liệu trung tâm của lập luận "gỡ bỏ trần
-   chất lượng" — chính là thứ hội đồng sẽ hỏi. Cách bền hơn: đừng viết số cứng
-   trong Javadoc mà trỏ tới `dictionary.wordCount()`, vốn luôn đúng.
-2. **Cho `name()` băm nội dung từ điển, không chỉ đếm số mục.** Hiện hai từ điển
-   cùng kích thước nhưng khác nội dung cho cùng `name()`, nên hàng rào của
-   [`IndexPersistence`](./IndexPersistence.md) không bắt được. Một mã băm cộng
-   dồn tính lúc nạp từ điển là đủ:
-   ```java
-   // trong VietnameseWordDictionary, cộng dồn khi addWord:
-   contentHash = 31 * contentHash + normalized.hashCode();
-   ```
-   ```java
-   // trong name():
-   + ", dictHash=" + Integer.toHexString(dictionary.contentHash())
-   ```
-3. **Nâng `Token` thành lớp độc lập trong gói `index`.** Đây là đề xuất 2 của
-   [`Tokenizer`](./Tokenizer.md), và nó phải được thực hiện **ở đây** (nơi
-   `Token` đang được khai báo). Thao tác cơ học, không đổi hành vi, nhưng gỡ được
-   việc giao diện trừu tượng phụ thuộc vào một cài đặt cụ thể — nút thắt duy nhất
-   ngăn ai đó viết `EnglishTokenizer` mà không phải import lớp "Vietnamese".
-
----
-
-## 12. Liên kết
+## 11. Liên kết
 
 - Hợp đồng mà lớp này cài đặt: [`Tokenizer.md`](./Tokenizer.md)
 - Thuật toán ghép từ: [`MaxWeightSegmenter.md`](./MaxWeightSegmenter.md)

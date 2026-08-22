@@ -515,47 +515,7 @@ Select-String -Path log.txt -Pattern "`r" -Encoding utf8   # không có kết qu
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Hiểu người dùng | 10/10 | Xác định đúng câu hỏi duy nhất người xem quan tâm, rồi thiết kế quanh nó |
-| Tự dò môi trường | 10/10 | `stdout.encoding` vs `file.encoding` là chi tiết rất ít người biết và rất dễ sai |
-| Tôn trọng quy ước | 10/10 | `NO_COLOR`, tắt ANSI khi không phải terminal, lối thoát `-Dcrawl.progress` |
-| Chi tiết hiển thị | 10/10 | Đệm theo `plain`, vẽ trang cuối, `compact`, `Locale.US` — bốn chi tiết đều đúng |
-| Đo đúng thứ người dùng cảm nhận | 10/10 | `startMs` ở hàm dựng, ETA theo tốc độ trung bình, có nêu giới hạn |
-| An toàn luồng | 10/10 | Khối đồng bộ đúng phạm vi, có lập luận vì sao không phải nút thắt |
-| Phân công với listener khác | 9/10 | "Số tổng ở đây, chi tiết ở log" rất rõ; nhưng xung đột thật vẫn còn |
-| Khả năng kiểm thử | 5/10 | Bốn hàm thuần đáng test đều `private` |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Nới bốn hàm thuần lên package-private để test được** (`formatDuration`,
-   `compact`, `bar`, `stdoutCharset`). Chúng chứa logic thật với các ranh giới
-   dễ lệch — 60 phút, 10.000, tỷ lệ tràn — và test chúng mất mười phút. Khuôn
-   mẫu đã có trong cùng gói:
-   [`CheckpointCrawlListener.isDueForCheckpoint`](./CheckpointCrawlListener.md)
-   mục 5.2 và [`RobotsTxtParser.parseForTest`](./RobotsTxtParser.md) mục 5.1.
-
-2. **Giải quyết xung đột thật với `ConsoleCrawlListener`.** Hiện đăng ký cả hai
-   ở chế độ tương tác thì log SLF4J vẫn cắt ngang thanh. Hai hướng: (a) cung cấp
-   một `Appender` của Logback biết xoá dòng trước khi in và vẽ lại sau — cách
-   đúng nhưng phức tạp; (b) đơn giản hơn: khi
-   [`CrawlerService`](./CrawlerService.md) thấy chế độ thanh đang bật thì tự
-   động **không** đăng ký `ConsoleCrawlListener` ra console (chỉ ghi ra file).
-   Hiện tài liệu nói "đăng ký kèm" như một giải pháp, nhưng nó chưa hoạt động
-   trọn vẹn.
-
-3. **Hiển thị tiến độ theo *thời gian* khi `maxPages` không phải ràng buộc thật.**
-   Phiên crawl bị chặn bởi `maxDurationMinutes` sẽ thấy thanh dừng ở 40% rồi kết
-   thúc — trông như thất bại. Biết cả hai giới hạn thì vẽ được thanh theo **cái
-   nào sẽ chạm trước**, và ETA sẽ đúng trong cả hai trường hợp. Việc này cần
-   `onStarted(CrawlConfig, seeds)` — đúng đề xuất 3 ở
-   [`CrawlListener.md`](./CrawlListener.md).
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Interface: [`CrawlListener.md`](./CrawlListener.md)
 - Listener bổ trợ (chi tiết vào log): [`ConsoleCrawlListener.md`](./ConsoleCrawlListener.md)

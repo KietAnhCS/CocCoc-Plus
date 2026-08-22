@@ -89,8 +89,7 @@ flowchart TD
 8. [Hướng dẫn về code](#8-hướng-dẫn-về-code)
 9. [Độ phức tạp & chi phí](#9-độ-phức-tạp--chi-phí)
 10. [Kiểm thử liên quan](#10-kiểm-thử-liên-quan)
-11. [Chấm theo chuẩn doanh nghiệp](#11-chấm-theo-chuẩn-doanh-nghiệp)
-12. [Liên kết](#12-liên-kết)
+11. [Liên kết](#11-liên-kết)
 
 ---
 
@@ -214,7 +213,8 @@ Nhưng có một vấn đề thật, và nó không nằm ở lớp này mà l�
 Điều an ủi: vì `saveAll()` dùng `ON CONFLICT (doc_id) DO UPDATE`, ca "mất trắng"
 chỉ mất **dữ liệu trong CSDL**, còn file JSON nguồn vẫn nguyên. Chạy lại lệnh là
 xong. Nên đây là vấn đề về vận hành, không phải mất mát không hồi phục — nhưng
-nó vẫn đáng chữa, xem [phần 11, đề xuất 1](#11-chấm-theo-chuẩn-doanh-nghiệp).
+nó vẫn đáng chữa bằng cách đưa `deleteAll()` và `saveAll()` vào chung một giao
+dịch.
 
 ---
 
@@ -373,7 +373,8 @@ if (savedDocs != docs.size()) {
 
 Đây là điểm yếu thật của lớp. Việc *phát hiện* sai lệch đã được làm rất tốt —
 tốt hơn hẳn mức trung bình — nhưng việc *báo* sai lệch lại dừng ở mức in chữ ra
-màn hình. Cách chữa là hai dòng, xem [đề xuất 3](#11-chấm-theo-chuẩn-doanh-nghiệp).
+màn hình. Cách chữa là hai dòng: trả về mã thoát khác 0 khi phát hiện sai lệch,
+để lớp gọi và kịch bản CI biết mà dừng.
 
 ---
 
@@ -541,66 +542,7 @@ void vongTronGhiDocPhaiKhopCaHaiConSo() throws Exception {
 
 ---
 
-## 11. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Thiết kế vòng đời | 10/10 | `main()` trần là lựa chọn đúng cho thao tác phá huỷ; không thể bị kích hoạt ngoài ý muốn |
-| Kiểm chứng tính toàn vẹn | 9/10 | Đọc lại toàn bộ và so **hai** con số — vượt hẳn mức thường thấy ở script nạp dữ liệu. Trừ vì chỉ kiểm đếm, không kiểm nội dung |
-| Chất lượng thông tin xuất ra | 9/10 | Thông lượng, kích thước bảng, kích thước chỉ mục GIN — đúng những số liệu báo cáo cần, đo đúng thời điểm |
-| Quản lý tài nguyên | 10/10 | `try-with-resources` bao trọn mọi đường thoát |
-| Đo lường | 8/10 | Đo đúng phạm vi (chỉ bao `saveAll`). Trừ vì `docs.size() / 0.0` cho `Infinity` khi corpus rỗng |
-| **Mã thoát khi thất bại** | **3/10** | Phát hiện sai lệch rất tốt rồi **thoát 0**; mọi tự động hoá sẽ coi lần chạy hỏng là thành công |
-| Tính nguyên tử đầu–cuối | **5/10** | `deleteAll()` nằm ngoài giao dịch của `saveAll()`, để lại cửa sổ 90 giây CSDL rỗng |
-| Khả năng quan sát tiến trình | **4/10** | Im lặng 40–90 giây giữa lúc ghi; người vận hành không phân biệt được "đang chạy" với "đã treo" |
-| Bộ nhớ | **5/10** | Đỉnh ~360 MB do giữ đồng thời hai bản corpus; tăng tuyến tính theo dữ liệu |
-| Kiểm thử | **3/10** | Bất biến vòng tròn ghi–đọc chưa được bài test nào bảo vệ, dù logic kiểm chứng đã có sẵn trong `main` |
-
-**Năm đề xuất nâng lên mức sản phẩm:**
-
-1. **Đưa `deleteAll()` vào cùng giao dịch với `saveAll()` bằng một
-   `repo.replaceAll(docs)` mới.** Hiện tại có một cửa sổ 40–90 giây mà CSDL rỗng
-   hoàn toàn: nếu tiến trình bị giết trong khoảng đó, corpus mất trắng, và nếu
-   web app tình cờ khởi động trong khoảng đó, nó âm thầm tụt xuống nguồn dự phòng
-   JSON mà không ai biết mình đang chạy trên dữ liệu khác. Vì `TRUNCATE` trong
-   PostgreSQL có tính giao dịch (khác MySQL), phép gộp này khả thi và chỉ tốn
-   khoảng mười dòng ở `DocumentRepository`. Lợi ích kèm theo: người gọi không còn
-   cách nào quên `deleteAll()` và tạo ra bảng `outlinks` nhân đôi.
-
-2. **Nâng phép kiểm chứng từ đếm lên đối chiếu nội dung có lấy mẫu.** Phép kiểm
-   hiện tại bắt rất tốt nhóm lỗi "mất dữ liệu" nhưng mù hoàn toàn với nhóm "dữ
-   liệu sai chỗ" — và trong nhóm thứ hai có đúng cái lỗi nguy hiểm nhất của tầng
-   này: mất thứ tự `ORDER BY doc_id`, thứ sẽ phá bất biến posting list của
-   `InvertedIndex` mà không phát ra tín hiệu nào. Chỉ cần thêm hai phép kiểm rẻ
-   — `docId` tăng nghiêm ngặt trên toàn danh sách đọc lại, và so `length()` của
-   `bodyText` trên 100 tài liệu lấy mẫu — là phủ được cả hai nhóm lỗi với chi phí
-   dưới một giây.
-
-3. **Trả mã thoát khác 0 khi phát hiện sai lệch.** Đây là đề xuất rẻ nhất và
-   đáng làm nhất: thêm một biến `boolean ok`, và `System.exit(ok ? 0 : 1)` ở
-   cuối. Hiện tại, công sức bỏ ra để xây dựng cả một cơ chế kiểm chứng bị vô hiệu
-   hoá bởi một chi tiết duy nhất — dòng chữ `SAI LECH` in ra rồi tiến trình thoát
-   0, nên một `Makefile`, một bước CI, hay một script `set -e` đều kết luận lần
-   nạp đã thành công. Một cơ chế phát hiện lỗi mà không ai ở phía dưới nhận được
-   tín hiệu thì chỉ có giá trị khi có người đang ngồi đọc màn hình.
-
-4. **In tiến độ trong lúc ghi.** Truyền một `IntConsumer` vào `saveAll()` để nó
-   gọi lại sau mỗi 10 lô, rồi in `"da ghi 5.000/31.030 (16%)"`. Bốn mươi tới chín
-   mươi giây im lặng tuyệt đối là khoảng thời gian đủ dài để người vận hành nghi
-   ngờ chương trình đã treo, và phản xạ tự nhiên khi đó — Ctrl-C — lại đúng là
-   hành động tệ nhất có thể làm giữa một lần nạp. Một dòng tiến độ vừa loại bỏ
-   nghi ngờ đó, vừa cho ước lượng thời gian còn lại.
-
-5. **Giải phóng `docs` trước khi gọi `findAll()`.** Đỉnh bộ nhớ ~360 MB đến từ
-   việc giữ đồng thời hai bản corpus, trong khi phần kiểm chứng thực ra chỉ cần
-   **hai con số** đã được chốt từ giai đoạn ① chứ không cần cả danh sách. Lưu
-   `docs.size()` và `outlinkCount` vào biến, gán `docs = null` trước khi đọc lại,
-   và đỉnh bộ nhớ giảm một nửa ngay lập tức. Đây là thay đổi ba dòng, và nó nâng
-   trần corpus mà công cụ này xử lý được lên gấp đôi mà không cần chỉnh `-Xmx`.
-
----
-
-## 12. Liên kết
+## 11. Liên kết
 
 - Lớp thực hiện mọi thao tác CSDL: [`DocumentRepository.md`](./DocumentRepository.md)
 - Nguồn đọc file JSON: [`../crawler/ContentStorage.md`](../crawler/ContentStorage.md)

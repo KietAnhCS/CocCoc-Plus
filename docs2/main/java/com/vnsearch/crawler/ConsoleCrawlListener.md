@@ -312,40 +312,7 @@ trông thừa mà thật ra chặn hiện tượng "tưởng crawler treo".
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chọn công cụ ghi log | 10/10 | SLF4J với `{}` — tắt được, phân mức, không ghép chuỗi vô ích |
-| Chọn mức log | 10/10 | `DEBUG` cho trùng nội dung, kèm lý do về việc bảo vệ giá trị của cảnh báo |
-| Chống làm nhiễu | 9/10 | Tiết lưu `everyN`, luôn in trang cuối |
-| Xử lý trường hợp biên | 9/10 | `Math.max(1, everyN)`, chặn chia cho 0 ở `onFinished` |
-| An toàn đa luồng | 10/10 | Không trạng thái |
-| Đơn giản | 10/10 | 58 dòng làm đúng một việc |
-| Độ phủ sự kiện | 7/10 | Bỏ `onForeignLanguage` — số liệu ngoại ngữ vô hình trên console |
-| Chất lượng tài liệu trong mã | 6/10 | Lý lẽ tốt nhưng **không dấu tiếng Việt**, và log cũng không dấu |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Ghi đè `onForeignLanguage` ở mức `DEBUG`, và tổng hợp vào `onFinished`.**
-   Vòng phản hồi "thấy nhiều trang `zh` ⇒ thêm `cn.` vào `excludedHostPrefixes`"
-   ([`CrawlListener.md`](./CrawlListener.md) mục 1.2) hiện **không tự động**.
-   Một dòng tổng kết cuối phiên — `"Loai vi ngon ngu: zh=2533, ru=411, other=180"`
-   — biến nó thành thứ người vận hành thấy ngay mà không phải đi tìm.
-
-2. **Thêm dòng tổng kết về lỗi và trùng lặp vào `onFinished`.** Hiện chỉ có
-   "N trang trong T giây". Bổ sung số lỗi, số trùng, tỷ lệ trùng sẽ khiến dòng
-   cuối cùng đủ để đánh giá sức khoẻ của phiên crawl mà không cần đọc lại toàn
-   bộ log. Lớp cần giữ vài `AtomicLong` — chi phí gần bằng không.
-
-3. **Viết log tiếng Việt có dấu.** `logback` với `<charset>UTF-8</charset>` xử lý
-   được, và phần còn lại của dự án (`SeedUrlValidator`,
-   [`LanguageFilter`](./LanguageFilter.md), [`UrlStorage`](./UrlStorage.md)) đã
-   dùng dấu. Đây là file lệch chuẩn, không phải chuẩn.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Interface: [`CrawlListener.md`](./CrawlListener.md)
 - Listener anh em: [`ProgressBarCrawlListener.md`](./ProgressBarCrawlListener.md) · [`CheckpointCrawlListener.md`](./CheckpointCrawlListener.md)

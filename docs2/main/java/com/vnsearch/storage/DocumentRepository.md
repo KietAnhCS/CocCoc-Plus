@@ -86,8 +86,7 @@ flowchart TD
 10. [Hướng dẫn về code](#10-hướng-dẫn-về-code)
 11. [Độ phức tạp & chi phí](#11-độ-phức-tạp--chi-phí)
 12. [Kiểm thử liên quan](#12-kiểm-thử-liên-quan)
-13. [Chấm theo chuẩn doanh nghiệp](#13-chấm-theo-chuẩn-doanh-nghiệp)
-14. [Liên kết](#14-liên-kết)
+13. [Liên kết](#13-liên-kết)
 
 ---
 
@@ -187,8 +186,8 @@ của nó đã sẵn sàng.
 
 **Mật khẩu mặc định nằm trong mã nguồn.** `"vnsearch"/"vnsearch"` được viết cứng
 và là `public static final`. Với một dự án học thuật khớp `docker-compose.yml`
-thì chấp nhận được, nhưng đây là chỗ trừ điểm rõ ràng theo chuẩn doanh nghiệp —
-xem [phần 13](#13-chấm-theo-chuẩn-doanh-nghiệp).
+thì chấp nhận được, nhưng ở môi trường thật thì đây là lỗi nghiêm trọng: mật
+khẩu phải đến từ biến môi trường, không phải từ mã nguồn đã lên Git.
 
 **`connectDefault()` là điểm sửa duy nhất.** Ba lớp gọi nó
 (`PostgresImportRunner`, `GinBaselineRunner`, và các bài test tích hợp), nên đọc
@@ -269,7 +268,8 @@ cách âm thầm**.
 Một điểm cần thành thật: giao dịch này bảo vệ *tính nguyên tử của lần ghi*,
 nhưng `deleteAll()` **nằm ngoài** giao dịch đó. `PostgresImportRunner` gọi
 `deleteAll()` rồi mới `saveAll()`, nên vẫn có một cửa sổ mà CSDL rỗng hoàn toàn.
-Xem [phần 13, đề xuất 1](#13-chấm-theo-chuẩn-doanh-nghiệp).
+Cách khép là gộp hai lời gọi vào **cùng một** giao dịch, thay vì để người gọi
+tự nhớ thứ tự.
 
 ---
 
@@ -366,8 +366,8 @@ Mệnh đề này khiến `saveAll()` **idempotent theo `doc_id`**: chạy hai l
 Bảng `outlinks` cố ý **không** có khoá chính (xem `schema.sql` dòng 27–30), vì
 một trang hoàn toàn có thể trỏ tới cùng một URL hai lần một cách hợp lệ. Nghĩa
 là không thể chữa bằng `ON CONFLICT` mà phải giữ kỷ luật gọi `deleteAll()`
-trước — hoặc gộp cả hai vào một phương thức, xem
-[phần 13](#13-chấm-theo-chuẩn-doanh-nghiệp).
+trước — hoặc gộp cả hai vào một phương thức `replaceAll()` duy nhất, để người
+gọi không còn cơ hội quên.
 
 `TRUNCATE TABLE documents CASCADE` xoá luôn `outlinks` nhờ ràng buộc
 `ON DELETE CASCADE`, nên `deleteAll()` một dòng là đủ. `TRUNCATE` cũng nhanh hơn
@@ -767,74 +767,7 @@ một lớp `...IT` chạy bằng Testcontainers, xem đề xuất 5 dưới đ�
 
 ---
 
-## 13. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn của mã giao dịch | 10/10 | Lưu và khôi phục `autoCommit` cũ, `rollback` trước khi ném lại, không nuốt ngoại lệ — viết đúng cả ba chi tiết hay bị làm sai |
-| Hiệu năng ghi | 10/10 | Gom lô 500 giảm ~500 lần số vòng khứ hồi trên đúng phần chi phối; kích thước lô nằm ở vùng hợp lý |
-| Tránh N+1 | 10/10 | `findAll()` dùng đúng **hai** truy vấn cho toàn corpus, ghép trong RAM bằng bảng băm |
-| Quản lý tài nguyên | 9/10 | `try-with-resources` ở **mọi** `Statement`/`ResultSet`; `AutoCloseable` đúng chuẩn. Trừ vì `Connection` sống suốt vòng đời đối tượng nên phụ thuộc hoàn toàn vào người gọi |
-| Phòng chống SQL injection | 10/10 | Không có một phép nối chuỗi SQL nào; kể cả tên quan hệ cũng đi qua `PreparedStatement` |
-| Chất lượng tài liệu trong mã | 10/10 | Javadoc giải thích **vì sao** chứ không mô tả **cái gì**; đoạn về `ORDER BY doc_id` ghi lại một phụ thuộc mà không công cụ nào kiểm được |
-| Khả năng mở rộng theo dữ liệu | **5/10** | `findAll()` giữ ~180 MB ở đỉnh và tăng tuyến tính; mâu thuẫn với chính lý do dùng CSDL nêu ở `schema.sql` |
-| Bảo mật thông tin xác thực | **4/10** | Mật khẩu viết cứng và là `public static final` — lộ ra toàn bộ classpath, và vào cả file `.class` đã biên dịch |
-| An toàn khi gọi lặp | **5/10** | `saveAll()` idempotent với `documents` nhưng **không** với `outlinks`; kỷ luật gọi `deleteAll()` trước không được mã cưỡng chế |
-| Độ bao phủ kiểm thử | **4/10** | Không có test nào cho ca biên gom lô, cho bất biến thứ tự, hay cho rollback — ba thứ dễ hỏng nhất |
-| Khả năng vận hành | **5/10** | Không `loginTimeout`, không log tiến độ khi ghi 1,24 triệu dòng, không đếm số outlink bị bỏ ở `findAll()` |
-
-**Năm đề xuất nâng lên mức sản phẩm:**
-
-1. **Gộp `deleteAll()` và `saveAll()` thành một `replaceAll()` nằm trong cùng
-   một giao dịch.** Hiện tại tính nguyên tử chỉ bảo vệ được nửa sau của thao
-   tác: `PostgresImportRunner` xoá sạch, rồi mới mở giao dịch để ghi, nên tồn tại
-   một cửa sổ hàng chục giây mà CSDL rỗng hoàn toàn — nếu tiến trình chết trong
-   cửa sổ đó, corpus mất trắng chứ không phải "giữ nguyên bản cũ". Đồng thời,
-   một `replaceAll()` duy nhất **cưỡng chế bằng kiểu dữ liệu** cái kỷ luật hiện
-   đang chỉ tồn tại trong chú thích, và do đó xoá luôn cái bẫy nhân đôi
-   `outlinks` ở [phần 5](#5-on-conflict-do-update--upsert-và-cái-bẫy-của-nó).
-   Chi phí: một phương thức mới khoảng mười dòng, giữ nguyên hai phương thức cũ.
-
-2. **Bổ sung `findAllStreaming(Consumer<WebDocument>)` bên cạnh `findAll()`.**
-   Đây là đề xuất có ảnh hưởng kiến trúc lớn nhất, vì nó gỡ đúng mâu thuẫn giữa
-   lý do tồn tại của CSDL (đọc theo lô, nêu ở `schema.sql`) và cách nó đang được
-   dùng (nạp tất cả một lần). Cần ba thay đổi đi kèm: `setFetchSize(1000)`,
-   `setAutoCommit(false)` (PostgreSQL chỉ bật con trỏ phía máy chủ khi không ở
-   autocommit — thiếu điều này, driver vẫn kéo toàn bộ về RAM và cải tiến trở
-   thành vô nghĩa), và đọc `outlinks` theo cùng thứ tự `from_doc_id` để ghép
-   kiểu merge-join. Đổi lại, corpus 100.000 trang chạy được trên heap 512 MB.
-   Chưa cần làm ngay ở quy mô 31.030 trang, nhưng nên làm trước khi corpus tăng
-   gấp ba.
-
-3. **Đưa thông tin xác thực ra khỏi mã nguồn.** `public static final String
-   DEFAULT_PASSWORD = "vnsearch"` là hằng số biên dịch: nó bị nội tuyến vào mọi
-   file `.class` gọi tới, nên kể cả sửa sau này cũng còn sót trong các bản build
-   cũ. Cách chữa gọn nhất giữ nguyên API: để `connectDefault()` đọc biến môi
-   trường với giá trị mặc định như hiện tại, và hạ ba hằng số xuống `private`.
-   Với một đồ án chạy cùng `docker-compose.yml` công khai thì rủi ro thực tế
-   thấp, nhưng đây là loại chi tiết mà người review chuyên nghiệp chú ý ngay, và
-   chi phí sửa gần như bằng không.
-
-4. **Ghi log tiến độ và đặt `loginTimeout`.** `saveAll()` chạy 40–90 giây mà
-   không in một dòng nào — người vận hành không phân biệt được "đang chạy" với
-   "đã treo", và phản xạ tự nhiên là Ctrl-C, đúng thứ tệ nhất có thể làm giữa
-   một lần nạp. Một dòng log mỗi 10 lô là đủ. Song song, `DriverManager
-   .setLoginTimeout(3)` chặn được ca một host tồn tại nhưng không phản hồi khiến
-   khởi động treo tới 75 giây theo timeout mặc định của hệ điều hành.
-
-5. **Chuyển các bài test cần CSDL sang Testcontainers.** Ba bài test ở
-   [phần 12](#12-kiểm-thử-liên-quan) bảo vệ đúng ba bất biến dễ hỏng nhất của
-   lớp này, nhưng hiện không viết được vì chúng cần một PostgreSQL đang chạy — và
-   quy ước "test phải chạy trên máy trắng" (chính là lý do chọn JDBC thuần) khiến
-   không ai muốn thêm chúng. Testcontainers giải quyết trọn vẹn mâu thuẫn đó:
-   test tự dựng CSDL trong Docker, đặt tên lớp kết thúc bằng `IT` để tách khỏi
-   `mvn test` nhanh, và chạy trong CI nơi Docker luôn có. Đây là đề xuất duy nhất
-   trong năm đề xuất mở khoá được tất cả các đề xuất còn lại — vì sau khi có nó,
-   mọi thay đổi ở trên đều kiểm chứng được thay vì phải tin.
-
----
-
-## 14. Liên kết
+## 13. Liên kết
 
 - Lớp bọc để vào chuỗi dự phòng: [`PostgresDocumentStore.md`](./PostgresDocumentStore.md)
 - Hợp đồng ba phương thức: [`DocumentStore.md`](./DocumentStore.md)

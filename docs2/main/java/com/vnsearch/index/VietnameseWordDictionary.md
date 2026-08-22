@@ -711,47 +711,7 @@ cd search-engine
 
 ---
 
-## 10. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chất lượng ý tưởng | 10/10 | Nhận ra "thuật toán phải đoán vì dữ liệu không đủ thông tin"; đổi `Set` thành ánh xạ có trọng số mở khoá quy hoạch động |
-| Giải thích công thức mượn | 10/10 | Hai chi tiết `log2` và `+3` được giải thích bằng **hậu quả cụ thể** nếu bỏ đi, không phải bằng "công thức là thế" |
-| Thái độ với hằng số mượn | 10/10 | Nói rõ bảng tham số là kết quả đo của người khác trên dữ liệu khác ⇒ tham số hoá để đo lại được |
-| Nhận diện bẫy ngôn ngữ | 10/10 | `public static final double[]` vẫn sửa được — thu hẹp phạm vi + `clone()` ở hàm dựng |
-| Chống lỗi im lặng NFC/NFD | 10/10 | Rủi ro rất thật với tiếng Việt; giải bằng một hàm dùng chung cho cả hai phía |
-| Ràng buộc được phát biểu rõ | 10/10 | `UNKNOWN_SYLLABLE_WEIGHT` có **hai** ràng buộc kèm khoảng hợp lệ; `MAX_SYLLABLES` nói rõ là chặn cứng |
-| Tối ưu có đo đạc | 9/10 | Dung lượng trie chọn bằng phép đo, kèm bài học "ước lượng bằng mắt thì không bắt được" |
-| **Độ chính xác số liệu** | **5/10** | "154 mục" đã lỗi thời (thực tế 49.644); "185.000 lần" không khớp (thực tế 49.644) |
-| Khả năng kiểm thử | 4/10 | Không có test riêng; công thức trọng số và `normalize` — hai thứ quan trọng nhất — không được canh giữ |
-| Nhất quán tối ưu | 7/10 | `parsePositiveInt` tránh 49.644 cấp phát, nhưng `split(" ")` tạo ~200.000 object ngay cạnh đó |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Chạy ablation trên `PARAM` — thí nghiệm mà chính Javadoc mời gọi.** Bảng
-   tham số được tách ra thành đối số constructor **để làm việc này**, nhưng dự
-   án chưa chạy lần nào. Bất thường lớn nhất cần kiểm chứng: `lenPower` cho 4 âm
-   tiết là 0,23 trong khi 3 âm tiết là 4,42 — nghĩa là từ 4 tiếng gần như bị bỏ
-   qua. Điều đó có thể đúng với dữ liệu Cốc Cốc nhưng sai với corpus tin tức
-   tiếng Việt (nơi "khoa học công nghệ", "an toàn thông tin" rất phổ biến). Mã
-   ở mục 7.2 chạy được ngay.
-2. **Cập nhật hai con số lỗi thời và đo `CURATED_FREQUENCY`.** "154 mục" và
-   "185.000 lần" đều sai so với thực tế (49.644). Với `CURATED_FREQUENCY`, cách
-   đúng là lấy **phân vị** của phân bố tần suất trong `vietnamese-words.txt` —
-   ví dụ phân vị 90 — thay vì chọn một số tròn:
-   ```java
-   /** Bằng phân vị 90 của tần suất trong vietnamese-words.txt (đo ngày …). */
-   public static final int CURATED_FREQUENCY = …;
-   ```
-3. **Thêm `VietnameseWordDictionaryTest.java`** (mục 9). Đây là lớp chứa công
-   thức quyết định chất lượng của cả tầng tách từ, và nó hiện không có một dòng
-   test nào. Ba ca đáng nhất: `trongSoLuonDuong` (canh `+3`),
-   `trongSoLonHonTrongSoAmTietLa` (canh ràng buộc ② của `UNKNOWN_SYLLABLE_WEIGHT`),
-   và `chuanHoaNfcVaChuThuong` (canh hàng rào chống lỗi im lặng nguy hiểm nhất).
-
----
-
-## 11. Liên kết
+## 10. Liên kết
 
 - Người tiêu thụ trọng số: [`MaxWeightSegmenter.md`](./MaxWeightSegmenter.md)
 - Cấu trúc lưu từ điển: [`../datastructure/SyllableTrie.md`](../datastructure/SyllableTrie.md)

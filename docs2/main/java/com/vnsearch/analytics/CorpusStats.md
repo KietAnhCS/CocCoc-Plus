@@ -315,29 +315,7 @@ curl -H "Authorization: Bearer <token-admin>" http://localhost:8080/api/admin/da
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn | 9/10 | Sai số Bloom có chặn và một chiều; đã tránh bẫy `getBodyText()` |
-| Hiệu năng | 10/10 | Một lượt duyệt, tính đúng lúc, bộ nhớ có trần |
-| Khả năng kiểm thử | 9/10 | `ZoneId` và `docLength` tiêm từ ngoài — điều khiển được |
-| Tài liệu trong mã | 10/10 | Ghi lại cả sự cố OOM đã xảy ra và lý do đổi cấu trúc |
-| Xử lý biên | 9/10 | `empty()`, `null` URL, `null` ngôn ngữ, tràn `int` đều được lo |
-| Khả năng quan sát | 6/10 | Không có metric cho **thời gian tính** chính hàm này |
-
-**Ba đề xuất:**
-
-1. **Đo chính mình**: bọc `from(...)` bằng một `Timer` của Micrometer để biết
-   lượt duyệt tốn bao lâu khi corpus lớn dần.
-2. **Nói rõ sai số ra API**: thêm `boolean targetsApproximate` (hoặc
-   `targetsErrorBound`) để giao diện chú thích "≈" cạnh `distinctLinkTargets`.
-3. **Trung vị chuẩn**: với `size` chẵn, lấy trung bình hai phần tử giữa để con
-   số khớp định nghĩa thống kê khi đưa vào báo cáo.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Cấu trúc dùng bên trong: `docs2/main/java/com/vnsearch/datastructure/BloomFilter.md`, `docs2/main/java/com/vnsearch/datastructure/MinHeap.md`
 - Nơi gọi: `docs2/main/java/com/vnsearch/service/SearchEngineFacade.md`

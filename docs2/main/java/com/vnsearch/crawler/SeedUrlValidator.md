@@ -535,44 +535,7 @@ tác bit ở `isCarrierGradeNat` là chỗ dễ lệch một đơn vị nhất t
 
 ---
 
-## 9. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn về nguyên lý | 10/10 | Kiểm tra **sau** phân giải DNS; "bất kỳ" chứ không phải "tất cả" |
-| Độ phủ dải địa chỉ | 10/10 | Bảy dải, kể cả ULA IPv6 và CGNAT mà `InetAddress` không có sẵn |
-| Tránh bỏ sót biến thể | 10/10 | Dùng API có sẵn → bắt được `::ffff:127.0.0.1`, `127.1`, dạng số nguyên |
-| Chống rò thông tin | 10/10 | Phân tích *oracle* và cách sửa là mức tư duy bảo mật hiếm thấy ở đồ án |
-| Tự nhận giới hạn | 10/10 | TOCTOU: nêu rủi ro, cách đóng, cái giá, kết luận |
-| Không lặp lại quy tắc | 10/10 | `public static` để `HtmlDownloader` dùng lại |
-| Tích hợp REST | 9/10 | `IllegalArgumentException` → 400, không phải 500 |
-| Khả năng kiểm thử | 8/10 | Hàm thuần tĩnh, phần lớn ca test không cần mạng |
-| Chất lượng tài liệu trong mã | 6/10 | Phần lớn Javadoc **không dấu tiếng Việt**, trong khi `REJECTED` và log lại có dấu — không nhất quán ngay trong một file |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Đồng bộ hai đường vào về `getAllByName`.** Lớp này kiểm tra **mọi** bản ghi
-   A; nhưng [`HtmlDownloader`](./HtmlDownloader.md) qua
-   [`DnsResolver`](./DnsResolver.md) chỉ lấy `getByName` — **một** địa chỉ. Một
-   host có hai bản ghi (công khai + `127.0.0.1`) bị chặn ở đường hạt giống nhưng
-   có thể lọt ở đường liên kết bóc được. Đây đúng là kiểu "hai bản cài lệch
-   nhau" mà chính Javadoc cảnh báo, chỉ khác là nó nằm ở tầng dưới. Sửa: đổi
-   `DnsResolver` trả `InetAddress[]`.
-
-2. **Chặn cổng nhạy cảm.** Hiện `http://mot-host-cong-khai.vn:22/` được cho qua.
-   Không nghiêm trọng bằng SSRF vào mạng nội bộ, nhưng vẫn là một kênh dò cổng.
-   Một danh sách trắng (`80`, `443`, `8080`, `8443`) hoặc danh sách đen
-   (`22`, `25`, `3306`, `5432`, `6379`, `9200`, `11211`) là đủ.
-
-3. **Thống nhất tiếng Việt có dấu trong Javadoc.** File này đang trộn hai kiểu:
-   Javadoc lớp và phần lớn comment không dấu, còn `REJECTED` và các dòng
-   `log.warn` thì có dấu. Với một tài liệu được đọc kỹ trong buổi bảo vệ, sự
-   không nhất quán ngay trong một file dễ gây chú ý — và nội dung ở đây quá tốt
-   để bị trừ điểm vì hình thức.
-
----
-
-## 10. Liên kết
+## 9. Liên kết
 
 - Nơi hai hàm `isBlocked*` được dùng lại ở **mọi** lần tải: [`HtmlDownloader.md`](./HtmlDownloader.md)
 - Nguồn `InetAddress` ở đường tải (và sự lệch nhau ở đề xuất 1): [`DnsResolver.md`](./DnsResolver.md)

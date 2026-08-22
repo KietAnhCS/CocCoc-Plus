@@ -559,44 +559,7 @@ void nhieuLuongKhongLamMatHoacTrungUrl() throws Exception {
 
 ---
 
-## 9. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Phân tích vấn đề | 10/10 | Nêu rõ hai mục tiêu **xung đột** và vì sao một tầng không giải được |
-| Bám sát tài liệu tham chiếu | 10/10 | Ánh xạ từng khối của sơ đồ Mercator sang từng lớp, có bảng đối chiếu |
-| Cải thiện độ phức tạp | 10/10 | `nextUrl` từ $O(D)$ xuống $O(\log n)$ — không còn phụ thuộc số host |
-| Chọn mẫu thiết kế | 10/10 | Facade + hai Strategy, mỗi cái có lý do; bề mặt công khai chỉ 2 hàm |
-| Đồng thời | 10/10 | Một khoá có lập luận; ngủ ngoài khoá; ngủ đúng khoảng cần |
-| Chặn tài nguyên | 9/10 | Trần dung lượng có đếm, có lập luận vì sao bỏ URL mới là chấp nhận được |
-| Quan sát được | 10/10 | Sáu hàm đọc phân tách theo tầng — chẩn đoán được tầng nào đang tắc |
-| Khả năng kiểm thử | 8/10 | Các thành phần test riêng được; thiếu test đa luồng |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Thay vòng ngủ bằng `wait()`/`notifyAll()`.** Hiện `nextUrl` thức dậy mỗi
-   50 ms ngay cả khi không có gì thay đổi. Với 8 worker chờ, đó là 160 lần lấy
-   khoá mỗi giây một cách vô ích. `addUrl` gọi `lock.notifyAll()` và `nextUrl`
-   dùng `lock.wait(sleepMs)` sẽ đánh thức **đúng lúc có URL mới**, giữ nguyên
-   ngữ nghĩa mà bỏ được thăm dò. Đây cũng là cách gỡ bỏ `MAX_SLEEP_MS` — một
-   hằng số hiện chỉ tồn tại để bù cho việc không có tín hiệu.
-
-2. **Khi frontier đầy, đuổi URL mức thấp thay vì từ chối URL mới.** Lập luận
-   "URL bị bỏ hầu hết là mức thấp" đúng về thống kê nhưng không đúng tuyệt đối:
-   một URL mức 0 của host mới vẫn có thể bị từ chối. Cho `FrontQueues` một hàm
-   `pollLast(level)` để bỏ phần tử **cũ nhất của mức thấp nhất** khi cần chỗ,
-   biến trần dung lượng từ "chặn mù" thành "chặn có chọn lọc".
-
-3. **Đưa `POLITENESS_DELAY_MS` thành cấu hình theo host.**
-   [`RobotsTxtParser`](../RobotsTxtParser.md) đã đọc được dòng `Crawl-delay:`
-   nhưng bỏ qua nó. Nối hai đầu lại — `BackQueues.availableAt` nhận độ trễ riêng
-   cho từng host — sẽ khiến crawler tôn trọng đúng nhịp mà chủ trang đề nghị,
-   thay vì áp một giây cho tất cả. Đây là bước còn thiếu để crawler đạt chuẩn
-   lịch sự đầy đủ.
-
----
-
-## 10. Liên kết
+## 9. Liên kết
 
 - Tầng trước: [`FrontQueues.md`](./FrontQueues.md) + [`FrontQueueSelector.md`](./FrontQueueSelector.md) → [`WeightedRandomSelector.md`](./WeightedRandomSelector.md) · [`StrictPrioritySelector.md`](./StrictPrioritySelector.md)
 - Tầng sau: [`BackQueues.md`](./BackQueues.md)

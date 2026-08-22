@@ -106,8 +106,7 @@ flowchart TD
 13. [Hướng dẫn về code](#13-hướng-dẫn-về-code)
 14. [Độ phức tạp & chi phí](#14-độ-phức-tạp--chi-phí)
 15. [Kiểm thử liên quan](#15-kiểm-thử-liên-quan)
-16. [Chấm theo chuẩn doanh nghiệp](#16-chấm-theo-chuẩn-doanh-nghiệp)
-17. [Liên kết](#17-liên-kết)
+16. [Liên kết](#16-liên-kết)
 
 ---
 
@@ -1204,86 +1203,7 @@ void ginKhongTimDuocGiThiKhongDuocInPhanTramVoCuc() {
 
 ---
 
-## 16. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Thiết kế thí nghiệm | 9/10 | Cùng corpus, cùng bộ truy vấn, cùng seed; cột `tsv` là `GENERATED ALWAYS` nên hai phía không thể lệch dữ liệu. Trừ vì hai vòng đo chạy tách biệt thay vì xen kẽ |
-| Xử lý làm nóng JVM | 10/10 | Làm nóng **cả hai** phía, xen kẽ trong cùng vòng lặp, 2 vòng đầy đủ — và ghi lại công khai rằng bản trước sai ~40% vì thiếu bước này |
-| Trung thực trong báo cáo | 10/10 | Ba mục riêng nói điều phép đo **không** chứng minh; hai nhánh diễn giải viết sẵn trước khi biết kết quả; nêu rõ phần lợi thế không công bằng của chính mình |
-| Chọn đối chứng | 10/10 | GIN cùng họ chỉ mục đảo, đã có sẵn trong hạ tầng, cấu hình `simple` thay vì `english` để không làm yếu đối thủ một cách không công bằng |
-| Khả năng tái lập | 9/10 | Seed cố định 42, hướng dẫn chạy lại đầy đủ ba bước, phân biệt rõ số liệu tái lập được (chất lượng) với số liệu dao động (thời gian). Trừ vì seed bị chép cứng ở hai file |
-| Chất lượng tài liệu trong mã | 10/10 | 38% số dòng là văn giảng giải; mọi khối đều giải thích **vì sao** chứ không mô tả **cái gì** |
-| Thống kê của phép đo | **3/10** | Chỉ có trung bình cộng — không p50/p95/p99, không độ lệch chuẩn, không khoảng tin cậy, và **không** gọi `SignificanceTest` dù công cụ đã có sẵn trong repo |
-| So sánh kích thước chỉ mục | **3/10** | Đặt cạnh nhau kích thước file JSON dạng văn bản với kích thước cấu trúc nhị phân của GIN — hai đại lượng khác bản chất; nhãn `(JSON)` cứu vãn phần nào nhưng không đủ |
-| Kiểm tra đầu vào | **4/10** | `numQueries = 0` sinh ra báo cáo toàn `NaN` và ghi ra đĩa như một kết quả thật; `parseInt` ném ngoại lệ không có ngữ cảnh; hai đường dẫn tương đối phụ thuộc thư mục làm việc |
-| Khả năng kiểm thử | **3/10** | `buildReport()` nhận 13 tham số vị trí, `buildIndex()` là `private static`, toàn bộ điều phối nằm trong `main()` — không có điểm bám nào cho JUnit |
-| Quản lý bộ nhớ | **5/10** | `docs` (~180 MB) sống tới cuối `main()` dù không còn dùng sau `buildIndex()`; đỉnh ~600 MB buộc phải chạy với `-Xmx4g` |
-
-**Năm đề xuất nâng lên mức sản phẩm:**
-
-1. **Gọi `SignificanceTest` trên cặp `ownRr` / `ginRr` và in p-value vào bảng kết
-   quả.** Đây là đề xuất có tỉ lệ giá trị trên chi phí cao nhất trong cả năm, vì
-   công cụ đã nằm sẵn trong repo và dữ liệu đầu vào cũng đã sẵn sàng: hai danh
-   sách `ownRr` và `ginRr` được xây dựng song song theo cùng thứ tự truy vấn, tức
-   chúng đã **ghép cặp** đúng dạng mà kiểm định hoán vị theo cặp cần. Chỉ cần
-   thêm khoảng năm dòng. Đổi lại, mọi phát biểu so sánh chất lượng trong báo cáo
-   chuyển từ *"cao hơn 5%"* — một câu không phân biệt được với nhiễu lấy mẫu ở
-   `n = 200` — sang *"cao hơn 5%, p = 0,003"*, tức từ một quan sát thành một kết
-   luận. Nếu p-value hoá ra lớn, kết quả còn giá trị hơn nữa: nó buộc báo cáo
-   phải nói *"chênh lệch chưa có ý nghĩa thống kê"*, đúng tinh thần mà toàn bộ
-   phần `WHAT_IT_DOES_NOT_PROVE` đang theo đuổi.
-
-2. **Đo xen kẽ hai phía và báo cáo phân vị thay vì chỉ trung bình.** Hai khiếm
-   khuyết này nên sửa cùng lúc vì chúng chạm cùng một đoạn mã và cùng phục vụ một
-   mục tiêu: làm cho con số thời gian đứng vững trước phản biện. Đo tuần tự khiến
-   mọi biến động trôi theo thời gian — một lần dừng GC, một lần CPU hạ xung, một
-   tiến trình khác chen vào — rơi trọn vào một phía, mà đúng phía nào thì hoàn
-   toàn ngẫu nhiên; đảo thứ tự theo chẵn/lẻ triệt tiêu thiên vị đó thay vì chỉ
-   làm nó nhỏ đi. Còn trung bình cộng là chỉ số tệ nhất có thể chọn cho độ trễ,
-   vì một ca ngoại lai 80 ms lẫn trong 199 ca 1 ms vẫn cho ra con số trung bình
-   rất đẹp trong khi trải nghiệm thật đã hỏng. Chi phí cho cả hai: đổi biến cộng
-   dồn thành `List<Long>`, thêm một hàm phân vị mười dòng, và ba dòng bảng mới.
-
-3. **Gom 13 tham số của `buildReport()` thành một `record KetQuaDoi` và tách
-   `buildIndex` sang một lớp tiện ích.** Đây là đề xuất mở khoá cho mọi việc kiểm
-   thử về sau. Chữ ký hiện tại — `buildReport(int, int, InvertedIndex, long,
-   double, int, int, double, double, int, int, double, long, long)` — có bốn
-   `double` và bốn `int` xếp liền nhau, nghĩa là hoán đổi nhầm hai đối số cùng
-   kiểu sẽ **biên dịch trót lọt** và chỉ lộ ra dưới dạng một bảng kết quả trông
-   hợp lý nhưng gán sai cột. Một `record` với tên trường tường minh vừa loại bỏ
-   hẳn hạng lỗi đó, vừa cho phép gọi `buildReport(...)` từ một bài test JUnit mà
-   không cần CSDL, không cần corpus, không cần chờ hai phút. Ba bài test ở
-   [phần 15](#15-kiểm-thử-liên-quan) đều phụ thuộc vào việc này được làm trước.
-
-4. **Rút seed 42, `TOP_N` và các trọng số xếp hạng ra một lớp cấu hình thí nghiệm
-   dùng chung.** Hiện tại `GinBaselineRunner` và `EvaluationRunner` mỗi bên tự
-   chép cứng seed `42L`, số term mỗi truy vấn `3`, trọng số PageRank `0.3` và
-   trọng số tiêu đề `0.1`. Chừng nào bốn con số ấy còn trùng nhau thì hai báo cáo
-   `docs/EVALUATION.md` và `docs/GIN-BASELINE.md` còn so sánh trực tiếp được với
-   nhau — nhưng không có gì trong mã bảo vệ sự trùng khớp đó, và người sửa một
-   bên không có cách nào biết mình vừa cắt đứt liên kết giữa hai tài liệu. Cái
-   giá của lỗi này đặc biệt khó chịu vì nó **hoàn toàn im lặng**: cả hai báo cáo
-   vẫn sinh ra bình thường, mọi con số vẫn nằm trong khoảng hợp lý, chỉ là chúng
-   không còn nói về cùng một thí nghiệm. Một lớp `ExperimentConfig` với bốn hằng
-   số `public static final` là đủ.
-
-5. **So sánh kích thước chỉ mục trên cùng một mặt bằng, hoặc bỏ hẳn dòng đó khỏi
-   bảng.** Dòng "Kích thước chỉ mục" hiện đặt kích thước file `index.json` — một
-   biểu diễn văn bản với dấu ngoặc kép, dấu phẩy và chữ số thập phân — cạnh kích
-   thước cấu trúc nhị phân đã nén của GIN, rồi để người đọc tự rút ra kết luận.
-   Chênh lệch quan sát được ở đó phần lớn phản ánh định dạng lưu trữ chứ không
-   phản ánh hiệu quả của cấu trúc dữ liệu, và đây đúng là hạng sai lầm mà toàn bộ
-   phần còn lại của lớp đang cố tránh. Repo đã có sẵn hai lời giải: `MemoryBreakdown`
-   đo dung lượng heap thật của `InvertedIndex`, và `CompressedPostings` cùng
-   `VByteCodec` cho ra dạng nhị phân đã nén có thể so trực tiếp với
-   `pg_relation_size`. Nếu chưa muốn làm ngay, phương án trung thực hơn hiện tại
-   là chuyển dòng này xuống một mục riêng kèm câu cảnh báo rõ ràng, thay vì để nó
-   nằm giữa bảng kết quả chính như một phép so sánh ngang hàng.
-
----
-
-## 17. Liên kết
+## 16. Liên kết
 
 - Nguồn dữ liệu và `searchWithGin()`: [`DocumentRepository.md`](./DocumentRepository.md)
 - Lớp bọc chứng minh CSDL chỉ là kho: [`PostgresDocumentStore.md`](./PostgresDocumentStore.md)

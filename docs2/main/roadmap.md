@@ -165,9 +165,10 @@ thuộc, đọc ngược sẽ gặp khái niệm chưa định nghĩa.
 viết theo lối "giải thích vì sao mã lại như vậy", nên không có mã bên cạnh thì
 mất một nửa giá trị.
 
-**Quy tắc 3 — Mỗi tài liệu đều có mục "Chấm theo chuẩn doanh nghiệp" ở gần
-cuối.** Nếu chỉ có 15 phút cho một lớp, đọc mục "📌 Hiểu trong 30 giây" ở đầu và
-mục chấm điểm ở cuối. Hai mục đó là phần cô đọng nhất.
+**Quy tắc 3 — Khi không đủ thời gian, đọc mục "📌 Hiểu trong 30 giây" ở đầu và
+mục "Hướng dẫn thực hành" ở gần cuối.** Mục đầu cho biết lớp này giải quyết vấn
+đề gì và bằng mấy ý chính; mục sau cho biết cách chạy, cách dùng và những cạm
+bẫy đã gặp thật. Hai mục đó là phần cô đọng nhất của mỗi tài liệu.
 
 ---
 

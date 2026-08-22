@@ -355,42 +355,7 @@ tuân thủ.
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Tách cơ chế khỏi chính sách | 10/10 | Ưu tiên là **chỉ số**, không phải khoá so sánh — chính sách thành tham số |
-| Cải thiện độ phức tạp | 10/10 | `add` từ $O(\log n)$ xuống $O(1)$; bảng so sánh trong Javadoc rất rõ |
-| Tính tái hiện | 10/10 | FIFO trong mức là một trong bốn mắt xích của chuỗi bảo đảm |
-| Fail-fast | 10/10 | Phát hiện `sizes[]` lệch **và** bộ chọn viết sai bằng một phép kiểm tra |
-| Chọn cấu trúc dữ liệu | 10/10 | `ArrayDeque` + `sizes[]` song song — cả hai đều có lý do đo được |
-| Thông điệp lỗi | 10/10 | Kèm khoảng hợp lệ và giá trị nhận được |
-| Đơn giản | 10/10 | 113 dòng, không có gì thừa |
-| Đầy đủ | 7/10 | Không có cách bỏ phần tử khi frontier đầy (xem đề xuất) |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Thêm `CrawlTask pollLast(int level)` để hỗ trợ đuổi có chọn lọc.** Hiện khi
-   [`UrlFrontier`](./UrlFrontier.md) đầy, URL mới bị **từ chối** — kể cả URL mức
-   0 của một host mới. Có hàm này thì frontier đuổi được phần tử **cũ nhất của
-   mức thấp nhất** để nhường chỗ, biến trần dung lượng từ "chặn mù" thành "chặn
-   có chọn lọc". Đây là điều kiện kỹ thuật cho đề xuất 2 ở
-   [`UrlFrontier.md`](./UrlFrontier.md).
-
-2. **Trần theo từng mức.** Hiện một mức có thể chiếm toàn bộ `maxSize` của
-   frontier. Trên web thì mức 3–4 (độ sâu lớn) sinh ra nhiều URL nhất, nên chúng
-   có thể chiếm hết chỗ và đẩy mức 0–1 vào trạng thái bị từ chối — đúng ngược
-   với ý định của việc phân mức. Một trần mềm theo mức (ví dụ mức $i$ không quá
-   $2^{L-i}$ phần của tổng) sẽ giữ đúng tinh thần phân bố trọng số của
-   [`WeightedRandomSelector`](./WeightedRandomSelector.md).
-
-3. **Kiểm tra biên cho `sizeOfLevel`.** Không nghiêm trọng (chỉ dùng cho chẩn
-   đoán) nhưng nó là hàm `public` duy nhất trong lớp không kiểm tra tham số —
-   một điểm không nhất quán nhỏ với `add` ở ngay trên.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Lớp Facade bọc khoá: [`UrlFrontier.md`](./UrlFrontier.md)
 - Chính sách phục vụ: [`FrontQueueSelector.md`](./FrontQueueSelector.md) → [`WeightedRandomSelector.md`](./WeightedRandomSelector.md) · [`StrictPrioritySelector.md`](./StrictPrioritySelector.md)

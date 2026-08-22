@@ -228,29 +228,7 @@ curl -H "Authorization: Bearer <token-admin>" http://localhost:8080/api/admin/da
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Tính đúng đắn của mô hình dữ liệu | 9/10 | Bất biến, có kiểu, tách theo nguồn — chuẩn DTO tầng đọc |
-| Khả năng tiến hoá của API | 7/10 | Đổi tên thành phần là *breaking change* mà không có versioning |
-| Tài liệu trong mã | 10/10 | Javadoc giải thích **vì sao**, kể cả cái bẫy `activeSessions` |
-| Hiệu năng | 9/10 | Gộp 4 request thành 1; chi phí thật đã đẩy về lúc dựng chỉ mục |
-| Bảo mật / riêng tư | 9/10 | Không có trường nhận dạng cá nhân; quyền kiểm ở tầng filter |
-| Khả năng kiểm thử | 8/10 | Record thuần, dễ dựng; nhưng chưa có test hợp đồng JSON |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Test hợp đồng JSON** (`@JsonTest` + snapshot) để đổi tên trường bị bắt ở CI
-   chứ không ở trình duyệt.
-2. **Versioning nhẹ**: thêm `int schemaVersion` để giao diện cũ biết mình đang
-   đọc lược đồ mới.
-3. **`Cache-Control: no-store`** cho endpoint này — dữ liệu gắn mốc thời gian
-   không nên bị proxy giữ lại.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Nguồn khối `traffic`: [`UsageAnalyticsService.md`](./UsageAnalyticsService.md) → [`UsageSnapshot.md`](./UsageSnapshot.md)
 - Nguồn khối `crawl`: [`CorpusStats.md`](./CorpusStats.md)

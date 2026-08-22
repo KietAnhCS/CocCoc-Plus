@@ -544,43 +544,7 @@ lý do tồn tại của `onFinished`.
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Phát hiện vấn đề bằng đo đạc | 10/10 | "Thông lượng tụt 37% (38 → 24 trang/s)" — số thật, không suy đoán |
-| Phân tích độ phức tạp | 10/10 | Nhận ra $O(n^2/everyN)$ và sửa thành $O(n)$ bằng chu kỳ giãn dần |
-| Lập luận đánh đổi | 10/10 | Nêu rõ cái mất (mất 20% cuối) và vì sao vẫn đúng hướng |
-| Đồng thời | 10/10 | Luồng daemon + `compareAndSet` + `volatile` + `awaitTermination` — bốn cơ chế, mỗi cái đúng vai |
-| Nhất quán giữa nhiều tệp | 10/10 | Thứ tự ghi corpus → ảnh, phân tích rõ chiều nào vô hại |
-| Xử lý lỗi | 10/10 | Lưới an toàn không được phá thứ nó bảo vệ |
-| Thiết kế cho kiểm thử | 9/10 | Tách `isDueForCheckpoint` thành hàm thuần tĩnh — quyết định rất thực dụng |
-| Độ phủ kiểm thử | 6/10 | Hàm thuần có test; phần đồng thời và ghi tệp thì chưa |
-| Chất lượng tài liệu trong mã | 10/10 | Tiếng Việt **có dấu**, đầy đủ, kèm biểu đồ ASCII và số đo |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Ghi một điểm kiểm tra cuối trong `onFinished`.** Hiện nó chỉ *chờ* lần ghi
-   đang chạy. Nếu điểm kiểm tra cuối ở trang 25.000 mà phiên dừng ở 30.000, thì
-   5.000 trang cuối phụ thuộc hoàn toàn vào bước ghi của
-   [`CrawlerService`](./CrawlerService.md) — nằm ngoài tầm bảo vệ của lớp này.
-   Thêm một lần `write(totalPages)` đồng bộ trước `shutdown()` đóng khoảng trống
-   đó và khiến listener tự đủ.
-
-2. **Test cho phần đồng thời** (mục 7, kịch bản 1–3). Ba cơ chế tinh vi nhất của
-   lớp — cờ `writing`, `awaitTermination`, nuốt ngoại lệ — hiện **không có test
-   nào**. Chúng đều là loại lỗi câm: vi phạm không làm test đỏ, chỉ làm mất dữ
-   liệu trong một kịch bản hiếm.
-
-3. **Đưa `GROWTH_RATIO` ra tham số.** 25% là con số được lập luận tốt cho quy mô
-   hiện tại, nhưng nó là **chính sách đánh đổi** giữa "chi phí ghi" và "lượng có
-   thể mất" — hai thứ mà người vận hành có thể muốn cân khác nhau tuỳ tình huống
-   (crawl thử nghiệm ngắn vs crawl sản phẩm dài). Cùng với đó: ghi lại số byte
-   đã ghi tích luỹ vào báo cáo, để lần sau đo được thay vì phải suy luận.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Interface: [`CrawlListener.md`](./CrawlListener.md)
 - Nguồn bản chụp corpus, và hàm ghi nguyên tử: [`ContentStorage.md`](./ContentStorage.md)

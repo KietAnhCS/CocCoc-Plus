@@ -263,31 +263,7 @@ cd search-engine
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Thiết kế trừu tượng | 9/10 | Hẹp đúng nhu cầu, cùng khuôn với `DocumentStore` |
-| Rõ ràng của hợp đồng | 8/10 | Ba điều khoản viết rõ trong Javadoc — nhưng chỉ Javadoc canh giữ |
-| Khả năng kiểm thử | 10/10 | Bản giả 10 dòng, không cần framework mock |
-| Khả năng tiến hoá | 9/10 | Thêm PostgreSQL không đụng tầng nghiệp vụ |
-| Xử lý lỗi | 8/10 | `IOException` bắt buộc bắt — ép người gọi nghĩ |
-| Đầy đủ chức năng | 6/10 | Không có transaction; xoá tài khoản không đá phiên |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Bộ test hợp đồng dùng chung** — một lớp `abstract UserStoreContractTest`
-   mà mọi bản cài đặt phải kế thừa và chạy qua. Ba điều khoản trở thành test,
-   không còn là lời hứa trong Javadoc.
-2. **`Optional<User> saveIfAbsent(User)`** để đăng ký đồng thời cùng một tên
-   không bị đè lên nhau. Hiện `UserService` kiểm tra rồi mới ghi — có khe hở
-   TOCTOU, tuy nhỏ vì `save` đã `synchronized`.
-3. **`void deleteAllSessionsFor(String)` ở tầng phối hợp** — đóng lại khoảng
-   trống "xoá tài khoản nhưng phiên còn sống" đã nêu ở mục 2.4.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Bản cài đặt duy nhất hiện có: [`JsonUserStore.md`](./JsonUserStore.md)
 - Người dùng duy nhất: [`UserService.md`](./UserService.md)

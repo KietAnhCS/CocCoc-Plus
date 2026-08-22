@@ -494,43 +494,7 @@ assertTrue(parser.isAllowed("VnSearchBot", "https://host-khong-ton-tai-abc.vn/ti
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn theo chuẩn | 8/10 | Ba quy tắc cốt lõi đều đúng (dài nhất thắng, section riêng thay thế, mặc định mở); thiếu wildcard |
-| Xử lý lỗi | 9/10 | Mặc định cho phép là lựa chọn đúng và có dẫn chiếu chuẩn; đặt lại cờ ngắt |
-| Hiệu năng | 9/10 | Cache biến 31.030 lần tải thành 50 |
-| An toàn đa luồng | 8/10 | `computeIfAbsent` chống tải trùng; nhưng có vào/ra trong vùng khoá |
-| Khả năng kiểm thử | 9/10 | `parseForTest` tách phân tích khỏi mạng — thiết kế cho test rất tốt |
-| Tự nhận giới hạn | 9/10 | Javadoc tuyên bố rõ phạm vi hỗ trợ |
-| Đầy đủ chức năng | 6/10 | Không wildcard/`$`, không `Crawl-delay`, không `Sitemap`, cache không hết hạn |
-| Chất lượng tài liệu trong mã | 6/10 | Javadoc **không dấu tiếng Việt** — lệch với chuẩn của phần còn lại trong dự án |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Hỗ trợ wildcard `*` và neo `$`.** Đây là thiếu sót có ảnh hưởng thật:
-   `Disallow: /*?` (chặn mọi URL có query) là mẫu rất phổ biến, và hiện nó bị
-   **bỏ qua hoàn toàn** — tức crawler vào những chỗ chủ trang muốn cấm. Cách
-   cài gọn: chuyển mẫu thành biểu thức chính quy một lần lúc phân tích
-   (`*` → `.*`, `$` → `$`, escape phần còn lại), lưu `Pattern` trong `Rule`.
-   Vẫn giữ được quy tắc "dài nhất thắng" bằng cách so độ dài mẫu gốc.
-2. **Đưa `userAgent` vào khoá cache** hoặc chuyển nó thành trường của lớp. Hiện
-   nó nằm trong hàm tính toán nhưng không trong khoá — một cái bẫy im lặng nếu
-   dự án về sau dùng nhiều user-agent.
-3. **TTL cho cache + tải ngoài vùng khoá.** Một `record CachedRules(List<Rule>
-   rules, Instant fetchedAt)` với hạn 24 giờ giải quyết cả hai vấn đề ở mục 5.2,
-   và cho phép thay `computeIfAbsent` bằng mẫu "tra → nếu thiếu thì tải ngoài
-   khoá → `putIfAbsent`", đưa lời gọi mạng ra khỏi vùng khoá của bảng băm.
-4. **Phân biệt 5xx với 404.** RFC 9309 nói 5xx nên hiểu là "cấm tạm thời" —
-   máy chủ đang hỏng chứ không phải đang mở cửa. Hiện code gộp chung. Cùng với
-   đó, đọc `Crawl-delay` và chuyển cho
-   [`frontier/BackQueues`](./frontier/BackQueues.md) sẽ khiến crawler tôn trọng
-   đúng nhịp mà chủ trang đề nghị, thay vì áp một khoảng chờ cố định.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Người gọi duy nhất (và vì sao tách hai tầng lọc): [`UrlFilter.md`](./UrlFilter.md)
 - Nguồn `USER_AGENT`: [`HtmlDownloader.md`](./HtmlDownloader.md)

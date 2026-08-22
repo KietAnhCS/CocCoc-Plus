@@ -467,46 +467,7 @@ void moiUrlCungHostVaoCungPhanHoach() {
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Nhận diện vấn đề phân tán | 10/10 | Chỉ ra chính xác rằng trạng thái cục bộ (Bloom Filter) không sống nổi khi nhân bản |
-| Khảo sát phương án | 10/10 | Ba cách chữa được nêu kèm lý do bác bỏ, không phải "chọn cái này vì nó hay" |
-| Chất lượng quyết định | 10/10 | Phân hoạch theo host giải **hai** bài toán bằng **một** cơ chế, không thêm hệ thống nào |
-| Tự nhận giới hạn | 10/10 | Nêu rõ tải lệch, **và** chứng minh vì sao giới hạn đó vô hại |
-| Đúng đắn của trường `host` | 10/10 | Không tính lại từ `url` — lập luận ở mục 5.1 rất chắc |
-| Kiểm tra đầu vào | 9/10 | Ba phép kiểm đúng trọng tâm; thông báo lỗi kèm ngữ cảnh |
-| Khả năng kiểm thử | 6/10 | **Thiếu test cho chính bất biến phân hoạch** — thứ quan trọng nhất lại chưa có máy nào canh |
-| Ghi chép rủi ro vận hành | 8/10 | Chuyện đổi số phân hoạch được nêu ở `KafkaCrawlEventBus` nhưng **không** nêu ở đây |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Test bất biến phân hoạch** (mã ở mục 7). Đây là đề xuất quan trọng nhất:
-   toàn bộ lập luận ở mục 2 và 3 đang được bảo vệ bởi *quy ước*, không phải bởi
-   máy. Chỉ cần một người sau này đổi `send(topic, url.url(), url, ...)` thay vì
-   `url.host()` là mọi thứ vỡ, và **không có test nào đỏ**.
-
-2. **Ghi cảnh báo về `partitions` ngay trong Javadoc lớp này.** Hiện chỉ
-   `KafkaCrawlEventBus` nói về `murmur2(key) % numPartitions`. Nhưng người sửa
-   `DiscoveredUrl` chưa chắc đọc lớp đó. Một dòng
-   *"đổi số phân hoạch của topic đang chạy sẽ phá bất biến này"* đặt đúng chỗ
-   người ta sẽ nhìn.
-
-3. **Cân nhắc `record` một trường phụ `discoveredAt`.** Hiện không biết một URL
-   nằm trong hàng đợi bao lâu trước khi được crawl — số liệu hữu ích để chẩn
-   đoán frontier bị nghẽn, và gần như miễn phí (~8 byte).
-
-4. **Chuẩn bị đường cho `host + shard`.** Nếu chính sách lịch sự sau này đọc
-   `Crawl-delay` từ `robots.txt` và cho phép nhanh hơn với một số site, một host
-   lớn sẽ thành nút thắt thật (mục 4). Không cần làm ngay, nhưng nên ghi lại
-   rằng khoá phân hoạch là điểm mở rộng: đổi `host` thành
-   `host + "#" + (hash(url) % shardsOfHost)` là thay đổi cục bộ **nếu** bộ
-   rate-limit theo host được tách ra trước.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Luồng anh em, và vì sao **không** gộp: [`OutlinksExtracted.md`](./OutlinksExtracted.md)
 - Bộ lọc mà cả thiết kế này phục vụ: [`../UrlSeenFilter.md`](../UrlSeenFilter.md)

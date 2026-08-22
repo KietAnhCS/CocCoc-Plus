@@ -523,44 +523,7 @@ void handlerAnToanKhiGoiSongSong() throws Exception {
 
 ---
 
-## 9. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Tách trừu tượng khỏi hạ tầng | 10/10 | Chữ ký sạch tuyệt đối; Javadoc **nói rõ đó là chủ đích**, không phải tình cờ |
-| Định nghĩa hợp đồng | 10/10 | Ba điều khoản (ném hợp lệ, thread-safe, không dính Kafka) đều được ghi tường minh |
-| Thiết kế API | 10/10 | `default handlerName()` giữ được `@FunctionalInterface` mà vẫn giải được bài toán tên lambda |
-| Nhận thức đa luồng | 9/10 | Ràng buộc được ghi rõ; nhưng **không có cơ chế nào ép tuân thủ** — chỉ là lời hứa trong tài liệu |
-| Khả năng tái dùng | 10/10 | Chạy được ở 4 ngữ cảnh, trong đó ngữ cảnh batch là lợi ích không lên kế hoạch |
-| Khả năng kiểm thử | 10/10 | Ba bài test service không nhắc tới bus — bằng chứng thiết kế đã đúng |
-| Tài liệu trong mã | 10/10 | Tỷ lệ Javadoc 3:1 là hợp lý cho một interface; giải thích *vì sao*, không mô tả *cái gì* |
-| Ép tuân thủ | 6/10 | Không có test đa luồng cho bất kỳ bản cài nào — ràng buộc quan trọng nhất không được máy canh |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Test đa luồng cho cả ba bản cài** (mã ở mục 8). Ràng buộc thread-safe là
-   điều khoản **khó tuân thủ nhất** và **dễ vi phạm im lặng nhất** trong hợp
-   đồng này, nhưng hiện không bản cài nào bị kiểm. Một `@RepeatedTest` với
-   `ExecutorService` là đủ, và nó sẽ bắt được đúng loại lỗi ở mục 5.2.
-
-2. **Bọc handler bằng một decorator đo thời gian.** Hiện không biết service nào
-   chậm. Một lớp `TimedPageEventHandler implements PageEventHandler` bọc quanh
-   bản thật, ghi vào `Timer` của Micrometer với nhãn `handlerName()`, sẽ trả lời
-   được câu hỏi *"service nào đang kéo chậm crawler"* mà không sửa dòng nào
-   trong ba service. Đây là ứng dụng trực tiếp của việc interface sạch.
-
-3. **Ghi rõ ngữ nghĩa `null` trong Javadoc.** Cả hai bus đều bỏ qua `event`
-   `null` trước khi gọi handler, nên `onPage` **không bao giờ** nhận `null`.
-   Điều đó nên được hứa tường minh — hiện bản cài nào cẩn thận vẫn kiểm `null`
-   thừa, còn bản cài nào không kiểm thì đang dựa vào một hành vi không được ghi.
-
-4. **Cân nhắc `default void onPages(List<PageEvent>)`** — nhưng chỉ khi đo được
-   nút thắt, và phải theo đúng khuôn ở mục 6.3 (mặc định gọi lặp `onPage`) để
-   không phá bản cài cũ và không làm hai chế độ hành xử khác nhau.
-
----
-
-## 10. Liên kết
+## 9. Liên kết
 
 - Nơi handler được đăng ký và gọi: [`InProcessCrawlEventBus.md`](./InProcessCrawlEventBus.md)
 - Lớp chuyển tiếp mỏng ở chế độ Kafka: [`../../config/CrawlKafkaListeners.md`](../../config/CrawlKafkaListeners.md)

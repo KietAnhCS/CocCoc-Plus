@@ -377,42 +377,7 @@ test nào đỏ nếu không có nó, mà tính tái hiện của toàn bộ phi
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Ranh giới trách nhiệm | 10/10 | Tiêu chí "rẻ + không cần cấu hình" tách rõ với `UrlFilter`, được nói thành lời |
-| Tính tái hiện | 10/10 | `LinkedHashSet` là lựa chọn có chủ ý và có lý do được ghi lại |
-| Đúng đắn khi xử lý URL | 10/10 | Chuẩn hoá **cả hai** vế; giao Jsoup phần ghép URL tuyệt đối |
-| Đơn giản | 10/10 | 65 dòng làm đúng một việc, không trạng thái |
-| An toàn đa luồng | 10/10 | Không trạng thái |
-| Xử lý trường hợp biên | 8/10 | `null`/rỗng/giao thức lạ đều chặn; nhưng thiếu `baseUri` thì im lặng |
-| Đầy đủ nguồn liên kết | 6/10 | Chỉ `<a href>`; bỏ qua sitemap và `<link rel=next>` |
-| Khả năng kiểm thử | 8/10 | Rất dễ test; thiếu test bảo vệ thứ tự |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Trần số liên kết mỗi trang** (ví dụ 1.000). Một trang danh mục lưu trữ có
-   thể có hàng chục nghìn thẻ `<a>`, và hiện chúng đổ hết vào frontier từ một
-   nguồn duy nhất — làm lệch cân bằng hàng đợi và có thể đẩy cả phiên crawl
-   chệch khỏi nội dung có giá trị. Cắt kèm một `log.warn` để hiện tượng đó nhìn
-   thấy được.
-
-2. **Cảnh báo khi `baseUri` vắng mặt.** Hiện `absUrl` trả chuỗi rỗng và vòng lặp
-   bỏ qua im lặng — triệu chứng là "crawler không đi đâu cả" mà không có manh
-   mối. Một dòng kiểm tra `document.baseUri().isBlank()` ở đầu hàm, kèm
-   `log.warn`, biến một lỗi câm thành một lỗi tự giải thích.
-
-3. **Bóc thêm `<link rel="next">` và sitemap.** Phân trang là nguồn liên kết có
-   giá trị cao mà `<a href>` đôi khi không có (nút "trang sau" dựng bằng
-   JavaScript). Sitemap thì [`RobotsTxtParser`](./RobotsTxtParser.md) đã nhìn
-   thấy dòng `Sitemap:` nhưng bỏ qua — nối hai đầu đó lại sẽ cho crawler một
-   danh sách URL do chính chủ trang cung cấp, chất lượng cao hơn hẳn việc lần
-   theo liên kết.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Bước trước: [`ContentParser.md`](./ContentParser.md) — và vì sao `clone()` ở đó quyết định lớp này có liên kết để bóc
 - Khối chặn giữa hai lớp: [`ContentSeenFilter.md`](./ContentSeenFilter.md)

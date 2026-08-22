@@ -365,35 +365,7 @@ mà lớp sinh ra để chặn.
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn theo chuẩn | 10/10 | Phân biệt chính xác thành phần nào không phân biệt hoa thường; dùng `getRaw*` |
-| Kỷ luật về phạm vi | 10/10 | Từ chối chuẩn hoá không an toàn, có lập luận cụ thể cho từng cám dỗ |
-| Xử lý đầu vào bất thường | 9/10 | `null`, URL méo, URL tương đối đều có đường xử lý; thà giữ nguyên còn hơn làm hỏng |
-| Chứng minh bằng số liệu | 10/10 | "23 cặp trùng trên 5.011 trang" — biện minh bằng đo đạc, không bằng cảm tính |
-| Hiệu năng | 10/10 | $O(L)$, không trạng thái, an toàn đa luồng miễn phí |
-| Khả năng kiểm thử | 9/10 | Hàm thuần tĩnh; nên bổ sung test lũy đẳng |
-| Đầy đủ | 7/10 | Chưa xử lý `www.` ↔ không `www.`, chưa gỡ `../`, chưa hỗ trợ IDN (tên miền tiếng Việt) |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Chuẩn hoá IDN (tên miền quốc tế hoá).** Host `phở.vn` và `xn--ph-8ja.vn`
-   là **cùng một** miền nhưng ra hai chuỗi khác nhau. `IDN.toASCII(host)` giải
-   quyết trong một dòng. Với một máy tìm kiếm nhắm vào web tiếng Việt, đây là
-   thiếu sót đáng kể nhất hiện nay.
-2. **Test tính lũy đẳng** (mục 5) — biến một giả định ngầm thành một ràng buộc
-   được CI canh giữ.
-3. **Chính sách `www.`.** `https://a.vn/tin` và `https://www.a.vn/tin` gần như
-   luôn là cùng một trang, nhưng không phải luôn luôn. Nếu quyết định gộp,
-   phải làm ở [`UrlFilter`](./UrlFilter.md) (nơi đã có cấu hình miền) chứ không
-   phải ở đây — vì nó là phép **không an toàn**, và lớp này có kỷ luật chỉ chứa
-   phép an toàn. Giữ đúng ranh giới đó quan trọng hơn việc gộp thêm vài trang.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Bước tiếp theo trong luồng: [`UrlSeenFilter.md`](./UrlSeenFilter.md) — nơi chuỗi chuẩn hoá thành khoá của Bloom Filter
 - Nơi lọc theo miền và đuôi tệp: [`UrlFilter.md`](./UrlFilter.md)

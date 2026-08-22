@@ -593,46 +593,7 @@ tải thật.
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chất lượng thuật toán | 10/10 | Quy hoạch động thay tham lam; nhận ra đây là đường đi dài nhất trên DAG và các đỉnh đã sẵn thứ tự tô-pô |
-| Lập luận từ bỏ cách cũ | 10/10 | Ví dụ "nhà hàng xóm" kèm **điểm số cụ thể** (13,05 vs 13,13) — chứng minh chứ không khẳng định |
-| Nhận diện lỗi hệ thống | 10/10 | Chỉ ra tham lam sai vì quyết định **cục bộ** cho một bài toán phụ thuộc **ngữ cảnh sau** — không phải một ví dụ lẻ |
-| Chọn cấu trúc dữ liệu | 10/10 | Trie cho phép cắt nhánh, thứ `HashSet` không làm được; cải thiện hằng số **và** khử cấp phát |
-| An toàn đa luồng | 10/10 | Không trạng thái, và Javadoc nêu rõ **vì sao đây là bắt buộc**, kèm mô tả lỗi im lặng sẽ xảy ra |
-| Xử lý biên | 10/10 | Dòng "luôn cho phép tách một âm tiết" cứu đồ thị khỏi đứt; dãy rỗng trả `{0}` |
-| Định dạng trả về | 10/10 | Mảng mốc thay chuỗi đã ghép — đẩy quyết định cấp phát cho người gọi |
-| Đặt tên | 9/10 | `relax` mượn đúng thuật ngữ ngành; `best`/`trace` là quy ước chuẩn của quy hoạch động |
-| Chứng minh bằng số liệu | 6/10 | Có điểm số cho **một** ví dụ, nhưng chưa có phép đo trên toàn corpus (bao nhiêu % câu khác nhau) |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Đo chênh lệch trên toàn corpus, không chỉ một ví dụ.** Ví dụ "nhà hàng xóm"
-   chứng minh tham lam **có thể** sai; nó không nói tham lam sai **bao nhiêu**.
-   Chạy mã ở mục 5.2 trên 500 câu lấy ngẫu nhiên và ghi con số vào Javadoc —
-   đúng cách [`UrlCanonicalizer`](../crawler/UrlCanonicalizer.md) làm với "23 cặp
-   trùng". Đây là số liệu biện minh cho quyết định thuật toán quan trọng nhất
-   của cả tầng tách từ.
-2. **Thêm test đa luồng** (mục 7). Javadoc gọi tính không-trạng-thái là "bắt
-   buộc chứ không phải tuỳ chọn", nhưng không có gì canh giữ nó. Cám dỗ tái sử
-   dụng bộ đệm rất lớn (500.000 mảng cấp phát lúc build), và người thực hiện tối
-   ưu đó sẽ không thấy test nào đỏ.
-3. **Cân nhắc trả về cả điểm số của cách tách.** Hiện `segment` chỉ trả mốc; giá
-   trị `best[n]` bị vứt đi. Điểm số đó là **tín hiệu về độ tin cậy** của phép
-   tách — câu toàn từ ngoài từ điển sẽ có điểm rất thấp:
-   ```java
-   public record KetQuaTach(int[] boundaries, double score) { }
-   ```
-   Dùng được để: (a) cảnh báo khi corpus có nhiều văn bản không phải tiếng Việt;
-   (b) làm tín hiệu cho [`LanguageDetector`](../service/LanguageDetector.md);
-   (c) đo chất lượng từ điển theo thời gian. Giữ nguyên hàm cũ để không phá vỡ
-   mã hiện có.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Từ điển và trọng số: [`VietnameseWordDictionary.md`](./VietnameseWordDictionary.md)
 - Cấu trúc trie cho phép cắt nhánh: [`../datastructure/SyllableTrie.md`](../datastructure/SyllableTrie.md)

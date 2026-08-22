@@ -461,44 +461,7 @@ cd search-engine
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Nhận diện bản chất bài toán | 10/10 | Phủ định thuần tuý vô nghĩa **và** đắt — nêu cả hai lý do, và chỉ ra mọi hệ thống thực tế đều làm vậy |
-| Thuật toán | 10/10 | Two-pointer $O(m+n)$; chú thích giải thích rõ vì sao `j` chỉ tiến một chiều |
-| Thông điệp ngoại lệ | 10/10 | Nói cả cách dùng đúng (`'A AND NOT B'`) lẫn lý do — tài liệu chạy được |
-| Biểu đạt | 10/10 | `inner` là `QueryNode` nên `NOT (a OR b)` diễn đạt được — đúng một trong hai ví dụ mà cấu trúc cũ chặn |
-| Tận dụng bất biến | 10/10 | Lần thứ năm bất biến sắp xếp trả cổ tức |
-| Nhất quán giá trị trả về | 6/10 | Trả `candidates` gốc khi rỗng, `ArrayList` mới khi không — hành vi khác nhau tuỳ dữ liệu |
-| Ép điều kiện đầu vào | 3/10 | `candidates` **phải** sắp xếp nhưng không gì kiểm tra; vi phạm cho kết quả sai im lặng |
-| Tuân thủ LSP | 6/10 | Vi phạm hình thức, có lý do chính đáng và bề mặt hẹp — nhưng lỗi lộ ra lúc chạy |
-| Khả năng kiểm thử | 6/10 | Được test gián tiếp; thiếu ca riêng, đặc biệt ca hiệu năng |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Nhất quán hoá giá trị trả về khi `excluded` rỗng.** Hiện nó trả về **chính**
-   `candidates`, còn nhánh kia trả `ArrayList` mới — nghĩa là "danh sách trả về
-   có sửa được không / sửa nó có ảnh hưởng gì không" phụ thuộc **dữ liệu**. Loại
-   lỗi này rất khó tái hiện. Hoặc luôn trả bản sao, hoặc ghi rõ trong Javadoc
-   rằng kết quả là **chỉ đọc** trong mọi trường hợp (lựa chọn thứ hai rẻ hơn và
-   đúng với tinh thần của tầng này).
-2. **Kiểm tra `candidates` đã sắp xếp ở chế độ assert.** Điều kiện tiên quyết
-   này quyết định tính đúng đắn, nhưng vi phạm nó không gây lỗi nào — chỉ giữ
-   lại những tài liệu đáng lẽ bị loại. Dùng `assert` để chi phí bằng 0 khi chạy
-   thật:
-   ```java
-   assert laTangDan(candidates) : "evaluateAgainst yêu cầu candidates sắp xếp tăng dần";
-   ```
-   Cùng đề xuất với [`Posting`](../../index/Posting.md) về bất biến `positions`.
-3. **Thêm `NotNodeTest.java`**, ưu tiên ca `hieuNangTuyenTinhChuKhongBinhPhuong`.
-   Con trỏ một chiều là toàn bộ giá trị thuật toán của lớp, và một refactor
-   "làm rõ ràng hơn" bằng `excluded.contains(candidate)` sẽ cho kết quả **đúng
-   hệt** mà chậm 280 lần — không test đúng-đắn nào bắt được.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Giao diện và bất biến sắp xếp: [`QueryNode.md`](./QueryNode.md)
 - Nút duy nhất tiêu thụ `evaluateAgainst`: [`AndNode.md`](./AndNode.md)

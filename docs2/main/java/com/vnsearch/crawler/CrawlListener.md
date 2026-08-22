@@ -388,42 +388,7 @@ là lợi ích "không tắt được khi chạy test" mà Javadoc nêu ở dòn
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chọn mẫu thiết kế | 10/10 | Observer dùng đúng chỗ; ba bản cài đặt có vai trò thật khác nhau |
-| Phân loại sự kiện | 10/10 | Tách "không phải lỗi" khỏi `onError` — và nêu rõ mỗi sự kiện dẫn tới **hành động** gì |
-| Dữ liệu có cấu trúc | 10/10 | `record CrawlEvent` thay chuỗi log; `frontierSize`/`domainCount` là chỉ số chẩn đoán thật |
-| Khả năng tiến hoá | 9/10 | `default` rỗng cho phép thêm sự kiện không phá bản cài đặt |
-| Khả năng kiểm thử | 10/10 | Listener giả 5 dòng thay cho phân tích log |
-| **Rõ ràng của hợp đồng** | **5/10** | **Không nói gì** về an toàn đa luồng, về việc gọi đồng bộ, hay về xử lý ngoại lệ |
-| Đầy đủ | 7/10 | Thiếu sự kiện bắt đầu phiên; `onFinished` không cho biết **vì sao** dừng |
-| Chất lượng tài liệu trong mã | 7/10 | Nội dung tốt (nêu rõ tỷ lệ bất thường nghĩa là gì) nhưng **không dấu tiếng Việt** |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Ghi rõ ba điều khoản ngầm vào Javadoc** (mục 4): sự kiện được phát từ nhiều
-   luồng đồng thời; listener chạy **đồng bộ** trên luồng worker nên phải nhanh;
-   ngoại lệ ném ra sẽ bị `CrawlerService` nuốt (hoặc làm chết worker — cần xác
-   định rõ). Đây là điểm yếu lớn nhất: cả ba đều là bất biến thật mà người viết
-   listener mới không có cách nào biết. `UserStore` đã làm đúng việc này.
-
-2. **`onFinished(int totalPages, long elapsedMs, FinishReason reason)`** với
-   `enum FinishReason { MAX_PAGES, FRONTIER_EMPTY, TIME_LIMIT, CANCELLED }`.
-   Ba lý do dừng có ý nghĩa vận hành rất khác nhau (mục 1.3), và người đọc báo
-   cáo cần phân biệt "crawl xong" với "crawl bị cắt ngang".
-
-3. **`onStarted(CrawlConfig config, Set<String> seeds)`.** Hiện listener không
-   biết `maxPages` cho tới sự kiện đầu tiên, nên
-   [`ProgressBarCrawlListener`](./ProgressBarCrawlListener.md) không vẽ được
-   thanh tiến độ trước khi trang đầu xong. Sự kiện bắt đầu cũng là chỗ tự nhiên
-   để [`CheckpointCrawlListener`](./CheckpointCrawlListener.md) dọn tệp cũ và
-   để ghi lại cấu hình đã dùng vào báo cáo.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Nơi phát sự kiện: [`CrawlerService.md`](./CrawlerService.md)
 - Ba bản cài đặt: [`ConsoleCrawlListener.md`](./ConsoleCrawlListener.md) · [`ProgressBarCrawlListener.md`](./ProgressBarCrawlListener.md) · [`CheckpointCrawlListener.md`](./CheckpointCrawlListener.md)

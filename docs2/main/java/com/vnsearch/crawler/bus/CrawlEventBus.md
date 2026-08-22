@@ -490,46 +490,7 @@ hứa trung tâm của cả thiết kế này.
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Tách trừu tượng khỏi hạ tầng | 10/10 | Lõi không import một dòng nào của Kafka; phần dính broker gói gọn trong 156 dòng |
-| Lập luận thiết kế | 10/10 | Javadoc nêu ba lý do và nói rõ lý do thứ ba mới là lý do thật — hiếm gặp |
-| Ngữ nghĩa lỗi | 10/10 | Bất đối xứng producer/consumer được định nghĩa tường minh, đúng hướng |
-| Quan sát được | 9/10 | `getPublishFailureCount()` ở tầng interface; thiếu bộ đếm gửi **thành công** ở tầng interface (chỉ có ở bản cài) |
-| Khả năng mở rộng | 10/10 | Thêm service thứ tư không chạm mã crawler — đã kiểm chứng bằng quy trình ở mục 5.5 |
-| Null-safety | 10/10 | Null Object thay cho `bus != null` rải rác |
-| Khả năng kiểm thử | 9/10 | Có test cho từng bản cài; **thiếu contract test dùng chung** cho cả hai |
-| Tài liệu trong mã | 10/10 | Javadoc giải thích *vì sao*, không mô tả lại *cái gì* |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Contract test dùng chung.** Một lớp trừu tượng
-   `CrawlEventBusContractTest` với các khẳng định về hợp đồng, hai lớp con nạp
-   hai bản cài. Đây là cách duy nhất giữ cho lời hứa "hai chế độ hành xử như
-   nhau" không bị trôi theo thời gian. Chi phí: ~80 dòng, và nó sẽ bắt được
-   đúng loại lỗi mà `KafkaCrawlBusIT` đã từng bắt (xem
-   [`ImageFound.md`](./ImageFound.md) mục về `@JsonIgnore`).
-
-2. **Thêm `getPublishedCount()` vào interface.** Hiện `getPagesPublishedCount()`
-   chỉ có ở từng bản cài, nên dashboard muốn vẽ tỷ lệ lỗi
-   (`failures / published`) lại phải `instanceof` — đúng vấn đề mà mục 3.1 đã
-   giải cho bộ đếm lỗi, nhưng giải chưa hết.
-
-3. **Ghi rõ ngữ nghĩa `null` trong Javadoc.** Cả hai bản cài đều lặng lẽ bỏ qua
-   tham số `null`, nhưng hợp đồng không nói. Một dòng
-   `@param event bỏ qua nếu null` biến hành vi ngầm thành hành vi hứa.
-
-4. **Cân nhắc `publishPages(List<PageEvent>)` dạng lô.** Ở chế độ Kafka,
-   producer vốn đã gom lô, nên lợi ích chủ yếu nằm ở việc giảm số lần khoá bộ
-   đệm khi crawler chạy nhiều worker. Chỉ nên làm nếu đo được — hiện chi phí bus
-   là 0,03% thời gian, nên gần như chắc chắn **không đáng**. Ghi ở đây để người
-   sau khỏi phải cân nhắc lại.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Bản cài mặc định, và cơ chế cô lập lỗi: [`InProcessCrawlEventBus.md`](./InProcessCrawlEventBus.md)
 - Bản cài phân tán, và chuyện khoá phân hoạch: [`KafkaCrawlEventBus.md`](./KafkaCrawlEventBus.md)

@@ -100,8 +100,7 @@ flowchart TD
 12. [Hướng dẫn về code](#12-hướng-dẫn-về-code)
 13. [Độ phức tạp & chi phí](#13-độ-phức-tạp--chi-phí)
 14. [Kiểm thử liên quan](#14-kiểm-thử-liên-quan)
-15. [Chấm theo chuẩn doanh nghiệp](#15-chấm-theo-chuẩn-doanh-nghiệp)
-16. [Liên kết](#16-liên-kết)
+15. [Liên kết](#15-liên-kết)
 
 ---
 
@@ -1530,83 +1529,7 @@ void chiDemCanhCoCaHaiDauTrongCorpus() {
 
 ---
 
-## 15. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Lập luận về mục đích tồn tại | 10/10 | Javadoc nêu đúng vì sao corpus một domain làm PageRank vô nghĩa, và nối được lập luận đó với tỷ lệ thưa `nnz/n²` trong báo cáo DSA |
-| Ghi chép quyết định | 10/10 | Đoạn `tuoitrenews.vn` có đủ bốn phần: quyết định, triệu chứng, **bằng chứng đo được** (0/10.017 trang), và đánh đổi đã bị từ chối |
-| An toàn dữ liệu | 9/10 | Ba lớp bảo vệ độc lập (nối tiếp mặc định, điểm kiểm tra, ghi nguyên tử), mỗi lớp chống một loại hỏng khác nhau; trừ điểm vì hai tiến trình cùng ghi một tệp không bị chặn |
-| Thứ tự ghi hai kho | 10/10 | Ảnh ghi **sau** corpus, kèm lý do đúng: khoá ngoại chỉ được phép hỏng theo chiều "thiếu", không theo chiều "trỏ sai" |
-| Kiểm chứng sau khi chạy | 9/10 | Bốn phép kiểm chứng độc lập (phân bố domain, phân bố ngôn ngữ, cạnh chéo, domain trắng) — hiếm thấy ở một công cụ chạy tay |
-| Phân tích tham số dòng lệnh | 3/10 | Vị trí cố định theo chỉ số; `--fresh` ở sai vị trí biến thành **tên tệp đầu ra**, hỏng im lặng sau vài giờ chạy |
-| Báo hiệu thất bại | 3/10 | Không có khái niệm "phiên thất bại": 400 trang do rớt mạng và 31.030 trang cùng một mã thoát, cùng một định dạng báo cáo |
-| Cấu hình | 5/10 | Hạt giống, chu kỳ listener, trần thời gian đều là hằng số trong mã; không đọc `application.properties` nên cấu hình bị nhân đôi so với ứng dụng web mà không ai nói ra |
-| Ngân sách bộ nhớ | 6/10 | `previous` giữ 367 MB sống suốt phiên **song song** với `contentStorage` — đỉnh ~860 MB, đủ để chết trên heap mặc định của máy 4 GB |
-| Khả năng kiểm thử | 4/10 | Bốn hàm thuần tuý hoàn toàn kiểm thử được (`stripLanguageLabel`, đếm cạnh, phát hiện domain trắng, dựng `allowedDomains`) nhưng đều `private static` trong lớp có `main`, và **không có bài test nào** |
-| Chính xác của chú thích | 7/10 | Chú thích nói "18 host" trong khi có 19; `stripLanguageLabel` bỏ sót nhãn `english` mà không nói rõ cố ý hay không |
-
-**Năm đề xuất nâng lên mức sản phẩm:**
-
-1. **Thay phân tích tham số theo vị trí bằng tham số có tên.** Hiện `--fresh`
-   chỉ được nhận ở đúng `args[3]`; gõ `"5000 3 --fresh"` làm `outputPath` trở
-   thành tệp tên `--fresh`, phiên crawl chạy đủ ba giờ rồi ghi kết quả vào một
-   nơi không ai tìm, còn corpus thật thì không được cập nhật — và không có một
-   dòng cảnh báo nào. Đây là loại lỗi mà cái giá không nằm ở mã mà ở **thời
-   gian người dùng**: ba giờ cho một lần gõ nhầm thứ tự. Một vòng `for` duyệt
-   `args` nhận `--max-pages=`, `--depth=`, `--out=`, `--fresh` và **ném với
-   thông báo rõ ràng khi gặp tham số lạ** là khoảng ba mươi dòng, không thêm phụ
-   thuộc nào, và nó biến một cạm bẫy im lặng thành một lỗi ngay ở giây thứ nhất.
-
-2. **Kiểm tra hậu tố công cộng thay vì đếm số dấu chấm.** Điều kiện
-   `rest.indexOf('.') > 0` trong `stripLanguageLabel` được viết để chặn việc tạo
-   ra một hậu tố quá rộng, nhưng nó chỉ đòi "phần còn lại có hai nhãn" — mà
-   `com.vn`, `co.uk`, `edu.vn` đều có hai nhãn. Vì `UrlFilter` so domain bằng
-   `endsWith`, một mục `com.vn` lọt vào `allowedDomains` sẽ biến danh sách cho
-   phép thành danh sách cho phép tất cả, và người chạy chỉ phát hiện ở bảng phân
-   bố domain sau vài giờ. Hiện chưa xảy ra vì tập hạt giống là hằng số đã được
-   kiểm bằng mắt — tức phép kiểm đang **đúng vì may**, không đúng vì thiết kế.
-   Một danh sách nhỏ các hậu tố hai nhãn phổ biến ở Việt Nam (`com.vn`, `net.vn`,
-   `edu.vn`, `gov.vn`, `org.vn`) đủ để đóng lỗ này mà không cần kéo về cả Public
-   Suffix List.
-
-3. **Cho phiên crawl một khái niệm "thất bại".** Thêm `--min-pages=N` và trả mã
-   thoát khác 0 khi số trang thu được thấp hơn ngưỡng, hoặc khi danh sách
-   `missing` vượt quá một tỷ lệ domain cho trước. Hiện một phiên thu 400 trang vì
-   Wi-Fi rớt ở phút thứ sáu kết thúc y hệt một phiên thu 31.030 trang: cùng mã
-   thoát 0, cùng bảng thống kê, chỉ khác con số mà không có gì để so. Với một
-   công cụ chạy tay thì người chạy có thể tự đọc — nhưng chính vì nó chạy vài
-   giờ nên người chạy thường **không** ngồi nhìn, và họ quay lại thấy "xong" thì
-   tin là xong. Mã thoát là kênh duy nhất mà một kịch bản `run-crawl.bat` hay
-   một job CI đọc được, và hiện kênh đó không mang thông tin nào.
-
-4. **Tách bốn hàm thuần tuý ra khỏi lớp có `main` và viết test cho chúng.**
-   `stripLanguageLabel`, phép dựng `allowedDomains`, phép đếm cạnh nội bộ/chéo,
-   và phép phát hiện domain trắng đều không chạm mạng, không chạm đĩa, không cần
-   Spring — chúng là bốn hàm nhận đầu vào trả đầu ra. Nhưng cả bốn đang là
-   `private static` trong một lớp mà cách duy nhất để chạy là khởi động một phiên
-   crawl thật, nên **không hàm nào có test**. Trớ trêu là phép đếm cạnh lại sinh
-   ra chính con số `nnz` và tỷ lệ thưa đưa vào báo cáo đồ án: một sai lệch ở đó
-   không làm chương trình hỏng, nó chỉ làm **báo cáo sai** — loại lỗi tệ nhất
-   trong ngữ cảnh này. Chuyển chúng sang một lớp `CrawlCorpusStats` gói-riêng là
-   đủ để cả bốn kiểm thử được mà `main()` không phải đổi một dòng.
-
-5. **Nói ra khi tệp ảnh đọc hỏng, và giải phóng `previous` sau khi khôi phục.**
-   Hai sửa nhỏ, cùng một tinh thần "đừng im lặng". Thứ nhất:
-   `ImageStorage.loadQuietly` gộp "chưa từng có tệp" với "có tệp nhưng hỏng" vào
-   cùng một nhánh không in gì; "quietly" đúng nghĩa là *không ném*, không phải
-   *không nói* — một dòng `WARN` phân biệt hai ca này tốn gần như không gì và
-   nó ngăn việc âm thầm mất siêu dữ liệu của 47.000 ảnh. Thứ hai: biến cục bộ
-   `previous` giữ nguyên 367 MB suốt phiên crawl **song song** với bản mà
-   `contentStorage` đã dựng lại, đẩy đỉnh bộ nhớ lên ~860 MB và biến
-   `OutOfMemoryError` ở phút thứ 150 thành một khả năng thật trên máy 4 GB. Vì
-   `crawl()` chặn nên không chen vào giữa được; cách rẻ nhất là để `crawl()` nhận
-   một `Supplier<List<WebDocument>>` thay vì `List`, hoặc tối thiểu là ghi
-   `-Xmx2g` vào đúng lệnh chạy mẫu trong Javadoc để người sau không phải tự đoán.
-
----
-
-## 16. Liên kết
+## 15. Liên kết
 
 - Máy crawl mà lớp này điều khiển: [`CrawlerService.md`](./CrawlerService.md)
 - Cấu hình bất biến của một phiên: [`CrawlConfig.md`](./CrawlConfig.md)

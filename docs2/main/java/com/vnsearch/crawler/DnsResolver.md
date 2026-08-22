@@ -394,45 +394,7 @@ thành cache thất bại.
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Lý do tách khối | 10/10 | Ba lợi ích cụ thể, định lượng được; và mở đường cho kiểm tra SSRF |
-| Tái sử dụng cấu trúc tự cài | 10/10 | `LRUCache` dùng lần thứ hai cho mục đích khác — minh chứng thiết kế tốt |
-| Quyết định về đồng thời | 10/10 | Thừa nhận thẳng cặp `get`/`put` không nguyên tử, kèm lý do vì sao chấp nhận |
-| Toàn vẹn số liệu | 10/10 | Ca host rỗng cũng đếm; phối hợp với `HtmlDownloader` để không đếm hai lần |
-| Xử lý lỗi | 9/10 | Không cache thất bại — tránh biến sự cố thoáng qua thành quyết định vĩnh viễn |
-| Quan sát được | 9/10 | Bốn bộ đếm + `hitRate`; `hitRate` đọc `hits` hai lần |
-| **Khả năng kiểm thử** | **4/10** | **Không có test riêng**, dù nằm trên đường bảo mật |
-| Đầy đủ | 7/10 | Không có TTL; không hỗ trợ nhiều bản ghi A; không ghim IP (DNS rebinding) |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Viết `DnsResolverTest`.** Ba kịch bản đầu ở mục 5 chạy được **không cần
-   mạng** và mất khoảng mười phút để viết. Đây là lớp có điểm kiểm thử thấp nhất
-   trong gói `crawler` cho tới nay, và nó lại là lớp cung cấp `InetAddress` cho
-   phép kiểm tra SSRF của [`HtmlDownloader`](./HtmlDownloader.md) — tức một lỗi
-   ở đây là một lỗ hổng bảo mật, không chỉ là một lỗi hiệu năng.
-
-2. **TTL cho cache.** Hiện một bản ghi đúng lúc đầu phiên sẽ được dùng suốt vài
-   giờ. Với crawler chạy ngắn thì không sao; nhưng nếu chạy như dịch vụ thường
-   trực, một host đổi IP sẽ không bao giờ được nhận ra. Bọc giá trị thành
-   `record CachedAddress(InetAddress address, Instant resolvedAt)` với hạn ~5
-   phút, đúng thông lệ TTL của DNS.
-
-3. **Trả về `InetAddress[]` thay vì một địa chỉ.** `InetAddress.getByName` chỉ
-   trả bản ghi **đầu tiên**; `getAllByName` trả tất cả. Điều này quan trọng cho
-   bảo mật: một host có thể có hai bản ghi A — một công khai và một trỏ vào
-   `127.0.0.1`. Hiện phép kiểm tra ở
-   [`HtmlDownloader`](./HtmlDownloader.md) chỉ soi địa chỉ đầu tiên, còn Jsoup
-   lúc mở socket có thể chọn địa chỉ khác. Kiểm tra **mọi** địa chỉ sẽ thu hẹp
-   đáng kể khoảng trống DNS rebinding mà Javadoc của `HtmlDownloader` đã ghi
-   nhận.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Người gọi duy nhất, và nơi `InetAddress` được dùng để chặn SSRF: [`HtmlDownloader.md`](./HtmlDownloader.md)
 - Phép kiểm tra địa chỉ nội bộ: [`SeedUrlValidator.md`](./SeedUrlValidator.md)

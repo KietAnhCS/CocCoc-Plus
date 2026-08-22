@@ -435,39 +435,7 @@ void tongBoDemKhopSoLanGoi() {
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Nhận diện vấn đề | 10/10 | Chỉ ra khoảng trống mà `UrlSeenFilter` + `UrlCanonicalizer` không lấp được, kèm ba nguồn trùng cụ thể |
-| Chọn cấu trúc dữ liệu | 10/10 | Lập luận rõ vì sao **không** dùng Bloom Filter ở đây dù dùng ở lớp anh em |
-| Xử lý trường hợp biên | 10/10 | Thân bài rỗng được tách riêng — chi tiết dễ bỏ sót nhất, và hậu quả nếu sai rất lớn |
-| An toàn đa luồng | 10/10 | Tận dụng ngữ nghĩa nguyên tử có sẵn thay vì tự viết khoá |
-| Tự nhận giới hạn | 10/10 | Nói rõ đây là trùng **chính xác**, nêu tên phương án nâng cấp (SimHash/MinHash) và lý do chưa làm |
-| Hiệu năng | 9/10 | ~0,02% thời gian xử lý; `replaceAll` biên dịch lại regex mỗi lần |
-| Quan sát được | 9/10 | Hai bộ đếm tách bạch "trùng thật" và "không bóc được nội dung" |
-| Khả năng kiểm thử | 7/10 | Có test đường chính; thiếu test đa luồng — đúng tính chất then chốt của lớp |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Lưu bền tập vân tay**, song song với [`UrlStorage`](./UrlStorage.md). Hiện
-   tập này **mất khi tắt chương trình**, nên phiên crawl tiếp theo sẽ không phát
-   hiện được bản sao của những bài đã lưu ở phiên trước. Đây là khoảng trống
-   thật và lớn nhất: cơ chế tiếp tục phiên hiện chỉ hoàn chỉnh cho URL, chưa
-   hoàn chỉnh cho nội dung. Một tệp append-only 64 ký tự mỗi dòng là đủ, dùng
-   lại đúng khuôn `UrlStorage`.
-2. **Ghi lại URL của bản gốc.** Đổi `Set<String>` thành
-   `ConcurrentHashMap<String, String>` (vân tay → URL đầu tiên) cho phép trả lời
-   *"bài này trùng với bài nào"* — thông tin cần cho cả chẩn đoán lẫn cho việc
-   gộp liên kết vào đúng bản gốc khi tính PageRank (giải quyết vấn đề ③ ở mục 1
-   một cách triệt để). Chi phí: thêm ~80 byte/trang, tức ~2,5 MB.
-3. **`static final Pattern WHITESPACE = Pattern.compile("\\s+")`** thay cho
-   `replaceAll`. Một dòng, loại bỏ việc biên dịch lại biểu thức chính quy 31.030
-   lần.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Lớp anh em cho **URL** (và vì sao dùng cấu trúc khác): [`UrlSeenFilter.md`](./UrlSeenFilter.md)
 - Vì sao query string không được chuẩn hoá, để lại việc cho lớp này: [`UrlCanonicalizer.md`](./UrlCanonicalizer.md) mục 2.4

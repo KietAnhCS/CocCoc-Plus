@@ -265,8 +265,7 @@ sequenceDiagram
 - [8. Hướng dẫn về code](#8-hướng-dẫn-về-code)
 - [9. Độ phức tạp & chi phí](#9-độ-phức-tạp--chi-phí)
 - [10. Kiểm thử liên quan](#10-kiểm-thử-liên-quan)
-- [11. Chấm theo chuẩn doanh nghiệp](#11-chấm-theo-chuẩn-doanh-nghiệp)
-- [12. Liên kết](#12-liên-kết)
+- [11. Liên kết](#11-liên-kết)
 
 ---
 
@@ -1482,75 +1481,7 @@ class MoiBeanPhaiNamDuoiGoiGocTest {
 
 ---
 
-## 11. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Trọng số | Điểm | Nhận xét |
-|---|---:|---|---|
-| Đặt lớp khởi động ở gói gốc sạch | 10 % | 10/10 | Là tệp `.java` **duy nhất** trực tiếp trong `com/vnsearch/`; mọi gói thêm sau tự động nằm trong phạm vi quét |
-| Giữ `main()` tối giản | 10 % | 10/10 | Đúng một lời gọi `SpringApplication.run`; không cờ, không rẽ nhánh, không thứ tự ẩn |
-| Tách hạ tầng khỏi thuật toán | 15 % | 10/10 | 118/143 lớp là POJO thuần; nhờ đó `run-crawl.bat` chạy được không cần Spring, và test lõi là JUnit thuần |
-| Mặc định chạy được trên máy trống | 10 % | 10/10 | Bốn quyết định cùng hướng: `bus=memory`, `postgres.enabled=false`, driver JDBC trần, `images.download=false` |
-| Fail fast đúng chỗ, chỉ cảnh báo đúng chỗ | 10 % | 10/10 | Thiếu `ADMIN_API_KEY` → dừng; thiếu `BOOTSTRAP_ADMIN_PASSWORD` → cảnh báo. Hai mức nghiêm trọng, hai xử lý |
-| Chất lượng chú thích cấu hình | 10 % | 9/10 | 172 dòng properties giải thích **vì sao** ở gần như mọi khoá; **trừ 1** vì viết không dấu, lệch quy ước tài liệu của repo |
-| Bề mặt Actuator | 5 % | 10/10 | Chỉ phơi 3 endpoint, `show-details=never`; từ chối `*` cùng lý do viết ngay tại chỗ |
-| Kiểm thử khởi động | 10 % | 7/10 | `contextLoads()` phủ toàn bộ sơ đồ nối dây với 6 dòng; **trừ 3** vì chỉ phủ cấu hình mặc định — nhánh `bus=kafka` và `role=worker` chưa có bài nào chứng minh dựng được |
-| Quản lý profile | 10 % | **5/10** | Chỉ có `prod`, và nó chỉ đổi định dạng log. Mọi khác biệt môi trường thật nằm ở **6 property rời rạc** — không có cái tên nào gói chúng lại |
-| Quan sát được thời gian khởi động | 5 % | **5/10** | Có log tổng của Spring và log riêng của `IndexBuilder`; **nhưng không có chỉ số nào** đưa thời gian khởi động vào Prometheus, dù Micrometer đã có sẵn |
-| Tài liệu ở chính điểm vào | 5 % | 8/10 | Javadoc nêu đúng ranh giới Spring/thuật toán; **trừ 2** vì không nhắc gì tới `ADMIN_API_KEY` — điều kiện bắt buộc để chạy nổi dòng đầu tiên |
-
-**Tổng có trọng số: ≈ 8,6 / 10.**
-
-### Bốn đề xuất, xếp theo thứ tự ưu tiên
-
-**1. Gói sáu property môi trường lại thành profile có tên (ưu tiên cao nhất).**
-Hôm nay, để chạy đúng một cấu hình cần đặt đồng thời `app.crawler.bus`,
-`app.crawler.role`, `app.crawler.role.is-api`, `app.storage.postgres.enabled`,
-`app.crawler.images.download` và `SPRING_PROFILES_ACTIVE`. Sáu biến rời rạc
-nghĩa là **2⁶ tổ hợp**, trong đó chỉ vài tổ hợp là hợp lệ — và không có gì
-ngăn một tổ hợp vô nghĩa (`role=worker` với `bus=memory`: một worker không có
-gì để tiêu thụ). Cách sửa rẻ nhất là thêm hai tệp `application-api.properties`
-và `application-worker.properties` đặt sẵn cụm giá trị đúng, rồi để
-`docker-compose.yml` dùng `SPRING_PROFILES_ACTIVE=prod,worker` thay vì liệt kê
-biến. Đánh đổi phải nói rõ: profile là nhị phân theo tên, nên khi cần một tổ
-hợp mới sẽ phải thêm tệp mới thay vì đổi một biến — chấp nhận được, vì số tổ
-hợp **hợp lệ** vốn nhỏ và việc buộc chúng phải có tên chính là điều ta muốn.
-
-**2. Thêm một bài `@SpringBootTest` cho nhánh `bus=kafka` (không cần broker).**
-18 `@Bean` của `KafkaCrawlConfig` cộng ba lớp `@Component` — tức khoảng một
-phần tư toàn bộ số bean của ứng dụng — hiện chỉ được dựng trong các bài
-`@Tag("kafka-it")`, mà pom cố ý loại khỏi `mvnw test` thường ngày vì chúng cần
-Docker và 15 giây khởi động broker. Hệ quả: một lỗi nối dây trong nhánh Kafka
-(thiếu tham số, hai bean cùng kiểu, `@Value` trỏ khoá không tồn tại) sẽ **không
-bị bắt** cho tới khi ai đó chạy CI job riêng. Bài test đề xuất ở mục 10.2 chỉ
-cần `properties = {"app.crawler.bus=kafka"}` và trỏ bootstrap-servers tới một
-cổng chết: `KafkaAdmin` không chặn khởi động, nên context vẫn dựng xong và ta
-kiểm được đúng thứ cần kiểm — sơ đồ nối dây — mà không trả giá 15 giây.
-
-**3. Đưa thời gian khởi động vào Prometheus.** `MetricsConfig` đã đăng ký một
-`MeterBinder` và `micrometer-registry-prometheus` đã có trong `pom.xml`, nên
-hạ tầng sẵn sàng hoàn toàn. Hiện thời gian khởi động chỉ tồn tại dưới dạng một
-dòng log — không truy vấn được, không vẽ được, không cảnh báo được. Với một hệ
-thống mà khởi động dao động từ 2 giây tới 35 giây tuỳ vào việc `data/index.json`
-có tồn tại hay không, đó chính là con số cần theo dõi: một lần triển khai bỗng
-chậm gấp mười lần là dấu hiệu chỉ mục dựng sẵn đã mất. Cách làm: bắt
-`ApplicationReadyEvent`, ghi một `Gauge` tên `vnsearch.startup.seconds` kèm tag
-phân biệt nhánh "có chỉ mục dựng sẵn" / "dựng lại từ corpus". Đánh đổi: thêm
-một lớp `@Component` nhỏ — chi phí gần bằng không so với thông tin thu được.
-
-**4. Bổ sung một đoạn Javadoc về điều kiện tiên quyết để khởi động.** Javadoc
-hiện tại giải thích rất tốt **kiến trúc** (Spring là hạ tầng, thuật toán tự
-cài), nhưng người đọc 22 dòng này vẫn không thể biết rằng thiếu biến môi trường
-`ADMIN_API_KEY` thì ứng dụng **không khởi động nổi** — thông tin ấy nằm trong
-`SecurityConfig`, cách xa điểm mà người ta bắt đầu đọc. Bốn dòng Javadoc bổ
-sung, liệt kê `ADMIN_API_KEY` (bắt buộc) và `BOOTSTRAP_ADMIN_PASSWORD`
-(khuyến nghị), kèm một dòng lệnh chạy mẫu, sẽ tiết kiệm cho mỗi người mới đúng
-một lần đọc stack trace. Đánh đổi: tài liệu đặt ở hai nơi có nguy cơ lệch nhau
-khi cấu hình đổi — giảm thiểu bằng cách chỉ nêu **tên biến** và trỏ sang
-`SecurityConfig` cho phần lý do, thay vì chép lại quy tắc.
-
----
-
-## 12. Liên kết
+## 11. Liên kết
 
 - Nơi khởi động bị chặn nếu thiếu khoá quản trị: [`config/SecurityConfig.md`](./config/SecurityConfig.md)
 - Bean dùng chung của tầng tìm kiếm (`Tokenizer`, `PageRankService`, `ImageStore`): [`config/SearchConfig.md`](./config/SearchConfig.md)

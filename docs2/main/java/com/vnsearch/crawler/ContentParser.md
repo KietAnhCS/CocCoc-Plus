@@ -397,45 +397,7 @@ xanh — và crawler bỏ sót phần lớn liên kết mà không ai biết.
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Tách trách nhiệm | 10/10 | Tách khỏi `LinkExtractor` có lý do kiến trúc rõ, không phải chia nhỏ cho đẹp |
-| Tránh tác dụng phụ | 10/10 | `clone()` chặn một lỗi liên lớp rất khó lần ra |
-| Xử lý trường hợp biên | 9/10 | `body()` null, meta thiếu, `<html>` thiếu đều có đường xử lý |
-| Phân cấp nguồn thông tin | 10/10 | Ngôn ngữ khai báo là **gợi ý**, có tầng trên ghi đè — được nói rõ trong Javadoc |
-| Tôn trọng ràng buộc đề bài | 10/10 | Jsoup chỉ dùng cho DOM; ranh giới nêu rõ |
-| An toàn đa luồng | 10/10 | Không trạng thái |
-| Chất lượng làm sạch văn bản | 6/10 | Thiếu `aside`, `form`, và các phần tử quảng cáo/bình luận theo `class` |
-| Khả năng kiểm thử | 8/10 | Dễ test; `Instant.now()` trực tiếp là điểm không nhất quán nhỏ |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Mở rộng danh sách thẻ bị xoá và làm nó cấu hình được.** Thêm `aside`,
-   `form`, `button`, và một danh sách bộ chọn CSS cho quảng cáo/bình luận
-   (`[class*=advert]`, `[class*=comment]`, `[id*=banner]`). Đây là cải thiện có
-   ảnh hưởng dây chuyền rõ nhất: thân bài sạch hơn ⇒
-   [`ContentSeenFilter`](./ContentSeenFilter.md) bắt được nhiều bản trùng hơn ⇒
-   [`SnippetBuilder`](../ranking/SnippetBuilder.md) trích đoạn tốt hơn ⇒ chỉ mục
-   ít term rác hơn. Đưa vào [`CrawlConfig`](./CrawlConfig.md) để tinh chỉnh được
-   theo tập hạt giống mà không phải dịch lại.
-
-2. **Test bảo vệ `clone()`** (mục 5). Đây là bất biến quan trọng nhất của lớp,
-   hiện chỉ được Javadoc canh giữ. Vi phạm nó không làm test nào đỏ, nhưng làm
-   crawler bỏ sót phần lớn liên kết.
-
-3. **Đánh dấu rõ trạng thái chưa hoàn chỉnh của `WebDocument`.** Hiện `outlinks`
-   rỗng có hai nghĩa không phân biệt được: "trang không có liên kết" và "chưa
-   chạy `LinkExtractor`". Một `record ParsedContent(title, metaDescription,
-   bodyText, declaredLanguage)` làm giá trị trả về — rồi `CrawlerService` mới
-   dựng `WebDocument` khi đã có đủ mọi phần — sẽ khiến trạng thái nửa vời **không
-   biểu đạt được**, đúng tinh thần `User.PublicView` ở
-   [`../auth/User.md`](../auth/User.md) mục 3.1.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Bước trước: [`HtmlDownloader.md`](./HtmlDownloader.md) — nơi HTML được tải và phân tích thành DOM
 - Bước sau (nếu không trùng): [`ContentSeenFilter.md`](./ContentSeenFilter.md) → [`LinkExtractor.md`](./LinkExtractor.md)

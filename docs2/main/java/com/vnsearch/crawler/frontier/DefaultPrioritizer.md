@@ -425,45 +425,7 @@ void hostNullKhongLamNo() {
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chất lượng quyết định thiết kế | 10/10 | Bỏ điểm số có trọng số để lấy phép cộng bậc là quyết định đúng, và **lý do được ghi lại đầy đủ** trong Javadoc |
-| Kỷ luật chống hằng số ma thuật | 9/10 | Từ ba hằng số xuống một; hằng số còn lại được đặt tên và `public` |
-| Xử lý biên | 10/10 | Kẹp hai đầu, mỗi đầu chặn một lỗi có thật và thường gặp |
-| Đơn giản | 10/10 | Bốn dòng logic; đọc một lần là hiểu hết |
-| Hiệu năng | 10/10 | $O(1)$, ~25 ns, không cấp phát, thuần ⇒ an toàn đa luồng miễn phí |
-| Khả năng kiểm thử | 9/10 | 8 ca bao gần đủ; thiếu ca `host == null` |
-| Chứng minh bằng số liệu | 5/10 | `BACKLINK_BOOST_THRESHOLD = 5` chưa có phép đo nào hậu thuẫn |
-| Chất lượng tín hiệu | 6/10 | Chỉ hai tín hiệu, cả hai đều thô; `.vn` bỏ sót các báo lớn dùng `.com`/`.net` |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Thay tín hiệu `.vn` bằng một danh sách miền tiếng Việt đã biết.**
-   `vnexpress.net`, `dantri.com.vn`, `tuoitre.vn`, `24h.com.vn` — chỉ một nửa
-   khớp `.endsWith(".vn")`. Với một máy tìm kiếm nhắm vào web tiếng Việt, đây
-   là thiếu sót ảnh hưởng trực tiếp đến chất lượng kho dữ liệu:
-   ```java
-   private static final Set<String> MIEN_VIET = Set.of(
-           "vnexpress.net", "dantri.com.vn", "tuoitre.vn", "thanhnien.vn", "24h.com.vn");
-
-   boolean laMienViet = host != null
-           && (host.endsWith(".vn") || MIEN_VIET.contains(host));
-   ```
-   Danh sách nên nạp từ tệp cấu hình, dùng chung với [`UrlFilter`](../UrlFilter.md)
-   để tránh hai nguồn sự thật.
-2. **Đo và ghi lại lý do cho `BACKLINK_BOOST_THRESHOLD = 5`.** Chạy một phiên
-   crawl, vẽ histogram số backlink, chọn ngưỡng ở một phân vị có ý nghĩa (ví dụ
-   phân vị 90), rồi ghi con số đo được vào Javadoc — đúng cách mà
-   [`UrlCanonicalizer`](../UrlCanonicalizer.md) đã làm với "23 cặp trùng". Đây
-   là hằng số cuối cùng của lớp chưa được biện minh bằng số.
-3. **Thêm ca test `host == null`** (mục 5). Nhánh phòng thủ ở dòng 60 hiện là
-   mã chết theo góc nhìn của bộ test — không ai biết nó còn chạy đúng hay không.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Hợp đồng mà lớp này cài đặt: [`Prioritizer.md`](./Prioritizer.md)
 - Nơi mức trả về thành chỉ mục hàng đợi: [`FrontQueues.md`](./FrontQueues.md)

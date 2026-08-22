@@ -574,46 +574,7 @@ void trangBiLoaiVanDuocGanNhanNgonNgu() {
 
 ---
 
-## 9. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Thiết kế thuật toán | 10/10 | Ba tầng xếp theo độ tin cậy — và tình cờ cũng đúng theo chi phí |
-| Chọn đặc trưng | 10/10 | Phân biệt `ơ ư ă đ` với `é à ô` là hiểu biết ngôn ngữ học thật, không phải đoán |
-| Chống dương tính giả | 10/10 | Bảng từ tiếng Anh lọc bỏ `a`/`de`/`en`/`no` — quyết định chỉ có sau khi thử và thấy sai |
-| Xử lý sự không chắc chắn | 10/10 | "Thiếu bằng chứng thì cho qua", có lý do định lượng về hậu quả |
-| Hiệu năng | 10/10 | `SAMPLE_LIMIT` biến $O(T)$ thành $O(1)$; ngắn mạch tránh bước đắt nhất cho phần lớn trang |
-| Quan sát được | 10/10 | Bốn bộ đếm + bảng theo từng ngôn ngữ, sắp giảm dần, sẵn cho báo cáo |
-| Xử lý Unicode | 9/10 | `COMMON`/`INHERITED` cho thấy hiểu Unicode ở mức thật |
-| Đầy đủ | 7/10 | Tiếng Việt **không dấu** bị loại nhầm; ngưỡng đóng cứng trong mã |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Xử lý tiếng Việt không dấu.** Đây là lỗ hổng thật và duy nhất đáng kể:
-   văn bản tiếng Việt không dấu trượt tầng 2 (không có dấu phụ) và trượt tầng 3
-   (bảng từ chọn từ **có dấu**), nên bị gán `OTHER_LATIN` và **loại**. Cách sửa
-   rẻ: thêm một bảng từ chức năng tiếng Việt **không dấu** (`cua`, `nhung`,
-   `duoc`, `nguoi`) với ngưỡng **cao hơn** (~15%) để tránh trùng với các ngôn
-   ngữ khác — chạy như tầng 3b, chỉ khi tầng 3 sắp trả `OTHER_LATIN`.
-
-2. **Đưa các ngưỡng ra cấu hình.** Sáu hằng số (`FOREIGN_SCRIPT_THRESHOLD`,
-   `VIETNAMESE_DIACRITIC_THRESHOLD`, hai ngưỡng tiếng Anh,
-   `MIN_TOKENS_FOR_CONTENT_EVIDENCE`, `SAMPLE_LIMIT`) là **chính sách corpus**,
-   không phải hằng số thuật toán. Đưa vào [`CrawlConfig`](./CrawlConfig.md) cho
-   phép tinh chỉnh theo tập hạt giống mà không dịch lại — và quan trọng hơn, làm
-   cho chính sách đó hiện ra trong tệp cấu hình thay vì chôn trong mã.
-
-3. **Bộ dữ liệu đánh giá có nhãn.** Hiện độ chính xác của lớp này chưa được đo:
-   ta biết nó *hoạt động* nhưng không biết nó *đúng bao nhiêu phần trăm*. Một
-   tệp ~200 đoạn văn bản có nhãn (mỗi ngôn ngữ 20 đoạn, lấy từ chính corpus đã
-   crawl) cho phép tính ma trận nhầm lẫn và tinh chỉnh ngưỡng bằng số liệu.
-   Với một đồ án tốt nghiệp, đây là phần biến "tôi cài một bộ nhận diện ngôn
-   ngữ" thành "bộ nhận diện của tôi đạt độ chính xác 97,3% trên tập kiểm thử" —
-   khác biệt lớn về sức thuyết phục.
-
----
-
-## 10. Liên kết
+## 9. Liên kết
 
 - Tuyến phòng thủ thứ nhất (rẻ hơn, chặn trước khi tải): [`UrlFilter.md`](./UrlFilter.md) mục 4
 - Nguồn `declaredLang`, và lý do không tin nó: [`ContentParser.md`](./ContentParser.md) mục 3.3

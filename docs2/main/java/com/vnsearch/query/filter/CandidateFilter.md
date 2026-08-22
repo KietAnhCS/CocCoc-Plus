@@ -482,41 +482,7 @@ cd search-engine
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chẩn đoán vấn đề gốc | 10/10 | Nêu **ba** hậu quả cụ thể của thân hàm 104 dòng, trong đó "không đo được" là hậu quả ít người nghĩ tới nhất |
-| Đúng mẫu thiết kế | 10/10 | Chain of Responsibility đúng chỗ; và ranh giới với Composite được phân định rõ bằng tiêu chí "có posting list hay không" |
-| Thiết kế phục vụ đo đạc | 10/10 | `name()` biến "không đo được" thành một bảng số liệu |
-| `isApplicable` với `default` | 10/10 | Cài đặt đơn giản không phải viết gì; cài đặt có điều kiện thì việc ghi đè trở thành tuyên bố rõ ràng |
-| Chọn `FilterContext` | 9/10 | Gói dữ liệu dùng chung nên thêm trường không phá cài đặt cũ |
-| Phát biểu bất biến | 9/10 | Nêu rõ "vào và ra đều sắp xếp tăng dần, mọi cài đặt phải giữ" |
-| Ép bất biến | 3/10 | Không gì kiểm tra; một bộ lọc sắp xếp lại sẽ phá mọi tầng sau, im lặng |
-| **Javadoc lỗi thời** | **4/10** | Ba tầng mô tả trong Javadoc **không còn tồn tại** ở dạng bộ lọc — chúng đã chuyển vào cây truy vấn |
-| Khả năng kiểm thử | 5/10 | Cài đặt test riêng được (đúng mục tiêu), nhưng chưa có bộ test hợp đồng |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Cập nhật Javadoc cho khớp thực tế.** Bảng "1. Giao posting list / 2. Khớp
-   cụm từ / 3. Loại trừ" mô tả kiến trúc **trước khi** cây truy vấn ra đời — cả
-   ba tầng đó nay là [`AndNode`](../ast/AndNode.md), [`PhraseNode`](../ast/PhraseNode.md),
-   [`NotNode`](../ast/NotNode.md). Người đọc Javadoc hiện tại sẽ đi tìm ba lớp
-   không tồn tại. Nguyên tắc "rẻ và loại nhiều trước" vẫn đúng và đáng giữ, chỉ
-   cần thay ví dụ bằng các bộ lọc thật.
-2. **Cân nhắc chỉ mục `host → docIds` cho [`DomainFilter`](./DomainFilter.md).**
-   Đo ở mục 5.2 cho thấy `site:` loại 97% ứng viên nhưng chạy **sau** cây — đúng
-   ngược với nguyên tắc "loại nhiều trước" mà chính Javadoc nêu. Một `Map<String,
-   List<Integer>>` host → docIds (vài nghìn mục, ~1 MB) sẽ biến nó thành một
-   `TermNode` giả trong cây, giao two-pointer $O(m+n)$ thay vì 4.812 lần
-   `URI.create`. Đây là ngoại lệ đáng cân nhắc đối với quy tắc phân công ở mục 4.
-3. **Thêm bộ test hợp đồng** (mục 7), đặc biệt hai ca canh bất biến sắp xếp và
-   "chỉ được bớt". Đây là hai ràng buộc mà giao diện tuyên bố nhưng không ép
-   được, và vi phạm chúng gây hỏng im lặng ở các tầng phía sau.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Hai cài đặt hiện có: [`DomainFilter.md`](./DomainFilter.md) · [`MaxCandidatesFilter.md`](./MaxCandidatesFilter.md)
 - Nơi chuỗi lọc được chạy: [`../CandidateResolver.md`](../CandidateResolver.md)

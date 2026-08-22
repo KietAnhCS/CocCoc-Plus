@@ -290,31 +290,7 @@ curl -H "Authorization: Bearer <token-admin>" http://localhost:8080/api/admin/us
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Thiết kế mô hình miền | 9/10 | Bất biến, `withX` rõ ràng, `PublicView` tách đúng ranh giới |
-| Bảo mật | 9/10 | Không có chỗ chứa mật khẩu thô; hash không lọt ra ngoài theo kiểu học |
-| Tài liệu trong mã | 9/10 | Javadoc nói **vì sao**, không nhắc lại tên trường |
-| Khả năng tiến hoá | 7/10 | Thêm trường dễ; nhưng `PublicView` phải sửa tay, dễ quên khi vội |
-| Khả năng kiểm thử | 9/10 | Record thuần, dựng trong một dòng, không cần mock |
-| Tuân thủ riêng tư | 7/10 | Có cả khoá mềm lẫn `delete`; nhưng số liệu sử dụng vẫn ghi theo tên tài khoản, xoá tài khoản không xoá phần đó |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Test kiến trúc** (ArchUnit): "không lớp nào trong `controller` được có
-   `User` trong chữ ký công khai". Biến quy ước thành luật do CI canh giữ.
-2. **`@CheckReturnValue`** cho bốn hàm `withX`, chặn lỗi vứt kết quả.
-3. **`passwordChangedAt`** — mốc thời gian phục vụ kiểm toán ("mật khẩu này đã
-   dùng bao lâu rồi?") và làm nền cho chính sách buộc đổi định kỳ. Việc đóng
-   các phiên khác khi đổi mật khẩu thì **đã có rồi** —
-   `SessionStore.revokeAllForExcept` được `AuthController` gọi; xem
-   [`SessionStore.md`](./SessionStore.md).
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Vai trò của trường `role`: [`Role.md`](./Role.md)
 - Nơi `User` được lưu: [`UserStore.md`](./UserStore.md) → [`JsonUserStore.md`](./JsonUserStore.md)

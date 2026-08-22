@@ -554,43 +554,7 @@ politeness bị vi phạm trong một tình huống rất thường gặp.
 
 ---
 
-## 10. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Thiết kế thuật toán | 10/10 | Bất biến "một hàng đợi một host" làm politeness thành một phép so sánh |
-| Cải thiện độ phức tạp | 10/10 | $O(D) \to O(\log n)$, không còn phụ thuộc số host |
-| Chặn tài nguyên | 10/10 | Mapping Table ≤ `queueCount` — sửa đúng lỗi rò bộ nhớ của bản cũ |
-| Chi tiết tinh vi | 10/10 | Giữ đồng hồ khi cạn; khoá phụ để tái hiện; xoá lười — cả ba đều có lý do viết rõ |
-| Bám sát tài liệu tham chiếu | 10/10 | Bảng ánh xạ bốn khối Mercator sang bốn phần của lớp |
-| Bất biến được tài liệu hoá | 9/10 | Bất biến heap nêu rõ — nhưng chỉ Javadoc canh giữ |
-| Xử lý trường hợp xấu | 6/10 | `fillSlot` có thể kéo cả tầng trước trong một lời gọi, khi đang giữ khoá |
-| Khả năng kiểm thử | 8/10 | Test được không cần mạng; ca ④ cần có nếu chưa có |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Chặn số URL kéo lên trong một `refillFrom`.** Trường hợp xấu nhất (mục 6)
-   có thể kéo toàn bộ 500.000 URL từ tầng trước trong **một** lời gọi `nextUrl`,
-   trong khi đang giữ khoá của [`UrlFrontier`](./UrlFrontier.md) — đóng băng mọi
-   worker trong khoảng đó. Một trần (ví dụ `10 × queueCount` URL mỗi lần refill)
-   biến chi phí xấu nhất thành hằng số mà không đổi hành vi ở ca thường.
-
-2. **Biến bất biến heap thành thứ kiểm tra được.** `availableAt[i]` chỉ được sửa
-   khi `inReady[i] == false` — hiện chỉ có Javadoc canh giữ. Một hàm
-   `setAvailableAt(int slot, long when)` với `assert !inReady[slot]` bên trong,
-   và mọi phép gán đi qua nó, biến một quy ước thành một ràng buộc bắt được
-   trong test (`-ea`).
-
-3. **Politeness theo từng host.** `politenessDelayMs` hiện là một giá trị chung.
-   Đổi `availableAt[slot] = now + politenessDelayMs` thành
-   `now + delayFor(boundHost[slot])` cho phép tôn trọng `Crawl-delay:` mà
-   [`RobotsTxtParser`](../RobotsTxtParser.md) đã đọc được nhưng đang bỏ qua.
-   Thay đổi khu trú trong đúng một dòng — cấu trúc hiện tại đã sẵn sàng cho nó,
-   vì mỗi slot đã biết host của mình.
-
----
-
-## 11. Liên kết
+## 10. Liên kết
 
 - Lớp Facade bọc khoá và ghép hai tầng: [`UrlFrontier.md`](./UrlFrontier.md)
 - Tầng trước (nguồn của `refillFrom`): [`FrontQueues.md`](./FrontQueues.md)

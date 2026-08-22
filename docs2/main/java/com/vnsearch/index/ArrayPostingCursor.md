@@ -498,45 +498,7 @@ trước. Đây là kịch bản mà lỗi tích luỹ trạng thái sẽ lộ r
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn thuật toán | 10/10 | Galloping hai pha cài đúng; cận dưới đúng biến thể; dòng kiểm tra cuối bắt được trường hợp mà nhiều cài đặt bỏ sót |
-| Phòng lỗi tràn số | 10/10 | `>>>` thay `/2` — lỗi từng tồn tại 9 năm trong chính JDK |
-| Không cấp phát | 10/10 | Giữ tham chiếu, không sao chép; duyệt tốn 0 byte |
-| Đóng gói | 10/10 | Package-private + `final` ⇒ đổi cài đặt tự do, JIT nội tuyến được |
-| Xử lý biên | 10/10 | Cursor đã hết vẫn gọi được, trả giá trị trung tính nhất quán |
-| Tài liệu hoá | 9/10 | Javadoc giải thích hai pha và bất biến; nhưng **dòng cuối** — dòng khó nhất — chỉ có một dòng chú thích ngắn |
-| Khả năng kiểm thử | 9/10 | 9 ca kể cả kiểm chứng đối sánh; thiếu ca mảng một phần tử và nhiều skip liên tiếp |
-| Hiệu năng | 8/10 | Rất tốt cho một cài đặt trên `List`; `postings.get(i)` là lời gọi giao diện, không phải truy cập mảng thẳng |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Chú thích đầy đủ cho dòng cuối** (mục 2.4). Đây là dòng khó nhất và nguy
-   hiểm nhất của lớp — bỏ nó đi thì kết quả truy vấn sai mà không có lỗi nào
-   được ném — nhưng hiện chỉ có mã, không có lời giải thích:
-   ```java
-   // Binary search chỉ tìm cận dưới TRONG ĐOẠN [low, high]. Nếu pha 1 thoát
-   // vì nhảy ra ngoài mảng và phần tử cuối vẫn < target, thì lo trỏ vào một
-   // docId nhỏ hơn target — khi đó cursor phải chuyển sang trạng thái ĐÃ HẾT
-   // (index = n) chứ không được báo nhảy thành công.
-   index = postings.get(lo).docId() >= targetDocId ? lo : n;
-   ```
-2. **Thêm hai ca test ở mục 5.** Mảng một phần tử là trường hợp mà pha 1 thoát
-   ngay và pha 2 không chạy vòng nào — một đường đi mà 9 ca hiện có không đi
-   qua. Nhiều `skipTo` liên tiếp là kịch bản dùng thật.
-3. **Viết cursor thứ hai đọc thẳng từ [`CompressedPostings`](./CompressedPostings.md).**
-   Hiện tầng truy vấn phải giải nén posting list thành `List<Posting>` rồi mới
-   dựng cursor — tức là vẫn cấp phát 1,59 triệu đối tượng `Posting`, đúng thứ mà
-   giao diện cursor sinh ra để tránh. Một cursor giải mã VByte tại chỗ sẽ khép
-   kín vòng tối ưu: không cấp phát từ chỉ mục nén thẳng tới kết quả. Đây cũng là
-   lý do `PostingCursor.of` được thiết kế thành factory (mục 1.1) — hạ tầng đã
-   sẵn sàng, chỉ còn thiếu cài đặt.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Hợp đồng mà lớp này cài đặt, và giải thích galloping ở mức khái niệm: [`PostingCursor.md`](./PostingCursor.md)
 - Dữ liệu mà cursor duyệt: [`Posting.md`](./Posting.md)

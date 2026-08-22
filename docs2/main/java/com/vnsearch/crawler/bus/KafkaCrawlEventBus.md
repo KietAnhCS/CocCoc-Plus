@@ -475,48 +475,7 @@ dễ bị ai đó xoá đi vì tưởng thừa.
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Cô lập hạ tầng | 10/10 | 156 dòng chứa **toàn bộ** phần dính Kafka của một hệ thống 143 lớp |
-| Xử lý lỗi bất đồng bộ | 10/10 | Phủ **cả hai** đường (callback + ném đồng bộ), kèm giải thích ba ca cụ thể |
-| Bất biến phân hoạch | 10/10 | Khoá `host` nhất quán ở cả bốn topic; hệ quả `murmur2 % N` được ghi rõ |
-| Fail-fast vs fail-soft | 10/10 | Ném lúc khởi tạo, không ném lúc chạy — ranh giới đúng và có lập luận |
-| An toàn kiểu | 9/10 | `Object` bị giới hạn trong 15 dòng private; API public có kiểu chặt |
-| Chất lượng log | 10/10 | `subject` thay vì payload; hai nhánh lỗi dùng chung định dạng |
-| Quan sát được | 8/10 | Có `publishFailures`; **thiếu `outlinksPublished`**; ba bộ đếm không có trong interface |
-| Khả năng kiểm thử | 7/10 | Có IT thật; **thiếu test mock cho khoá phân hoạch và cho hai đường lỗi** |
-
-**Năm đề xuất nâng lên mức sản phẩm:**
-
-1. **Test khoá phân hoạch bằng mock** (mã ở mục 5). Đề xuất số một: bất biến
-   quan trọng nhất của cả hệ phân tán hiện chỉ được bảo vệ bằng quy ước. Một
-   người đổi `event.host()` thành `event.url()` sẽ không làm đỏ test nào, và
-   triệu chứng chỉ xuất hiện sau nhiều giờ crawl với nhiều tiến trình.
-
-2. **Test cho khối `try/catch` đồng bộ.** Khối này trông thừa với người chưa đọc
-   Javadoc, nên nó là ứng viên số một cho việc "dọn dẹp" nhầm. Một bài test mock
-   ném `RecordTooLargeException` sẽ khoá nó lại vĩnh viễn.
-
-3. **Cảnh báo trên tỷ lệ, không trên số tuyệt đối.** Xem công thức ở mục 2.5.
-   Hiện thang đo đã có nhưng ngưỡng cảnh báo chưa được định nghĩa ở đâu — mà
-   một thang đo không có ngưỡng thì không ai nhìn.
-
-4. **Thêm `outlinksPublished`.** Ba trong bốn luồng có bộ đếm; luồng nuôi
-   PageRank thì không. Nếu nó ngừng chảy, triệu chứng duy nhất là PageRank ra
-   kết quả lạ **sau khi** crawl xong. Cùng đề xuất với bản in-process — nên sửa
-   cả hai để hai chế độ vẫn đối xứng.
-
-5. **Ghi `contentHash` vào header Kafka.** Cho phép consumer khử trùng **mà
-   không phải deserialize** cả 80 KB thân thông điệp. Tối ưu thật ở phía nhận,
-   nhất là khi một consumer mới đọc lại topic từ đầu. Header cũng là chỗ đúng
-   cho `schemaVersion` (xem [`PageEvent`](./PageEvent.md) đề xuất 1) và cho
-   `traceId`.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Hợp đồng mà lớp này cài: [`CrawlEventBus.md`](./CrawlEventBus.md)
 - Bản cài song song, và những gì nó mô phỏng: [`InProcessCrawlEventBus.md`](./InProcessCrawlEventBus.md)

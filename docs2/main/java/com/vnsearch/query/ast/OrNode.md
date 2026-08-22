@@ -421,43 +421,7 @@ cd search-engine
 
 ---
 
-## 9. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Gỡ bỏ hạn chế kiến trúc | 10/10 | 50 dòng gỡ được cả chuỗi "cấu trúc phẳng → không có OR → `union` bị bỏ phí" |
-| Tận dụng tính chất đại số | 10/10 | Bắt đầu từ `List.of()` (phần tử trung hoà) nên không cần nhánh đặc biệt nào |
-| Giữ bất biến | 10/10 | `union` two-pointer giữ nguyên tính sắp xếp; khử trùng miễn phí |
-| Phòng tràn số | 10/10 | `long` + kẹp — chi phí một chữ, chống một lỗi làm tối ưu chạy ngược |
-| Trung thực về ước lượng | 9/10 | Chú thích nói rõ đây là chặn trên và vì sao vẫn đủ dùng |
-| Đơn giản | 10/10 | Không thêm tối ưu không cần thiết |
-| **Ghi lại quyết định** | **5/10** | Việc **không** sắp xếp shortest-first (khác hẳn `AndNode`) không được giải thích ở đâu |
-| Hiệu năng | 5/10 | Cùng vấn đề đóng hộp `List<Integer>` của cả tầng; và OR là trường hợp tệ nhất |
-| Bất biến của `children` | 6/10 | `record` không sao chép danh sách |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Ghi lại vì sao không sắp xếp shortest-first.** Đây là khác biệt rõ nhất so
-   với [`AndNode`](./AndNode.md) ngay bên cạnh, và người đọc chắc chắn sẽ thắc
-   mắc. Không ghi lại thì hoặc ai đó thêm phép sắp xếp vô ích, hoặc ai đó tưởng
-   đây là thiếu sót. Một đoạn Javadoc ngắn:
-   > *"Khác `AndNode`, nút này **không** sắp xếp con theo `estimatedSize`. Với
-   > phép hợp, kích thước kết quả không phụ thuộc thứ tự và phần lớn chi phí là
-   > đọc posting list của các con — không tránh được. Sắp xếp chỉ tiết kiệm chi
-   > phí ghép trung gian, mà OR hiếm khi có quá 2–3 nhánh."*
-2. **Sao chép phòng thủ `children`** — cùng đề xuất với [`AndNode`](./AndNode.md):
-   ```java
-   public OrNode {
-       children = List.copyOf(children);
-   }
-   ```
-3. **Thêm `OrNodeTest.java`**, đặc biệt ca `khongTranSoVoiUocLuongLon`. Phòng thủ
-   `long` hiện hoàn toàn không có test — và một refactor đổi `long sum` thành
-   `int sum` (trông vô hại, thậm chí "sạch hơn") sẽ đi qua mọi test hiện có.
-
----
-
-## 10. Liên kết
+## 9. Liên kết
 
 - Giao diện và bất biến sắp xếp: [`QueryNode.md`](./QueryNode.md)
 - Nút đối xứng, có shortest-first và thoát sớm: [`AndNode.md`](./AndNode.md)

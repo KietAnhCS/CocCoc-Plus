@@ -553,40 +553,7 @@ cd search-engine
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn thuật toán | 10/10 | `Math.floorMod` xử lý đúng số âm; chuẩn hoá trên tập còn hàng cho đúng 1 lần bốc |
-| Chất lượng quyết định thiết kế | 10/10 | Luỹ thừa 2 có tính chất "một mức > tổng mọi mức dưới" — biện minh được bằng toán, không bằng cảm tính |
-| Tài liệu hoá | 10/10 | Javadoc có **bảng xác suất cụ thể**, giải thích cả lý do chuẩn hoá và lý do dùng hạt giống cố định |
-| Xử lý biên | 9/10 | Trần `MAX_LEVELS` chặn tràn; nhánh `throw` bắt trạng thái bất khả thi; `Random` null bị từ chối |
-| Khả năng lặp lại | 10/10 | Hạt giống cố định `20240801L` + hàm dựng nhận `Random` ⇒ mọi phép đo so sánh được |
-| Hiệu năng | 10/10 | $O(n)$, không cấp phát; chi phí chống bỏ đói không đo được |
-| **Khả năng kiểm thử** | **4/10** | **Không có test riêng** dù là cài đặt mặc định và có ba chỗ sai lặng lẽ |
-| An toàn đa luồng | 7/10 | Không thread-safe nhưng **ghi rõ**, và người gọi duy nhất đã khoá đúng |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Thêm `WeightedRandomSelectorTest.java`** (mục 5). Đây là khoảng trống lớn
-   nhất của lớp: nó là bộ chọn **mặc định** của hệ thống, và lỗi `%` vs
-   `floorMod` sẽ đi qua mọi test hiện có mà không để lại dấu vết nào ngoài một
-   kho dữ liệu thiên lệch mà không ai giải thích được. Ca `phanBoKhopVoiLyThuyet`
-   một mình đã đáng giá.
-2. **Đưa phân bố thật vào báo cáo.** Hàm `main` đã in ra bảng so sánh thực tế ↔
-   lý thuyết — đó chính là loại bằng chứng mà mục "đánh giá" cần, và nó đang
-   nằm không. Chạy kèm phiên [`StrictPrioritySelector`](./StrictPrioritySelector.md)
-   làm đối chứng thì có luôn một cặp số liệu hoàn chỉnh.
-3. **Cân nhắc `random.nextLong(totalWeight)` (Java 17+)** thay cho
-   `Math.floorMod(random.nextLong(), totalWeight)`. Ngoài việc gọn hơn, nó loại
-   bỏ **sai lệch modulo** — một sai lệch nhỏ tới mức không đo được ở quy mô này
-   (khi `totalWeight = 31` và miền `long` là $2^{64}$), nhưng nó khiến người đọc
-   không phải tự thuyết phục mình rằng sai lệch đó bỏ qua được. Kiểm tra phiên
-   bản Java của dự án trong `pom.xml` trước khi đổi.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Hợp đồng mà lớp này cài đặt: [`FrontQueueSelector.md`](./FrontQueueSelector.md)
 - Cài đặt đối chứng, có bỏ đói: [`StrictPrioritySelector.md`](./StrictPrioritySelector.md)

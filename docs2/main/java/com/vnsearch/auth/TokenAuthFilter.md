@@ -315,34 +315,7 @@ void tokenHongKhongChanDuongCongKhai() throws Exception {
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn của tích hợp Spring Security | 10/10 | Hàm dựng 3 tham số, credentials `null`, `OncePerRequestFilter` — không sai chi tiết nào |
-| Tách trách nhiệm | 10/10 | Xác thực và phân quyền tách sạch; filter không biết đường nào cần quyền gì |
-| Xử lý đầu vào bất thường | 9/10 | Bốn ca của `extractToken` đều đúng, kể cả scheme viết hoa |
-| Bảo mật | 9/10 | Không ghi log token, không đặt token vào `Authentication` |
-| Lập luận thiết kế | 10/10 | Javadoc giải thích rõ vì sao có **hai** đường vào và vì sao giữ cả hai |
-| Khả năng kiểm thử | 7/10 | Có test đường đầy đủ; thiếu test cho ca "token hỏng trên đường công khai" |
-| Quan sát được (observability) | 5/10 | Không có số liệu nào: bao nhiêu request có token hợp lệ / hết hạn / hỏng |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Thêm số liệu Micrometer**: `auth.token.valid`, `auth.token.expired`,
-   `auth.token.invalid`. Đây là điểm mù lớn nhất hiện nay — một đợt dò token
-   sẽ **hoàn toàn vô hình** với người vận hành, vì filter cố tình không ghi log
-   khi thất bại. Đếm số liệu cho thấy tín hiệu mà không lộ giá trị token.
-2. **Test cho ca "token hỏng trên đường công khai"** (mục 5). Hành vi đó là kết
-   quả của một quyết định thiết kế có chủ ý, nhưng hiện chỉ có comment dòng
-   67–70 bảo vệ nó — người bảo trì kế tiếp rất dễ "sửa" thành trả 401.
-3. **Viết bốn quy tắc ở mục 3.5 thành một `interface AuthenticationStrategy`**
-   hoặc ít nhất một mục trong `docs/SECURITY.md`. Giao ước giữa các filter hiện
-   chỉ tồn tại trong Javadoc của một lớp, nên filter thứ ba rất dễ vi phạm nó.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Nơi token được sinh và tra: [`SessionStore.md`](./SessionStore.md)
 - Nơi vai trò thành `ROLE_ADMIN`: [`Role.md`](./Role.md)

@@ -503,47 +503,7 @@ Get-Process java | Select-Object Id, @{n='RSS_MB';e={[math]::Round($_.WorkingSet
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Quản lý tài nguyên native | 10/10 | `deflater.end()` trong `finally` — chi tiết mà rất nhiều mã sản phẩm bỏ sót, kèm chú thích giải thích vì sao nó vô hình trong heap dump |
-| Lập luận kiến trúc | 10/10 | Bảng ba cột với dòng "chạy khi không có CSDL"; và đối chiếu tường minh với lựa chọn ngược lại ở [`CompressedPostings`](./CompressedPostings.md) |
-| Chọn công cụ | 10/10 | Deflate thô thay GZIP: tiết kiệm 18 byte/tài liệu **và** giữ tính tất định |
-| An toàn bảng mã | 10/10 | UTF-8 tường minh — bắt buộc với văn bản tiếng Việt qua nhiều môi trường |
-| Xử lý ngoại lệ | 10/10 | Lập luận "I/O vào bộ nhớ là bất khả thi" đúng; bọc thành `UncheckedIOException` mà vẫn giữ nguyên nhân gốc |
-| Đối xứng API | 10/10 | `null`/rỗng khớp nhau ở cả hai chiều |
-| Cấu hình | 6/10 | `LEVEL` cứng ở mức mặc định, không có số liệu biện minh và không đổi được từ ngoài |
-| Khả năng quan sát | 5/10 | Không có cách nào biết tỉ lệ nén thật đang là bao nhiêu mà không tự viết mã đo |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Đo và ghi lại tỉ lệ nén thật.** Đây là hằng số duy nhất của lớp chưa có số
-   liệu hậu thuẫn — khác với [`VByteCodec`](./VByteCodec.md) (có "tiết kiệm
-   75%") và [`UrlCanonicalizer`](../crawler/UrlCanonicalizer.md) (có "23 cặp
-   trùng"). Chạy mã ở mục 4.1 và 4.2, rồi ghi kết quả vào Javadoc:
-   *"Trên corpus 2.518 trang: 20,1 MB → 5,6 MB (còn 28%). Mức 9 chỉ còn 26%
-   nhưng nén chậm gấp 4."*
-2. **Cho phép đặt mức nén qua cấu hình.** Hiện `LEVEL` là `private static final`.
-   Khi corpus lớn lên, việc build chỉ mục có thể trở thành nút thắt và hạ xuống
-   mức 1 sẽ hữu ích — nhưng phải sửa mã và biên dịch lại:
-   ```java
-   public static byte[] compress(String text) { return compress(text, LEVEL); }
-
-   /** Nén với mức chỉ định (0–9). Dùng khi tốc độ build quan trọng hơn dung lượng. */
-   public static byte[] compress(String text, int level) { … }
-   ```
-   Giữ nguyên hàm một tham số nên không phá vỡ mã hiện có.
-3. **Thêm bộ đếm để quan sát được.** Với ~2.518 lần nén lúc build và ~10 lần
-   giải nén mỗi truy vấn, hai bộ đếm tổng byte vào/ra cho phép
-   [`AdminDashboard`](../analytics/AdminDashboard.md) hiển thị tỉ lệ nén thật
-   mà không phải chạy mã đo riêng — và sẽ phát hiện ngay nếu ai đó vô ý gọi
-   `getBodyText` trong vòng lặp xếp hạng (số lần giải nén mỗi truy vấn nhảy từ
-   10 lên 1.000).
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Vì sao `getBodyText` tách khỏi `getDocument`: [`SearchIndex.md`](./SearchIndex.md) mục 3.1
 - Lựa chọn nén **trái ngược** cho bài toán trái ngược: [`CompressedPostings.md`](./CompressedPostings.md) · [`VByteCodec.md`](./VByteCodec.md)

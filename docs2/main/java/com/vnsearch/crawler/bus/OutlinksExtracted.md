@@ -453,46 +453,7 @@ void jsonKhongChuaTruongSize() throws Exception {
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Nhận diện vấn đề | 10/10 | Chỉ ra chính xác vì sao tập đã lọc phá PageRank, và vì sao lỗi đó im lặng |
-| Tách trách nhiệm | 10/10 | Tách ở **tầng kiểu dữ liệu** ⇒ người viết mã sau không thể nhầm |
-| Bất biến sâu | 10/10 | `List.copyOf` chặn cả người gửi lẫn người nhận, kèm giải thích trong Javadoc |
-| Xử lý biên | 10/10 | Phân biệt đúng "rỗng là lỗi" (`sourceUrl`) và "rỗng là dữ liệu" (`outlinks` — trang ngõ cụt) |
-| Nhất quán quy ước | 9/10 | `host` cùng quy ước phân hoạch; nhưng sự khác biệt tinh tế so với `DiscoveredUrl` (host nguồn vs host đích) **không được ghi ở đâu cả** |
-| Chi phí | 10/10 | 3% lưu lượng bus cho một đồ thị đúng — đánh đổi rõ ràng |
-| Khả năng kiểm thử | 7/10 | Có test bất biến record; **thiếu test khẳng định hai luồng mang hai tập khác nhau** |
-| Tài liệu trong mã | 10/10 | Bảng so sánh hai luồng nằm ngay trong Javadoc, đúng chỗ người ta sẽ đọc |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Test hai luồng khác tập** (mã ở mục 6). Đây là đề xuất số một: toàn bộ lý
-   do tồn tại của lớp này đang được bảo vệ bằng *tài liệu*, không bằng máy. Một
-   người tối ưu "cho gọn" bằng cách lọc `outlinks` trước khi gửi sẽ không làm đỏ
-   bất kỳ test nào — và PageRank sẽ hỏng lặng lẽ.
-
-2. **Ghi rõ quy ước `host` nguồn vs đích.** Sự khác biệt ở mục 4.2 là tinh tế và
-   hiện không được ghi ở bất kỳ đâu. Một dòng Javadoc ở cả ba record
-   (`host của trang NGUỒN` / `host của URL ĐÍCH`) sẽ tiết kiệm cho người sau nửa
-   ngày dò.
-
-3. **Cân nhắc thêm `int rawCount` bên cạnh danh sách đã khử trùng.** Hiện không
-   biết một trang có bao nhiêu thẻ `<a>` **trước** khi khử trùng. Số đó là tín
-   hiệu chất lượng trang (trang toàn menu vs trang nội dung thật) mà Analytics
-   dùng được, và tốn 4 byte.
-
-4. **Chống thông điệp khổng lồ.** Một trang sitemap HTML có thể chứa hàng nghìn
-   liên kết; thông điệp sẽ phình lên vài trăm KB. Hiện không có trần nào. Nên
-   thêm một ngưỡng (ví dụ 5.000 outlink) kèm cảnh báo, vì một trang như vậy gần
-   như chắc chắn là trang chỉ mục chứ không phải trang nội dung — và giữ đủ
-   cạnh của nó không giúp PageRank chính xác hơn bao nhiêu, trong khi nó có thể
-   chạm trần `max.request.size`.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Luồng anh em, và bất biến phân hoạch: [`DiscoveredUrl.md`](./DiscoveredUrl.md)
 - Bên sinh ra cả hai luồng: [`../modular/UrlExtractorService.md`](../modular/UrlExtractorService.md)

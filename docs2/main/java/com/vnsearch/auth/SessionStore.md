@@ -449,34 +449,7 @@ phiên thật — chậm nhưng vẫn khả thi (~vài trăm mili giây).
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Mức độ an toàn mã hoá | 10/10 | 256 bit từ `SecureRandom`; loại bỏ đúng ba cách sai phổ biến |
-| Lập luận thiết kế | 10/10 | Bảng so sánh JWT nêu cả cái mất, và chỉ sẵn đường nâng cấp |
-| Chính sách thu hồi | 9/10 | Ba mức phủ đúng các tình huống thật; `…Except` cho đổi mật khẩu rất chỉn chu |
-| Khả năng kiểm thử | 9/10 | `Clock` tiêm vào biến test hết hạn thành tức thời |
-| Sẵn sàng vận hành | 5/10 | Chỉ trong RAM: khởi động lại = đăng xuất toàn bộ; không chạy nhiều bản sao được |
-| Chống lạm dụng | 7/10 | Có trần, nhưng chạm trần thì admin cũng bị chặn |
-| Hiệu năng | 10/10 | $O(1)$ trên đường nóng, chi phí không đáng kể |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Tách `SessionRepository`** (mục 3.4) để bản Redis vào được mà không đụng
-   logic. Đây là bước duy nhất chặn hệ thống khỏi chạy nhiều bản sao — cũng là
-   giới hạn mà chính Javadoc đã tự nhận.
-2. **Trần theo từng tài khoản** (ví dụ 20 phiên/người) song song với trần tổng.
-   Hiện tại một tài khoản bị lạm dụng có thể chiếm hết 10.000 dòng và **khoá cả
-   quản trị viên ra ngoài** — kịch bản từ chối dịch vụ ở mục 2.3.
-3. **Gia hạn trượt (sliding expiration)**: người đang dùng liên tục không nên
-   bị đá ra đúng giờ thứ 12. Cách làm: `lookup` gia hạn `expiresAt` nếu phiên
-   còn dưới một ngưỡng, kèm **trần tuyệt đối** (ví dụ 7 ngày) để phiên không
-   sống mãi.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Nơi token được đọc từ header: [`TokenAuthFilter.md`](./TokenAuthFilter.md)
 - Nơi phiên được mở sau khi xác thực: [`UserService.md`](./UserService.md)

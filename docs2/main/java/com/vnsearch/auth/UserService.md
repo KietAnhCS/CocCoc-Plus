@@ -560,40 +560,7 @@ assertFalse(forLogQuaPhanXa("a\nFAKE LOG").contains("\n"));
 
 ---
 
-## 9. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Bảo mật mật khẩu | 10/10 | BCrypt cost 12, salt tự sinh, trần độ dài — không có chỗ nào sai |
-| Chống liệt kê tài khoản | 10/10 | Bịt cả thông báo lẫn **thời gian phản hồi**; ba ngoại lệ đều có lý lẽ |
-| Chống dò mật khẩu | 8/10 | Khoá tạm theo tài khoản bịt đúng chỗ rate limit bỏ sót; nhưng bộ đếm mất khi khởi động lại |
-| Chống leo thang quyền | 10/10 | `register` không có tham số `role` — sai lầm không biểu đạt được |
-| An toàn nhật ký | 10/10 | `forLog` chống log injection, có Javadoc giải thích đầy đủ |
-| Xử lý lỗi | 9/10 | Phân biệt đúng dữ liệu cốt lõi và phụ trợ |
-| Khả năng kiểm thử | 7/10 | `Clock` tiêm vào rất tốt; `PasswordEncoder` thì **không** — mọi test đều chịu 250 ms/lần băm |
-| Tách trách nhiệm | 8/10 | Không biết gì về token; đổi lại, "hạ quyền phải nhớ đóng phiên" nằm ngoài lớp này |
-| Tài liệu trong mã | 10/10 | Javadoc giải thích **vì sao** cho từng quyết định, kể cả các đánh đổi |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Tiêm `PasswordEncoder` qua hàm dựng.** Hiện `new BCryptPasswordEncoder(12)`
-   được tạo cứng bên trong, nên mọi test có băm đều tốn 250 ms mỗi lần — bộ test
-   `UserServiceTest` chậm hơn cần thiết hàng chục lần. Tiêm vào cho phép test
-   dùng bản rẻ mà **không** hạ cost của sản phẩm. Đây là cải thiện đáng giá nhất
-   và rẻ nhất trong danh sách này.
-2. **Giới hạn kích thước bảng `failures`** (LRU có trần, hoặc `Caffeine` với TTL
-   = `LOCKOUT_MINUTES`). Hiện khoá của bảng do kẻ tấn công điều khiển và không
-   có trần — một đường rò bộ nhớ thật, dù chậm.
-3. **Kiểm tra mật khẩu với danh sách đã bị lộ** (HIBP k-anonymity, hoặc danh
-   sách 10.000 mật khẩu phổ biến nhất nhúng sẵn). Đây là phần còn thiếu để đạt
-   đúng khuyến nghị NIST mà Javadoc đang viện dẫn.
-4. **Gộp "đổi vai trò" và "đóng phiên" vào một thao tác.** Hiện là hai lời gọi
-   ở tầng controller; quên một cái là lỗ hổng im lặng. Một `AccountAdminService`
-   bọc cả hai sẽ biến quy ước thành ràng buộc.
-
----
-
-## 10. Liên kết
+## 9. Liên kết
 
 - Nơi lưu tài khoản: [`UserStore.md`](./UserStore.md) → [`JsonUserStore.md`](./JsonUserStore.md)
 - Kiểu dữ liệu: [`User.md`](./User.md) · [`Role.md`](./Role.md)

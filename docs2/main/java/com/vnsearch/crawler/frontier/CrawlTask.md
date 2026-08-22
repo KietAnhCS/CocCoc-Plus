@@ -359,42 +359,7 @@ cd search-engine
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chọn đúng cấu trúc ngôn ngữ | 10/10 | `record` cho một giá trị bất biến là lựa chọn chính xác; bất biến được ép ở mức ngôn ngữ chứ không bằng kỷ luật |
-| Kỷ luật về phạm vi | 10/10 | Đúng ba trường, mỗi trường có ≥ 2 nơi dùng; không có trường "để đó phòng khi" |
-| Bất biến & kiểm tra đầu vào | 9/10 | Ba phép kiểm tra bao đủ; thông điệp lỗi có kèm giá trị nhận được |
-| An toàn đa luồng | 10/10 | Bất biến ⇒ chia sẻ tự do giữa worker, không cần đồng bộ hoá |
-| Hiệu quả bộ nhớ | 7/10 | 32 byte/task là tốt, nhưng ~20 MB chuỗi `host` trùng lặp chưa được thu hồi |
-| Khả năng quan sát | 7/10 | `toString` gọn nhưng giấu `host`, nên nhánh fallback vô hình trong log |
-| Khả năng kiểm thử | 6/10 | Không có test riêng; ba phép kiểm tra bất biến không được canh giữ trực tiếp |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Cho `toString` hiện `host` khi nó khác tiền tố của `url`.** Nhánh fallback
-   ở mục 2.2 hiện hoàn toàn vô hình trong log — mà đó chính là nhánh cần nhìn
-   thấy nhất khi đi tìm nguyên nhân một phiên crawl chậm bất thường:
-   ```java
-   @Override
-   public String toString() {
-       boolean hostBatThuong = !url.contains(host);
-       return "CrawlTask{" + url + ", depth=" + depth
-               + (hostBatThuong ? ", host=" + host : "") + "}";
-   }
-   ```
-2. **Dùng chung chuỗi `host`.** ~2.000 host thật nhưng 500.000 chuỗi — một
-   `ConcurrentHashMap<String,String>` làm bảng nội trú trong `UrlFrontier.hostOf`
-   thu hồi ~20 MB với một dòng. Không dùng `String.intern()` của JVM vì nó nằm
-   trong vùng nhớ khó thu hồi và có chi phí khoá toàn cục.
-3. **Thêm `CrawlTaskTest.java`.** Ba phép kiểm tra bất biến là hàng rào bảo vệ
-   cho ba lỗi im lặng ở mục 2.3; hàng rào không có test là hàng rào có thể bị
-   ai đó gỡ đi trong một lần refactor mà CI không kêu.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Nơi task được sinh ra: [`UrlFrontier.md`](./UrlFrontier.md) mục `addUrl`
 - Nơi `depth` + `host` được đọc để xếp mức: [`Prioritizer.md`](./Prioritizer.md) · [`DefaultPrioritizer.md`](./DefaultPrioritizer.md)

@@ -270,28 +270,7 @@ curl -X POST http://localhost:8080/api/events -H "Content-Type: application/json
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn & nhất quán | 10/10 | Nhất quán thời điểm là mục tiêu thiết kế, đạt được trọn vẹn |
-| Rõ ràng của hợp đồng API | 9/10 | Record + Javadoc từng trường; thiếu versioning |
-| Riêng tư | 10/10 | Ranh giới được tuyên bố và tuân thủ |
-| Trung thực dữ liệu | 10/10 | `truncated`, `avgSessionMinutes` không suy đoán |
-| Khả năng tái sử dụng | 9/10 | `Counted` dùng chung cho 4 bảng |
-| Kiểm thử | 7/10 | Chưa có test hợp đồng JSON |
-
-**Ba đề xuất:**
-
-1. **Percentile thay vì chỉ trung bình**: thêm `p50/p95/p99` — đã có bucket, chỉ
-   cần nội suy; đó cũng là ngôn ngữ mà SLO dùng.
-2. **Test hợp đồng JSON** (`@JsonTest`) để đổi tên trường bị chặn ở CI.
-3. **`schemaVersion`** cho toàn bộ payload dashboard, giúp giao diện cũ suy biến
-   êm thay vì hiện `undefined`.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Nơi sinh ra: [`UsageAnalyticsService.md`](./UsageAnalyticsService.md)
 - Kiểu chứa: [`AdminDashboard.md`](./AdminDashboard.md)

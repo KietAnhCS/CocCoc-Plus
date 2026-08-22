@@ -490,41 +490,7 @@ cd search-engine
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chất lượng trừu tượng hoá | 10/10 | Tách đúng ranh giới; ba lý do (thay cài đặt / giả lập / đo được) đều là lý do thật, không phải trừu tượng hoá cho vui |
-| Phát biểu bất biến | 10/10 | Đóng khung riêng, giải thích **ba tối ưu** mà nó mở khoá — cách viết tài liệu hợp đồng chuẩn mực |
-| Thiết kế API theo chi phí | 10/10 | `getBodyText` tách khỏi `getDocument`; độ phức tạp ghi trong Javadoc từng phương thức |
-| Bảo vệ đóng gói | 9/10 | `getAllDocuments` không sửa được; nhưng `getPostings` và `getPositions` trả cấu trúc sửa được (đánh đổi hiệu năng có ý thức) |
-| **Ép buộc bất biến** | **3/10** | **Không có gì kiểm tra**; vi phạm gây sai kết quả im lặng ở ba tầng khác nhau |
-| Bề mặt API | 7/10 | 11 phương thức là nhiều; nhóm 3 (truy cập tài liệu) có thể tách thành giao diện riêng — xem đề xuất 3 |
-| Khả năng kiểm thử | 6/10 | Giả lập được (lợi ích lớn nhất của giao diện), nhưng chưa có bộ test hợp đồng |
-| Số cài đặt | 5/10 | Mới có **một** cài đặt — chưa chứng minh được trục trừu tượng đặt đúng chỗ |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Thêm bộ test hợp đồng, đặc biệt là ca kiểm tra bất biến sắp xếp** (mục 6).
-   Đây là khoảng trống nghiêm trọng nhất của cả gói `index`: bất biến này là nền
-   móng của ba tối ưu ở ba tầng khác nhau, và hiện nó chỉ đúng nhờ tình cờ của
-   thứ tự gán `docId` trong [`InvertedIndex`](./InvertedIndex.md). Chi phí một
-   ca test: 8 dòng.
-2. **Trả `Collections.unmodifiableList` từ `getPostings`.** Hiện tầng truy vấn
-   nhận được danh sách thật của chỉ mục; một lời gọi `sort()` hay `remove()` vô
-   ý sẽ phá bất biến vĩnh viễn cho tới lần build lại. `unmodifiableList` là một
-   lớp bọc mỏng, chi phí gần bằng 0, và biến một lỗi im lặng thành một ngoại lệ
-   ngay tại dòng gây lỗi.
-3. **Cân nhắc tách nhóm 3 thành `DocumentStore`.** `getDocument`, `getBodyText`,
-   `getAllDocuments` không liên quan gì tới việc "chỉ mục ngược" — chúng là kho
-   tài liệu. Tách ra sẽ khiến một cài đặt chỉ mục nén không phải cài lại ba
-   phương thức không thuộc về nó, và khiến giả lập trong test còn gọn hơn nữa.
-   Dự án **đã có** [`DocumentStore`](../storage/DocumentStore.md) ở gói
-   `storage` — đây có thể là cùng một trách nhiệm đang bị cài đặt ở hai nơi.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Cài đặt duy nhất hiện có: [`InvertedIndex.md`](./InvertedIndex.md)
 - Dữ liệu mà `getPostings` trả về: [`Posting.md`](./Posting.md)

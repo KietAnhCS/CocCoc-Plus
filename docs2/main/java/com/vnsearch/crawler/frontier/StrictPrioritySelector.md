@@ -329,43 +329,7 @@ cd search-engine
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Trung thực về hạn chế | 10/10 | Javadoc **tự nói** mình bỏ đói và nói rõ vì sao không phải mặc định — hiếm và rất đáng giá |
-| Đơn giản | 10/10 | 7 dòng logic, không thể gọn hơn mà vẫn đúng hợp đồng |
-| Giữ hợp đồng | 10/10 | Cả ba điều kiện của `FrontQueueSelector`, và cấu trúc mã khiến vi phạm khó xảy ra |
-| An toàn đa luồng | 10/10 | Không trạng thái ⇒ dùng chung tự do; là bộ chọn duy nhất trong gói có tính chất này |
-| Hiệu năng | 10/10 | $O(n)$ với $n=5$, không cấp phát; tối ưu thêm sẽ làm chậm hệ thống (mục 2.2) |
-| Lý do tồn tại | 9/10 | Ba vai trò rõ ràng (test, đường cơ sở, tài liệu sống); nhưng vai trò "đường cơ sở" chưa được khai thác bằng số liệu thật |
-| Khả năng kiểm thử | 6/10 | Không có test riêng; hành vi với mảng rỗng đang đúng một cách tình cờ |
-| Bảo vệ khỏi dùng sai | 5/10 | Không có gì ngăn ai đó đặt nó làm mặc định trong sản phẩm ngoài một đoạn Javadoc |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Khai thác vai trò đường cơ sở bằng số liệu thật** (mục 3.3). Lớp này được
-   viết ra để làm đối chứng nhưng dự án chưa có bảng so sánh nào dùng nó. Chạy
-   hai phiên 30.000 trang, ghi ba số liệu ở mục 3.3, đưa vào báo cáo — đó là
-   cách biến một quyết định thiết kế thành một kết luận có chứng cứ, đúng như
-   [`UrlCanonicalizer`](../UrlCanonicalizer.md) đã làm với "23 cặp trùng".
-2. **Thêm `StrictPrioritySelectorTest.java`** (mục 5). Ba ca, ~20 dòng. Đáng
-   nhất là ca mảng rỗng, vì đó là hành vi hiện chưa ai chủ động quyết định.
-3. **Đánh dấu rõ đây không phải lựa chọn cho sản phẩm.** Javadoc đã nói, nhưng
-   Javadoc không xuất hiện khi ai đó gõ `new StrictPri…` và để IDE gợi ý. Một
-   cách rẻ và hiệu quả hơn: đổi tên thành `StrictPrioritySelector` kèm hằng số
-   tự mô tả, hoặc thêm một phương thức tĩnh có tên nói rõ mục đích:
-   ```java
-   /** Bộ chọn tất định cho kiểm thử và đo đường cơ sở. KHÔNG dùng cho crawl thật. */
-   public static FrontQueueSelector choKiemThu() {
-       return new StrictPrioritySelector();
-   }
-   ```
-   Tên gọi ở chỗ sử dụng là tài liệu mà không ai bỏ qua được.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Hợp đồng mà lớp này cài đặt: [`FrontQueueSelector.md`](./FrontQueueSelector.md)
 - Cài đặt mặc định, và cách nó chống bỏ đói: [`WeightedRandomSelector.md`](./WeightedRandomSelector.md)

@@ -354,40 +354,7 @@ Test `mucLuonNamTrongMienHopLe` quét 50 × 4 × 3 = 600 tổ hợp và bắt đ
 
 ---
 
-## 6. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng mẫu thiết kế | 10/10 | Strategy đặt đúng chỗ: chính sách ưu tiên là thứ thay đổi nhiều nhất của một crawler |
-| Chọn kiểu trả về | 10/10 | Trả **mức** thay vì **điểm** là quyết định kiến trúc then chốt — nó khiến tầng trước thành $O(1)$ và chống-bỏ-đói-được |
-| Bề mặt API | 9/10 | Hai phương thức, bốn tham số, không thừa; `url` chưa dùng nhưng có lý do chính đáng |
-| Hợp đồng được ghi rõ | 8/10 | Javadoc nói rõ "0 là cao nhất" và miền giá trị; nhưng tính thuần và an toàn đa luồng chỉ ngầm hiểu |
-| Ép buộc hợp đồng | 5/10 | Không có gì ngăn một cài đặt trả về mức ngoài biên hay giữ trạng thái; lỗi chỉ lộ ở tầng dưới |
-| Khả năng kiểm thử | 6/10 | Cài đặt mặc định có test riêng, nhưng **không có bộ test hợp đồng** dùng chung |
-| Khả năng mở rộng | 9/10 | Cắm chính sách mới không đụng lớp nào khác; hạn chế duy nhất là công thức trọng số của bộ chọn gắn với số mức |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Ghi rõ ba ràng buộc vào Javadoc của giao diện**, đặc biệt là *"cài đặt phải
-   thuần và an toàn đa luồng vì `levelOf` được gọi ngoài khối khoá của
-   `UrlFrontier`"*. Hiện điều này chỉ đọc được từ mã nguồn của `UrlFrontier` —
-   người viết cài đặt mới không có lý do gì để mở file đó ra.
-2. **Thêm bộ test hợp đồng** (mục 5). Một giao diện Strategy có nhiều cài đặt mà
-   không có test hợp đồng thì mỗi cài đặt mới là một cơ hội tái phát cùng một
-   lỗi. Chi phí: ~40 dòng, dùng lại được vĩnh viễn.
-3. **Bọc phép kẹp vào một `default` method** để cài đặt không thể quên:
-   ```java
-   default int clamp(int level) {
-       return Math.max(0, Math.min(level, levels() - 1));
-   }
-   ```
-   Không ép buộc được (cài đặt vẫn có thể không gọi), nhưng nó biến "phải nhớ
-   viết đúng công thức" thành "phải nhớ gọi một hàm" — dễ hơn hẳn, và làm ý
-   định hiện rõ ngay trong giao diện.
-
----
-
-## 7. Liên kết
+## 6. Liên kết
 
 - Cài đặt mặc định và lập luận về "mỗi tín hiệu một bậc": [`DefaultPrioritizer.md`](./DefaultPrioritizer.md)
 - Nơi mức trở thành chỉ mục hàng đợi: [`FrontQueues.md`](./FrontQueues.md)

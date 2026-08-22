@@ -396,32 +396,7 @@ curl -H "Authorization: Bearer <token-admin>" http://localhost:8080/api/admin/da
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| An toàn đồng thời | 9/10 | Đúng ở những chỗ khó (double-check, volatile ghi sau); sai lệch nhỏ được ghi nhận có ý thức |
-| Chống lạm dụng | 10/10 | Trần số lượng **và** trần kích thước cho mọi đầu vào công khai |
-| Hiệu năng đường nóng | 10/10 | $O(1)$, `LongAdder`, không khoá toàn cục, không I/O |
-| Riêng tư | 9/10 | Không IP/cookie; ranh giới đăng nhập được tuyên bố rõ |
-| Khả năng kiểm thử | 9/10 | `Clock` tiêm từ ngoài — vòng đệm 24 giờ test được |
-| Độ bền dữ liệu | 5/10 | **Mất hết khi khởi động lại** — có ý thức, nhưng vẫn là hạn chế |
-| Khả năng quan sát | 7/10 | Có `dropped` nhưng chưa đẩy ra Prometheus |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Đẩy `dropped` ra Micrometer** (`Counter` tên `vnsearch.analytics.dropped`)
-   để có cảnh báo khi hệ thống bị dội rác, thay vì chỉ hiện một cờ boolean.
-2. **Rate limit theo `sessionId`** ở `EventController` — hiện `RateLimitFilter`
-   chặn theo IP, nhưng chính `/api/events` là nơi đáng chặn theo phiên nhất.
-3. **Xuất định kỳ ra Prometheus** những chỉ số cần lịch sử (CTR,
-   `zeroResultRate`), để mất khi khởi động lại chỉ ảnh hưởng bảng thời gian thực.
-4. **Loại bỏ đua ở trần**: dùng `AtomicInteger` đếm kích thước thay cho
-   `map.size()` nếu muốn trần chính xác tuyệt đối (hiện chưa cần).
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Kiểu kết quả: [`UsageSnapshot.md`](./UsageSnapshot.md)
 - Kiểu chứa: [`AdminDashboard.md`](./AdminDashboard.md)

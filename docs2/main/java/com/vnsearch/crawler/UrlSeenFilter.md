@@ -468,38 +468,7 @@ không có gì.
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Đúng đắn về tương tranh | 10/10 | Nhận diện và sửa một lỗi thật; API nguyên tử không cho phép dùng sai |
-| Chọn cấu trúc dữ liệu | 10/10 | Bloom Filter tiết kiệm ~210 lần so với `HashSet`; đánh đổi đúng chiều |
-| Định lượng tham số | 10/10 | Cả ba hằng số có lý do bằng số đo thật (78,8 liên kết/trang) |
-| Chống lỗi biên | 9/10 | Chặn tràn số nguyên, có sàn và trần, `null` → Null Object |
-| Tài liệu trong mã | 10/10 | Giải thích cơ chế lỗi tương tranh ở mức bit — hiếm thấy |
-| Khả năng kiểm thử | 5/10 | Thiếu đúng test cho tính chất quan trọng nhất (đa luồng) |
-| Khả năng mở rộng | 6/10 | Trần 50 triệu URL được tài liệu hoá là ranh giới thiết kế, nhưng chưa có đường đi tiếp |
-| Quan sát được | 6/10 | Có `getSeenCount`/`getNumBits`, nhưng không đo được **mức lấp đầy** hiện tại |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Test đa luồng** (mục 6). Lớp này tồn tại **để** sửa một lỗi tương tranh mà
-   lại không có test tương tranh nào — nếu ai đó bỏ `synchronized` vì tưởng
-   `ConcurrentHashMap`-style là đủ, sẽ không có gì báo động.
-2. **Cảnh báo khi bộ lọc sắp bão hoà.** Thêm `double fillRatio()` (tỉ lệ bit
-   đã bật) và ghi `log.warn` khi vượt ~50%. Kịch bản ở mục 3.1 — crawler dừng
-   im lặng — sẽ trở nên **nhìn thấy được** thay vì phải suy đoán.
-3. **`LongAdder` cho `seenCount`.** Hiện `getSeenCount()` phải lấy khoá, nên
-   gọi nó từ vòng lặp thống kê sẽ tranh chấp với các worker. Một `LongAdder`
-   đọc không khoá giải quyết triệt để.
-4. **Bloom Filter có thể mở rộng (scalable/counting).** Khi chạm trần, thay vì
-   dừng ở một thiết kế cố định, một chuỗi bộ lọc nối tiếp nhau (scalable Bloom
-   filter) cho phép $n$ tăng mà vẫn giữ tỉ lệ false positive — đường đi tiếp mà
-   Javadoc hiện chỉ mới nêu tên ("bộ lọc phân tán") chứ chưa mở.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Bước trước: [`UrlCanonicalizer.md`](./UrlCanonicalizer.md) — URL phải chuẩn hoá **trước** khi vào đây
 - Kho bền đứng sau: [`UrlStorage.md`](./UrlStorage.md)

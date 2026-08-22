@@ -449,45 +449,7 @@ cd search-engine
 
 ---
 
-## 9. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chẩn đoán vấn đề gốc | 10/10 | Chỉ ra `union()` "đúng, có test, không ai gọi" là **triệu chứng** của hạn chế cấu trúc dữ liệu, không phải mã thừa |
-| Đúng mẫu thiết kế | 10/10 | Composite là mẫu chuẩn cho cây biểu thức; lồng nhau độ sâu bất kỳ không cần mã đặc biệt |
-| Dùng đúng tính năng ngôn ngữ | 10/10 | `sealed` + `record` biến "nhớ sửa mọi switch" thành lỗi biên dịch |
-| Phát biểu bất biến | 9/10 | Bất biến sắp xếp được nêu rõ và được kế thừa nhất quán qua mọi nút |
-| Thiết kế API | 9/10 | Ba phương thức; `estimatedSize` tách khỏi `evaluate` là ý hay — được phép sai vì chỉ ảnh hưởng hiệu năng |
-| Ép bất biến | 4/10 | Không gì kiểm tra kết quả có sắp xếp không; một nút mới viết sai gây bỏ sót im lặng |
-| Hiệu năng | 5/10 | `List<Integer>` ở mọi nơi — đóng hộp trên đường đi nóng, đúng thứ [`PostingCursor`](../../index/PostingCursor.md) sinh ra để tránh |
-| Khả năng kiểm thử | 6/10 | Có `QueryAstTest`, nhưng chưa có bộ test hợp đồng dùng chung cho 5 cài đặt |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Thêm bộ test hợp đồng** (mục 8), đặc biệt ca `ketQuaLuonSapXepTangDan`.
-   Một `sealed interface` với 5 cài đặt và một bất biến quan trọng mà không có
-   test hợp đồng thì mỗi cài đặt là một cơ hội tái phát cùng một lỗi. Chi phí:
-   ~40 dòng, phủ cả 5 nút và mọi nút tương lai.
-2. **Đổi `evaluate` sang trả về [`PostingCursor`](../../index/PostingCursor.md)
-   thay vì `List<Integer>`.** Đây là mâu thuẫn kiến trúc rõ nhất của tầng này:
-   `PostingCursor` được thiết kế **chính xác** để tránh việc vật chất hoá
-   `List<Integer>` (~240 KB rác/truy vấn) và để dùng `skipTo` (4.005 bước → 48
-   bước), nhưng tầng AST bỏ qua hoàn toàn:
-   ```java
-   PostingCursor evaluate(SearchIndex index);   // thay cho List<Integer>
-   ```
-   Đổi kiểu trả về khiến `AndNode` dùng được `skipTo` khi giao hai nhánh lệch
-   kích thước — đúng tình huống phổ biến nhất. Đây là thay đổi lớn nhưng nó mở
-   khoá tối ưu đã có sẵn mà đang không được dùng.
-3. **Ghi rõ trong Javadoc rằng cài đặt phải THUẦN.** [`PhraseNode`](./PhraseNode.md)
-   gọi `new AndNode(...).evaluate(index)` bên trong `evaluate` của chính nó,
-   nghĩa là một cây con có thể được đánh giá nhiều lần. Với các nút hiện tại (đều
-   là `record` không trạng thái) thì an toàn, nhưng ràng buộc này chưa được phát
-   biểu — và một nút có bộ nhớ đệm bên trong sẽ phá vỡ nó một cách khó thấy.
-
----
-
-## 10. Liên kết
+## 9. Liên kết
 
 - Nút lá: [`TermNode.md`](./TermNode.md) · [`PhraseNode.md`](./PhraseNode.md)
 - Nút trong: [`AndNode.md`](./AndNode.md) · [`OrNode.md`](./OrNode.md) · [`NotNode.md`](./NotNode.md)

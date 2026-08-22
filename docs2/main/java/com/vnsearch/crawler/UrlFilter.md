@@ -533,41 +533,7 @@ bắt được ngay.
 
 ---
 
-## 8. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Phân tích vấn đề | 10/10 | Truy nguyên 8,4% corpus rác về **tương tác giữa hai quyết định đúng**, đo bằng số thật |
-| Thiết kế phân tầng | 10/10 | Tách rẻ/đắt theo chi phí; thứ tự kiểm tra tăng dần có chủ ý |
-| Chống dương tính giả | 10/10 | Dấu chấm trong tiền tố; xét đoạn cuối đường dẫn; danh sách bảo thủ có lý lẽ |
-| Quan sát được | 10/10 | Bảy bộ đếm phân theo nguyên nhân — biến logic thành nguồn số liệu |
-| An toàn đa luồng | 10/10 | Bất biến + `AtomicLong`, không cần khoá |
-| Tài liệu trong mã | 10/10 | Bảng so sánh tokenizer trên bốn ngôn ngữ là mức phân tích hiếm thấy |
-| Khả năng mở rộng | 7/10 | `isAllowedDomain` tuyến tính; danh sách ngôn ngữ đóng cứng trong mã |
-| Khả năng kiểm thử | 8/10 | Test được không cần mạng; thiếu test bất biến tổng bộ đếm |
-
-**Bốn đề xuất nâng lên mức sản phẩm:**
-
-1. **Đưa `NON_VI_EN_HOST_PREFIXES` ra cấu hình.** Chính sách corpus là quyết
-   định vận hành, không phải hằng số biên dịch. Đưa vào
-   [`CrawlConfig`](./CrawlConfig.md) (giữ danh sách hiện tại làm mặc định) cho
-   phép đổi mà không dịch lại — và quan trọng hơn, làm cho chính sách đó **hiện
-   ra** trong tệp cấu hình thay vì nằm chôn trong mã.
-2. **Cảnh báo khi `allowedDomains` rỗng.** Cấu hình "crawl toàn Internet" nên
-   là một quyết định có ý thức. Một `log.warn` lúc khởi động là đủ.
-3. **Bộ đếm theo host.** Hiện chỉ biết "61.003 URL bị loại vì tiền tố ngôn ngữ",
-   không biết **host nào**. Một `ConcurrentHashMap<String, LongAdder>` sẽ trả
-   lời được câu hỏi "danh sách tiền tố có còn phù hợp không" — dữ liệu để tinh
-   chỉnh chính sách, thay vì đoán.
-4. **Đo lại thứ tự kiểm tra bằng số thật.** `hasBlockedExtension` loại nhiều URL
-   nhất nhưng đứng cuối. Nó không thể đứng trước `URI.create`, nhưng có thể
-   đứng **trước** `isAllowedDomain` — với 1,4 triệu URL bị loại ở đó, tiết kiệm
-   ~100 ns mỗi lần là ~0,14 giây. Nhỏ, nhưng nguyên tắc "đo rồi mới sắp xếp"
-   đáng được áp dụng nhất quán.
-
----
-
-## 9. Liên kết
+## 8. Liên kết
 
 - Bước trước: [`UrlCanonicalizer.md`](./UrlCanonicalizer.md) · [`LinkExtractor.md`](./LinkExtractor.md)
 - Bước sau: [`UrlSeenFilter.md`](./UrlSeenFilter.md) → [`frontier/UrlFrontier.md`](./frontier/UrlFrontier.md)

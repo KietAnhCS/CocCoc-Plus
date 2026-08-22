@@ -501,44 +501,7 @@ kiểm tra thành một phụ thuộc — xem đề xuất 3.
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Chặn SSRF | 9/10 | Kiểm tra ở **mọi chặng**, mọi nguồn URL; sau phân giải DNS chứ không lọc chuỗi |
-| Không lặp lại quy tắc bảo mật | 10/10 | Dùng lại `SeedUrlValidator`, có lý do được ghi lại |
-| Tự nhận giới hạn | 10/10 | DNS rebinding: nêu rủi ro, cách đóng, cái giá, rồi kết luận rõ ràng |
-| Phân loại lỗi | 10/10 | Ba loại lỗi, ba cách xử lý, mỗi cách có lý do |
-| Toàn vẹn số liệu | 10/10 | Phối hợp với `DnsResolver` để không đếm hai lần |
-| Không rò thông tin | 10/10 | Chi tiết chỉ vào log; ngoại lệ nói chung chung |
-| Chính sách thử lại | 6/10 | Không có exponential backoff — được thừa nhận là đơn giản hoá |
-| Khả năng kiểm thử | 6/10 | Phụ thuộc mạng cứng vào `Jsoup.connect`; khó dựng máy chủ giả vì bị chính phép kiểm tra chặn |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Kiểm tra *mọi* địa chỉ, không chỉ địa chỉ đầu tiên.**
-   [`SeedUrlValidator`](./SeedUrlValidator.md) dùng `getAllByName` và duyệt hết;
-   đường này qua [`DnsResolver`](./DnsResolver.md) chỉ lấy `getByName` — một
-   host có hai bản ghi A (một công khai, một `127.0.0.1`) sẽ bị chặn ở đường hạt
-   giống nhưng có thể lọt ở đường liên kết. Đây là **sự lệch nhau giữa hai
-   đường** mà chính Javadoc của lớp muốn tránh, chỉ khác là nó nằm ở tầng dưới.
-   Sửa: đổi `DnsResolver` trả `InetAddress[]`, kiểm tra hết.
-
-2. **Exponential backoff cho mã 5xx và 429.** Hiện thử lại ngay, dội vào một máy
-   chủ đang ốm. Cài tối thiểu: `Thread.sleep(1000 << attempt)` cho các mã đó,
-   và tôn trọng header `Retry-After` nếu có. Vừa lịch sự hơn, vừa giảm nguy cơ
-   bị chặn IP.
-
-3. **Tiêm phép kiểm tra đích thành một phụ thuộc**
-   (`interface TargetPolicy { void assertAllowed(String url) throws IOException; }`).
-   Hai lợi ích: test dựng được máy chủ HTTP cục bộ để kiểm tra hành vi chuyển
-   hướng (hiện bị chính phép kiểm tra chặn), và chính sách chặn có thể khác nhau
-   giữa môi trường phát triển và sản phẩm mà không phải sửa mã. Đây là điều kiện
-   để viết được ca kiểm thử quan trọng nhất ở mục 6.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Nguồn phép kiểm tra được dùng lại: [`SeedUrlValidator.md`](./SeedUrlValidator.md)
 - Nơi cung cấp `InetAddress`, và lý do "một lần phân giải, hai công dụng": [`DnsResolver.md`](./DnsResolver.md)

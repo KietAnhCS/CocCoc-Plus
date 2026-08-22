@@ -479,44 +479,7 @@ một tệp đã có rồi kiểm tra tệp `.tmp` không còn sót:
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Tách trách nhiệm | 10/10 | Vân tay và nội dung tách rõ, kèm lý do về độ phức tạp ($O(1)$ vs $O(N)$) |
-| Ghi bền an toàn | 10/10 | Tệp tạm + `ATOMIC_MOVE`; phân tích đúng vì sao checkpoint làm rủi ro tăng 30 lần |
-| Xử lý bất đồng bộ | 9/10 | `applyOutlinks` trả `boolean`, Javadoc yêu cầu nơi gọi đếm |
-| Sao chép phòng thủ | 9/10 | Sao chép `outlinks`, có comment nêu rõ hai lý do |
-| Chống trùng | 10/10 | `putIfAbsent` là lớp phòng thủ chính xác sau Bloom Filter |
-| **Khả năng mở rộng** | **5/10** | **Toàn bộ corpus trong RAM** — ~465 MB ở quy mô hiện tại, sát trần |
-| Tương thích dữ liệu cũ | 6/10 | `loadFromJson` thiếu `FAIL_ON_UNKNOWN_PROPERTIES = false` |
-| Khả năng kiểm thử | 4/10 | Không có test riêng, dù có bốn kịch bản dễ viết |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Tách interface `ContentSink`.** Javadoc đã nói *"chỉ cần thay lớp này"*
-   nhưng chưa có interface để thay. Bốn hàm (`save`, `applyOutlinks`, `size`,
-   `all`) là bề mặt vừa đủ hẹp. Có nó thì bản ghi thẳng xuống PostgreSQL vào
-   được mà không đụng [`CrawlerService`](./CrawlerService.md) — và quan trọng
-   hơn, gỡ được **giới hạn cứng 465 MB RAM** đang là trần thật của quy mô crawl.
-   Khuôn mẫu đã có sẵn: [`UrlStorage`](./UrlStorage.md) và `DocumentStore`.
-
-2. **Thêm `FAIL_ON_UNKNOWN_PROPERTIES = false` vào `loadFromJson`.** Một dòng.
-   Hiện nếu `WebDocument` thêm trường ở phiên bản sau rồi ai đó đọc lại corpus
-   bằng bản cũ, Jackson sẽ ném và corpus coi như mất. `JsonUserStore` đã có
-   phòng thủ này; ở đây thì chưa — một sự không nhất quán giữa hai lớp cùng dùng
-   Jackson trong cùng dự án.
-
-3. **Đếm và cảnh báo số `applyOutlinks` trả `false`.** Javadoc yêu cầu nơi gọi
-   đếm, nhưng không có gì bắt buộc. Nếu tỷ lệ vượt một ngưỡng (ví dụ 5%), ghi
-   `log.warn` — nó sẽ biến kịch bản câm nguy hiểm nhất ở mục 2.1 (URL không khớp
-   ⇒ PageRank chạy trên đồ thị rỗng) thành một cảnh báo nhìn thấy được. Cùng
-   với đó: một phép kiểm tra trước khi lập chỉ mục rằng tỷ lệ tài liệu có
-   `outlinks` đạt mức hợp lý.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Lớp anh em giữ vân tay: [`ContentSeenFilter.md`](./ContentSeenFilter.md)
 - Nguồn sự kiện `applyOutlinks`: [`bus/OutlinksExtracted.md`](./bus/OutlinksExtracted.md) · [`modular/UrlExtractorService.md`](./modular/UrlExtractorService.md)

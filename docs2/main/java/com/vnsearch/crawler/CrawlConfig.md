@@ -412,40 +412,7 @@ void thongDiepLoiKemGiaTriNhanDuoc() {
 
 ---
 
-## 7. Chấm theo chuẩn doanh nghiệp
-
-| Tiêu chí | Điểm | Nhận xét |
-|---|---|---|
-| Bất biến | 10/10 | `final` toàn phần + `Set.copyOf`; an toàn đa luồng miễn phí theo JMM |
-| Kiểm tra tính hợp lệ | 10/10 | Một chỗ duy nhất; phân biệt đúng `< 0` và `<= 0`; thông điệp kèm giá trị |
-| Chọn mẫu thiết kế | 10/10 | Builder đúng chỗ: 7 tham số, 5 kiểu `int`, phần lớn nơi gọi chỉ đặt vài cái |
-| Chuẩn hoá đầu vào | 9/10 | `null`/rỗng thành giá trị có nghĩa ngay tại biên |
-| So sánh với bản cũ | 10/10 | Javadoc kể rõ lỗi cũ bằng mã ví dụ — người đọc hiểu vì sao đổi |
-| Khả năng kiểm thử | 8/10 | Rất dễ test; thiếu test bảo vệ `Set.copyOf` |
-| An toàn khi mở rộng | 7/10 | Không có gì bắt buộc tham số mới phải được kiểm tra |
-| Chất lượng tài liệu trong mã | 5/10 | Javadoc **không dấu tiếng Việt**; và hai khối Javadoc đặt nhầm chỗ (mục 4.6) |
-
-**Ba đề xuất nâng lên mức sản phẩm:**
-
-1. **Kiểm tra quan hệ giữa `maxPages` và bộ lọc Bloom.** `maxPages` có tác dụng
-   phụ quyết định kích thước [`UrlSeenFilter`](./UrlSeenFilter.md), và đặt nó
-   quá nhỏ so với thực tế crawl sẽ làm bộ lọc bão hoà — crawler dừng im lặng sau
-   vài trang. Ràng buộc này hiện **không** được nói ở đâu trong `CrawlConfig`.
-   Tối thiểu: thêm một dòng Javadoc cho `maxPages(int)` cảnh báo điều đó.
-
-2. **Cảnh báo khi `allowedDomains` rỗng.** Rỗng = crawl toàn bộ Internet — hợp
-   lệ nhưng gần như luôn là nhầm lẫn ở môi trường thật. `build()` không nên ném
-   (đó là cấu hình có nghĩa), nhưng [`CrawlerService`](./CrawlerService.md) nên
-   `log.warn` lúc khởi động. Cùng đề xuất đã nêu ở [`UrlFilter.md`](./UrlFilter.md).
-
-3. **Sửa hai khối Javadoc đặt nhầm chỗ** (mục 4.6) và **thống nhất tiếng Việt có
-   dấu**. Nội dung Javadoc ở đây rất tốt — đoạn kể lại lỗi của bản cũ bằng mã ví
-   dụ là cách giải thích thiết kế thuyết phục nhất trong cả gói — nên không đáng
-   bị trừ điểm vì hình thức.
-
----
-
-## 8. Liên kết
+## 7. Liên kết
 
 - Nơi cấu hình được dùng: [`CrawlerService.md`](./CrawlerService.md)
 - `maxDepth`, `allowedDomains`, `excludedHostPrefixes` được áp dụng ở: [`UrlFilter.md`](./UrlFilter.md)

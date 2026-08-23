@@ -7,12 +7,30 @@
     sẽ ra dấu hỏi).
 
     Cách đọc tệp: đọc TỪNG DÒNG bằng StreamReader chứ không ConvertFrom-Json.
-    Corpus đang là 87 MB và sẽ còn lớn hơn; nạp cả cây JSON vào bộ nhớ tốn vài
-    trăm MB và mất hàng chục giây, trong khi mọi con số cần ở đây đều đọc được
-    từ một lần quét tuyến tính — 0,7 giây cho 87 MB. Cấu trúc tệp do Jackson
-    sinh ra (SerializationFeature.INDENT_OUTPUT) đặt mỗi trường trên một dòng
-    riêng và cả mảng outlinks gọn trong MỘT dòng, nên cách đọc này khớp tự
-    nhiên. Vẫn có nhánh dự phòng cho trường hợp mảng bị xuống dòng.
+    Corpus đã qua mốc 366 MB và vẫn đang lớn thêm; nạp cả cây JSON vào bộ nhớ
+    tốn vài GB và mất hàng phút, trong khi mọi con số cần ở đây đều đọc được từ
+    một lần quét tuyến tính — khoảng 0,7 giây cho mỗi 90 MB, tức vài giây cho
+    corpus hiện tại. Cấu trúc tệp do Jackson sinh ra
+    (SerializationFeature.INDENT_OUTPUT) đặt mỗi trường trên một dòng riêng và
+    cả mảng outlinks gọn trong MỘT dòng, nên cách đọc này khớp tự nhiên. Vẫn có
+    nhánh dự phòng cho trường hợp mảng bị xuống dòng.
+
+    KHÔNG phải mọi tệp .json trong data/ đều là corpus, và cách đọc trên chỉ
+    đúng cho corpus. Thư mục data hiện có bốn loại tệp khác nhau:
+
+        crawled-documents.json         corpus  -> quét từng dòng (Measure-Corpus)
+        crawled-documents.images.json  kho ảnh -> quét kèm corpus (Measure-Images)
+        index.json                     chỉ mục -> CHỈ đọc phần đầu (Show-IndexReport)
+        users.json                     tài khoản quản trị -> bỏ qua hẳn
+
+    Hai loại cuối được tách riêng vì lý do rất cụ thể. index.json do Jackson ghi
+    KHÔNG bật INDENT_OUTPUT nên cả tệp 384 MB nằm gọn trên MỘT dòng — đo được
+    đúng 1 dòng. Quét nó theo kiểu corpus nghĩa là MỘT lời gọi ReadLine dựng
+    nguyên chuỗi 384 MB đó trong bộ nhớ (chuỗi .NET là UTF-16 nên chiếm ~770 MB),
+    mất 1,6 giây, để rồi không khớp trường nào và in ra "không nhận ra định dạng
+    corpus". Cái giá đó trả cho đúng một dòng cảnh báo sai. users.json thì chỉ
+    vài trăm byte nhưng chứa băm mật khẩu, không có gì để thống kê. Xem
+    Get-CorpusKind ở cuối tệp.
 #>
 [CmdletBinding()]
 param(
@@ -47,6 +65,16 @@ function Format-Age {
     if ($d.TotalHours   -lt 1)  { return ('{0:N0} phút trước' -f $d.TotalMinutes) }
     if ($d.TotalDays    -lt 1)  { return ('{0:N0} giờ trước'  -f $d.TotalHours) }
     return ('{0:N0} ngày trước' -f $d.TotalDays)
+}
+
+# Khoảng cách giữa hai mốc thời gian, đọc được cho cả vài phút lẫn vài ngày.
+# Đừng in thẳng TotalHours: hai tệp ghi cách nhau vài phút sẽ ra "cũ hơn 0 giờ".
+function Format-Span {
+    param([timespan]$Span)
+    if ($Span.TotalMinutes -lt 1) { return ('{0:N0} giây' -f $Span.TotalSeconds) }
+    if ($Span.TotalHours   -lt 1) { return ('{0:N0} phút' -f $Span.TotalMinutes) }
+    if ($Span.TotalDays    -lt 1) { return ('{0:N1} giờ'  -f $Span.TotalHours) }
+    return ('{0:N1} ngày' -f $Span.TotalDays)
 }
 
 function Write-Field {
@@ -375,20 +403,28 @@ function Measure-Images {
         $reader.Dispose()
     }
 
-    # Đếm số trang CHẠM TRẦN. Hai trần khác nhau cắt ở hai chỗ khác nhau:
+    # Đếm số trang CHẠM TRẦN. Hai trần tồn tại, nhưng chúng cắt theo hai CHIỀU
+    # khác nhau — đây là chỗ dễ đọc nhầm nhất của cả tệp:
     #
-    #   50 = app.crawler.images.max-per-page  (cấu hình, ImageDownloadService)
-    #   60 = ImageStore.MAX_IMAGES_PER_PAGE   (bất biến của kho, không đổi được)
+    #   50      = app.crawler.images.max-per-page   trần ẢNH TRÊN MỖI TRANG
+    #             (ImageDownloadService.DEFAULT_MAX_IMAGES_PER_PAGE)
+    #   50.000  = ImageStore.MAX_PAGES              trần SỐ TRANG của cả kho
     #
-    # Trần cấu hình THẤP HƠN nên nó luôn cắt trước — nghĩa là trần 60 trên thực
-    # tế không bao giờ chạm tới ở cấu hình mặc định. Chỉ kiểm tra mốc 60 thì
-    # cảnh báo không bao giờ bắn, kể cả khi ảnh đang bị cắt thật.
+    # Trần thứ nhất cắt lúc crawl: trang thứ 51 ảnh trở đi không được ghi ra
+    # tệp. Trần thứ hai cắt lúc CHẠY: ImageStore giữ ảnh trong bộ nhớ theo bảng
+    # khoá là URL trang, và khi bảng đã đủ 50.000 trang thì mọi trang MỚI bị từ
+    # chối nạp (xem ImageStore.add). Nên một tệp ảnh lớn hơn mức đó vẫn đúng và
+    # vẫn đầy đủ trên đĩa, chỉ là phần đuôi không bao giờ ra tới tab Hình ảnh.
+    #
+    # (Bản trước của tệp này kiểm tra mốc "60 = ImageStore.MAX_IMAGES_PER_PAGE".
+    # Hằng số đó không còn tồn tại trong mã nguồn, và vì 60 > 50 nên phép kiểm
+    # tra không bao giờ đúng — một cảnh báo chết, im lặng suốt.)
     $atConfigCap = 0
-    $atStoreCap  = 0
     foreach ($n in $perPage.Values) {
-        if ($n -ge 60) { $atStoreCap++ }
-        elseif ($n -ge 50) { $atConfigCap++ }
+        if ($n -ge 50) { $atConfigCap++ }
     }
+    $overStore = $pages.Count - 50000
+    if ($overStore -lt 0) { $overStore = 0 }
 
     $counts = @($perPage.Values)
     $median = 0
@@ -419,7 +455,7 @@ function Measure-Images {
         MaxImages  = $maxImg
         MaxUrl     = $maxUrl
         AtConfigCap = $atConfigCap
-        AtStoreCap  = $atStoreCap
+        OverStore   = $overStore
     }
 }
 
@@ -498,15 +534,20 @@ function Show-ImageReport {
     # Chạm trần nghĩa là có trang bị cắt bớt ảnh — mọi con số ở trên khi đó là
     # CHẶN DƯỚI, không phải con số thật. Nói rõ trần nào đang cắt, vì hai trần
     # sửa ở hai chỗ hoàn toàn khác nhau.
-    if ($Stat.AtStoreCap -gt 0) {
-        Write-Host ('       [CHÚ Ý] {0:N0} trang chạm trần ImageStore.MAX_IMAGES_PER_PAGE = 60.' -f $Stat.AtStoreCap) -ForegroundColor DarkYellow
-        Write-Host '               Đây là bất biến của kho, phải sửa mã nguồn mới đổi được.' -ForegroundColor DarkGray
-    }
     if ($Stat.AtConfigCap -gt 0) {
         Write-Host ('       [CHÚ Ý] {0:N0} trang ({1:P1}) chạm trần app.crawler.images.max-per-page = 50.' -f `
             $Stat.AtConfigCap, ($Stat.AtConfigCap / $Stat.Pages)) -ForegroundColor DarkYellow
         Write-Host '               Ảnh của những trang đó bị cắt bớt — số liệu trên là chặn dưới.' -ForegroundColor DarkGray
         Write-Host '               Nâng trong application.properties nếu muốn giữ nhiều ảnh hơn mỗi trang.' -ForegroundColor DarkGray
+    }
+
+    # Trần của KHO, không phải của tệp. Cảnh báo này nói về thứ sẽ xảy ra lúc
+    # chạy backend chứ không phải về một khiếm khuyết của tệp đang đọc.
+    if ($Stat.OverStore -gt 0) {
+        Write-Host ('       [CHÚ Ý] Kho ảnh có {0:N0} trang, vượt ImageStore.MAX_PAGES = 50.000 tới {1:N0} trang.' -f `
+            $Stat.Pages, $Stat.OverStore) -ForegroundColor DarkYellow
+        Write-Host '               Tệp trên đĩa vẫn đủ, nhưng lúc nạp ImageStore chỉ nhận 50.000 trang đầu;' -ForegroundColor DarkGray
+        Write-Host '               ảnh của phần còn lại không bao giờ ra tới tab Hình ảnh.' -ForegroundColor DarkGray
     }
 
     # --- tên miền ---
@@ -526,6 +567,118 @@ function Show-ImageReport {
     $topExt = $Stat.Extensions.GetEnumerator() | Sort-Object -Property Value -Descending
     foreach ($e in ($topExt | Select-Object -First 8)) {
         Write-Host ('       {0,-34} {1,8:N0}  {2,6:P1}' -f $e.Key, $e.Value, ($e.Value / $Stat.Images)) -ForegroundColor DarkGray
+    }
+}
+
+# ----------------------------------------------------------------- chỉ mục
+
+<#
+    Phân loại một tệp .json trong thư mục data. Trả về 'corpus', 'index',
+    'users' hoặc 'images'.
+
+    Phân loại theo TÊN chứ không theo nội dung, và đó là chủ ý: nhận ra một tệp
+    384 MB không phải corpus bằng cách đọc nó thì đã trả xong đúng cái giá mà
+    việc phân loại sinh ra để tránh. Tên do phía Java đặt và cố định trong cấu
+    hình (app.index.data-path=data/index.json, UserStore ghi data/users.json),
+    nên đây là hằng số của dự án chứ không phải phỏng đoán.
+#>
+function Get-CorpusKind {
+    param([System.IO.FileInfo]$File)
+    $n = $File.Name.ToLower()
+    if ($n.EndsWith('.images.json')) { return 'images' }
+    if ($n -eq 'index.json')         { return 'index' }
+    if ($n -eq 'users.json')         { return 'users' }
+    return 'corpus'
+}
+
+<#
+    Báo cáo chỉ mục đã dựng sẵn.
+
+    Chỉ đọc 4 KB ĐẦU tệp, không quét cả tệp. Chỉ mục là một đối tượng JSON duy
+    nhất, các trường mô tả nằm ngay đầu:
+
+        {"version":3,"tokenizer":"VietnameseTokenizer(...)","index":{ ...
+
+    và toàn bộ phần sau là bảng nghịch đảo — hàng trăm MB không có con số nào
+    đọc được rẻ. Số hạng mục thì đã có sẵn trong /api/health lúc backend chạy.
+
+    Việc đáng làm nhất ở đây là so NGÀY GIỜ với corpus. SearchEngineFacade ƯU
+    TIÊN index.json: có tệp đó thì nó nạp thẳng và KHÔNG đọc corpus. Nên một chỉ
+    mục cũ hơn corpus không gây ra lỗi nào — bộ tìm kiếm chạy bình thường, chỉ
+    là những trang vừa crawl không hề có trong kết quả. Triệu chứng dễ nhầm
+    nhất: "crawl xong mấy nghìn trang mà tìm gì cũng không ra".
+#>
+function Show-IndexReport {
+    param([System.IO.FileInfo]$File, $CorpusStats)
+
+    Write-Host ''
+    Write-Host ('  ' + $File.Name + '   (chỉ mục đã dựng sẵn, không phải corpus)') -ForegroundColor Cyan
+    Write-Host ('  ' + ('-' * [Math]::Max(20, $File.Name.Length + 38)))
+
+    Write-Field 'Dung lượng' ('{0}  ({1:N0} byte)' -f (Format-Size $File.Length), $File.Length)
+    Write-Field 'Cập nhật lúc' ('{0:yyyy-MM-dd HH:mm:ss}  ({1})' -f $File.LastWriteTime, (Format-Age $File.LastWriteTime))
+
+    # Đọc bằng bộ đệm ký tự chứ không ReadLine: cả tệp nằm gọn trên MỘT dòng
+    # (chỉ mục ghi ra không bật INDENT_OUTPUT), nên ReadLine sẽ dựng nguyên
+    # chuỗi 384 MB đó trong bộ nhớ — ~770 MB dạng UTF-16, mất 1,6 giây.
+    $head = ''
+    try {
+        $reader = New-Object System.IO.StreamReader($File.FullName, [System.Text.Encoding]::UTF8)
+        try {
+            $buf = New-Object char[] 4096
+            $n = $reader.Read($buf, 0, $buf.Length)
+            if ($n -gt 0) { $head = -join $buf[0..($n - 1)] }
+        } finally {
+            $reader.Dispose()
+        }
+    } catch {
+        Write-Host '  (không đọc được phần đầu tệp)' -ForegroundColor DarkYellow
+        return
+    }
+
+    # FORMAT_VERSION hiện tại là 3 (InvertedIndex.FORMAT_VERSION). Số khác nghĩa
+    # là tệp do một bản mã khác ghi ra; phía Java từ chối nạp và tự dựng lại từ
+    # corpus, nên đây là cảnh báo về THỜI GIAN KHỞI ĐỘNG chứ không phải về lỗi.
+    $mv = [regex]::Match($head, '"version"\s*:\s*(\d+)')
+    if ($mv.Success) {
+        $v = [int]$mv.Groups[1].Value
+        if ($v -eq 3) {
+            Write-Field 'Phiên bản định dạng' ('{0}  (khớp InvertedIndex.FORMAT_VERSION)' -f $v)
+        } else {
+            Write-Field 'Phiên bản định dạng' ('{0}  <- KHÔNG khớp FORMAT_VERSION = 3' -f $v)
+            Write-Host '       Backend sẽ bỏ tệp này và dựng lại chỉ mục từ corpus lúc khởi động.' -ForegroundColor DarkGray
+        }
+    }
+
+    $mt = [regex]::Match($head, '"tokenizer"\s*:\s*"(.*?)"')
+    if ($mt.Success) {
+        Write-Field 'Bộ tách từ' (Format-Url $mt.Groups[1].Value 72)
+    }
+
+    # So với corpus MỚI NHẤT: chỉ cần một corpus mới hơn chỉ mục là đã đủ để có
+    # trang nằm ngoài kết quả tìm kiếm.
+    $newest = $null
+    foreach ($c in $CorpusStats) {
+        if ($c.Pages -le 0) { continue }
+        if ($null -eq $newest -or $c.File.LastWriteTime -gt $newest.LastWriteTime) { $newest = $c.File }
+    }
+    if ($null -eq $newest) { return }
+
+    $lag = $newest.LastWriteTime - $File.LastWriteTime
+
+    # Ngưỡng một phút, không phải "cũ hơn một chút là báo". Một phiên crawl có
+    # bật lập chỉ mục ghi hai tệp cách nhau vài giây, và thứ tự giữa chúng không
+    # cố định — báo động ở mức đó thì lần chạy nào cũng có cảnh báo, và một cảnh
+    # báo luôn bật là một cảnh báo không ai còn đọc.
+    if ($lag.TotalMinutes -gt 1) {
+        Write-Host ''
+        Write-Host ('  [CHÚ Ý] Chỉ mục CŨ HƠN "{0}" tới {1}.' -f $newest.Name, (Format-Span $lag)) -ForegroundColor DarkYellow
+        Write-Host '          SearchEngineFacade ưu tiên index.json nên backend sẽ nạp bản cũ này:' -ForegroundColor DarkGray
+        Write-Host '          không một dòng lỗi nào, chỉ là các trang crawl gần đây không tìm được.' -ForegroundColor DarkGray
+        Write-Host '          Lập lại chỉ mục một lần (backend phải đang chạy):' -ForegroundColor DarkGray
+        Write-Host '              curl -X POST -H "X-API-Key: <khoa trong .env>" http://localhost:8080/api/admin/reindex' -ForegroundColor DarkGray
+    } else {
+        Write-Field 'So với corpus' ('khớp với "{0}" — chỉ mục không cũ hơn corpus' -f $newest.Name)
     }
 }
 
@@ -660,23 +813,42 @@ if (-not $resolved) {
 $Path = $resolved
 
 $item = Get-Item -LiteralPath $Path
+
+# PHÂN LOẠI trước khi quét. Thư mục data chứa bốn loại tệp .json và chỉ một
+# loại đọc được bằng Measure-Corpus; xem chú thích của Get-CorpusKind. Không
+# phân loại thì mỗi tệp còn lại bị quét như corpus rồi báo "không nhận ra định
+# dạng" — một cảnh báo sai cho một tệp hoàn toàn bình thường, và với index.json
+# thì cảnh báo sai đó còn tốn 1,6 giây cùng ~770 MB RAM.
+$indexFile = $null
+$skipped   = @()
 if ($item.PSIsContainer) {
-    # LOẠI tệp ảnh khỏi danh sách corpus. Chúng nằm cùng thư mục và cũng có
-    # đuôi .json, nên nếu không lọc thì mỗi tệp ảnh bị quét như một corpus rồi
-    # báo "không nhận ra định dạng" — một dòng cảnh báo sai cho một tệp hoàn
-    # toàn bình thường. Chúng được báo cáo ở đúng chỗ: kèm theo corpus của mình.
-    $files = @(Get-ChildItem -LiteralPath $item.FullName -Filter '*.json' -File |
-        Where-Object { $_.Name -notlike '*.images.json' } |
-        Sort-Object Length -Descending)
+    $all = @(Get-ChildItem -LiteralPath $item.FullName -Filter '*.json' -File | Sort-Object Length -Descending)
+    $files = @()
+    foreach ($f in $all) {
+        switch (Get-CorpusKind $f) {
+            'corpus' { $files += $f }
+            'index'  { $indexFile = $f }
+            # Tệp ảnh được báo cáo ở đúng chỗ của nó: kèm theo corpus anh em.
+            'images' { }
+            default  { $skipped += $f }
+        }
+    }
     $scope = $item.FullName
 } else {
-    $files = @($item)
+    # Chỉ đích danh một tệp: tôn trọng lựa chọn đó, kể cả khi nó là chỉ mục.
+    if ((Get-CorpusKind $item) -eq 'index') {
+        $files = @()
+        $indexFile = $item
+    } else {
+        $files = @($item)
+    }
     $scope = $item.DirectoryName
 }
 
-if ($files.Count -eq 0) {
+if ($files.Count -eq 0 -and $null -eq $indexFile) {
     Write-Host ''
-    Write-Host ('[LỖI] Không có tệp .json nào trong "{0}".' -f $item.FullName) -ForegroundColor Red
+    Write-Host ('[LỖI] Không có tệp corpus nào trong "{0}".' -f $item.FullName) -ForegroundColor Red
+    Write-Host '       Chưa crawl lần nào thì chạy run-crawl.bat trước.'
     exit 1
 }
 
@@ -700,11 +872,12 @@ foreach ($f in $files) {
     # Ảnh: báo cáo NGAY DƯỚI corpus tương ứng, không gom thành một mục riêng ở
     # cuối. Mọi tỉ lệ đáng đọc đều là tỉ lệ giữa hai bên ("bao nhiêu phần trăm
     # trang có ảnh"), nên đặt xa nhau là bắt người đọc tự ghép số.
-    # `$s.Pages -gt 0`: bỏ qua hoàn toàn phần ảnh cho tệp KHÔNG PHẢI corpus.
-    # Thư mục data còn chứa index.json — chỉ mục đã dựng sẵn, không có trường
-    # "url" nào. Không có điều kiện này thì mỗi lần chạy lại in ra một lời
-    # khuyên "hãy chạy run-crawl.bat để sinh index.images.json", tức là mách
-    # người dùng đi tìm một tệp không bao giờ tồn tại và cũng không nên tồn tại.
+    # `$s.Pages -gt 0`: bỏ qua phần ảnh cho tệp không đọc ra được trang nào.
+    # Get-CorpusKind đã lọc index.json và users.json ra khỏi danh sách từ trước,
+    # nhưng điều kiện này vẫn cần: một tệp .json lạ do người dùng chép vào, hoặc
+    # một corpus ghi dở, cũng cho Pages = 0. Không có nó thì màn hình in ra lời
+    # khuyên "chạy run-crawl.bat để sinh <tên>.images.json", tức mách người dùng
+    # đi tìm một tệp không bao giờ tồn tại và cũng không nên tồn tại.
     if ($countImages -and $s.Pages -gt 0) {
         $imagePath = Get-ImagePath $f.FullName
         if (Test-Path -LiteralPath $imagePath) {
@@ -732,6 +905,13 @@ foreach ($f in $files) {
     } else {
         Write-Host ('  (quét trong {0:N1} giây)' -f $sw.Elapsed.TotalSeconds) -ForegroundColor DarkGray
     }
+}
+
+# Chỉ mục: in SAU mọi corpus, vì phần đáng đọc nhất của nó là so ngày giờ với
+# corpus mới nhất — cần biết hết corpus rồi mới so được.
+if ($null -ne $indexFile) {
+    Show-IndexReport -File $indexFile -CorpusStats $stats
+    Write-Host ''
 }
 
 # Tổng hợp + chỗ trống còn lại của ổ đĩa: câu hỏi "tốn bao nhiêu GB" chỉ có
@@ -779,8 +959,20 @@ if ($imageStats.Count -gt 0) {
 # Nhãn "(corpus + ảnh)" chỉ đúng khi THẬT SỰ có tệp ảnh được cộng vào. Dán nó
 # vô điều kiện thì ở một corpus chưa có ảnh, người đọc tưởng ảnh đã được tính
 # và kết luận sai rằng ảnh gần như không tốn dung lượng.
-$sizeLabel = if ($imageStats.Count -gt 0) { '  (corpus + ảnh)' } else { '  (chưa có tệp ảnh nào)' }
+# Chỉ mục cũng nằm trên cùng ổ đĩa và to ngang corpus, nên nó PHẢI được cộng
+# vào: câu hỏi thật đằng sau con số này là "còn crawl thêm được bao nhiêu trước
+# khi đầy ổ", mà mỗi trang mới đều làm cả corpus lẫn chỉ mục phình lên.
+$parts = @('corpus')
+if ($imageStats.Count -gt 0) { $parts += 'ảnh' }
+if ($null -ne $indexFile) {
+    $totalBytes += $indexFile.Length
+    $parts += 'chỉ mục'
+}
+$sizeLabel = if ($parts.Count -gt 1) { '  (' + ($parts -join ' + ') + ')' } else { '  (chưa có tệp ảnh hay chỉ mục nào)' }
 Write-Field 'Tổng dung lượng' ((Format-Size $totalBytes) + $sizeLabel)
+if ($null -ne $indexFile) {
+    Write-Sub 'trong đó chỉ mục' (Format-Size $indexFile.Length)
+}
 
 $drive = Get-PSDrive -Name (Split-Path -Qualifier $item.FullName).TrimEnd(':') -ErrorAction SilentlyContinue
 if ($drive -and $null -ne $drive.Free) {
@@ -795,6 +987,13 @@ if ($drive -and $null -ne $drive.Free) {
 # Tệp .tmp còn sót nghĩa là một lần ghi bị cắt ngang giữa chừng (xem
 # ContentStorage.saveToJson: ghi ra .tmp rồi đổi tên). Corpus vẫn nguyên vẹn,
 # nhưng tệp rác này chiếm chỗ và nên xoá.
+if ($skipped.Count -gt 0) {
+    Write-Host ''
+    foreach ($f in $skipped) {
+        Write-Host ('  (bỏ qua "{0}" — không phải corpus, không có gì để thống kê)' -f $f.Name) -ForegroundColor DarkGray
+    }
+}
+
 $tmp = @(Get-ChildItem -LiteralPath $scope -Filter '*.json.tmp' -File -ErrorAction SilentlyContinue)
 if ($tmp.Count -gt 0) {
     Write-Host ''

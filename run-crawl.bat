@@ -116,8 +116,28 @@ if /i not "%CONFIRM%"=="XOA" (
 set "EXEC_ARGS=%MAX_PAGES% %MAX_DEPTH% %OUTPUT% --fresh"
 
 :run
+rem --- Diem kiem tra ---
+rem Ctrl+C bat cu luc nao cung khong mat ca phien: CheckpointCrawlListener ghi
+rem corpus (va tep anh) ra dia dinh ky. Nhung KHOANG CACH giua hai lan ghi
+rem KHONG co dinh 250 trang nhu ban truoc cua file nay ghi - no GIAN DAN:
+rem
+rem     khoang cach = max(250 trang, 25% so trang da co)
+rem
+rem Ly do: moi lan ghi la ghi lai TOAN BO corpus, nen chi phi mot lan ghi ti le
+rem voi so tai lieu dang co. Ghi deu 250 trang mot lan thi tong chi phi ca phien
+rem la O(n^2) - da do duoc: thong luong tut 37% giua phien (38 -> 24 trang/s) o
+rem moc 30.000 tai lieu, khi moi lan ghi da nang ~350 MB.
+rem
+rem Doi lai, corpus cang lon thi khoang "co the mat" cang lon:
+rem       1.000 trang  ->  ghi moi   250 trang
+rem      10.000 trang  ->  ghi moi 2.500 trang
+rem      30.000 trang  ->  ghi moi 6.000 trang   (corpus hien tai o day)
+rem Bam Ctrl+C o moc 31.000 trang co the mat vai nghin trang cuoi - khong phai
+rem loi, la danh doi da chon: xem CheckpointCrawlListener.GROWTH_RATIO.
 echo.
-echo Dang bien dich va chay crawler... ^(Ctrl+C de dung - checkpoint moi 250 trang^)
+echo Dang bien dich va chay crawler...
+echo   Ctrl+C de dung. Diem kiem tra ghi moi max^(250 trang, 25%% corpus hien co^),
+echo   nen o corpus lon co the mat vai nghin trang cuoi.
 echo.
 call "%MVNW%" -q compile exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
 if errorlevel 1 (

@@ -9,13 +9,21 @@ setlocal
 rem ===========================================================================
 rem Dung TOAN BO he thong VnSearch bang Docker: build lai anh roi bat het dich vu.
 rem
-rem   run-backend.bat                FULL - 9 container, ~4 GB RAM   <-- mac dinh
-rem   run-backend.bat --kafka        backend + postgres + cum Kafka  ~3 GB
-rem   run-backend.bat --core         backend + postgres              ~1,5 GB
-rem   run-backend.bat --no-football  bo football-service ra ngoai
+rem   run-backend.bat                FULL - 10 container, ~4 GB RAM  <-- mac dinh
+rem   run-backend.bat --kafka        6 container: + cum Kafka        ~3 GB
+rem   run-backend.bat --core         3 container: backend+postgres   ~1,5 GB
+rem   run-backend.bat --no-football  bo football-service ra ngoai (bot 1 container)
 rem   run-backend.bat --no-build     dung anh da co, khong build lai
 rem   run-backend.bat --logs         bam theo log backend sau khi len
 rem   run-backend.bat --help         in phan huong dan nay
+rem
+rem Dem theo docker-compose.yml hien tai - moi che do gom nhung container nao:
+rem   luon co (khong profile)  postgres, backend
+rem   profile kafka            kafka, kafka-ui, crawler-worker
+rem   profile monitoring       kafka + 3 dich vu tren, cong prometheus, grafana,
+rem                            alertmanager, kafka-exporter
+rem   profile football         football-service
+rem Nen: core 3, kafka 6, full 10 (tru 1 neu co --no-football).
 rem
 rem football-service di kem MOI che do, ke ca --core: no chi ton ~30 MB RAM va
 rem dung chung Postgres san co, nhung thieu no thi phan The thao cua giao dien
@@ -393,6 +401,7 @@ if "%MODE%"=="full" (
 echo.
 echo   Giao dien     chay run-frontend.bat o mot cua so khac
 echo   Xem log       docker compose logs -f backend
+echo   Do corpus     crawl-stats.bat        ^(so trang, anh, chi muc con khop khong^)
 echo   TAT HET       end-backend.bat        ^<-- nho chay de tra lai RAM
 echo.
 
@@ -437,10 +446,10 @@ goto :eof
 rem ===========================================================================
 :usage
 echo.
-echo   run-backend.bat                FULL - backend + postgres + kafka + monitoring
-echo   run-backend.bat --kafka        backend + postgres + cum Kafka
-echo   run-backend.bat --core         backend + postgres
-echo   run-backend.bat --no-football  bo football-service ra ngoai
+echo   run-backend.bat                FULL - 10 container ^(+ kafka + monitoring^)
+echo   run-backend.bat --kafka        6 container  ^(+ cum Kafka^)
+echo   run-backend.bat --core         3 container  ^(backend + postgres + football^)
+echo   run-backend.bat --no-football  bo football-service ra ngoai, bot 1 container
 echo   run-backend.bat --no-build     dung anh da co, khong build lai
 echo   run-backend.bat --logs         bam theo log backend sau khi len
 echo.

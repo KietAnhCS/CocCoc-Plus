@@ -35,6 +35,17 @@ rem Phan anh doc tu tep "<ten-corpus>.images.json" nam canh corpus - do
 rem ImageStorage phia Java ghi ra o cuoi moi phien crawl. Corpus crawl bang ban
 rem ma cu chua co tep nay; chay lai run-crawl.bat mot lan la co (crawl noi tiep,
 rem khong mat du lieu cu).
+rem
+rem Sau cac corpus con mot muc rieng cho data\index.json - chi muc da dung san.
+rem No KHONG duoc quet nhu corpus (ca tep 384 MB nam tren DUNG MOT dong, doc
+rem kieu do ton 1,6 giay va ~770 MB RAM ma khong ra duoc so lieu nao); script
+rem chi doc 4 KB dau de lay phien ban dinh dang va bo tach tu, roi SO NGAY GIO
+rem voi corpus. Chi muc cu hon corpus la loi im lang dat nhat cua ca he thong:
+rem bo tim kiem chay binh thuong, khong mot dong log loi nao, nhung nhung trang
+rem vua crawl khong he co trong ket qua. Gap canh bao do thi goi mot lan:
+rem     curl -X POST -H "X-API-Key: <khoa trong .env>" http://localhost:8080/api/admin/reindex
+rem
+rem data\users.json bi bo qua han - tai khoan quan tri, khong co gi de thong ke.
 set "ARGS="
 set "NOPAUSE="
 :parse

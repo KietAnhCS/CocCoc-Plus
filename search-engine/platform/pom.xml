@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  vnsearch-platform — hạ tầng web dùng chung cho MỌI service Java.
+  ============================================================================
+
+  Ranh giới của module này rất hẹp và cố ý giữ hẹp: những thứ mà cả tám tiến
+  trình đều phải làm GIỐNG HỆT NHAU, và làm khác đi là sinh lỗ hổng.
+
+      CorsConfig               một danh sách origin duy nhất
+      GlobalExceptionHandler   một dạng thân lỗi duy nhất
+      RateLimitFilter          một cách đếm request duy nhất
+      ApiKeyAuthFilter         một cách hiểu X-API-Key duy nhất
+      GatewayIdentityFilter    một cách TIN danh tính duy nhất  ← quan trọng nhất
+
+  VÌ SAO KHÔNG NHÉT THÊM VÀO ĐÂY. Một module dùng chung là nơi mà mọi thứ
+  "hình như dùng lại được" sẽ trôi dạt tới, và khi nó đủ to thì sửa một service
+  phải dựng lại cả tám. Quy tắc: một lớp chỉ vào đây khi nó đã được HAI service
+  cần tới, và khi hai bản sao của nó lệch nhau thì sinh ra lỗi bảo mật hoặc lỗi
+  hợp đồng — chứ không phải chỉ hơi phiền.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>vnsearch-platform</artifactId>
+	<name>vnsearch-platform</name>
+	<description>CORS, xử lý lỗi, giới hạn tần suất, xác thực biên — dùng chung cho mọi service</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- Kiểm tra ràng buộc tham số ngay ở biên controller (@Valid, @Max...)
+		     thay vì rải if-throw trong thân hàm. GlobalExceptionHandler dịch
+		     các ngoại lệ của nó thành thân lỗi chuẩn. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+
+		<!-- Quan sát được: /actuator/health, /actuator/metrics, /actuator/prometheus -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+
+		<!-- Log dạng JSON cho profile prod (xem logback-spring.xml). Log dạng
+		     văn xuôi không truy vấn được: một sự cố lúc 3 giờ sáng cần lọc theo
+		     trường, không phải đọc bằng mắt. Với tám tiến trình thay vì một,
+		     điều này không còn là tiện nghi — không có trường `service` trong
+		     mỗi dòng log thì không cách nào biết dòng đó từ đâu ra. -->
+		<dependency>
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+</project>

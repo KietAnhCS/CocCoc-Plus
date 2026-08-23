@@ -141,6 +141,28 @@ echo            Bo qua han: run-frontend.bat --no-football
 
 :football_done
 
+rem ===========================================================================
+rem BACKEND TIM KIEM
+rem ===========================================================================
+rem Chi CANH BAO, khong tu bat: dua backend len la viec cua run-backend.bat va
+rem mat vai phut (build anh, nap chi muc 384 MB), khong the lam len giua duong
+rem khoi dong giao dien.
+rem
+rem Nhung phai noi ra. Thieu backend thi cua so Electron VAN mo, van dep, chi
+rem la moi lan tim deu bao loi mang - va vi giao dien len binh thuong nen nguoi
+rem dung di tim loi trong giao dien thay vi nhin sang cua so backend chua chay.
+set "BE_PID="
+for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":8080 .*LISTENING"') do set "BE_PID=%%p"
+if defined BE_PID (
+    echo backend          : da chay san o cong 8080
+) else (
+    echo.
+    echo [CANH BAO] Khong co gi lang nghe o cong 8080 - backend tim kiem chua chay.
+    echo            Giao dien VAN mo duoc, nhung moi lan tim se bao loi ket noi.
+    echo            Mo mot cua so khac va chay: run-backend.bat
+    echo            ^(neu vua bam run-backend.bat thi doi no bao "Backend san sang"^)
+)
+
 echo.
 call npm run dev
 if errorlevel 1 goto :fail

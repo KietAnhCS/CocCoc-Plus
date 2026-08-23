@@ -3,6 +3,7 @@ package com.vnsearch.controller;
 import com.vnsearch.auth.Role;
 import com.vnsearch.auth.User;
 import com.vnsearch.auth.UserService;
+import com.vnsearch.config.AuditLogger;
 import com.vnsearch.oauth.TokenService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -45,10 +46,12 @@ public class AdminUserController {
 
     private final UserService users;
     private final TokenService tokens;
+    private final AuditLogger audit;
 
-    public AdminUserController(UserService users, TokenService tokens) {
+    public AdminUserController(UserService users, TokenService tokens, AuditLogger audit) {
         this.users = users;
         this.tokens = tokens;
+        this.audit = audit;
     }
 
     /**
@@ -120,6 +123,8 @@ public class AdminUserController {
         // vai trò cũ, nên người vừa được nâng sẽ không hiểu vì sao vẫn bị 401
         // — bắt đăng nhập lại là hành vi dễ hiểu hơn.
         tokens.logoutEverywhere(updated.username());
+        audit.record(authentication == null ? null : authentication.getName(), "ROLE_CHANGE",
+                "auth_users:" + username, "SUCCESS", "role=" + request.role());
         return ResponseEntity.ok(updated.toPublic());
     }
 
@@ -132,13 +137,19 @@ public class AdminUserController {
         }
         User updated = users.setEnabled(username, false);
         tokens.logoutEverywhere(updated.username());
+        audit.record(authentication == null ? null : authentication.getName(), "ACCOUNT_DISABLE",
+                "auth_users:" + username, "SUCCESS", null);
         return ResponseEntity.ok(updated.toPublic());
     }
 
     @PostMapping("/{username}/enable")
-    public ResponseEntity<User.PublicView> enable(@PathVariable String username)
+    public ResponseEntity<User.PublicView> enable(@PathVariable String username,
+                                                   Authentication authentication)
             throws IOException {
-        return ResponseEntity.ok(users.setEnabled(username, true).toPublic());
+        User updated = users.setEnabled(username, true);
+        audit.record(authentication == null ? null : authentication.getName(), "ACCOUNT_ENABLE",
+                "auth_users:" + username, "SUCCESS", null);
+        return ResponseEntity.ok(updated.toPublic());
     }
 
     /**
@@ -166,6 +177,8 @@ public class AdminUserController {
             return ResponseEntity.notFound().build();
         }
         tokens.logoutEverywhere(username);
+        audit.record(authentication == null ? null : authentication.getName(), "ACCOUNT_DELETE",
+                "auth_users:" + username, "SUCCESS", null);
         return ResponseEntity.noContent().build();
     }
 }

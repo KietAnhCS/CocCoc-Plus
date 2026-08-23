@@ -3,6 +3,7 @@ package com.vnsearch.controller;
 import com.vnsearch.auth.Role;
 import com.vnsearch.auth.User;
 import com.vnsearch.auth.UserService;
+import com.vnsearch.config.AuditLogger;
 import com.vnsearch.oauth.TokenService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -49,10 +50,12 @@ public class AuthController {
 
     private final UserService users;
     private final TokenService tokens;
+    private final AuditLogger audit;
 
-    public AuthController(UserService users, TokenService tokens) {
+    public AuthController(UserService users, TokenService tokens, AuditLogger audit) {
         this.users = users;
         this.tokens = tokens;
+        this.audit = audit;
     }
 
     /**
@@ -104,6 +107,7 @@ public class AuthController {
     public ResponseEntity<User.PublicView> register(@Valid @RequestBody Credentials request)
             throws IOException {
         User created = users.register(request.username(), request.password());
+        audit.record(created.username(), "REGISTER", "auth_users:" + created.username(), "SUCCESS", null);
         return ResponseEntity.status(HttpStatus.CREATED).body(created.toPublic());
     }
 
@@ -111,6 +115,7 @@ public class AuthController {
     public LoginResponse login(@Valid @RequestBody Credentials request) {
         User user = users.authenticate(request.username(), request.password());
         TokenService.TokenPair pair = tokens.issueFor(user);
+        audit.record(user.username(), "LOGIN", "auth_users:" + user.username(), "SUCCESS", null);
         return new LoginResponse(pair.accessToken(), pair.refreshToken(), pair.expiresAt(),
                 user.toPublic());
     }
@@ -161,6 +166,8 @@ public class AuthController {
         tokens.logout(refreshToken,
                 jwt == null ? null : jwt.getId(),
                 jwt == null ? null : jwt.getExpiresAt());
+        audit.record(authentication == null ? null : authentication.getName(),
+                "LOGOUT", null, "SUCCESS", null);
         return ResponseEntity.noContent().build();
     }
 
@@ -204,6 +211,8 @@ public class AuthController {
         if (jwt != null) {
             tokens.denyAccessToken(jwt.getId(), jwt.getExpiresAt());
         }
+        audit.record(authentication.getName(), "PASSWORD_CHANGE", null, "SUCCESS",
+                "closedSessions=" + closed);
         return ResponseEntity.ok(Map.of("status", "OK", "closedSessions", closed));
     }
 
@@ -225,6 +234,8 @@ public class AuthController {
         if (jwt != null) {
             tokens.denyAccessToken(jwt.getId(), jwt.getExpiresAt());
         }
+        audit.record(authentication.getName(), "LOGOUT_ALL", null, "SUCCESS",
+                "closedSessions=" + closed);
         return Map.of("closedSessions", closed);
     }
 

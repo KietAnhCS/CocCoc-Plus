@@ -1,5 +1,6 @@
 package com.vnsearch.controller;
 
+import com.vnsearch.config.AuditLogger;
 import com.vnsearch.config.CallerIdentity;
 import com.vnsearch.config.GlobalExceptionHandler;
 import com.vnsearch.downloads.DownloadRecord;
@@ -9,6 +10,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -44,9 +46,11 @@ import java.util.UUID;
 public class DownloadController {
 
     private final DownloadService downloads;
+    private final AuditLogger audit;
 
-    public DownloadController(DownloadService downloads) {
+    public DownloadController(DownloadService downloads, AuditLogger audit) {
         this.downloads = downloads;
+        this.audit = audit;
     }
 
     /**
@@ -113,7 +117,12 @@ public class DownloadController {
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> xoa(@PathVariable String id) {
-        return downloads.xoa(CallerIdentity.required(), UUID.fromString(id))
+        String username = CallerIdentity.required();
+        boolean xoaDuoc = downloads.xoa(username, UUID.fromString(id));
+        if (xoaDuoc) {
+            audit.record(username, "DOWNLOAD_DELETE", "downloads:" + id, "SUCCESS", null);
+        }
+        return xoaDuoc
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
     }
@@ -121,7 +130,10 @@ public class DownloadController {
     /** Xoá sổ tải xuống. Chỉ xoá mục ĐÃ KẾT THÚC — xem {@code DownloadRepository.xoaHet}. */
     @DeleteMapping
     public Map<String, Object> xoaHet() {
-        return Map.of("deleted", downloads.xoaHet(CallerIdentity.required()));
+        String username = CallerIdentity.required();
+        int soDong = downloads.xoaHet(username);
+        audit.record(username, "DOWNLOAD_DELETE_ALL", null, "SUCCESS", "deleted=" + soDong);
+        return Map.of("deleted", soDong);
     }
 
     @GetMapping("/summary")
@@ -138,7 +150,7 @@ public class DownloadController {
      * qua gói tin đến trễ thay vì thử lại mãi.
      */
     @ExceptionHandler(DownloadService.ChuyenTrangThaiKhongHopLe.class)
-    public ResponseEntity<Map<String, Object>> chuyenTrangThaiSai(
+    public ResponseEntity<ProblemDetail> chuyenTrangThaiSai(
             DownloadService.ChuyenTrangThaiKhongHopLe e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.CONFLICT, e.getMessage(), null);
     }
@@ -151,7 +163,7 @@ public class DownloadController {
      * hỏng, trong khi thực tế người gọi vừa gửi một chuỗi không hợp lệ.
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> idKhongHopLe(IllegalArgumentException e) {
+    public ResponseEntity<ProblemDetail> idKhongHopLe(IllegalArgumentException e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.BAD_REQUEST,
                 "Mã tải xuống không hợp lệ (phải là UUID).", null);
     }

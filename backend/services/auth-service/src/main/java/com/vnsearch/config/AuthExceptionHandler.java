@@ -3,11 +3,10 @@ package com.vnsearch.config;
 import com.vnsearch.auth.UserService;
 import com.vnsearch.oauth.TokenService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
-import java.util.Map;
 
 /**
  * Hai ngoại lệ của tầng tài khoản, dịch sang mã HTTP.
@@ -45,7 +44,7 @@ public class AuthExceptionHandler {
      * hoặc mật khẩu không đúng") — xem Javadoc {@link UserService}.
      */
     @ExceptionHandler(UserService.InvalidCredentialsException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidCredentials(
+    public ResponseEntity<ProblemDetail> handleInvalidCredentials(
             UserService.InvalidCredentialsException e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.UNAUTHORIZED, e.getMessage(), null);
     }
@@ -65,14 +64,14 @@ public class AuthExceptionHandler {
      * <p>Lỗi này lộ ra nhờ bài {@code giaHanBangTokenBiaRaBiTuChoi}.
      */
     @ExceptionHandler(TokenService.InvalidGrantException.class)
-    public ResponseEntity<Map<String, Object>> handleInvalidGrant(
+    public ResponseEntity<ProblemDetail> handleInvalidGrant(
             TokenService.InvalidGrantException e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.BAD_REQUEST, e.getMessage(), null);
     }
 
     /** Vi phạm luật nghiệp vụ của tầng tài khoản (tên đã tồn tại, mật khẩu ngắn...). */
     @ExceptionHandler(UserService.AuthException.class)
-    public ResponseEntity<Map<String, Object>> handleAuth(UserService.AuthException e) {
+    public ResponseEntity<ProblemDetail> handleAuth(UserService.AuthException e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.BAD_REQUEST, e.getMessage(), null);
     }
 }

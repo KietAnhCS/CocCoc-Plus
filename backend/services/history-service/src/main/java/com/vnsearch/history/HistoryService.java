@@ -1,5 +1,6 @@
 package com.vnsearch.history;
 
+import com.vnsearch.config.AuditLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -38,15 +39,17 @@ public class HistoryService {
 
     private final VisitRepository visits;
     private final SearchQueryRepository queries;
+    private final AuditLogger audit;
     private final Clock clock;
 
-    public HistoryService(VisitRepository visits, SearchQueryRepository queries) {
-        this(visits, queries, Clock.systemUTC());
+    public HistoryService(VisitRepository visits, SearchQueryRepository queries, AuditLogger audit) {
+        this(visits, queries, audit, Clock.systemUTC());
     }
 
-    HistoryService(VisitRepository visits, SearchQueryRepository queries, Clock clock) {
+    HistoryService(VisitRepository visits, SearchQueryRepository queries, AuditLogger audit, Clock clock) {
         this.visits = visits;
         this.queries = queries;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -153,7 +156,11 @@ public class HistoryService {
     // ------------------------------------------------------------ xoá
 
     public boolean xoaMotLuotGhe(String username, String id) {
-        return visits.deleteByIdAndUsername(id, username) > 0;
+        boolean xoaDuoc = visits.deleteByIdAndUsername(id, username) > 0;
+        if (xoaDuoc) {
+            audit.record(username, "HISTORY_DELETE_ONE", "visits:" + id, "SUCCESS", null);
+        }
+        return xoaDuoc;
     }
 
     /**
@@ -175,6 +182,8 @@ public class HistoryService {
         // này là câu trả lời duy nhất.
         log.info("Xoá lịch sử của {}: {} lượt ghé, {} truy vấn, trong khoảng {} .. {}",
                 username, soVisit, soQuery, batDau, ketThuc);
+        audit.record(username, "HISTORY_DELETE_RANGE", "visits+searches:" + username, "SUCCESS",
+                "deleted=" + (soVisit + soQuery));
         return soVisit + soQuery;
     }
 

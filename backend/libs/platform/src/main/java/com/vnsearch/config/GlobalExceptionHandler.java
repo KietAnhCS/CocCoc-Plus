@@ -6,6 +6,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -13,9 +15,8 @@ import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.net.URI;
 import java.time.Instant;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -50,7 +51,7 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(MissingServletRequestParameterException.class)
-    public ResponseEntity<Map<String, Object>> handleMissingParam(
+    public ResponseEntity<ProblemDetail> handleMissingParam(
             MissingServletRequestParameterException e) {
         return errorResponse(HttpStatus.BAD_REQUEST,
                 "Thieu tham so bat buoc: " + e.getParameterName(), null);
@@ -58,7 +59,7 @@ public class GlobalExceptionHandler {
 
     /** Vi pham rang buoc {@code @Valid} tren request body — gom moi truong sai. */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException e) {
+    public ResponseEntity<ProblemDetail> handleValidation(MethodArgumentNotValidException e) {
         String detail = e.getBindingResult().getFieldErrors().stream()
                 .map(error -> error.getField() + ": " + error.getDefaultMessage())
                 .collect(Collectors.joining("; "));
@@ -78,7 +79,7 @@ public class GlobalExceptionHandler {
      * loi 5xx cho mot chuyen khong phai su co.
      */
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleConstraintViolation(
+    public ResponseEntity<ProblemDetail> handleConstraintViolation(
             ConstraintViolationException e) {
         String detail = e.getConstraintViolations().stream()
                 .map(violation -> lastNode(violation.getPropertyPath().toString())
@@ -115,7 +116,7 @@ public class GlobalExceptionHandler {
      * endpoint do: dang le 405, nhan ve 500.
      */
     @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(
+    public ResponseEntity<ProblemDetail> handleMethodNotSupported(
             HttpRequestMethodNotSupportedException e) {
         // Goi getSupportedHttpMethods() MOT lan roi giu lai. Ban dau ham nay
         // goi hai lan — kiem null o lan mot, dung ket qua o lan hai — va
@@ -131,12 +132,12 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException e) {
+    public ResponseEntity<ProblemDetail> handleIllegalArgument(IllegalArgumentException e) {
         return errorResponse(HttpStatus.BAD_REQUEST, e.getMessage(), null);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneric(Exception e, HttpServletRequest request) {
+    public ResponseEntity<ProblemDetail> handleGeneric(Exception e, HttpServletRequest request) {
         String reference = UUID.randomUUID().toString().substring(0, 8);
         // Toan bo chi tiet — ke ca stack trace — o day, KHONG o phan hoi.
         log.error("Loi he thong [ma {}] khi xu ly {} {}",
@@ -146,16 +147,26 @@ public class GlobalExceptionHandler {
                 reference);
     }
 
-    public static ResponseEntity<Map<String, Object>> errorResponse(
+    /**
+     * Dựng thân lỗi theo RFC 7807 ({@code application/problem+json}): {@code type},
+     * {@code title}, {@code status}, {@code detail}, {@code instance} chuẩn, cộng hai
+     * trường mở rộng {@code timestamp} và {@code reference}. Trường {@code message}
+     * được giữ lại làm bí danh của {@code detail} để {@code desktop-app} (đọc
+     * {@code body.message}) không phải sửa theo.
+     */
+    public static ResponseEntity<ProblemDetail> errorResponse(
             HttpStatus status, String message, String reference) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", Instant.now().toString());
-        body.put("status", status.value());
-        body.put("error", status.getReasonPhrase());
-        body.put("message", message == null ? "" : message);
+        String detail = message == null ? "" : message;
+        ProblemDetail body = ProblemDetail.forStatusAndDetail(status, detail);
+        body.setType(URI.create("https://vnsearch.dev/errors/" + status.value()));
+        body.setTitle(status.getReasonPhrase());
+        body.setProperty("timestamp", Instant.now().toString());
+        body.setProperty("message", detail);
         if (reference != null) {
-            body.put("reference", reference);
+            body.setProperty("reference", reference);
         }
-        return ResponseEntity.status(status).body(body);
+        return ResponseEntity.status(status)
+                .contentType(MediaType.APPLICATION_PROBLEM_JSON)
+                .body(body);
     }
 }

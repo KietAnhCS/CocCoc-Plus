@@ -1,6 +1,7 @@
 package com.vnsearch.controller;
 
 import com.vnsearch.analytics.CorpusStats;
+import com.vnsearch.config.AuditLogger;
 import com.vnsearch.crawler.SeedUrlValidator;
 import com.vnsearch.service.SearchEngineFacade;
 import jakarta.validation.Valid;
@@ -61,9 +62,11 @@ public class AdminController {
     private static final int MAX_SEEDS = 50;
 
     private final SearchEngineFacade facade;
+    private final AuditLogger audit;
 
-    public AdminController(SearchEngineFacade facade) {
+    public AdminController(SearchEngineFacade facade, AuditLogger audit) {
         this.facade = facade;
+        this.audit = audit;
     }
 
     /**
@@ -95,6 +98,8 @@ public class AdminController {
         int maxDepth = request.maxDepth() != null ? request.maxDepth() : 3;
         int maxPages = request.maxPages() != null ? request.maxPages() : 100;
         String jobId = facade.startCrawl(request.seedUrls(), maxDepth, maxPages);
+        audit.record("api-key", "CRAWL_START", "seedUrls=" + request.seedUrls().size(), "SUCCESS",
+                "maxDepth=" + maxDepth + ",maxPages=" + maxPages + ",jobId=" + jobId);
         return Map.of("jobId", jobId, "status", "STARTED");
     }
 
@@ -125,6 +130,7 @@ public class AdminController {
     @PostMapping("/reindex")
     public Map<String, String> reindex() throws IOException {
         facade.reindex();
+        audit.record("api-key", "REINDEX", null, "SUCCESS", null);
         return Map.of("status", "OK");
     }
 

@@ -3,10 +3,12 @@ package com.vnsearch.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.vnsearch.config.AuditLogger;
 import com.vnsearch.config.CallerIdentity;
 import com.vnsearch.config.GlobalExceptionHandler;
 import com.vnsearch.settings.SettingsRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -69,9 +71,11 @@ public class SettingsController {
     private static final String RONG = "{}";
 
     private final SettingsRepository repository;
+    private final AuditLogger audit;
 
-    public SettingsController(SettingsRepository repository) {
+    public SettingsController(SettingsRepository repository, AuditLogger audit) {
         this.repository = repository;
+        this.audit = audit;
     }
 
     /** Ném khi thân request không phải một đối tượng JSON hợp lệ. */
@@ -107,15 +111,22 @@ public class SettingsController {
 
     @DeleteMapping("/{khoa}")
     public ResponseEntity<Map<String, Object>> xoaKhoa(@PathVariable String khoa) {
-        return repository.xoaKhoa(CallerIdentity.required(), khoa)
-                .map(SettingsController::than)
+        String username = CallerIdentity.required();
+        return repository.xoaKhoa(username, khoa)
+                .map(snapshot -> {
+                    audit.record(username, "SETTINGS_DELETE_KEY", "user_settings:" + username,
+                            "SUCCESS", "khoa=" + khoa);
+                    return than(snapshot);
+                })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /** Khôi phục mặc định: xoá hẳn dòng, lần đọc sau trả về khối rỗng. */
     @DeleteMapping
     public ResponseEntity<Void> khoiPhucMacDinh() {
-        repository.xoaHet(CallerIdentity.required());
+        String username = CallerIdentity.required();
+        repository.xoaHet(username);
+        audit.record(username, "SETTINGS_RESET", "user_settings:" + username, "SUCCESS", null);
         return ResponseEntity.noContent().build();
     }
 
@@ -141,6 +152,8 @@ public class SettingsController {
                     "settings", doc(hienTai.json()),
                     "version", hienTai.version()));
         }
+        audit.record(username, gop ? "SETTINGS_MERGE" : "SETTINGS_REPLACE",
+                "user_settings:" + username, "SUCCESS", null);
         return than(ketQua.get());
     }
 
@@ -194,7 +207,7 @@ public class SettingsController {
     }
 
     @ExceptionHandler(JsonKhongHopLe.class)
-    public ResponseEntity<Map<String, Object>> jsonHong(JsonKhongHopLe e) {
+    public ResponseEntity<ProblemDetail> jsonHong(JsonKhongHopLe e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.BAD_REQUEST, e.getMessage(), null);
     }
 }

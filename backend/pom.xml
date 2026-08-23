@@ -86,7 +86,7 @@
 		
 		
 		<!-- PHẢI đứng cuối: nó đọc tệp jacoco.exec của mọi module đứng trước. -->
-		
+		<module>coverage</module>
 	</modules>
 
 	<properties>
@@ -260,6 +260,21 @@
 							     429 thay vì kết quả thật — đúng loại lỗi chập chờn
 							     tốn nhiều giờ nhất để truy. -->
 							<app.security.rate-limit.enabled>false</app.security.rate-limit.enabled>
+
+							<!-- Thư mục `data/` của reactor, đường dẫn TUYỆT ĐỐI.
+							     ============================================================
+							     Trong bản một khối, mọi bài test chạy với thư mục làm việc là
+							     `search-engine/`, nên `data/seed-documents.json` giải đúng.
+							     Với reactor đa module, surefire chạy mỗi module trong thư mục
+							     CỦA MODULE ĐÓ — `backend/libs/core/` — và đường dẫn tương đối
+							     ấy trỏ vào hư không.
+
+							     Hai cách sửa, một cách sai: đặt `workingDirectory` của surefire
+							     về gốc reactor sẽ chữa được bài này nhưng LÀM HỎNG những bài
+							     khác đang trỏ tới `src/test/resources/fixtures/...` của chính
+							     module chúng. Một property mang đường dẫn tuyệt đối thì không
+							     động tới bài nào khác. -->
+							<vnsearch.data.dir>${maven.multiModuleProjectDirectory}/data</vnsearch.data.dir>
 						</systemPropertyVariables>
 					</configuration>
 				</plugin>

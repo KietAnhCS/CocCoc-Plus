@@ -66,7 +66,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RankingQualityTest {
 
     /** Corpus mẫu đi kèm repo. Cố định, nên kết quả lặp lại được. */
-    private static final String SEED_CORPUS = "data/seed-documents.json";
+    /**
+     * Corpus mẫu đi kèm repo.
+     *
+     * <p>Đường dẫn lấy từ property {@code vnsearch.data.dir} do surefire đặt
+     * (xem POM cha), KHÔNG phải một chuỗi tương đối. Lý do: sau khi backend
+     * tách thành reactor đa module, surefire chạy mỗi module trong thư mục của
+     * chính module đó, nên {@code data/...} không còn giải đúng.
+     *
+     * <p>Lối lùi {@code "../../data"} dành cho lúc chạy bài test thẳng từ IDE,
+     * nơi property kia không có mặt.
+     */
+    private static final String SEED_CORPUS =
+            System.getProperty("vnsearch.data.dir", "../../data") + "/seed-documents.json";
 
     /** Seed ngẫu nhiên cố định: cùng một bộ truy vấn ở mọi lần chạy. */
     private static final long RANDOM_SEED = 42L;

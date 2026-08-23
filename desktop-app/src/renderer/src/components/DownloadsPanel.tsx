@@ -1,5 +1,6 @@
 import { useEffect, type JSX } from 'react'
 import { useDownloadStore, doDoc, conLai, type MucTaiXuong } from '../store/downloadStore'
+import { useSessionStore } from '../store/sessionStore'
 import { hostOf } from '../lib/site'
 import { CloseIcon, DownloadIcon } from './icons'
 
@@ -15,11 +16,28 @@ function DownloadsPanel(): JSX.Element {
   const items = useDownloadStore((s) => s.items)
   const loi = useDownloadStore((s) => s.loi)
   const init = useDownloadStore((s) => s.init)
+  const dongBoLai = useDownloadStore((s) => s.dongBoLai)
   const xoaDaXong = useDownloadStore((s) => s.xoaDaXong)
+  const user = useSessionStore((s) => s.user)
 
   useEffect(() => {
     init()
   }, [init])
+
+  // HAI hiệu ứng chứ không phải một, và đó là điểm mấu chốt: `init` tự chốt
+  // bằng cờ `initialized` nên nó chỉ chạy ĐÚNG MỘT LẦN trong cả vòng đời ứng
+  // dụng. Lượt gọi `dongBoLai` nằm trong đó vì thế cũng chỉ chạy một lần —
+  // thường là lúc bảng mở lần đầu, khi người dùng CHƯA đăng nhập. Lúc đó
+  // `downloadsApi.danhSach` ném `ChuaDangNhap` ngay trước khi chạm mạng, và
+  // `dongBoLai` nuốt lỗi đó.
+  //
+  // Hậu quả nếu gộp lại: đăng nhập xong, bảng KHÔNG BAO GIỜ kéo lại sổ tải
+  // xuống từ máy chủ — nó trống cho tới khi khởi động lại ứng dụng, và không
+  // có thông báo lỗi nào để lần ra. Khoá theo `user` để mỗi lần đổi tài khoản
+  // (đăng nhập, đăng xuất) đều kéo lại đúng dữ liệu của người đang đăng nhập.
+  useEffect(() => {
+    void dongBoLai()
+  }, [user, dongBoLai])
 
   const coMucDaXong = items.some((item) => item.state !== 'IN_PROGRESS' && item.state !== 'PAUSED')
 

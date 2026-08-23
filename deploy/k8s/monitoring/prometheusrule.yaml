@@ -27,7 +27,7 @@ spec:
     - name: vnsearch-kha-dung
       rules:
         - alert: VnSearchBackendDown
-          expr: up{job=~".*vnsearch-backend.*"} == 0
+          expr: up{job=~".*api-gateway.*|.*search-service.*"} == 0
           for: 2m
           labels:
             severity: critical

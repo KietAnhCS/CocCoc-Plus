@@ -1,11 +1,3 @@
-# Lớp NỀN — phần cấu hình chung cho mọi môi trường.
-#
-# Vì sao Kustomize chứ không phải Helm: Kustomize nằm sẵn trong kubectl
-# (`kubectl apply -k`), không phải cài thêm gì, và nó làm việc trên YAML thật
-# chứ không phải trên khuôn mẫu chuỗi. Một tệp YAML Helm lỗi cú pháp chỉ lộ ra
-# sau khi kết xuất; ở đây tệp nền luôn là YAML hợp lệ, đọc và kiểm tra được
-# ngay. Helm mạnh hơn khi cần ĐÓNG GÓI để người khác cài — đó không phải bài
-# toán ở đây.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -16,22 +8,28 @@ resources:
   - configmap.yaml
   - secret.yaml
   - postgres.yaml
-  - kafka.yaml
-  - backend.yaml
-  - crawler-worker.yaml
+  - redis.yaml
+  - mongo.yaml
+  - api-gateway.yaml
+  - auth-service.yaml
+  - search-service.yaml
+  - crawler-service.yaml
+  - analytics-service.yaml
+  - history-service.yaml
+  - downloads-service.yaml
+  - settings-service.yaml
+  - football-service.yaml
   - ingress.yaml
+  - network-policy.yaml
 
-# Bản sao của search-engine/src/main/resources/db/schema.sql.
-# Kustomize không cho tham chiếu tệp nằm ngoài thư mục gốc, nên phải chép.
+# schema.sql là bản sao của backend/libs/core/src/main/resources/db/schema.sql;
 # CI có bước `diff` chặn hai bản lệch nhau.
 configMapGenerator:
-  - name: vnsearch-db-schema
+  - name: vnsearch-db-init
     files:
+      - 00-init-db.sh=init-db.sh
       - 01-schema.sql=schema.sql
 
-# Tắt hậu tố băm cho ConfigMap lược đồ: nó chỉ được đọc MỘT lần lúc initdb,
-# nên việc đổi tên theo nội dung không mang lại lợi ích gì mà chỉ làm
-# StatefulSet tham chiếu tới một tên không đoán trước được.
 generatorOptions:
   disableNameSuffixHash: true
 

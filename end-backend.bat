@@ -1,32 +1,14 @@
 @echo off
-rem KHONG viet tieng Viet co dau trong file .bat: cmd.exe phan tich file theo
-rem byte offset, ky tu da byte lam lech con tro doc va cat vun cac dong lenh
-rem phia sau. Ly do day du xem trong run-crawl.bat.
 setlocal
-
-rem ===========================================================================
-rem Tat toan bo he thong VnSearch va TRA LAI RAM.
-rem
-rem   end-backend.bat                 ha container + tat Docker Desktop  <-- mac dinh
-rem   end-backend.bat --keep-docker   chi ha container, de Docker Desktop chay
-rem   end-backend.bat --stop          chi dung container, KHONG xoa - bat lai nhanh
-rem   end-backend.bat --wipe          ha container VA XOA volume - MAT DU LIEU
-rem   end-backend.bat --wsl           tat luon may ao WSL2 sau khi tat Docker
-rem   end-backend.bat --help          in phan huong dan nay
-rem
-rem Bat lai: run-backend.bat
-rem
-rem VI SAO PHAI TAT DOCKER DESKTOP chu khong chi ha container. Tren Windows,
-rem Docker Engine chay trong mot may ao WSL2. May ao do GIU nguyen phan RAM da
-rem xin ke ca khi khong con container nao - thuong 1-2 GB. Ha container xong ma
-rem de Docker Desktop chay tiep thi nhin Task Manager van thay vmmemWSL an RAM
-rem va khong hieu vi sao.
-rem ===========================================================================
 
 set "ROOT=%~dp0"
 set "ENV_FILE=%ROOT%.env"
 
-rem --- Doc tham so ---
+for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
+set "OLD_CP=%OLD_CP: =%"
+chcp 65001 >nul
+
+set "LOCAL_ONLY="
 set "KEEP_DOCKER="
 set "STOP_ONLY="
 set "WIPE="
@@ -36,19 +18,19 @@ set "KILL_WSL="
 if "%~1"=="" goto :parsed
 if /i "%~1"=="--help" goto :usage
 if /i "%~1"=="-h" goto :usage
-if /i "%~1"=="--keep-docker" (
+if /i "%~1"=="--local" (
+    set "LOCAL_ONLY=1"
+) else if /i "%~1"=="--keep-docker" (
     set "KEEP_DOCKER=1"
 ) else if /i "%~1"=="--stop" (
     set "STOP_ONLY=1"
-    rem `stop` giu container lai de bat lai cho nhanh - de dung roi tat may ao
-    rem ben duoi thi mau thuan, nen che do nay khong dong Docker Desktop.
     set "KEEP_DOCKER=1"
 ) else if /i "%~1"=="--wipe" (
     set "WIPE=1"
 ) else if /i "%~1"=="--wsl" (
     set "KILL_WSL=1"
 ) else (
-    echo [LOI] Tham so khong hieu: %~1
+    echo [LỖI] Tham số không hiểu: %~1
     echo.
     goto :usage_fail
 )
@@ -56,48 +38,57 @@ shift
 goto :parse
 :parsed
 
-for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
-set "OLD_CP=%OLD_CP: =%"
-chcp 65001 >nul
-
 cd /d "%ROOT%" 2>nul
 if not exist "docker-compose.yml" (
-    echo [LOI] Khong thay docker-compose.yml trong "%CD%".
-    echo       File .bat nay phai nam o THU MUC GOC cua repo.
+    echo [LỖI] Không thấy docker-compose.yml trong "%CD%".
+    echo       Tệp .bat này phải nằm ở THƯ MỤC GỐC của kho.
     goto :fail
 )
 
 echo.
-echo === TAT VNSEARCH ===
+echo === TẮT VNSEARCH ===
 
-rem RAM trong truoc khi don. In ra de thay ro viec nay co tac dung that, chu
-rem khong phai chay mot lenh roi tin.
 set "RAM_BEFORE="
 for /f "delims=" %%m in ('powershell -NoProfile -Command "[math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1MB,2)"') do set "RAM_BEFORE=%%m"
-if defined RAM_BEFORE echo RAM trong luc bat dau: %RAM_BEFORE% GB
+if defined RAM_BEFORE echo RAM trống lúc bắt đầu: %RAM_BEFORE% GB
 
+rem ===========================================================================
+rem TIẾN TRÌNH JAR CHẠY TRÊN MÁY THẬT - cổng 8080 đến 8087
+rem ===========================================================================
+echo.
+echo Đang dừng các service chạy trực tiếp bằng jar...
+set "KILLED="
+call :kill_port 8080 api-gateway
+call :kill_port 8081 auth-service
+call :kill_port 8082 search-service
+call :kill_port 8083 crawler-service
+call :kill_port 8084 analytics-service
+call :kill_port 8085 history-service
+call :kill_port 8086 downloads-service
+call :kill_port 8087 settings-service
+if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-8087.
+
+if defined LOCAL_ONLY goto :report
+
+rem ===========================================================================
+rem CONTAINER DOCKER
+rem ===========================================================================
 where docker >nul 2>nul
 if errorlevel 1 (
-    echo [LOI] Khong tim thay lenh `docker` - khong co gi de tat.
-    goto :fail
+    echo.
+    echo Không có lệnh docker - bỏ qua phần container.
+    goto :report
 )
 
-rem Engine khong chay thi khong con container nao song. Nhay thang xuong phan
-rem dong Docker Desktop: giao dien co the van mo va van giu may ao.
 docker info >nul 2>nul
 if errorlevel 1 (
-    echo Docker engine khong chay - khong co container nao dang song.
+    echo.
+    echo Docker engine không chạy - không có container nào đang sống.
     goto :shutdown_desktop
 )
 
-rem ===========================================================================
-rem KHOA QUAN TRI - can ca khi TAT
-rem ===========================================================================
-rem docker-compose.yml khai bao ADMIN_API_KEY voi cu phap `${...:?}`. Compose
-rem noi suy bien cho MOI lenh, ke ca `down`, nen thieu khoa la `down` cung hong
-rem - dung luc can no nhat. Doc lai tu .env; that su khong co thi dat mot gia
-rem tri tam: `down` chi can DINH DANH container theo ten du an, khong dung toi
-rem gia tri nay.
+rem docker-compose.yml khai báo ADMIN_API_KEY với cú pháp ${...:?}, tức compose
+rem dừng ngay nếu biến này trống - kể cả với lệnh `down`.
 if defined ADMIN_API_KEY goto :key_ok
 if not exist "%ENV_FILE%" goto :key_placeholder
 for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
@@ -105,81 +96,53 @@ for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
 )
 if defined ADMIN_API_KEY goto :key_ok
 :key_placeholder
-set "ADMIN_API_KEY=khoa-tam-chi-de-compose-doc-duoc-file"
+set "ADMIN_API_KEY=khoa-tam-chi-de-compose-doc-duoc-tep"
 :key_ok
 
-rem ===========================================================================
-rem HA CONTAINER
-rem ===========================================================================
-rem Luon truyen DU CA BA profile. Khong truyen thi compose chi nhin thay cac
-rem dich vu mac dinh, va kafka/grafana/prometheus... o lai chay tiep - dung
-rem nhung thu an nhieu RAM nhat.
-rem
-rem `football` cung phai co mat o day du no nhe: file nay la duong TAT chinh
-rem thuc, nen mot container no bo sot se song tiep va giu cong 8090. Lan sau
-rem `up` bao "port is already allocated" ma khong ai ngo la tai mot dich vu da
-rem tuong la da tat.
-set "PROFILES=--profile kafka --profile monitoring --profile football"
+rem Truyền ĐỦ mọi profile: không truyền thì compose chỉ nhìn thấy hồ sơ rút gọn
+rem và các container của full/kafka/observability ở lại chạy tiếp.
+set "PROFILES=--profile full --profile kafka --profile observability"
 
 if defined STOP_ONLY (
     echo.
-    echo Dang dung container ^(van giu lai de bat lai cho nhanh^)...
+    echo Đang dừng container, vẫn giữ lại để bật lại cho nhanh...
     docker compose %PROFILES% stop
     if errorlevel 1 goto :compose_failed
-    echo.
-    echo Container da dung. Bat lai: run-backend.bat --no-build
-    goto :leftovers
+    echo Container đã dừng. Bật lại: run-backend.bat --docker
+    goto :report
 )
 
 if defined WIPE goto :wipe
-goto :plain_down
 
-rem Phan xac nhan nay PHAI nam ngoai mot khoi ngoac don. cmd noi suy `%CONFIRM%`
-rem luc PHAN TICH ca khoi, tuc truoc khi `set /p` kip chay - viet trong ngoac
-rem thi phep so sanh luon nhin thay chuoi rong va cau hoi xac nhan thanh vo
-rem nghia. Dung nhan va goto de moi dong duoc phan tich ngay truoc khi chay.
+echo.
+echo Đang hạ container...
+docker compose %PROFILES% down --remove-orphans
+if errorlevel 1 goto :compose_failed
+echo Đã hạ xong. Volume dữ liệu vẫn còn.
+goto :shutdown_desktop
+
 :wipe
 echo.
-echo [CANH BAO] --wipe se XOA cac volume:
-echo              postgres-data      toan bo CSDL tai lieu da crawl
-echo              kafka-data         log cac topic
-echo              prometheus-data    lich su so lieu do
-echo              grafana-data       nguoi dung va thiet lap Grafana
-echo            Khong the hoan tac. Corpus JSON trong search-engine\data
-echo            KHONG bi anh huong ^(no nam tren may that, khong phai volume^).
+echo [CẢNH BÁO] --wipe sẽ XOÁ các volume:
+echo              postgres-data      toàn bộ CSDL tài liệu đã crawl
+echo              mongo-data         dữ liệu lịch sử và tải xuống
+echo              kafka-data         log các topic
+echo              prometheus-data    lịch sử số liệu đo
+echo              grafana-data       người dùng và thiết lập Grafana
+echo            Không thể hoàn tác. Corpus JSON trong backend\data KHÔNG bị
+echo            ảnh hưởng vì nó nằm trên máy thật, không phải volume.
 echo.
 set "CONFIRM="
-set /p "CONFIRM=Go dung chu XOA roi Enter de xac nhan: "
+set /p "CONFIRM=Gõ đúng chữ XOA rồi Enter để xác nhận: "
 if /i not "%CONFIRM%"=="XOA" (
-    echo Da huy - khong xoa gi.
+    echo Đã huỷ - không xoá gì.
     goto :fail
 )
 echo.
-echo Dang ha container va xoa volume...
+echo Đang hạ container và xoá volume...
 docker compose %PROFILES% down --volumes --remove-orphans
 if errorlevel 1 goto :compose_failed
-echo Da ha xong va da XOA volume. Lan bat lai se khoi tao CSDL rong.
-goto :leftovers
-
-:plain_down
-echo.
-echo Dang ha container...
-rem --remove-orphans: don ca nhung container con sot tu mot phien ban
-rem docker-compose.yml cu, thu ma `down` tran bo lai va khong ai nhin thay.
-docker compose %PROFILES% down --remove-orphans
-if errorlevel 1 goto :compose_failed
-
-:down_ok
-echo Da ha xong. Volume du lieu van con - bat lai la co ngay corpus cu.
-
-:leftovers
-rem --- Con gi giu cong 8080 khong ---
-rem Cac ban run-backend.bat truoc day chay Spring Boot bang Maven TREN MAY THAT.
-rem Mot tien trinh java nhu vay khong thuoc quyen cua docker compose: `down`
-rem khong dong toi no, no van an vai GB heap, va lan sau `up` se bao
-rem "port is already allocated" ma khong ro tai ai.
-call :check_port 8080 backend
-call :check_port 8090 football-service
+echo Đã hạ xong và đã XOÁ volume. Lần bật lại sẽ khởi tạo CSDL rỗng.
 
 :shutdown_desktop
 if defined KEEP_DOCKER goto :report
@@ -191,23 +154,19 @@ if not exist "%DOCKER_DESKTOP%" set "DOCKER_DESKTOP=%LocalAppData%\Docker\Docker
 tasklist /FI "IMAGENAME eq Docker Desktop.exe" /NH | findstr /i /c:"Docker Desktop.exe" >nul
 if errorlevel 1 (
     echo.
-    echo Docker Desktop khong chay - khong co gi de dong.
+    echo Docker Desktop không chạy - không có gì để đóng.
     goto :report
 )
 
 if not exist "%DOCKER_DESKTOP%" (
     echo.
-    echo [CANH BAO] Khong tim thay Docker Desktop.exe de dong bang lenh.
-    echo            Dong bang tay: chuot phai bieu tuong ca voi o khay he thong,
-    echo            chon "Quit Docker Desktop".
+    echo [CẢNH BÁO] Không tìm thấy Docker Desktop.exe để đóng bằng lệnh.
+    echo            Đóng bằng tay ở khay hệ thống: Quit Docker Desktop.
     goto :report
 )
 
 echo.
-echo Dang dong Docker Desktop de tra lai RAM cua may ao...
-rem `-Shutdown` la duong dong CHINH THUC: no dung engine, dong cac distro WSL
-rem cua Docker roi mo thoat. `taskkill` chi giet cua so - engine va may ao o
-rem lai, va lan bat sau Docker hay bao hong trang thai.
+echo Đang đóng Docker Desktop để trả lại RAM của máy ảo...
 start "" "%DOCKER_DESKTOP%" -Shutdown
 
 set /a DD_WAIT=0
@@ -217,26 +176,23 @@ tasklist /FI "IMAGENAME eq Docker Desktop.exe" /NH | findstr /i /c:"Docker Deskt
 if errorlevel 1 goto :dd_done
 set /a DD_WAIT+=2
 if %DD_WAIT% GEQ 90 (
-    echo [CANH BAO] Doi 90 giay ma Docker Desktop chua dong han.
-    echo            Cu de no tu dong not, hoac dong tay o khay he thong.
+    echo [CẢNH BÁO] Đợi 90 giây mà Docker Desktop chưa đóng hẳn.
+    echo            Cứ để nó tự đóng nốt, hoặc đóng tay ở khay hệ thống.
     goto :report
 )
 goto :wait_dd
 
 :dd_done
-echo Docker Desktop da dong sau %DD_WAIT%s.
+echo Docker Desktop đã đóng sau %DD_WAIT%s.
 
 if defined KILL_WSL (
     echo.
-    echo Dang tat may ao WSL2...
-    rem Luu y: `wsl --shutdown` tat MOI distro WSL, khong rieng cua Docker. Neu
-    rem dang mo Ubuntu lam viec khac thi phien do cung mat.
+    echo Đang tắt máy ảo WSL2...
     wsl --shutdown
-    echo Da tat WSL2.
+    echo Đã tắt WSL2. Lưu ý: lệnh này tắt MỌI distro WSL, không riêng của Docker.
 )
 
 :report
-rem Do lai sau khi don. Windows tra RAM ve khong tuc thi nen cho mot nhip.
 ping -n 4 127.0.0.1 >nul
 set "RAM_AFTER="
 for /f "delims=" %%m in ('powershell -NoProfile -Command "[math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1MB,2)"') do set "RAM_AFTER=%%m"
@@ -244,9 +200,9 @@ for /f "delims=" %%m in ('powershell -NoProfile -Command "[math]::Round((Get-Cim
 echo.
 echo === XONG ===
 if defined RAM_BEFORE if defined RAM_AFTER (
-    echo RAM trong: %RAM_BEFORE% GB  -^>  %RAM_AFTER% GB
+    echo RAM trống: %RAM_BEFORE% GB  -^>  %RAM_AFTER% GB
 )
-echo Bat lai he thong: run-backend.bat
+echo Bật lại hệ thống: run-backend.bat
 echo.
 
 call :restore_cp
@@ -254,59 +210,60 @@ endlocal
 exit /b 0
 
 rem ===========================================================================
-rem Con tien trinh nao giu cong %1 khong. %2 la ten dich vu, chi de in ra.
-rem
-rem Phai la chuong trinh con: `set` trong mot khoi ngoac don duoc noi suy MOT
-rem lan luc phan tich ca khoi, nen goi hai lan trong hai khoi se doc nham gia
-rem tri cua lan truoc. `call` bat cmd phan tich lai tung dong ngay truoc khi
-rem chay.
-:check_port
+rem Dừng tiến trình đang giữ cổng %1. %2 là tên service, chỉ để in ra.
+:kill_port
 set "PORT_PID="
-for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":%1 .*LISTENING"') do set "PORT_PID=%%p"
+for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":%~1 .*LISTENING"') do set "PORT_PID=%%p"
 if not defined PORT_PID goto :eof
-echo.
-echo [CANH BAO] Cong %1 VAN bi tien trinh PID %PORT_PID% chiem sau khi da ha container.
-echo            Gan nhu chac chan la mot ban %2 chay tay con sot lai.
-echo            Xem no la gi : tasklist /FI "PID eq %PORT_PID%"
-echo            Tat di       : taskkill /PID %PORT_PID% /F
+set "KILLED=1"
+echo   %~2 :%~1 - PID %PORT_PID%, đang tắt...
+taskkill /PID %PORT_PID% /T /F >nul 2>nul
+if errorlevel 1 (
+    echo   [CẢNH BÁO] Không tắt được PID %PORT_PID%. Nếu đó là container Docker
+    echo              thì phần `docker compose down` bên dưới sẽ lo.
+)
 goto :eof
 
-rem ===========================================================================
 :compose_failed
 echo.
-echo [LOI] Lenh docker compose that bai. Cuon len xem thong bao o tren.
-echo       Cach manh tay hon, dong theo TEN container:
-echo           docker rm -f vnsearch-backend vnsearch-postgres vnsearch-kafka
-echo           docker rm -f vnsearch-kafka-ui vnsearch-crawler-worker
+echo [LỖI] Lệnh docker compose thất bại. Cuộn lên xem thông báo ở trên.
+echo       Cách mạnh tay hơn, đóng theo TÊN container:
+echo           docker rm -f vnsearch-gateway vnsearch-auth vnsearch-search
+echo           docker rm -f vnsearch-crawler vnsearch-analytics vnsearch-history
+echo           docker rm -f vnsearch-downloads vnsearch-settings vnsearch-football
+echo           docker rm -f vnsearch-postgres vnsearch-redis vnsearch-mongo
+echo           docker rm -f vnsearch-kafka vnsearch-kafka-ui
 echo           docker rm -f vnsearch-prometheus vnsearch-grafana vnsearch-alertmanager
-echo           docker rm -f vnsearch-kafka-exporter vnsearch-football
 goto :fail
 
 :usage
 echo.
-echo   end-backend.bat                 ha container + tat Docker Desktop
-echo   end-backend.bat --keep-docker   chi ha container, de Docker Desktop chay
-echo   end-backend.bat --stop          chi dung container, KHONG xoa - bat lai nhanh
-echo   end-backend.bat --wipe          ha container VA XOA volume - MAT DU LIEU
-echo   end-backend.bat --wsl           tat luon may ao WSL2 sau khi tat Docker
+echo   end-backend.bat                dừng tiến trình jar ^(cổng 8080-8087^), hạ
+echo                                  container rồi tắt Docker Desktop
+echo   end-backend.bat --local        chỉ dừng tiến trình jar, không đụng Docker
+echo   end-backend.bat --keep-docker  hạ container nhưng để Docker Desktop chạy
+echo   end-backend.bat --stop         chỉ dừng container, KHÔNG xoá - bật lại nhanh
+echo   end-backend.bat --wipe         hạ container VÀ XOÁ volume - MẤT DỮ LIỆU
+echo   end-backend.bat --wsl          tắt luôn máy ảo WSL2 sau khi tắt Docker
 echo.
-echo   Bat lai: run-backend.bat
+echo   Bật lại: run-backend.bat
 echo.
 call :restore_cp
 endlocal
 exit /b 0
 
 :usage_fail
-echo   Chay "end-backend.bat --help" de xem cac tham so hop le.
+echo   Chạy "end-backend.bat --help" để xem các tham số hợp lệ.
 echo.
-echo Nhan phim bat ky de dong...
+echo Nhấn phím bất kỳ để đóng...
 pause >nul
+call :restore_cp
 endlocal
 exit /b 1
 
 :fail
 echo.
-echo Nhan phim bat ky de dong...
+echo Nhấn phím bất kỳ để đóng...
 pause >nul
 call :restore_cp
 endlocal

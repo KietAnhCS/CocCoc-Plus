@@ -8,7 +8,16 @@ import { useSidePanelStore } from '../store/sidePanelStore'
 import { useTabStore } from '../store/tabStore'
 import { useSessionStore } from '../store/sessionStore'
 import { useAdminStore } from '../store/adminStore'
-import { DownloadIcon, MenuIcon, PuzzleIcon, SparkleIcon, SplitScreenIcon, UserIcon } from './icons'
+import { NutTaiXuong } from './DownloadIndicator'
+import {
+  DownloadIcon,
+  IncognitoIcon,
+  MenuIcon,
+  PuzzleIcon,
+  SparkleIcon,
+  SplitScreenIcon,
+  UserIcon
+} from './icons'
 
 function Toolbar(): JSX.Element {
   const [extensionsOpen, setExtensionsOpen] = useState(false)
@@ -20,13 +29,32 @@ function Toolbar(): JSX.Element {
   const togglePanel = useSidePanelStore((state) => state.togglePanel)
   const panelOpen = useSidePanelStore((state) => state.open)
   const tabCount = useTabStore((state) => state.tabs.length)
+  const anDanh = useTabStore(
+    (state) => state.tabs.find((tab) => tab.id === state.activeTabId)?.incognito ?? false
+  )
   const user = useSessionStore((state) => state.user)
   const openDashboard = useAdminStore((state) => state.openDashboard)
 
   return (
-    <div className="flex h-12 shrink-0 items-center gap-1 bg-surface px-2.5">
+    <div
+      className={
+        'flex h-12 shrink-0 items-center gap-1 px-2.5 transition-colors duration-200 ' +
+        (anDanh ? 'bg-violet-950/95 text-violet-100' : 'bg-surface')
+      }
+    >
       <NavigationButtons />
-      <div className="mx-1 h-5 w-px shrink-0 bg-line" />
+      <div className={'mx-1 h-5 w-px shrink-0 ' + (anDanh ? 'bg-violet-400/30' : 'bg-line')} />
+
+      {anDanh && (
+        <span
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-full border border-violet-400/40
+                     bg-violet-500/20 px-2.5 text-[12px] font-medium text-violet-100"
+          title="Thẻ ẩn danh — không ghi lịch sử duyệt web"
+        >
+          <IncognitoIcon className="h-4 w-4 text-violet-300" />
+          Ẩn danh
+        </span>
+      )}
 
       <AddressBar />
 
@@ -95,14 +123,16 @@ function Toolbar(): JSX.Element {
           </Popover>
         </div>
 
-        <button
+        <NutTaiXuong
+          lopNut="icon-btn"
+          nhan="Tải xuống"
+          moTa="Tải xuống (Ctrl+J)"
+          active={panelOpen === 'downloads'}
           onClick={() => openPanel('downloads')}
-          className={'icon-btn ' + (panelOpen === 'downloads' ? 'bg-raised text-ink' : '')}
-          aria-label="Tải xuống"
-          title="Tải xuống (Ctrl+J)"
+          thongBao
         >
           <DownloadIcon className="h-[18px] w-[18px]" />
-        </button>
+        </NutTaiXuong>
 
         <div className="relative">
           <button

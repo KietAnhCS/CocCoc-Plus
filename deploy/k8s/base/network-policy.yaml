@@ -1,0 +1,219 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mac-dinh-chan-het
+  namespace: vnsearch
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cho-phep-dns
+  namespace: vnsearch
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cho-phep-egress-noi-bo
+  namespace: vnsearch
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector: {}
+
+---
+# NetworkPolicy cộng dồn: một luật ingress cho toàn namespace sẽ VÔ HIỆU HOÁ
+# các luật riêng của postgres/redis/mongo bên dưới, nên ba thành phần đó bị
+# loại khỏi luật này.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cho-phep-ingress-noi-bo
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/component
+        operator: NotIn
+        values: [postgres, redis, mongo]
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}
+
+---
+# Ingress controller nằm ở namespace khác, nên nó cần một luật riêng — và chỉ
+# api-gateway được nhận lưu lượng đó.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cho-phep-ingress-vao-gateway
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: api-gateway
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: crawler-duoc-ra-internet
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: crawler-service
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+
+---
+# football-service gọi api-sports.io. Không có luật này thì nó lặng lẽ lui về
+# dữ liệu mẫu.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: football-duoc-goi-api-ngoai
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: football-service
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+              - 169.254.0.0/16
+      ports:
+        - protocol: TCP
+          port: 443
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-chi-cho-service-dung-toi
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: postgres
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: auth-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: search-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: crawler-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: downloads-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: settings-service
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: football-service
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongo-chi-cho-history
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: mongo
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: history-service
+      ports:
+        - protocol: TCP
+          port: 27017
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-chi-cho-gateway-va-auth
+  namespace: vnsearch
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: redis
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: api-gateway
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: auth-service
+      ports:
+        - protocol: TCP
+          port: 6379

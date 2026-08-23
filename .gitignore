@@ -1,16 +1,17 @@
 # Backend (Maven / Java)
-search-engine/target/
-search-engine/.mvn/wrapper/maven-wrapper.jar
+backend/**/target/
+backend/sarif/
+backend/.mvn/wrapper/maven-wrapper.jar
 *.class
 
 # Frontend (Electron / Node)
-browser-app/node_modules/
-browser-app/out/
-browser-app/dist/
+desktop-app/node_modules/
+desktop-app/out/
+desktop-app/dist/
 
 # Data / runtime (nhung van commit mot mau seed nho de demo khong can crawl lai)
-search-engine/data/*.json
-!search-engine/data/seed-documents.json
+backend/data/*.json
+!backend/data/seed-documents.json
 
 # Bi mat. Chi `.env.example` (khong chua gia tri that) duoc commit.
 .env

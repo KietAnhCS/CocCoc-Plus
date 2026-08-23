@@ -89,7 +89,20 @@ jobs:
   # DỰNG VÀ ĐẨY ẢNH
   # ---------------------------------------------------------------------------
   anh-docker:
-    name: Dựng, ký và đẩy ảnh
+    name: Dựng ${{ matrix.service }}
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - search-service
+          - crawler-service
+          - analytics-service
+          - history-service
+          - downloads-service
+          - settings-service
+          - football-service
     needs: kiem-tra
     runs-on: ubuntu-latest
     permissions:
@@ -125,7 +138,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -137,16 +150,19 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: ${{ matrix.service == 'football-service' && './backend/services/football-service' || './backend' }}
           push: true
+          build-args: |
+            MODULE=services/${{ matrix.service }}
+            ARTIFACT=${{ matrix.service }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # amd64 + arm64: máy Mac dùng chip Apple và phần lớn máy chủ đám mây
           # giá rẻ đều là arm64. Ảnh chỉ có amd64 sẽ chạy qua lớp giả lập, chậm
           # thấy rõ.
           platforms: linux/amd64,linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           # buildx tự đính kèm SBOM và chứng thực nguồn gốc vào ảnh.
           sbom: true
           provenance: mode=max
@@ -175,7 +191,7 @@ jobs:
       - name: Quét lỗ hổng (chặn ở mức CRITICAL)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
           format: table
           exit-code: '1'
           ignore-unfixed: true
@@ -216,7 +232,7 @@ jobs:
             ## Ảnh Docker
 
             ```bash
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-gateway:${{ github.ref_name }}
             ```
 
             Ảnh hỗ trợ `linux/amd64` và `linux/arm64`, kèm SBOM và chứng thực
@@ -225,7 +241,7 @@ jobs:
             Kiểm chứng chữ ký:
 
             ```bash
-            cosign verify ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }} \
+            cosign verify ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-gateway:${{ github.ref_name }} \
               --certificate-identity-regexp 'https://github.com/${{ github.repository }}/.*' \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com
             ```

@@ -1,7 +1,7 @@
 # Browser app like CocCoc and Vietnamese search engine
 
 A Vietnamese search engine built from scratch — crawler, inverted index, ranking,
-and a mini browser to query it.
+and a mini browser to query it. The backend is nine services behind one gateway.
 
 Every core data structure and algorithm is **hand-written**, with no off-the-shelf
 search library: inverted index, VByte compression, PageRank, Trie, Bloom filter,
@@ -17,11 +17,30 @@ MinHeap, and a Vietnamese word segmenter.
 └──────────────┘    └──────────────┘    └──────────────┘    └──────┬───────┘
                                                                     │
                                                             ┌───────▼───────┐
-                        ┌──────────────────┐                │  browser-app  │
-                        │ football-service │───────────────▶│  (Electron)   │
-                        │   (Go, :8090)    │  Sports panel  └───────────────┘
-                        └──────────────────┘
+                                                            │  api-gateway  │
+                                                            │     :8080     │
+                                                            └───────┬───────┘
+                        ┌──────────────────┐                ┌───────▼───────┐
+                        │ football-service │───────────────▶│  desktop-app  │
+                        │   (Go, :8090)    │  Sports panel  │  (Electron)   │
+                        └──────────────────┘                └───────────────┘
 ```
+
+The algorithms above live in `backend/libs/core`; the services below are thin
+shells around them. **`api-gateway` is the only port exposed to the outside** —
+the others are reachable only from inside the Compose network.
+
+| Service | Port | Language | Profile | What it owns |
+|---|---:|---|---|---|
+| `api-gateway` | 8080 | Java | default | Routing table, JWT validation, rate limiting, CORS |
+| `auth-service` | 8081 | Java | default | Accounts, roles, JWT issuing, JWKS |
+| `search-service` | 8082 | Java | default | Index, query, ranking, suggestions, images |
+| `crawler-service` | 8083 | Java | `full` | Crawl jobs, reindex |
+| `analytics-service` | 8084 | Java | `full` | Usage events, admin analytics |
+| `history-service` | 8085 | Java | `full` | Browsing history |
+| `downloads-service` | 8086 | Java | `full` | Downloads |
+| `settings-service` | 8087 | Java | `full` | User settings |
+| `football-service` | 8090 | Go | default | Football data, its own 100-calls/day budget |
 
 ---
 
@@ -41,8 +60,9 @@ openssl rand -hex 32
 docker compose up -d --build
 ```
 
-The backend serves on `http://localhost:8080`. First boot takes a few tens of
-seconds to build the index — follow it with `docker compose logs -f backend`.
+Everything is reached through `http://localhost:8080`. First boot takes a few
+tens of seconds while `search-service` builds the index — follow it with
+`docker compose logs -f search-service`.
 
 ```bash
 curl "http://localhost:8080/api/health"
@@ -55,27 +75,34 @@ curl "http://localhost:8080/api/search?q=máy+tính&size=3"
 
 ### Optional profiles
 
-The default stack is deliberately the lightest thing that still works. Two
-opt-in profiles add the distributed crawl pipeline and the observability chain:
+The default stack is deliberately the lightest thing that still works: Postgres,
+Redis, `api-gateway`, `auth-service`, `search-service`, `football-service`.
+Three opt-in profiles add the rest.
 
 ```bash
-# + Kafka, kafka-ui, a separate crawler-worker process   (~3 GB RAM)
+# default: gateway + auth + search + football + postgres + redis   (~2.6 GB RAM)
+docker compose up -d --build
+
+# + crawler, analytics, history, downloads, settings, MongoDB      (~5.4 GB RAM)
+docker compose --profile full up -d --build
+
+# + Kafka and kafka-ui, for the distributed crawl pipeline
 docker compose --profile kafka up -d --build
 
-# + Prometheus, Grafana, Alertmanager, kafka-exporter    (~4 GB RAM)
-docker compose --profile kafka --profile monitoring up -d --build
-
-# + football-service (Go), feeding the browser's Sports panel   (~30 MB RAM)
-docker compose --profile football up -d --build
+# + Prometheus, Grafana, Alertmanager
+docker compose --profile observability up -d --build
 ```
+
+Profiles combine: `docker compose --profile full --profile observability up -d`.
 
 | Address | What you get |
 |---|---|
-| <http://localhost:8081> | kafka-ui — topics, partitions, consumer lag, dead-letter messages |
+| <http://localhost:8080> | api-gateway — the only door into the backend |
+| <http://localhost:8080/swagger-ui.html> | OpenAPI, aggregated from every service |
+| <http://localhost:8090> | kafka-ui — topics, partitions, consumer lag, dead-letter messages |
 | <http://localhost:3000> | Grafana (`admin`/`admin`), dashboard pre-provisioned |
 | <http://localhost:9090/alerts> | Prometheus — the 7 alert rules and their state |
 | <http://localhost:9093> | Alertmanager |
-| <http://localhost:8090/api/v1/status> | football-service — daily API budget left |
 
 Details: [`docs/DEVOPS.md`](docs/DEVOPS.md).
 
@@ -88,28 +115,44 @@ Requires JDK 17+ and Node.js 22+.
 ### Backend
 
 ```bash
-run-backend.bat             # Windows
+run-backend.bat             # Windows — gateway + auth + search, one console each
+run-backend.bat --full      # all eight Java services
+run-backend.bat --build     # rebuild the jars first
+run-backend.bat --docker    # hand over to docker compose instead
 
 # or, by hand:
 export ADMIN_API_KEY=$(openssl rand -hex 32)          # Linux/macOS
 $env:ADMIN_API_KEY = "..."                             # PowerShell
-cd search-engine
-./mvnw spring-boot:run
+cd backend
+./mvnw -B clean package -DskipTests
+java -jar services/auth-service/target/auth-service-0.0.1-SNAPSHOT.jar
+java -jar services/search-service/target/search-service-0.0.1-SNAPSHOT.jar
+java -jar services/api-gateway/target/api-gateway-0.0.1-SNAPSHOT.jar
 ```
 
-`run-backend.bat` reads `ADMIN_API_KEY` from `.env` (generating and saving one
-if absent), checks port 8080, sets a 6 GB heap, and warns when `data/index.json`
-is older than the crawled corpus. Flags: `--postgres`, `--kafka`, `--bm25`,
-`--help`.
+Run the jars **from the `backend` directory** — the data paths
+(`data/index.json`, `data/crawled-documents.json`) are relative to it. And
+outside Docker the services cannot resolve each other by container name, so
+point them at localhost: `AUTH_SERVICE_URL`, `SEARCH_SERVICE_URL`,
+`AUTH_ISSUER_URI`, `AUTH_JWKS_URI`, `REDIS_HOST`. `run-backend.bat` sets all of
+those for you.
 
-No database required: the app falls back to the sample corpus shipped with the
-repo (`data/seed-documents.json`), so a fresh clone runs as-is.
+`run-backend.bat` reads `ADMIN_API_KEY` and `BOOTSTRAP_ADMIN_PASSWORD` from
+`.env` (generating and saving them if absent), checks that ports 8080–8087 are
+free, builds any missing jar, opens one console window per service, and waits
+for the gateway to answer. `end-backend.bat` stops exactly what it started, then
+takes the Compose stack down as well.
+
+No database required: `auth-service` falls back to `data/users.json` and
+`search-service` to the sample corpus shipped with the repo
+(`data/seed-documents.json`), so a fresh clone runs as-is. The Gateway's
+rate-limited routes do need Redis — `docker compose up -d redis` is enough.
 
 ### Frontend
 
 ```bash
 run-frontend.bat            # Windows
-# or: cd browser-app && npm install && npm run dev
+# or: cd desktop-app && npm install && npm run dev
 ```
 
 ### Crawling your own corpus
@@ -188,8 +231,8 @@ bash deploy/kind/down.sh                     # tear the cluster down
 **Two ways to authenticate, one authorisation table.** Tools use a static
 `X-API-Key` (no identity, never expires, always full `ADMIN`); people use an
 account and get `Authorization: Bearer` (identity, 12-hour expiry, revocable
-instantly). Both feed the *same* role check in `SecurityConfig` — adding OAuth
-later means adding a filter, not editing the table.
+instantly). Both feed the *same* role check in `ServiceSecurityConfig` —
+adding OAuth later means adding a filter, not editing the table.
 
 ```bash
 curl -H "X-API-Key: $ADMIN_API_KEY" http://localhost:8080/api/admin/stats
@@ -229,9 +272,12 @@ Four independent layers, each blocking something different:
 ## Development
 
 ```bash
-cd search-engine && ./mvnw clean verify   # 640 tests + coverage gate + static analysis
-cd browser-app  && npm run typecheck && npm run lint && npm test   # 128 tests
+cd backend     && ./mvnw clean verify   # tests + coverage gate + static analysis
+cd desktop-app && npm run typecheck && npm run lint && npm test   # 128 tests
 ```
+
+`clean verify` runs the whole reactor. To work on one service only, add `-pl`:
+`./mvnw -pl services/search-service -am verify`.
 
 `verify` (not `test`) is what CI runs — it is the only phase that executes the
 coverage and static-analysis gates.
@@ -307,14 +353,14 @@ Docs are organised by **the question they answer**, not by source folder:
 |---|---|
 | [**`docs/README.md`**](docs/README.md) | **Documentation roadmap — which of the 69 files to read, in what order** |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How do the pieces fit into one working system? |
-| [`docs/BACKEND.md`](docs/BACKEND.md) | How is the Spring Boot app assembled — beans, config, request lifecycle? |
+| [`docs/BACKEND.md`](docs/BACKEND.md) | How are the Spring Boot services assembled — beans, config, request lifecycle? |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Every config key, its default, and what breaks if you change it |
 | [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) | Where does it run, and who watches it? Docker, Kubernetes, monitoring |
 | [`docs/DEVOPS.md`](docs/DEVOPS.md) | How does code get from a laptop to a cluster? CI/CD, the seven gates |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | What is it defended against, and **what is still open**? |
 | [**`docs/ACCOUNTS-AND-DASHBOARD.md`**](docs/ACCOUNTS-AND-DASHBOARD.md) | **Accounts, roles and the admin dashboard — who may see what, and six real bugs the tests missed** |
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | The mini browser (Electron + React) |
-| [`football-service/README.md`](football-service/README.md) | The football microservice — why a 100-calls/day quota decides every design choice inside it |
+| [`backend/services/football-service/README.md`](backend/services/football-service/README.md) | The football microservice — why a 100-calls/day quota decides every design choice inside it |
 | [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Big-O and measured numbers |
 | [`docs/Math/`](docs/Math/README.md) | One page per class — formulas, worked examples, mind maps |
 | [`docs/Math/08-design-patterns/`](docs/Math/08-design-patterns/README.md) | One page per design pattern, and the bug each one fixed |
@@ -331,21 +377,36 @@ Docs are organised by **the question they answer**, not by source folder:
 ## Repository layout
 
 ```
-search-engine/          Spring Boot backend (Java 17)
-  src/main/java/com/vnsearch/
-    crawler/            Fetching, URL filtering, two-tier frontier
-    index/              Inverted index, VByte compression, VN segmenter
-    query/              Query parsing, posting-list merging
-    ranking/            TF-IDF, BM25, PageRank, snippet generation
-    datastructure/      Trie, BloomFilter, MinHeap, LRUCache, SparseMatrix
-    eval/               Search quality harness
-browser-app/            Mini browser (Electron + React + TypeScript)
+backend/                Maven reactor — one parent pom, eleven modules
+  libs/core/            The algorithms. A library, not a service:
+    src/main/java/com/vnsearch/
+      crawler/          Fetching, URL filtering, two-tier frontier
+      index/            Inverted index, VByte compression, VN segmenter
+      query/            Query parsing, posting-list merging
+      ranking/          TF-IDF, BM25, PageRank, snippet generation
+      datastructure/    Trie, BloomFilter, MinHeap, LRUCache, SparseMatrix
+      eval/             Search quality harness
+    The command-line runners (crawl, evaluation, Postgres import) live here
+    too, which is why the scripts call `./mvnw -pl libs/core exec:java`
+  libs/platform/        Shared Spring plumbing: security chain, API-key filter,
+                        rate limiting, common properties
+  services/api-gateway/       :8080  routing, JWT validation, CORS
+  services/auth-service/      :8081  accounts, roles, JWT issuing
+  services/search-service/    :8082  index, query, ranking, images
+  services/crawler-service/   :8083  crawl jobs, reindex
+  services/analytics-service/ :8084  usage events
+  services/history-service/   :8085  browsing history
+  services/downloads-service/ :8086  downloads
+  services/settings-service/  :8087  user settings
+  services/football-service/  :8090  football data (Go + Postgres)
+    internal/apifootball/     API-Football client and normalisers
+    internal/service/         Cache-aside, daily call budget, fallback order
+    internal/sample/          Sample data, so every screen works with no API key
+  coverage/             Aggregates JaCoCo across every module — must build last
+  data/                 Corpus, index, images, accounts (mounted into containers)
+desktop-app/            Mini browser (Electron + React + TypeScript)
   src/renderer/src/components/football/
                         Full-screen football page, ported from the iOS app
-football-service/       Football data microservice (Go + Postgres), profile `football`
-  internal/apifootball/ API-Football client and normalisers
-  internal/service/     Cache-aside, daily call budget, fallback order
-  internal/sample/      Sample data, so every screen works with no API key
 deploy/
   k8s/                  Kustomize base + dev/prod overlays
   kind/                 Local three-node cluster

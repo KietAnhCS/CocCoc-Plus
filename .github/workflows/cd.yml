@@ -85,8 +85,21 @@ permissions:
 jobs:
   # ═══════════════════════════════════════════════════════════════════════
   dung-anh:
-    name: Dựng và đẩy ảnh lên registry
+    name: Dựng ${{ matrix.service }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - search-service
+          - crawler-service
+          - analytics-service
+          - history-service
+          - downloads-service
+          - settings-service
+          - football-service
     # Bỏ qua khi CI đỏ. Thiếu điều kiện này thì `workflow_run` vẫn kích hoạt
     # kể cả khi CI thất bại — và CD sẽ vui vẻ triển khai một bản mã hỏng.
     if: >-
@@ -98,7 +111,6 @@ jobs:
       # Cần để ký ảnh bằng cosign ở chế độ keyless.
       id-token: write
     outputs:
-      digest: ${{ steps.day.outputs.digest }}
       the: ${{ steps.phien-ban.outputs.the }}
       kho: ${{ steps.kho.outputs.duong-dan }}
 
@@ -148,12 +160,15 @@ jobs:
         name: Dựng và đẩy
         uses: docker/build-push-action@v6
         with:
-          context: ./backend
+          context: ${{ matrix.service == 'football-service' && './backend/services/football-service' || './backend' }}
           push: true
+          build-args: |
+            MODULE=services/${{ matrix.service }}
+            ARTIFACT=${{ matrix.service }}
           tags: |
-            ${{ steps.kho.outputs.duong-dan }}:${{ steps.phien-ban.outputs.the }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            ${{ steps.kho.outputs.duong-dan }}/${{ matrix.service }}:${{ steps.phien-ban.outputs.the }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           # SBOM và provenance: danh sách mọi thư viện trong ảnh, và bằng chứng
           # ảnh này được dựng ra từ đâu. Khi CVE tiếp theo được công bố, câu hỏi
           # đầu tiên là "ta có dùng thư viện đó không" — SBOM trả lời trong vài
@@ -174,7 +189,7 @@ jobs:
           DIGEST: ${{ steps.day.outputs.digest }}
         run: |
           cosign sign --yes \
-            "${{ steps.kho.outputs.duong-dan }}@${DIGEST}"
+            "${{ steps.kho.outputs.duong-dan }}/${{ matrix.service }}@${DIGEST}"
 
       # Quét CVE, và ở ĐÂY thì mức CRITICAL THẬT SỰ chặn.
       #
@@ -185,7 +200,7 @@ jobs:
       - name: Quét CVE, CHẶN nếu có mức CRITICAL
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ steps.kho.outputs.duong-dan }}:${{ steps.phien-ban.outputs.the }}
+          image-ref: ${{ steps.kho.outputs.duong-dan }}/${{ matrix.service }}:${{ steps.phien-ban.outputs.the }}
           format: table
           exit-code: '1'
           ignore-unfixed: true
@@ -223,6 +238,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cài crane
+        uses: imjasonh/setup-crane@v0.4
+
       - name: Cài kubectl
         uses: azure/setup-kubectl@v4
         with:
@@ -254,11 +272,16 @@ jobs:
       # vừa được ký ở job trên. Cùng lập luận đã ghi trong overlays/prod.
       - name: Ghim ảnh theo digest
         working-directory: deploy/k8s/overlays/${{ github.event.inputs.moi-truong == 'production' && 'prod' || 'dev' }}
+        env:
+          KHO: ${{ needs.dung-anh.outputs.kho }}
+          THE: ${{ needs.dung-anh.outputs.the }}
         run: |
-          kubectl kustomize edit set image \
-            "ghcr.io/kietanhcs/search-engine=${{ needs.dung-anh.outputs.kho }}@${{ needs.dung-anh.outputs.digest }}" \
-            2>/dev/null || \
-          sed -i "s|newTag:.*|digest: ${{ needs.dung-anh.outputs.digest }}|" kustomization.yaml
+          for svc in api-gateway auth-service search-service crawler-service \
+                     analytics-service history-service downloads-service settings-service; do
+            digest=$(crane digest "$KHO/$svc:$THE")
+            kustomize edit set image "$KHO/$svc=$KHO/$svc@$digest"
+          done
+          cat kustomization.yaml
 
       # Chạy khô TRƯỚC. Nó bắt được manifest sai ngay trên cụm thật (CRD thiếu,
       # quota không đủ, webhook từ chối) mà `kubectl kustomize` cục bộ không

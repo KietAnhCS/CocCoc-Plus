@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: football-service
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: football-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vnsearch
+      app.kubernetes.io/component: football-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vnsearch
+        app.kubernetes.io/component: football-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: football-service
+          image: ghcr.io/kietanhcs/search-engine/football-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8090
+          envFrom:
+            - configMapRef:
+                name: vnsearch-config
+          env:
+            - name: FOOTBALL_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: vnsearch-secret
+                  key: POSTGRES_PASSWORD
+            - name: FOOTBALL_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vnsearch-secret
+                  key: FOOTBALL_API_KEY
+          startupProbe:
+            exec:
+              command: ["/football-service", "--health-check"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 12
+          readinessProbe:
+            exec:
+              command: ["/football-service", "--health-check"]
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command: ["/football-service", "--health-check"]
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: football-service
+  namespace: vnsearch
+  labels:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: football-service
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: vnsearch
+    app.kubernetes.io/component: football-service
+  ports:
+    - name: http
+      port: 8090
+      targetPort: http

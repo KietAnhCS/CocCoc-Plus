@@ -790,15 +790,15 @@ function Show-Report {
 # --------------------------------------------------------------------- chạy
 
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
-if (-not $Path) { $Path = Join-Path $root 'search-engine\data' }
+if (-not $Path) { $Path = Join-Path $root 'backend\data' }
 
 # Đường dẫn tương đối được thử theo ba mốc, chứ không chỉ theo thư mục hiện
 # hành: người dùng gõ quen tay đúng chuỗi đã dùng với run-crawl.bat
-# ("data/crawled-documents.json"), mà chuỗi đó tính từ thư mục search-engine.
+# ("data/crawled-documents.json"), mà chuỗi đó tính từ thư mục backend.
 $candidates = @($Path)
 if (-not [System.IO.Path]::IsPathRooted($Path)) {
     $candidates += (Join-Path $root $Path)
-    $candidates += (Join-Path (Join-Path $root 'search-engine') $Path)
+    $candidates += (Join-Path (Join-Path $root 'backend') $Path)
 }
 $resolved = $null
 foreach ($c in $candidates) {

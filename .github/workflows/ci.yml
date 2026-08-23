@@ -131,7 +131,7 @@ jobs:
         run: |
           mkdir -p backend/sarif
           find backend -name spotbugsSarif.json -print0 | while IFS= read -r -d '' f; do
-            module=$(echo "$f" | sed -E 's|backend/(.*)/target/.*||; s|/|-|g')
+            module=$(echo "$f" | sed -E 's|backend/(.*)/target/.*|\1|; s|/|-|g')
             cp "$f" "backend/sarif/${module}.sarif"
           done
           ls -la backend/sarif || true

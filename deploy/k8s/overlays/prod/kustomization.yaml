@@ -2,17 +2,18 @@
 #
 #   kubectl apply -k deploy/k8s/overlays/prod
 #
-# TRƯỚC KHI CHẠY, phải tạo Secret bằng tay. Overlay này CỐ Ý không mang theo
-# secret.yaml của lớp nền: giá trị trong tệp đó nằm trong Git và chỉ dành cho
-# dev. Cách để một bí mật dev lọt ra production là để nó có sẵn ở đó.
+# TRƯỚC KHI CHẠY, tạo Secret bằng tay. Overlay này cố ý không mang theo
+# secret.yaml của lớp nền: giá trị trong tệp đó nằm trong Git.
 #
 #   kubectl create namespace vnsearch
 #   kubectl -n vnsearch create secret generic vnsearch-secret \
 #     --from-literal=ADMIN_API_KEY="$(openssl rand -hex 32)" \
-#     --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 24)"
-#
-# Ở quy mô lớn hơn thì thay bước trên bằng External Secrets Operator hoặc
-# Sealed Secrets, để bí mật không bao giờ đi qua terminal của ai.
+#     --from-literal=POSTGRES_PASSWORD="$(openssl rand -hex 24)" \
+#     --from-literal=AUTH_DB_PASSWORD="$(openssl rand -hex 24)" \
+#     --from-literal=DOWNLOADS_DB_PASSWORD="$(openssl rand -hex 24)" \
+#     --from-literal=SETTINGS_DB_PASSWORD="$(openssl rand -hex 24)" \
+#     --from-literal=BOOTSTRAP_ADMIN_PASSWORD="$(openssl rand -hex 16)" \
+#     --from-literal=FOOTBALL_API_KEY=""
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
@@ -20,8 +21,8 @@ namespace: vnsearch
 
 resources:
   - ../../base
+  - scaling.yaml
 
-# Bỏ secret.yaml của lớp nền — xem ghi chú trên.
 patches:
   - target:
       kind: Secret
@@ -33,18 +34,13 @@ patches:
       metadata:
         name: vnsearch-secret
 
-  # Ba bản sao chứ không phải hai: với PodDisruptionBudget minAvailable 1, ba
-  # bản cho phép mất một node vì bảo trì VÀ một Pod vì sự cố mà vẫn còn phục vụ.
   - target:
       kind: Deployment
-      name: vnsearch-backend
+      name: api-gateway
     patch: |-
       - op: replace
         path: /spec/replicas
         value: 3
-      # Trải Pod ra nhiều node. Không có ràng buộc này, bộ lập lịch hoàn toàn
-      # có thể xếp cả ba Pod lên cùng một node — và lúc đó ba bản sao chỉ là ba
-      # lần cùng một điểm hỏng.
       - op: add
         path: /spec/template/spec/topologySpreadConstraints
         value:
@@ -54,11 +50,25 @@ patches:
             labelSelector:
               matchLabels:
                 app.kubernetes.io/name: vnsearch
-                app.kubernetes.io/component: backend
+                app.kubernetes.io/component: api-gateway
 
-  # Có Ingress đứng trước, nên X-Forwarded-For lúc này ĐÁNG tin. Ở dev thì
-  # không, và bật nhầm khi không có proxy sẽ vô hiệu hoá hoàn toàn bộ giới hạn
-  # tần suất — ai cũng tự khai được địa chỉ của mình.
+  - target:
+      kind: Deployment
+      name: search-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  - target:
+      kind: Deployment
+      name: auth-service
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+
+  # Có Ingress đứng trước nên X-Forwarded-For lúc này đáng tin.
   - target:
       kind: ConfigMap
       name: vnsearch-config
@@ -67,14 +77,24 @@ patches:
         path: /data/APP_SECURITY_TRUST_PROXY
         value: "true"
 
-# Ảnh phải được GHIM theo digest, không dùng thẻ `latest`.
-#
-# `latest` là một con trỏ di động: hai node kéo ảnh ở hai thời điểm khác nhau
-# có thể chạy hai bản mã khác nhau, và không có cách nào biết bản đang chạy là
-# bản nào. Digest là mã băm của chính nội dung ảnh — ghim nó là ghim đúng thứ
-# đã được kiểm thử và đã được ký.
-#
-# Thay giá trị dưới đây bằng digest do release.yml in ra.
+# Ảnh phải được ghim theo digest ở môi trường thật; thẻ dưới đây chỉ là mặc
+# định để manifest luôn dựng được.
 images:
-  - name: ghcr.io/kietanhcs/search-engine
+  - name: ghcr.io/kietanhcs/search-engine/api-gateway
+    newTag: v1.0.0
+  - name: ghcr.io/kietanhcs/search-engine/auth-service
+    newTag: v1.0.0
+  - name: ghcr.io/kietanhcs/search-engine/search-service
+    newTag: v1.0.0
+  - name: ghcr.io/kietanhcs/search-engine/crawler-service
+    newTag: v1.0.0
+  - name: ghcr.io/kietanhcs/search-engine/analytics-service
+    newTag: v1.0.0
+  - name: ghcr.io/kietanhcs/search-engine/history-service
+    newTag: v1.0.0
+  - name: ghcr.io/kietanhcs/search-engine/downloads-service
+    newTag: v1.0.0
+  - name: ghcr.io/kietanhcs/search-engine/settings-service
+    newTag: v1.0.0
+  - name: ghcr.io/kietanhcs/search-engine/football-service
     newTag: v1.0.0

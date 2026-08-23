@@ -17,6 +17,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.firewall.HttpFirewall;
+import org.springframework.security.web.firewall.StrictHttpFirewall;
 import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 
@@ -76,7 +78,7 @@ import java.util.List;
  *   (do service khai)              mở   — PublicEndpoints
  *   /actuator/health, /prometheus  mở   — probe của Kubernetes và của Prometheus
  *   /api/admin/**, /actuator/**    ADMIN
- *   còn lại                        chặn
+ *   còn lại                        cần đăng nhập (bất kỳ vai trò nào)
  * </pre>
  *
  * <h2>Vì sao dòng DispatcherType.ERROR là bắt buộc</h2>
@@ -181,7 +183,7 @@ public class ServiceSecurityConfig {
                     }
                     auth.requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                             .requestMatchers("/api/admin/**", "/actuator/**").hasRole("ADMIN")
-                            .anyRequest().denyAll();
+                            .anyRequest().authenticated();
                 })
 
                 // Kiểm chữ ký JWT bằng khoá công khai lấy từ JWKS của
@@ -205,6 +207,13 @@ public class ServiceSecurityConfig {
         }
 
         return http.build();
+    }
+
+    @Bean
+    public HttpFirewall httpFirewall() {
+        StrictHttpFirewall firewall = new StrictHttpFirewall();
+        firewall.setAllowSemicolon(true);
+        return firewall;
     }
 
     /**

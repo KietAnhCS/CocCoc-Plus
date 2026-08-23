@@ -43,14 +43,10 @@ public class HistoryService {
     private final Clock clock;
 
     public HistoryService(VisitRepository visits, SearchQueryRepository queries, AuditLogger audit) {
-        this(visits, queries, audit, Clock.systemUTC());
-    }
-
-    HistoryService(VisitRepository visits, SearchQueryRepository queries, AuditLogger audit, Clock clock) {
         this.visits = visits;
         this.queries = queries;
         this.audit = audit;
-        this.clock = clock;
+        this.clock = Clock.systemUTC();
     }
 
     // ------------------------------------------------------------ ghi

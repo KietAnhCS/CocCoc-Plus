@@ -6,6 +6,8 @@ import { useHistoryStore } from '../store/historyStore'
 import { useSidePanelStore } from '../store/sidePanelStore'
 import { useZoomStore, zoomFactorOf } from '../store/zoomStore'
 import { useSessionStore } from '../store/sessionStore'
+import { usePagesStore } from '../store/pagesStore'
+import { useFindStore } from '../store/findStore'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
 import {
   ChevronRightIcon,
@@ -39,6 +41,9 @@ function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
   const activeTabId = useTabStore((s) => s.activeTabId)
   const tabs = useTabStore((s) => s.tabs)
   const openPanel = useSidePanelStore((s) => s.openPanel)
+  const closePanel = useSidePanelStore((s) => s.closePanel)
+  const moTrang = usePagesStore((s) => s.mo)
+  const moOTim = useFindStore((s) => s.moO)
   const clearAll = useHistoryStore((s) => s.clearAll)
 
   const activeTab = tabs.find((t) => t.id === activeTabId)
@@ -65,15 +70,14 @@ function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
         icon={<WindowIcon className="h-[17px] w-[17px]" />}
         label="Cửa sổ mới"
         shortcut="Ctrl+N"
-        disabled
-        title="Ứng dụng hiện chỉ chạy một cửa sổ duy nhất."
+        onClick={() => run(() => window.win.newWindow(false))}
       />
       <MenuItem
         icon={<IncognitoIcon className="h-[17px] w-[17px]" />}
-        label="Cửa sổ ẩn danh mới"
+        label="Thẻ ẩn danh mới"
         shortcut="Ctrl+Shift+N"
-        disabled
-        title="Chưa có phiên duyệt riêng tư tách biệt."
+        onClick={() => run(() => newTab(undefined, true))}
+        title="Session riêng, không lưu gì xuống đĩa và không ghi lịch sử."
       />
 
       <div className="menu-sep" />
@@ -101,10 +105,19 @@ function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
       />
       <MenuItem
         icon={<TrashIcon className="h-[17px] w-[17px]" />}
-        label="Xoá dữ liệu duyệt web"
+        label="Xoá dữ liệu duyệt web…"
         shortcut="Ctrl+Shift+Del"
-        onClick={() => run(clearAll)}
-        title="Dọn hai chồng back/forward của mọi thẻ."
+        onClick={() =>
+          run(() => {
+            // Dọn hai chồng back/forward tại chỗ, rồi mở trang Nhật ký — nơi
+            // có hộp xác nhận cho phần xoá dữ liệu TRÊN MÁY CHỦ. Xoá thẳng từ
+            // menu là xoá vĩnh viễn mà không hỏi, và menu là chỗ dễ bấm nhầm.
+            clearAll()
+            closePanel()
+            moTrang('history')
+          })
+        }
+        title="Mở Nhật ký để chọn khoảng thời gian cần xoá."
       />
 
       <div className="menu-sep" />
@@ -131,8 +144,9 @@ function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
         icon={<SearchIcon className="h-[17px] w-[17px]" />}
         label="Tìm kiếm trong trang…"
         shortcut="Ctrl+F"
-        disabled
-        title="Chưa cài phần tìm trong trang."
+        disabled={!onExternalPage}
+        title={onExternalPage ? undefined : 'Chỉ tìm được trong trang web đang mở.'}
+        onClick={() => run(moOTim)}
       />
 
       <div className="menu-sep" />
@@ -146,8 +160,12 @@ function BrowserMenu({ open, onClose }: BrowserMenuProps): JSX.Element {
       <MenuItem
         icon={<SettingsIcon className="h-[17px] w-[17px]" />}
         label="Cài đặt"
-        disabled
-        title="Chưa có trang cài đặt."
+        onClick={() =>
+          run(() => {
+            closePanel()
+            moTrang('settings')
+          })
+        }
       />
       <MenuItem
         icon={<ExitIcon className="h-[17px] w-[17px]" />}
@@ -291,11 +309,21 @@ function HistoryItem({ onClose }: { onClose: () => void }): JSX.Element {
 
   return (
     <div className="relative" onMouseEnter={show} onMouseLeave={hideSoon}>
-      <button className="menu-row" aria-haspopup="true" aria-expanded={open}>
+      <button
+        className="menu-row"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => {
+          usePagesStore.getState().mo('history')
+          onClose()
+        }}
+        title="Mở trang Nhật ký đầy đủ (Ctrl+H)"
+      >
         <span className="shrink-0 text-muted">
           <ClockIcon className="h-[17px] w-[17px]" />
         </span>
         <span className="min-w-0 flex-1 truncate">Nhật ký</span>
+        <span className="shrink-0 text-[12px] text-faint">Ctrl+H</span>
         <ChevronRightIcon className="h-4 w-4 shrink-0 text-faint" />
       </button>
 
@@ -345,7 +373,8 @@ function HistoryItem({ onClose }: { onClose: () => void }): JSX.Element {
           <div className="flex items-start gap-3 px-2.5 pb-2 text-[12px] text-faint">
             <DeviceIcon className="mt-0.5 h-4 w-4 shrink-0" />
             <span className="leading-relaxed">
-              Chưa đồng bộ thiết bị nào — ứng dụng chưa có máy chủ tài khoản.
+              Lịch sử được đồng bộ theo tài khoản. Mở <b>Nhật ký</b> để xem đầy đủ và tìm kiếm trong
+              đó.
             </span>
           </div>
         </div>

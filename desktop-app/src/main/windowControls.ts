@@ -52,7 +52,8 @@ export function registerWindowControls(window: BrowserWindow, chrome: WebContent
     'win:close',
     'win:toggleFullScreen',
     'win:dragStart',
-    'win:dragEnd'
+    'win:dragEnd',
+    'win:newWindow'
   ]) {
     ipcMain.removeAllListeners(channel)
   }
@@ -64,6 +65,18 @@ export function registerWindowControls(window: BrowserWindow, chrome: WebContent
   ipcMain.on('win:toggleFullScreen', () => window.setFullScreen(!window.isFullScreen()))
   ipcMain.on('win:dragStart', startDrag)
   ipcMain.on('win:dragEnd', stopDrag)
+
+  /**
+   * Mở thêm một cửa sổ (thường hoặc ẩn danh).
+   *
+   * `import()` động chứ không `import` ở đầu tệp: `index.ts` đã nhập tệp này,
+   * nên một lời nhập tĩnh theo chiều ngược lại tạo ra vòng nhập. Với ESM thì
+   * vòng đó không lỗi ngay — nó khiến `openWindow` là `undefined` vào đúng lúc
+   * dòng này chạy, và triệu chứng là nút "Cửa sổ mới" không làm gì cả.
+   */
+  ipcMain.on('win:newWindow', (_event, incognito: boolean) => {
+    void import('./index').then((module) => module.openWindow(incognito === true))
+  })
 
   ipcMain.handle('win:isMaximized', () => window.isMaximized())
   ipcMain.handle('win:toggleMaximize', () => {

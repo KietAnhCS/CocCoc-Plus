@@ -10,9 +10,10 @@ import { useBookmarkStore, collectBookmarks } from '../store/bookmarkStore'
 import { APP_GROUPS, findApp } from '../lib/apps'
 import AppTile from './AppTile'
 import FootballPanel from './FootballPanel'
+import DownloadsPanel from './DownloadsPanel'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
 import { useFootballAppStore } from '../store/footballAppStore'
-import { CloseIcon, DownloadIcon, FullscreenIcon, PinIcon, SparkleIcon } from './icons'
+import { CloseIcon, FullscreenIcon, PinIcon, SparkleIcon } from './icons'
 
 const TITLES: Record<PanelKind, string> = {
   'add-site': 'Thêm trang web vào thanh bên',
@@ -93,7 +94,7 @@ function SidePanel(): JSX.Element | null {
         <div className="min-h-0 flex-1 overflow-y-auto">
           {open === 'add-site' && <AddSiteBody />}
           {open === 'app' && <AppBody />}
-          {open === 'downloads' && <DownloadsBody />}
+          {open === 'downloads' && <DownloadsPanel />}
           {open === 'bookmarks' && <BookmarksBody />}
           {open === 'ai' && <AskAiBody />}
         </div>
@@ -310,16 +311,6 @@ function BookmarksBody(): JSX.Element {
         </ul>
       )}
     </div>
-  )
-}
-
-function DownloadsBody(): JSX.Element {
-  return (
-    <EmptyState
-      icon={<DownloadIcon className="h-7 w-7" />}
-      text="Chưa có tệp nào được tải xuống."
-      hint="Các tệp bạn tải về sẽ hiện ở đây."
-    />
   )
 }
 

@@ -28,12 +28,8 @@ public class DownloadService {
     private final Clock clock;
 
     public DownloadService(DownloadRepository repository) {
-        this(repository, Clock.systemUTC());
-    }
-
-    DownloadService(DownloadRepository repository, Clock clock) {
         this.repository = repository;
-        this.clock = clock;
+        this.clock = Clock.systemUTC();
     }
 
     /** Trạng thái mới không hợp lệ với trạng thái hiện tại. */

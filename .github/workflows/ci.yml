@@ -31,7 +31,7 @@
 # lập trình viên thì hoàn toàn bình thường, và thông báo lỗi không hề nhắc tới
 # Git hay quyền tệp trong kho. Sửa một lần bằng:
 #
-#     git update-index --chmod=+x search-engine/mvnw
+#     git update-index --chmod=+x backend/mvnw
 #
 # Cùng lý do áp dụng cho deploy/kind/up.sh và down.sh.
 #
@@ -95,7 +95,7 @@ jobs:
       # `verify` chứ không phải `test`: pha verify mới chạy jacoco:check và
       # spotbugs:check. Chạy `test` là bỏ qua hai trong bốn cổng chặn.
       - name: Test, đo độ phủ và phân tích tĩnh
-        working-directory: search-engine
+        working-directory: backend
         # -B (batch) tắt thanh tiến độ động, thứ chỉ có nghĩa trên terminal
         # thật và chỉ làm bẩn log của CI.
         run: ./mvnw -B clean verify
@@ -104,7 +104,7 @@ jobs:
       # trang Actions mà không phải tải tệp về rồi mở ra.
       - name: Tóm tắt độ phủ
         if: always()
-        working-directory: search-engine
+        working-directory: backend
         run: |
           CSV=target/site/jacoco/jacoco.csv
           if [ ! -f "$CSV" ]; then
@@ -122,11 +122,28 @@ jobs:
 
       # Cảnh báo phân tích tĩnh hiện thẳng trong tab Security và trong diff của
       # pull request, thay vì nằm trong một tệp XML không ai mở.
+      # Reactor đa module sinh một spotbugsSarif.json cho MỖI module, nằm rải
+      # ở backend/*/*/target/. Action upload-sarif nhận một thư mục, không nhận
+      # một mẫu glob — nên phải gom lại. Đổi tên theo module để hai tệp không
+      # đè nhau: cả mười module đều sinh ra đúng một cái tên.
+      - name: Gom báo cáo SpotBugs
+        if: always()
+        run: |
+          mkdir -p backend/sarif
+          find backend -name spotbugsSarif.json -print0 | while IFS= read -r -d '' f; do
+            module=$(echo "$f" | sed -E 's|backend/(.*)/target/.*||; s|/|-|g')
+            cp "$f" "backend/sarif/${module}.sarif"
+          done
+          ls -la backend/sarif || true
+
       - name: Đẩy kết quả SpotBugs lên tab Security
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: search-engine/target/spotbugsSarif.json
+          # Reactor đa module: mỗi module sinh một tệp SARIF riêng. Gộp ở đây
+          # thay vì đẩy từng tệp — tab Security hiện một danh sách chứ không
+          # phải mười danh sách rời.
+          sarif_file: backend/sarif/
           category: spotbugs
         continue-on-error: true
 
@@ -139,8 +156,8 @@ jobs:
         with:
           name: bao-cao-backend
           path: |
-            search-engine/target/surefire-reports/
-            search-engine/target/site/jacoco/
+            backend/**/target/surefire-reports/
+            backend/coverage/target/site/jacoco-aggregate/
           retention-days: 7
 
   frontend:
@@ -154,13 +171,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: browser-app/package-lock.json
+          cache-dependency-path: desktop-app/package-lock.json
 
       # `npm ci` chứ không phải `npm install`: nó cài ĐÚNG phiên bản ghi trong
       # package-lock.json và báo lỗi nếu lock lệch với package.json. Trên CI,
       # tính lặp lại được quan trọng hơn sự tiện lợi.
       - name: Cài đặt thư viện
-        working-directory: browser-app
+        working-directory: desktop-app
         run: npm ci
         env:
           # Bỏ qua bước tải bản chạy Electron (~100 MB): CI chỉ kiểm tra kiểu và
@@ -168,11 +185,11 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
 
       - name: Kiểm tra kiểu
-        working-directory: browser-app
+        working-directory: desktop-app
         run: npm run typecheck
 
       - name: Lint
-        working-directory: browser-app
+        working-directory: desktop-app
         run: npm run lint
 
       # Cổng chặn thứ ba của frontend, và là cổng duy nhất kiểm HÀNH VI.
@@ -186,7 +203,7 @@ jobs:
       # `javascript:` phải bị từ chối. Nới lỏng phép kiểm tra đó "cho tiện" sẽ
       # làm build đỏ ngay tại pull request.
       - name: Test (Vitest)
-        working-directory: browser-app
+        working-directory: desktop-app
         run: npm test
 
   image:
@@ -202,7 +219,7 @@ jobs:
       # Kustomize không cho tham chiếu tệp ngoài thư mục gốc, nên schema.sql
       # phải có một bản sao trong deploy/k8s/base. Bước này chặn hai bản lệch.
       - name: Chặn lệch schema.sql
-        run: diff -u search-engine/src/main/resources/db/schema.sql deploy/k8s/base/schema.sql
+        run: diff -u backend/libs/core/src/main/resources/db/schema.sql deploy/k8s/base/schema.sql
 
       - uses: docker/setup-buildx-action@v3
 
@@ -215,7 +232,7 @@ jobs:
       - name: Dựng ảnh
         uses: docker/build-push-action@v6
         with:
-          context: ./search-engine
+          context: ./backend
           push: false
           load: true
           tags: vnsearch-backend:ci
@@ -281,7 +298,7 @@ jobs:
       # job `backend`. Hai cổng chặn nặng (JaCoCo, SpotBugs) cũng tắt trong hồ
       # sơ đó — xem pom.xml.
       - name: Chạy test tích hợp
-        working-directory: search-engine
+        working-directory: backend
         run: ./mvnw -B verify -Pkafka-it
 
       - name: Lưu báo cáo test tích hợp
@@ -289,7 +306,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: bao-cao-kafka-it
-          path: search-engine/target/surefire-reports/
+          path: backend/**/target/surefire-reports/
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════════════

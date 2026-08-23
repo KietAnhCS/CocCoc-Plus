@@ -72,17 +72,17 @@ jobs:
           cache: maven
 
       - name: Test, độ phủ, phân tích tĩnh
-        working-directory: search-engine
+        working-directory: backend
         run: ./mvnw -B clean verify
 
       - name: Đóng gói jar
-        working-directory: search-engine
+        working-directory: backend
         run: ./mvnw -B package -DskipTests
 
       - uses: actions/upload-artifact@v4
         with:
           name: jar
-          path: search-engine/target/*.jar
+          path: backend/services/*/target/*.jar
           retention-days: 1
 
   # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: ./search-engine
+          context: ./backend
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

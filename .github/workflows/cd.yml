@@ -148,7 +148,7 @@ jobs:
         name: Dựng và đẩy
         uses: docker/build-push-action@v6
         with:
-          context: ./search-engine
+          context: ./backend
           push: true
           tags: |
             ${{ steps.kho.outputs.duong-dan }}:${{ steps.phien-ban.outputs.the }}

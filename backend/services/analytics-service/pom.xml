@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  analytics-service :8084 — thu số liệu sử dụng và dựng bảng điều khiển.
+  ============================================================================
+
+  Service này minh hoạ một mẫu tích hợp mà mọi hệ thống microservice đều gặp:
+  API COMPOSITION. Bảng điều khiển quản trị cần ba khối dữ liệu thuộc ba chủ sở
+  hữu khác nhau:
+
+      traffic   người dùng làm gì      <- CỦA CHÍNH NÓ (trong bộ nhớ, 24 giờ)
+      index     chỉ mục thế nào        <- crawler-service, qua HTTP
+      accounts  tài khoản, phiên       <- auth-service, qua HTTP
+
+  Cách SAI mà ai cũng bị cám dỗ: cho service này kết nối thẳng vào CSDL của hai
+  service kia. Nó nhanh hơn, ít mã hơn, và phá vỡ hoàn toàn ranh giới — hai
+  service không đổi được lược đồ nữa, và một lỗ hổng ở đây chạm tới bảng mật
+  khẩu. Xem AdminDashboardAssembler về cách làm đúng và cái giá của nó.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>analytics-service</artifactId>
+	<name>analytics-service</name>
+	<description>Thu số liệu sử dụng và tổng hợp bảng điều khiển quản trị</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-platform</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

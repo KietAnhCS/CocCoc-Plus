@@ -79,14 +79,43 @@ class AnalyticsAuthorizationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    /**
+     * Khoá đúng thì đọc được khối số liệu mà CHÍNH service này sở hữu.
+     *
+     * <p>Chỉ kiểm khối {@code traffic}: hai khối còn lại ({@code crawl},
+     * {@code index}, {@code accounts}) do crawler-service và auth-service giữ,
+     * và trong một bài kiểm thử của riêng service này thì hai service đó không
+     * chạy. Đòi chúng có mặt là biến bài test thành thứ chỉ xanh khi cả hệ
+     * thống đang chạy — tức là một bài test tích hợp đội lốt test đơn vị.
+     */
     @Test
-    void khoaDungThiTraVeDuBaKhoiSoLieu() throws Exception {
+    void khoaDungThiTraVeKhoiSoLieuCuaChinhNo() throws Exception {
         mockMvc.perform(get("/api/admin/analytics").header(KEY_HEADER, VALID_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.generatedAt").exists())
-                .andExpect(jsonPath("$.traffic.searches").exists())
-                .andExpect(jsonPath("$.crawl.documents").exists())
-                .andExpect(jsonPath("$.index.terms").exists());
+                .andExpect(jsonPath("$.traffic.searches").exists());
+    }
+
+    /**
+     * Service phụ thuộc CHẾT thì bảng điều khiển vẫn trả 200, chỉ thiếu khối.
+     *
+     * <p>Đây là bài kiểm quan trọng nhất của mẫu API Composition, và nó chạy
+     * được chính vì crawler-service lẫn auth-service đều KHÔNG tồn tại trong
+     * bài test này — mọi lượt gọi ra ngoài đều hỏng. Không có phép suy giảm
+     * từng phần trong {@code AdminDashboardAssembler} thì endpoint này trả 500
+     * mỗi khi một service bất kỳ chậm, và một sự cố nhỏ ở crawler-service làm
+     * mù luôn công cụ dùng để chẩn đoán nó.
+     *
+     * <p>{@code scorer = "khong-ro"} là dấu hiệu của khối dự phòng — xem
+     * {@code AdminDashboardAssembler.INDEX_KHONG_RO}.
+     */
+    @Test
+    void servicePhuThuocChetThiVanTraVe200VoiKhoiRong() throws Exception {
+        mockMvc.perform(get("/api/admin/analytics").header(KEY_HEADER, VALID_KEY))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.index.scorer").value("khong-ro"))
+                .andExpect(jsonPath("$.accounts.total").value(0))
+                .andExpect(jsonPath("$.crawl").doesNotExist());
     }
 
     @Test

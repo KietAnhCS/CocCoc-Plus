@@ -2,11 +2,8 @@ package com.vnsearch.controller;
 
 import com.vnsearch.analytics.AdminDashboard;
 import com.vnsearch.analytics.UsageAnalyticsService;
-import com.vnsearch.auth.Role;
-import com.vnsearch.auth.SessionStore;
-import com.vnsearch.auth.User;
-import com.vnsearch.auth.UserService;
-import com.vnsearch.service.SearchEngineFacade;
+import com.vnsearch.dashboard.AdminDashboardAssembler;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.http.ResponseEntity;
@@ -17,8 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
-import java.util.List;
+import org.springframework.http.HttpHeaders;
 
 /**
  * Nguồn dữ liệu cho <b>bảng điều khiển quản trị</b> của browser-app.
@@ -47,16 +43,12 @@ public class AdminAnalyticsController {
     private static final int DEFAULT_TOP = 10;
 
     private final UsageAnalyticsService analytics;
-    private final SearchEngineFacade facade;
-    private final UserService users;
-    private final SessionStore sessions;
+    private final AdminDashboardAssembler assembler;
 
-    public AdminAnalyticsController(UsageAnalyticsService analytics, SearchEngineFacade facade,
-                                     UserService users, SessionStore sessions) {
+    public AdminAnalyticsController(UsageAnalyticsService analytics,
+                                     AdminDashboardAssembler assembler) {
         this.analytics = analytics;
-        this.facade = facade;
-        this.users = users;
-        this.sessions = sessions;
+        this.assembler = assembler;
     }
 
     /**
@@ -72,28 +64,12 @@ public class AdminAnalyticsController {
             @RequestParam(value = "top", defaultValue = "" + DEFAULT_TOP)
             @Min(value = 1, message = "top phai >= 1")
             @Max(value = 50, message = "top toi da 50")
-            int top) {
-        return new AdminDashboard(
-                Instant.now(),
-                analytics.snapshot(top),
-                facade.getCorpusStats(),
-                new AdminDashboard.IndexStats(
-                        facade.getIndexedDocumentCount(),
-                        facade.getTermCount(),
-                        facade.getIndexSizeBytes(),
-                        facade.getCacheHitRate(),
-                        facade.getScorerName(),
-                        facade.getBloomFilterBits()),
-                accountStats());
-    }
-
-    private AdminDashboard.AccountStats accountStats() {
-        List<User> all = users.findAll();
-        return new AdminDashboard.AccountStats(
-                all.size(),
-                (int) all.stream().filter(user -> user.role() == Role.ADMIN).count(),
-                (int) all.stream().filter(user -> !user.enabled()).count(),
-                sessions.activeCount());
+            int top,
+            HttpServletRequest request) {
+        // Chuyển tiếp NGUYÊN VẸN header Authorization của người đang xem sang
+        // crawler-service và auth-service. Không dùng một tài khoản dịch vụ đặc
+        // quyền: xem Javadoc AdminDashboardAssembler, mục 3.
+        return assembler.assemble(top, request.getHeader(HttpHeaders.AUTHORIZATION));
     }
 
     /**

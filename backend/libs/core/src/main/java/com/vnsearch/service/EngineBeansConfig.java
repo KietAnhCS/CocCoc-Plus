@@ -1,4 +1,4 @@
-package com.vnsearch.config;
+package com.vnsearch.service;
 
 import com.vnsearch.index.Tokenizer;
 import com.vnsearch.index.VietnameseTokenizer;
@@ -21,9 +21,24 @@ import org.springframework.context.annotation.Configuration;
  * resource nen tinh co van dung, nhung do la mot canh cua mo: chi can mot ngay
  * tokenizer nhan tham so cau hinh la hai instance khac nhau va bat bien vo ma
  * khong ai nhan ra. Khai bao mot bean duy nhat dong canh cua do lai.
+ *
+ * <h2>Vì sao lớp này nằm ở {@code vnsearch-core} chứ không ở một service</h2>
+ *
+ * <p>HAI service cần đúng bộ bean này: search-service (để phục vụ truy vấn) và
+ * crawler-service (vì {@code SearchEngineFacade} là thứ nó gọi để lập chỉ mục
+ * lại sau mỗi lần crawl). Để bản khai ở một trong hai thì service kia không
+ * khởi động nổi — đúng lỗi đã gặp: {@code NoSuchBeanDefinitionException: No
+ * qualifying bean of type 'com.vnsearch.index.Tokenizer'}.
+ *
+ * <p>Nó nằm ở gói {@code com.vnsearch.service} có chủ ý, KHÔNG phải
+ * {@code com.vnsearch.config}. Hai service cần nó đều quét gói
+ * {@code com.vnsearch.service}, còn auth-service và analytics-service thì
+ * không — nên chúng không phải trả giá cho một {@code Tokenizer} nạp vài
+ * megabyte từ điển mà chúng chẳng bao giờ gọi tới. Ở những tiến trình chỉ được
+ * cấp 384 MB, vài megabyte đó là thật.
  */
 @Configuration
-public class SearchConfig {
+public class EngineBeansConfig {
 
     /**
      * Tokenizer dung chung cho CA tang chi muc lan tang truy van.

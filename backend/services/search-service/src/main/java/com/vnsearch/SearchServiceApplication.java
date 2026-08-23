@@ -30,10 +30,10 @@ import java.util.List;
  * không ai ghi lại là một khoản nợ không ai trả.
  */
 @SpringBootApplication(scanBasePackages = {
-        "com.vnsearch.config",      // platform + SearchConfig, MetricsConfig, ImageStore*
+        "com.vnsearch.config",      // platform + MetricsConfig, ImageStoreListener/Preloader
         "com.vnsearch.controller",  // Search, Suggest, ImageSearch, Feed, Health
         "com.vnsearch.soap",        // cửa SOAP
-        "com.vnsearch.service",     // SearchEngineFacade, SuggestionService, IndexBuilder
+        "com.vnsearch.service",     // SearchEngineFacade, SuggestionService, EngineBeansConfig
         "com.vnsearch.ranking"      // ScorerFactory
 })
 /*

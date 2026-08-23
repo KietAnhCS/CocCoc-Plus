@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  crawler-service :8083 — điều khiển crawl và tiêu thụ bus Kafka.
+  ============================================================================
+
+  Service này KHÁC bảy service kia ở một điểm quyết định mọi thứ còn lại: nó
+  chủ động mở kết nối ra Internet. Hệ quả về bảo mật:
+
+    - Mọi URL vào đây đều là dữ liệu KHÔNG TIN CẬY. SeedUrlValidator chặn
+      SSRF (A10:2021) — địa chỉ nội bộ, metadata của nhà cung cấp đám mây,
+      giao thức file://. Xem Javadoc của lớp đó.
+    - /api/admin/crawl KHÔNG BAO GIỜ được mở công khai: nó khiến máy chủ đi
+      tải một URL do người gọi chọn.
+    - Trong Kubernetes, đây là service duy nhất cần NetworkPolicy cho phép
+      lưu lượng ra ngoài. Bảy service kia chỉ nói chuyện trong cụm.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>crawler-service</artifactId>
+	<name>crawler-service</name>
+	<description>Điều khiển crawl, frontier, và các Modular Service trên Kafka</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-platform</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

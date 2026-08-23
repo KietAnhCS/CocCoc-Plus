@@ -1,5 +1,6 @@
 package com.vnsearch.controller;
 
+import com.vnsearch.analytics.CorpusStats;
 import com.vnsearch.crawler.SeedUrlValidator;
 import com.vnsearch.service.SearchEngineFacade;
 import jakarta.validation.Valid;
@@ -106,14 +107,50 @@ public class AdminController {
         return ResponseEntity.ok(status);
     }
 
+    /**
+     * Dựng lại chỉ mục từ corpus đã crawl.
+     *
+     * <p><b>Vì sao endpoint này nằm ở crawler-service chứ không ở
+     * search-service</b> — dù thứ nó dựng lại là chỉ mục của search-service.
+     * Lý do là quan hệ nhân quả: lập chỉ mục lại chỉ có nghĩa NGAY SAU một lần
+     * crawl, và người vận hành gọi hai lệnh này liền nhau. Tách chúng ra hai
+     * service là bắt họ nhớ hai địa chỉ cho một thao tác.
+     *
+     * <p><b>Giới hạn đã biết, ghi ra để không ai ngạc nhiên:</b> lệnh này dựng
+     * lại chỉ mục TRONG TIẾN TRÌNH NÀY. Chỉ mục mà search-service đang phục vụ
+     * chỉ đổi theo khi nó cũng nạp lại — hiện tại là lúc khởi động lại. Đây là
+     * món nợ thật của việc tách service, và cách trả đúng là phát một sự kiện
+     * `index.rebuilt` lên Kafka để search-service tự nạp lại. Chưa làm.
+     */
     @PostMapping("/reindex")
     public Map<String, String> reindex() throws IOException {
         facade.reindex();
         return Map.of("status", "OK");
     }
 
+    /**
+     * Số liệu chỉ mục và corpus, cho bảng điều khiển quản trị.
+     *
+     * <p>analytics-service gọi endpoint này khi dựng bảng điều khiển, thay vì
+     * đọc thẳng tệp chỉ mục. Xem {@code AdminDashboardAssembler}.
+     */
     @GetMapping("/stats")
     public Map<String, Object> stats() {
         return facade.getStats();
+    }
+
+    /**
+     * Thống kê CORPUS: bao nhiêu host, bao nhiêu liên kết, độ dài tài liệu,
+     * phân bố ngôn ngữ.
+     *
+     * <p>Tách khỏi {@link #stats()} vì hai thứ trả lời hai câu hỏi khác nhau và
+     * có chi phí rất khác nhau: {@code /stats} đọc vài con số có sẵn trong bộ
+     * nhớ, còn hàm này duyệt toàn bộ corpus để tính trung vị độ dài và đếm
+     * liên kết. Gộp chung thì một bảng điều khiển làm mới mỗi 5 giây sẽ kéo
+     * theo một lần duyệt corpus mỗi 5 giây.
+     */
+    @GetMapping("/corpus-stats")
+    public CorpusStats corpusStats() {
+        return facade.getCorpusStats();
     }
 }

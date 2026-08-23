@@ -71,6 +71,8 @@
 		<module>libs/platform</module>
 		<module>services/auth-service</module>
 		<module>services/search-service</module>
+		<module>services/crawler-service</module>
+		<module>services/analytics-service</module>
 		
 		
 		

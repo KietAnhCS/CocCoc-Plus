@@ -3,6 +3,8 @@ package com.vnsearch.oauth;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -63,6 +65,9 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     private static final Duration USED_MARKER_TTL = Duration.ofDays(30);
 
     private static final String SEPARATOR = "|";
+
+    /** Trần số khoá duyệt trong một lần đếm phiên — xem {@link #activeSessionCount()}. */
+    private static final int SCAN_LIMIT = 10_000;
 
     private final StringRedisTemplate redis;
     private final SecureRandom random = new SecureRandom();
@@ -160,6 +165,39 @@ public class RedisRefreshTokenStore implements RefreshTokenStore {
     @Override
     public boolean isAccessTokenDenied(String tokenId) {
         return Boolean.TRUE.equals(redis.hasKey(DENIED_PREFIX + tokenId));
+    }
+
+    /**
+     * Đếm refresh token còn sống bằng SCAN + SCARD.
+     *
+     * <p><b>Vì sao KHÔNG dùng {@code KEYS rt:user:*}.</b> {@code KEYS} chặn
+     * Redis trong suốt thời gian duyệt — với một tiến trình đơn luồng phục vụ
+     * cả tám service, đó là một lần dừng toàn hệ thống. {@code SCAN} duyệt theo
+     * lô và nhả quyền giữa các lô.
+     *
+     * <p><b>Vì sao có trần {@link #SCAN_LIMIT}.</b> Con số này chỉ để hiện trên
+     * bảng điều khiển. Không có trần thì với một triệu người dùng, một lần mở
+     * bảng điều khiển kéo về một triệu khoá — trả giá lớn cho một con số mà
+     * người xem chỉ liếc qua. Chạm trần thì trả về đúng con số đếm được và ghi
+     * log; hiện "hơn 10.000" vẫn trả lời đúng câu hỏi mà người vận hành đang
+     * hỏi.
+     */
+    @Override
+    public int activeSessionCount() {
+        int total = 0;
+        int scanned = 0;
+        ScanOptions options = ScanOptions.scanOptions().match(USER_PREFIX + "*").count(256).build();
+        try (Cursor<String> cursor = redis.scan(options)) {
+            while (cursor.hasNext() && scanned < SCAN_LIMIT) {
+                Long size = redis.opsForSet().size(cursor.next());
+                total += size == null ? 0 : size.intValue();
+                scanned++;
+            }
+        }
+        if (scanned >= SCAN_LIMIT) {
+            log.info("Đếm phiên dừng ở trần {} khoá — con số trả về là cận dưới.", SCAN_LIMIT);
+        }
+        return total;
     }
 
     private static String usernameOf(String stored) {

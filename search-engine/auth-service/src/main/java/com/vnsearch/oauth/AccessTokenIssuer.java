@@ -7,6 +7,7 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.vnsearch.auth.User;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -55,6 +56,11 @@ public class AccessTokenIssuer {
     private final String audience;
     private final Duration lifetime;
 
+    // @Autowired tường minh vì lớp này có HAI hàm dựng. Spring chỉ tự chọn
+    // được khi có đúng một; có hai thì nó đi tìm hàm dựng không tham số, không
+    // thấy, và đổ ở lúc khởi động với "No default constructor found" — một
+    // thông báo không hề gợi ý nguyên nhân thật.
+    @Autowired
     public AccessTokenIssuer(RsaKeyProvider keys,
                              @Value("${app.auth.issuer:http://auth-service:8081}") String issuer,
                              @Value("${app.auth.audience:vnsearch-api}") String audience,

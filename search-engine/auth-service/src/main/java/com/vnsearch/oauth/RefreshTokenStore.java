@@ -64,4 +64,14 @@ public interface RefreshTokenStore {
 
     /** Access token này đã bị thu hồi chưa. */
     boolean isAccessTokenDenied(String tokenId);
+
+    /**
+     * Số refresh token còn sống — tức số phiên đăng nhập đang mở.
+     *
+     * <p>Chỉ phục vụ bảng điều khiển quản trị. KHÔNG được gọi trên đường chạy
+     * của một request thường: ở bản Redis, đây là một phép duyệt không gian
+     * khoá, và một phép duyệt không gian khoá chạy theo mỗi request là cách
+     * chắc chắn nhất để làm nghẽn Redis.
+     */
+    int activeSessionCount();
 }

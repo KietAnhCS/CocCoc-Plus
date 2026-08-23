@@ -1,9 +1,9 @@
 package com.vnsearch.controller;
 
 import com.vnsearch.auth.Role;
-import com.vnsearch.auth.SessionStore;
 import com.vnsearch.auth.User;
 import com.vnsearch.auth.UserService;
+import com.vnsearch.oauth.TokenService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.http.ResponseEntity;
@@ -44,11 +44,31 @@ import java.util.List;
 public class AdminUserController {
 
     private final UserService users;
-    private final SessionStore sessions;
+    private final TokenService tokens;
 
-    public AdminUserController(UserService users, SessionStore sessions) {
+    public AdminUserController(UserService users, TokenService tokens) {
         this.users = users;
-        this.sessions = sessions;
+        this.tokens = tokens;
+    }
+
+    /**
+     * Bốn con số về tài khoản, cho bảng điều khiển quản trị.
+     *
+     * <p><b>Vì sao khai lại ở đây thay vì dùng chung một lớp với
+     * analytics-service.</b> Dùng chung một lớp DTO giữa hai service nghe tiết
+     * kiệm, nhưng nó tạo ra một phụ thuộc biên dịch giữa hai tiến trình lẽ ra
+     * độc lập: đổi một trường ở đây là buộc bên kia dựng lại và triển khai lại
+     * cùng lúc — tức là đánh mất chính thứ mà việc tách service mua được.
+     *
+     * <p>Hợp đồng giữa hai bên là <b>JSON trên dây</b>, không phải một tệp
+     * {@code .class}. Hai bản khai giống nhau ở hai bên là cái giá đúng, và nó
+     * còn cho phép bên kia thêm trường mà không cần bên này biết.
+     *
+     * @param activeSessions số refresh token còn sống, tức số phiên đăng nhập
+     *                       đang mở. Khác với "số người đang online": một người
+     *                       mở ba thiết bị là ba phiên.
+     */
+    public record AccountStats(int total, int admins, int disabled, int activeSessions) {
     }
 
     public record RoleChange(@NotNull(message = "role không được để trống") Role role) {
@@ -58,6 +78,30 @@ public class AdminUserController {
     @GetMapping
     public List<User.PublicView> list() {
         return users.findAll().stream().map(User::toPublic).toList();
+    }
+
+    /**
+     * Số liệu tổng hợp về tài khoản, cho bảng điều khiển quản trị.
+     *
+     * <p><b>Vì sao có endpoint riêng thay vì để analytics-service đọc thẳng CSDL
+     * tài khoản.</b> Bảng điều khiển cần đúng bốn con số này, và cách nhanh
+     * nhất để lấy chúng là cho analytics-service kết nối vào CSDL của
+     * auth-service. Đó cũng là cách chắc chắn nhất để phá vỡ ranh giới service:
+     * hai tiến trình dùng chung một lược đồ thì không tiến trình nào đổi được
+     * lược đồ nữa, và một lỗi ở analytics-service chạm được tới bảng mật khẩu.
+     *
+     * <p>Một endpoint hẹp, chỉ trả về bốn số nguyên, giữ nguyên ranh giới: bên
+     * kia không biết bảng tên gì, cột tên gì, và không đọc được gì ngoài bốn số
+     * này.
+     */
+    @GetMapping("/stats")
+    public AccountStats stats() {
+        List<User> all = users.findAll();
+        return new AccountStats(
+                all.size(),
+                (int) all.stream().filter(user -> user.role() == Role.ADMIN).count(),
+                (int) all.stream().filter(user -> !user.enabled()).count(),
+                tokens.activeSessionCount());
     }
 
     @PostMapping("/{username}/role")
@@ -75,7 +119,7 @@ public class AdminUserController {
         // Xem Javadoc lớp, mục 2. Đóng phiên cả khi NÂNG quyền: phiên cũ mang
         // vai trò cũ, nên người vừa được nâng sẽ không hiểu vì sao vẫn bị 401
         // — bắt đăng nhập lại là hành vi dễ hiểu hơn.
-        sessions.revokeAllFor(updated.username());
+        tokens.logoutEverywhere(updated.username());
         return ResponseEntity.ok(updated.toPublic());
     }
 
@@ -87,7 +131,7 @@ public class AdminUserController {
             return ResponseEntity.badRequest().build();
         }
         User updated = users.setEnabled(username, false);
-        sessions.revokeAllFor(updated.username());
+        tokens.logoutEverywhere(updated.username());
         return ResponseEntity.ok(updated.toPublic());
     }
 
@@ -121,7 +165,7 @@ public class AdminUserController {
         if (!users.delete(username)) {
             return ResponseEntity.notFound().build();
         }
-        sessions.revokeAllFor(username);
+        tokens.logoutEverywhere(username);
         return ResponseEntity.noContent().build();
     }
 }

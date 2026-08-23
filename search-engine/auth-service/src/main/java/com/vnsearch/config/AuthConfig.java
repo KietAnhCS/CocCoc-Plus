@@ -1,13 +1,15 @@
 package com.vnsearch.config;
 
 import com.vnsearch.auth.JsonUserStore;
+import com.vnsearch.auth.PostgresUserStore;
 import com.vnsearch.auth.Role;
-import com.vnsearch.auth.SessionStore;
 import com.vnsearch.auth.UserService;
 import com.vnsearch.auth.UserStore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,8 +21,8 @@ import java.time.Clock;
  * Dựng tầng tài khoản: kho tài khoản, dịch vụ, kho phiên, và tài khoản mồi.
  *
  * <p><b>Vì sao các bean này khai ở đây chứ không dùng {@code @Service} trên
- * từng lớp.</b> Cả ba lớp nhận {@link Clock} qua hàm dựng để kiểm thử điều
- * khiển được thời gian (hết hạn phiên, khoá tạm tài khoản). Một lớp có
+ * từng lớp.</b> Chúng nhận {@link Clock} qua hàm dựng để kiểm thử điều khiển
+ * được thời gian (khoá tạm tài khoản sau nhiều lần đăng nhập sai). Một lớp có
  * {@code @Service} thì Spring phải tự dựng nó, và khi đó {@code Clock} lại
  * phải thành một bean toàn cục — thứ ảnh hưởng tới mọi nơi khác chỉ vì hai lớp
  * cần nó. Dựng tường minh ở một chỗ thì các lớp {@code auth} vẫn là POJO thuần,
@@ -31,20 +33,51 @@ public class AuthConfig {
 
     private static final Logger log = LoggerFactory.getLogger(AuthConfig.class);
 
+    /**
+     * Kho tài khoản — JSON hay PostgreSQL, chọn bằng {@code app.auth.store}.
+     *
+     * <pre>
+     *   json      (mặc định)  một tệp, không cần dịch vụ ngoài  → dev, test, demo
+     *   postgres              lược đồ do Flyway quản lý          → môi trường thật
+     * </pre>
+     *
+     * <p><b>Vì sao mặc định là JSON.</b> Người vừa clone repo phải chạy được
+     * ngay; bắt cài PostgreSQL trước khi thấy dòng mã đầu tiên hoạt động là
+     * cách chắc chắn nhất để họ không thử. Nhưng mặc định đó KHÔNG được im
+     * lặng: {@code JsonUserStore} với hai bản sao cùng chạy sẽ ghi đè lẫn nhau
+     * và làm biến mất tài khoản vừa đăng ký, nên chỗ nào chạy thật cũng phải
+     * đặt {@code app.auth.store=postgres}. Xem cảnh báo ở dưới.
+     */
     @Bean
-    public UserStore userStore(@Value("${app.auth.users-path:data/users.json}") String path)
-            throws IOException {
+    public UserStore userStore(
+            @Value("${app.auth.store:json}") String kind,
+            @Value("${app.auth.users-path:data/users.json}") String path,
+            ObjectProvider<JdbcClient> jdbcProvider) throws IOException {
+
+        if ("postgres".equalsIgnoreCase(kind)) {
+            JdbcClient jdbc = jdbcProvider.getIfAvailable();
+            if (jdbc == null) {
+                // Hỏng to thay vì âm thầm lùi về JSON. Lùi về JSON ở đây nghĩa
+                // là một môi trường thật chạy với kho tài khoản sai mà không ai
+                // biết, cho tới khi bản sao thứ hai khởi động và tài khoản bắt
+                // đầu biến mất.
+                throw new IllegalStateException(
+                        "app.auth.store=postgres nhưng không có DataSource."
+                                + " Kiểm tra spring.datasource.url.");
+            }
+            log.info("Kho tài khoản: PostgreSQL (lược đồ do Flyway quản lý)");
+            return new PostgresUserStore(jdbc);
+        }
+
+        log.warn("Kho tài khoản: tệp JSON tại {}. Chỉ dùng cho dev/test —"
+                + " hai bản sao cùng ghi sẽ đè lên nhau và làm mất tài khoản."
+                + " Môi trường thật phải đặt app.auth.store=postgres.", path);
         return new JsonUserStore(path);
     }
 
     @Bean
     public UserService userService(UserStore userStore) {
         return new UserService(userStore, Clock.systemUTC());
-    }
-
-    @Bean
-    public SessionStore sessionStore() {
-        return new SessionStore(Clock.systemUTC());
     }
 
     /**

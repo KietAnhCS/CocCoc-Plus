@@ -117,6 +117,17 @@ public class TokenService {
         return refreshTokens.isAccessTokenDenied(tokenId);
     }
 
+    /**
+     * Số phiên đăng nhập đang mở — CHỈ cho bảng điều khiển quản trị.
+     *
+     * <p>Không gọi nó trên đường chạy của một request thường: ở bản Redis, đây
+     * là một phép duyệt không gian khoá. Xem
+     * {@code RedisRefreshTokenStore#activeSessionCount()}.
+     */
+    public int activeSessionCount() {
+        return refreshTokens.activeSessionCount();
+    }
+
     private TokenPair build(User user, String family) {
         AccessTokenIssuer.IssuedToken access = accessTokens.issue(user);
         String refresh = refreshTokens.issue(user.username(), family, refreshTokenTtl);

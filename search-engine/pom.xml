@@ -69,6 +69,7 @@
 	<modules>
 		<module>core</module>
 		<module>platform</module>
+		<module>auth-service</module>
 		
 		
 		
@@ -105,11 +106,26 @@
 		<jacoco.line.minimum>0.68</jacoco.line.minimum>
 		<jacoco.branch.minimum>0.65</jacoco.branch.minimum>
 
-		<!-- Tệp loại trừ của SpotBugs nằm ở thư mục reactor. Mọi module đều
-		     nằm đúng MỘT cấp dưới nó, nên `../` giải đúng cho từng module —
-		     và không phụ thuộc vào thư mục người ta gõ lệnh, khác với
-		     ${session.executionRootDirectory}. -->
-		<spotbugs.exclude.file>${project.basedir}/../spotbugs-exclude.xml</spotbugs.exclude.file>
+		<!-- Tệp loại trừ của SpotBugs nằm ở gốc reactor (cạnh POM này).
+		     ============================================================
+		     Ba cách viết đường dẫn, hai cách sai:
+
+		       ${project.basedir}/../     đúng cho MODULE CON, sai cho chính
+		                                  POM cha — nó trỏ ra ngoài thư mục
+		                                  reactor, và bản build đổ ngay ở
+		                                  module đầu tiên với
+		                                  "Could not find resource".
+		       ${session.executionRootDirectory}
+		                                  phụ thuộc vào thư mục người ta đứng
+		                                  khi gõ lệnh. Chạy `mvn -f
+		                                  search-engine/pom.xml` từ gốc kho là
+		                                  ra một giá trị khác.
+		       ${maven.multiModuleProjectDirectory}   (chọn)
+		                                  Maven tự đặt bằng thư mục chứa `.mvn/`
+		                                  — tức đúng `search-engine/`, giống
+		                                  nhau ở mọi module và không đổi theo
+		                                  chỗ gõ lệnh. -->
+		<spotbugs.exclude.file>${maven.multiModuleProjectDirectory}/spotbugs-exclude.xml</spotbugs.exclude.file>
 
 		<!-- Nhóm test bị LOẠI trong lần chạy thường ngày.
 		     ============================================================
@@ -152,6 +168,19 @@
 				<groupId>com.vnsearch</groupId>
 				<artifactId>vnsearch-platform</artifactId>
 				<version>${project.version}</version>
+			</dependency>
+
+			<!-- Nimbus JOSE+JWT: ký và phân tích JWT/JWKS ở auth-service.
+			     KHÔNG nằm trong BOM của Spring Boot (BOM chỉ quản lý
+			     oauth2-oidc-sdk), nên phải ghim phiên bản ở đây. Con số này
+			     PHẢI khớp với phiên bản mà spring-security-oauth2-jose kéo
+			     theo — lệch nhau thì hai bản cùng nằm trên classpath và lớp
+			     nào thắng là do thứ tự classpath quyết định. Kiểm tra bằng:
+			         ./mvnw dependency:tree -pl auth-service | grep nimbus -->
+			<dependency>
+				<groupId>com.nimbusds</groupId>
+				<artifactId>nimbus-jose-jwt</artifactId>
+				<version>9.37.4</version>
 			</dependency>
 
 			<dependency>

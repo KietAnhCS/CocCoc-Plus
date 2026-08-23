@@ -114,6 +114,12 @@ public class InMemoryRefreshTokenStore implements RefreshTokenStore {
         return true;
     }
 
+    @Override
+    public int activeSessionCount() {
+        purgeExpired();
+        return tokens.size();
+    }
+
     /**
      * Dọn token đã hết hạn.
      *

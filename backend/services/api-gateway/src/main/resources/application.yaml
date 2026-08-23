@@ -34,6 +34,22 @@ spring:
       server:
         webflux:
           # ================================================================
+          # KHỬ TRÙNG HEADER CORS
+          # ================================================================
+          # `platform` lib (vnsearch-common) BẬT CORS riêng ở từng service
+          # phía sau — có chủ ý, để service còn gọi thẳng được lúc gỡ lỗi, và
+          # CorsPreflightTest ghim lại điều đó. Nhưng khi gọi QUA Gateway,
+          # response đi hai vòng CORS: một lần ở service (bị Gateway forward
+          # nguyên header), một lần ở chính Gateway (GatewaySecurityConfig).
+          # Trình duyệt nhận được "Access-Control-Allow-Origin: X, X" — HAI
+          # giá trị trong một header là bất hợp lệ theo spec Fetch, nên trình
+          # duyệt chặn thẳng, không phải lỗi mạng hay sai origin.
+          #
+          # RETAIN_UNIQUE giữ lại các giá trị duy nhất trong danh sách trùng —
+          # ở đây hai giá trị luôn giống hệt nhau nên kết quả gọn về một.
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Allow-Methods Access-Control-Allow-Headers, RETAIN_UNIQUE
+          # ================================================================
           # BẢNG TUYẾN
           # ================================================================
           # Thứ tự QUAN TRỌNG: Spring Cloud Gateway lấy tuyến KHỚP ĐẦU TIÊN.

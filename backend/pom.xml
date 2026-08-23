@@ -98,10 +98,11 @@
 		     TẠM: bỏ dòng này khi Spring Boot quản lý 2.21.5 trở lên. -->
 		<jackson-bom.version>2.21.5</jackson-bom.version>
 
-		<!-- Spring Cloud, chỉ dùng cho module `gateway`. Bản 2025.1.x đi cùng
-		     Spring Boot 3.5.x; lệch dòng này là lỗi khởi động chứ không phải
-		     lỗi biên dịch, nên nó ghim ở đây một lần cho cả reactor. -->
-		<spring-cloud.version>2025.1.0</spring-cloud.version>
+		<!-- Spring Cloud, chỉ dùng cho module `gateway`. Bản 2025.0.x đi cùng
+		     Spring Boot 3.5.x (2025.1.x đòi Spring Boot 4); lệch dòng này là
+		     lỗi khởi động chứ không phải lỗi biên dịch, nên nó ghim ở đây một
+		     lần cho cả reactor. -->
+		<spring-cloud.version>2025.0.0</spring-cloud.version>
 
 		<!-- Ngưỡng độ phủ kiểm thử, áp trên TỔNG của mọi module (xem
 		     coverage/pom.xml). Đo được trên cây mã hiện tại:

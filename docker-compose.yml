@@ -283,7 +283,7 @@ services:
         -Djava.security.egd=file:/dev/./urandom
     volumes:
       - ./backend/data:/app/data
-    mem_limit: 1536m
+    mem_limit: 3072m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
       interval: 15s

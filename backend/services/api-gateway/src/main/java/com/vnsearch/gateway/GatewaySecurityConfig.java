@@ -131,8 +131,14 @@ public class GatewaySecurityConfig {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowedOrigins(List.of(allowedOrigins.split("\\s*,\\s*")));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-API-Key",
-                "X-Idempotency-Key"));
+        // Danh sách này phải PHỦ ĐƯỢC mọi header giao diện thật gửi. Thiếu một
+        // cái là hỏng ở buớc preflight, và triệu chứng là "không kết nối được"
+        // chứ không phải một mã lỗi đọc được.
+        //
+        //   X-Device-Id   userDataApi.deviceHeader(), mọi lời gọi /api/downloads
+        //   If-Match      settingsApi.gop/thayThe, chống ghi đè giữa hai máy
+        config.setAllowedHeaders(List.of("Accept", "Authorization", "Content-Type",
+                "X-API-Key", "X-Idempotency-Key", "X-Device-Id", "If-Match"));
         // Giao diện đọc hai header này để biết còn bao nhiêu lượt gọi.
         config.setExposedHeaders(List.of("X-RateLimit-Remaining", "Retry-After"));
         config.setAllowCredentials(true);

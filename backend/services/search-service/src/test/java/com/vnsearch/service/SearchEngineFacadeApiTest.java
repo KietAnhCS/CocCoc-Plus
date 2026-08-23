@@ -26,6 +26,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Test tich hop toan bo tang REST API (PHASE 6), chay tren du lieu co
  * dinh (fixture) thay vi crawl mang that, de dam bao ket qua deterministic.
  *
+ * <p><b>PHAM VI DA THU HEP.</b> Ban truoc con kiem ca {@code /api/admin/stats},
+ * {@code /api/admin/reindex} va {@code /api/admin/crawl} — hoi do chung nam
+ * chung mot tien trinh. Nay chung thuoc crawler-service, va mot bai test cua
+ * search-service ma goi sang service khac thi do khi service kia doi, va khong
+ * chay duoc neu khong dung ca he thong. Chung duoc kiem o crawler-service.
+ *
  * <p><b>Duong dan quan tri can header {@code X-API-Key}.</b> Cac bai test goi
  * {@code /api/admin/**} phai gui khoa qua {@link #adminGet}/{@link #adminPost};
  * goi tran se nhan 401. Khoa dung o day trung voi khoa gia dat trong cau hinh
@@ -78,13 +84,6 @@ class SearchEngineFacadeApiTest {
     }
 
     @Test
-    void statsReflectFixtureCorpus() {
-        ResponseEntity<String> response = adminGet("/api/admin/stats", TEST_API_KEY);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("\"totalDocuments\":3"));
-    }
-
-    @Test
     void searchReturnsMatchingDocumentWithSnippetAndScores() {
         ResponseEntity<String> response = restTemplate.getForEntity(
                 url("/api/search") + "?q={q}&page=1&size=10", String.class, "máy tính");
@@ -121,43 +120,32 @@ class SearchEngineFacadeApiTest {
         assertTrue(response.getBody().contains("\"suggestions\""));
     }
 
-    @Test
-    void unknownCrawlJobReturns404() {
-        ResponseEntity<String> response =
-                adminGet("/api/admin/crawl/does-not-exist/status", TEST_API_KEY);
-        assertEquals(HttpStatus.NOT_FOUND, response.getStatusCode());
-    }
-
-    @Test
-    void reindexReturnsOk() {
-        ResponseEntity<String> response = adminPost("/api/admin/reindex", TEST_API_KEY, null);
-        assertEquals(HttpStatus.OK, response.getStatusCode());
-        assertTrue(response.getBody().contains("\"OK\""));
-    }
-
-    @Test
-    void crawlWithEmptySeedUrlsReturns400() {
-        String body = "{\"seedUrls\":[],\"maxDepth\":1,\"maxPages\":1}";
-        ResponseEntity<String> response = adminPost("/api/admin/crawl", TEST_API_KEY, body);
-        assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-    }
-
     // --- Xac thuc: chung minh khoa THAT SU chan, khong chi la trang tri ---
 
+    /**
+     * Duong dan quan tri bi chan MAC DINH, ke ca duong dan khong ton tai.
+     *
+     * <p>Vi sao goi mot duong dan khong co controller nao: chinh vi the no moi
+     * chung minh dieu can chung minh. Luat bao mat trong ServiceSecurityConfig
+     * la `/api/admin/** -> hasRole(ADMIN)` roi `anyRequest -> denyAll`, tuc no
+     * chan theo TIEN TO chu khong theo tung endpoint. Mot endpoint quan tri
+     * them vao ngay mai se duoc bao ve san; bai test nay la thu canh dieu do.
+     *
+     * <p>Ket qua mong doi la 401 chu khong phai 404: may chu KHONG duoc noi
+     * cho nguoi chua xac thuc biet duong dan nao ton tai.
+     */
     @Test
     void adminEndpointsRejectRequestWithoutApiKey() {
-        // Khong co header nao. Day la truong hop quan trong nhat: POST /crawl
-        // khien may chu di tai mot URL tuy y, nen no KHONG duoc phep mo.
         assertEquals(HttpStatus.UNAUTHORIZED,
-                adminGet("/api/admin/stats", null).getStatusCode());
+                adminGet("/api/admin/bat-ky", null).getStatusCode());
         assertEquals(HttpStatus.UNAUTHORIZED,
-                adminPost("/api/admin/reindex", null, null).getStatusCode());
+                adminPost("/api/admin/bat-ky", null, null).getStatusCode());
     }
 
     @Test
     void adminEndpointsRejectWrongApiKey() {
         assertEquals(HttpStatus.UNAUTHORIZED,
-                adminGet("/api/admin/stats", "khoa-sai-nhung-du-dai-16").getStatusCode());
+                adminGet("/api/admin/bat-ky", "khoa-sai-nhung-du-dai-16").getStatusCode());
     }
 
     @Test

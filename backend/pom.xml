@@ -70,6 +70,7 @@
 		<module>libs/core</module>
 		<module>libs/platform</module>
 		<module>services/auth-service</module>
+		<module>services/search-service</module>
 		
 		
 		

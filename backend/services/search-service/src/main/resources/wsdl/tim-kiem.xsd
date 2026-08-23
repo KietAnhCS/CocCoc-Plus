@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  Hợp đồng SOAP của máy tìm kiếm VnSearch — CONTRACT-FIRST.
+  ============================================================================
+
+  Tệp này là NGUỒN SỰ THẬT. Các lớp Java trong com.vnsearch.soap.generated được
+  sinh ra từ đây lúc biên dịch (xem jaxb2-maven-plugin trong pom.xml) và không
+  bao giờ được sửa tay — sửa xong lần build kế tiếp sẽ ghi đè.
+
+  VÌ SAO CONTRACT-FIRST CHỨ KHÔNG PHẢI CODE-FIRST. Chiều ngược lại (sinh WSDL
+  từ lớp Java) nghe tiện hơn, nhưng nó buộc hợp đồng đối ngoại phải đổi theo
+  mọi phép tái cấu trúc nội bộ: đổi tên một trường trong POJO là đổi tên một
+  phần tử XML, và mọi máy khách đã sinh mã theo WSDL cũ đều vỡ. Hợp đồng phải
+  là thứ ổn định hơn mã nguồn, không phải cái bóng của mã nguồn.
+
+  QUY TẮC SỬA TỆP NÀY:
+    - THÊM phần tử optional (minOccurs="0")  -> tương thích ngược, được phép.
+    - Đổi tên, đổi kiểu, bỏ phần tử          -> PHÁ hợp đồng, phải ra namespace
+                                                mới (.../v2) và chạy song song.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tk="http://vnsearch.com/soap/tim-kiem/v1"
+           targetNamespace="http://vnsearch.com/soap/tim-kiem/v1"
+           elementFormDefault="qualified">
+
+    <!-- ===================================================================
+         Yêu cầu tìm kiếm.
+         =================================================================== -->
+    <xs:element name="TimKiemRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <!-- Ràng buộc độ dài nằm TRONG lược đồ, không nằm trong mã Java.
+                     Đây là điều SOAP làm được mà REST thuần không: trình phân
+                     tích XML từ chối thông điệp sai TRƯỚC khi nó chạm tới một
+                     dòng mã nghiệp vụ nào. Với REST, cùng luật đó phải được
+                     lặp lại bằng @Size trong Java, và một endpoint mới quên
+                     lặp là một lỗ hổng. -->
+                <xs:element name="tuKhoa">
+                    <xs:simpleType>
+                        <xs:restriction base="xs:string">
+                            <xs:minLength value="1"/>
+                            <xs:maxLength value="200"/>
+                        </xs:restriction>
+                    </xs:simpleType>
+                </xs:element>
+
+                <xs:element name="trang" minOccurs="0" default="1">
+                    <xs:simpleType>
+                        <xs:restriction base="xs:int">
+                            <xs:minInclusive value="1"/>
+                        </xs:restriction>
+                    </xs:simpleType>
+                </xs:element>
+
+                <!-- Chặn trên 100, giống hệt tầng REST. Không chặn thì
+                     `soLuong=1000000` biến một truy vấn thành một phép cấp phát
+                     lớn — và ở SOAP hậu quả nặng hơn, vì mỗi kết quả còn phải
+                     tuần tự hoá thành XML, tốn gấp nhiều lần JSON. -->
+                <xs:element name="soLuong" minOccurs="0" default="10">
+                    <xs:simpleType>
+                        <xs:restriction base="xs:int">
+                            <xs:minInclusive value="1"/>
+                            <xs:maxInclusive value="100"/>
+                        </xs:restriction>
+                    </xs:simpleType>
+                </xs:element>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <!-- ===================================================================
+         Phản hồi.
+         =================================================================== -->
+    <xs:element name="TimKiemResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="tuKhoa" type="xs:string"/>
+                <xs:element name="tongSoKetQua" type="xs:int"/>
+                <xs:element name="trang" type="xs:int"/>
+                <xs:element name="thoiGianMs" type="xs:long"/>
+                <xs:element name="ketQua" type="tk:KetQua"
+                            minOccurs="0" maxOccurs="unbounded"/>
+                <!-- Những từ bị BỎ khỏi truy vấn (từ dừng, từ không có trong
+                     chỉ mục). Trả về tường minh thay vì im lặng: một người tìm
+                     "cách để làm bánh" mà chỉ có "bánh" được dùng cần biết
+                     điều đó, nếu không họ sẽ tưởng máy tìm kiếm hiểu sai ý. -->
+                <xs:element name="tuBiBoQua" type="xs:string"
+                            minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:complexType name="KetQua">
+        <xs:sequence>
+            <xs:element name="tieuDe" type="xs:string"/>
+            <xs:element name="duongDan" type="xs:string"/>
+            <xs:element name="trichDoan" type="xs:string" minOccurs="0"/>
+            <xs:element name="diem" type="xs:double"/>
+            <xs:element name="diemPageRank" type="xs:double"/>
+            <!-- xs:string chứ không xs:dateTime, có chủ ý: giá trị này đến từ
+                 lúc thu thập trang và có thể vắng mặt hoặc không chuẩn với
+                 những trang cũ. Ép kiểu dateTime thì một bản ghi lỗi làm hỏng
+                 CẢ phản hồi, thay vì chỉ làm xấu một dòng. -->
+            <xs:element name="thoiDiemThuThap" type="xs:string" minOccurs="0"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- ===================================================================
+         Gợi ý từ khoá — cùng Trie mà REST /api/suggest dùng.
+         =================================================================== -->
+    <xs:element name="GoiYRequest">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="tienTo">
+                    <xs:simpleType>
+                        <xs:restriction base="xs:string">
+                            <xs:minLength value="1"/>
+                            <xs:maxLength value="100"/>
+                        </xs:restriction>
+                    </xs:simpleType>
+                </xs:element>
+                <xs:element name="soLuong" minOccurs="0" default="10">
+                    <xs:simpleType>
+                        <xs:restriction base="xs:int">
+                            <xs:minInclusive value="1"/>
+                            <xs:maxInclusive value="50"/>
+                        </xs:restriction>
+                    </xs:simpleType>
+                </xs:element>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+    <xs:element name="GoiYResponse">
+        <xs:complexType>
+            <xs:sequence>
+                <xs:element name="tienTo" type="xs:string"/>
+                <xs:element name="goiY" type="xs:string"
+                            minOccurs="0" maxOccurs="unbounded"/>
+            </xs:sequence>
+        </xs:complexType>
+    </xs:element>
+
+</xs:schema>

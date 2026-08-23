@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  search-service :8082 — truy vấn, gợi ý, ảnh, bảng tin.
+  ============================================================================
+
+  Service ĐƯỢC ƯU TIÊN TÀI NGUYÊN trong cả hệ thống, và đó là một quyết định
+  chứ không phải tình cờ: nó là service duy nhất giữ chỉ mục đảo, Trie gợi ý và
+  vector PageRank trong heap. Bảy service kia cộng lại vẫn nhẹ hơn nó.
+
+  Hệ quả ghi ra đây để lần sau không ai phải đoán:
+    - Giới hạn bộ nhớ 1536 MB trong docker-compose và k8s, so với 384 MB của
+      history/downloads/settings. Xem deploy/ để biết con số hiện hành.
+    - Nó KHÔNG được giãn ngang một cách vô tư: mỗi bản sao nạp một bản chỉ mục
+      đầy đủ, nên hai bản sao tốn gấp đôi RAM chứ không chia nhau.
+    - Nó khởi động CHẬM (phải dựng lại chỉ mục), nên probe của Kubernetes phải
+      có startupProbe rộng tay, không phải livenessProbe ngắn.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>search-service</artifactId>
+	<name>search-service</name>
+	<description>Truy vấn, gợi ý, tìm ảnh, bảng tin — REST và SOAP</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-platform</artifactId>
+		</dependency>
+
+		<!-- ================================================================
+		     SOAP. Cùng một máy tìm kiếm, phơi ra qua HAI giao thức.
+
+		     VÌ SAO CÓ SOAP TRONG MỘT DỰ ÁN NĂM 2026. Không phải để dùng thay
+		     REST — REST là cửa chính, SOAP là cửa dành cho một loại bên gọi cụ
+		     thể: hệ thống nội bộ cũ trong ngân hàng, bảo hiểm, viễn thông,
+		     nơi tầng tích hợp chỉ nói WSDL. Ở những nơi đó, "chúng tôi có REST"
+		     đồng nghĩa với "các anh phải tự viết adapter".
+
+		     ĐIỀU SOAP LÀM ĐƯỢC MÀ REST KHÔNG: hợp đồng do MÁY đọc và kiểm được.
+		     WSDL + XSD mô tả kiểu dữ liệu chặt tới mức bên gọi sinh mã máy
+		     khách tự động và trình phân tích XML từ chối một thông điệp sai
+		     kiểu TRƯỚC khi nó chạm tới mã của mình. OpenAPI mô tả được điều
+		     tương tự nhưng không ai bắt buộc phải tuân theo lúc chạy.
+
+		     CÁCH LÀM: contract-first — viết XSD trước, sinh lớp Java từ đó.
+		     Chiều ngược lại (sinh WSDL từ lớp Java) làm hợp đồng đổi mỗi khi
+		     đổi tên một trường Java, tức là bên gọi vỡ vì một phép tái cấu
+		     trúc nội bộ.
+		     ================================================================ -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web-services</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>wsdl4j</groupId>
+			<artifactId>wsdl4j</artifactId>
+			<version>1.6.3</version>
+		</dependency>
+		<dependency>
+			<groupId>jakarta.xml.bind</groupId>
+			<artifactId>jakarta.xml.bind-api</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<!-- Sinh lớp Java từ XSD lúc biên dịch (contract-first).
+			     Lớp sinh ra nằm ở target/generated-sources nên KHÔNG commit —
+			     nguồn sự thật là tệp .xsd, và chỉ một nguồn sự thật. -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>jaxb2-maven-plugin</artifactId>
+				<version>3.2.0</version>
+				<executions>
+					<execution>
+						<id>sinh-lop-tu-xsd</id>
+						<goals>
+							<goal>xjc</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<sources>
+						<source>${project.basedir}/src/main/resources/wsdl/tim-kiem.xsd</source>
+					</sources>
+					<packageName>com.vnsearch.soap.generated</packageName>
+					<clearOutputDir>false</clearOutputDir>
+				</configuration>
+			</plugin>
+
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

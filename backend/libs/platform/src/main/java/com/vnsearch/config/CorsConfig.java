@@ -56,9 +56,15 @@ public class CorsConfig implements WebMvcConfigurer {
                 // Them endpoint moi ma quen dong nay = endpoint do khong dung
                 // duoc tu giao dien, va rat kho lan ra vi sao.
                 //
-                // PUT/PATCH van khong co: khong endpoint nao dung chung. Quyen
-                // thua khong dung den van la quyen thua.
-                .allowedMethods("GET", "POST", "DELETE", "OPTIONS")
+                // PATCH: settingsApi.gop (PATCH /api/settings) va
+                // downloadsApi.capNhat (PATCH /api/downloads/{id}).
+                // PUT: settingsApi.thayThe (PUT /api/settings).
+                //
+                // Ca ba tung thieu o day, va chung hong dung theo kieu ta o
+                // tren: Gateway cho preflight qua (danh sach cua no CO PATCH),
+                // trinh duyet gui request that, roi service nay tra 403
+                // "Invalid CORS request". `curl` khong gui Origin nen van 200.
+                .allowedMethods("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
                 // "Authorization" la header cua TOKEN PHIEN (TokenAuthFilter).
                 //
                 // THIEU DONG NAY LA HONG CA TANG DANG NHAP, va no hong theo kieu
@@ -69,8 +75,15 @@ public class CorsConfig implements WebMvcConfigurer {
                 // Content-Type), nhung /api/auth/me va moi endpoint quan tri deu
                 // "khong ket noi duoc", va phien khong bao gio khoi phuc lai
                 // duoc sau khi tai lai trang.
+                //
+                // "X-Device-Id" va "If-Match" cung tung thieu, cung hong y het
+                // nhu vay: userDataApi.deviceHeader() gan X-Device-Id vao MOI
+                // loi goi /api/downloads, va settingsApi gan If-Match vao moi
+                // lan ghi tuy chon. Thieu chung thi bang Tai xuong luon rong va
+                // dong bo Tuy chon khong bao gio chay — im lang, vi
+                // downloadStore.dongBoLai() nuot loi.
                 .allowedHeaders("Accept", "Content-Type", "Authorization",
-                        ApiKeyAuthFilter.HEADER)
+                        ApiKeyAuthFilter.HEADER, "X-Device-Id", "If-Match")
                 // TUONG MINH, du day la mac dinh cua Spring: xem muc (1) o
                 // Javadoc lop. Ghi ro de mot thay doi sau nay phai la mot quyet
                 // dinh co y thuc chu khong phai mot dong them vao cho tien.

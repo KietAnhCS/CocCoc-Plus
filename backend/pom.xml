@@ -151,7 +151,7 @@
 		     Loại trừ thắng, nên nó chạy 0 bài test và in BUILD SUCCESS.
 
 		     Property thì ghi đè được, vì profile đặt lại chính property đó. -->
-		<test.excluded.groups>kafka-it</test.excluded.groups>
+		<test.excluded.groups>kafka-it,docker-it</test.excluded.groups>
 	</properties>
 
 	<dependencyManagement>
@@ -371,6 +371,31 @@
 		     Hai cổng chặn nặng (JaCoCo, SpotBugs) cũng được tắt ở đây: chúng đã
 		     chạy ở job chính, và độ phủ đo trên MỘT nhóm test nhỏ thì chắc chắn
 		     dưới ngưỡng — bật lên chỉ tạo một bản build đỏ vô nghĩa. -->
+		<profile>
+			<id>docker-it</id>
+			<properties>
+				<jacoco.skip>true</jacoco.skip>
+				<spotbugs.skip>true</spotbugs.skip>
+				<test.excluded.groups></test.excluded.groups>
+			</properties>
+			<build>
+				<pluginManagement>
+					<plugins>
+						<plugin>
+							<groupId>org.apache.maven.plugins</groupId>
+							<artifactId>maven-surefire-plugin</artifactId>
+							<configuration>
+								<groups>docker-it</groups>
+								<includes>
+									<include>**/*IT.java</include>
+								</includes>
+							</configuration>
+						</plugin>
+					</plugins>
+				</pluginManagement>
+			</build>
+		</profile>
+
 		<profile>
 			<id>kafka-it</id>
 			<properties>

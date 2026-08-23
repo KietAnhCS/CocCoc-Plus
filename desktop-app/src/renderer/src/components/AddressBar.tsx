@@ -12,6 +12,8 @@ import { useBookmarkStore, collectBookmarks } from '../store/bookmarkStore'
 import { useSearchViewStore } from '../store/searchViewStore'
 import AutocompleteDropdown from './AutocompleteDropdown'
 import { suggest } from '../lib/searchApi'
+import { historyApi } from '../lib/userDataApi'
+import { useSettingsStore } from '../store/settingsStore'
 import { CloseIcon, GlobeIcon, LockIcon, StarIcon, VnSearchMark } from './icons'
 
 const SUGGEST_DEBOUNCE_MS = 180
@@ -47,17 +49,38 @@ function AddressBar(): JSX.Element {
   const inputValue = focused ? typedValue : canonicalText
   const suggestible = focused && typedValue.trim().length >= 2 && !looksLikeUrl(typedValue)
 
+  const goiYTuLichSu = useSettingsStore((state) => state.tuyChon.goiYTuLichSu)
+
   useEffect(() => {
     if (!suggestible) {
       return undefined
     }
 
     const timer = window.setTimeout(() => {
-      suggest(typedValue).then(setSuggestions)
+      const tuChiMuc = suggest(typedValue).catch(() => [] as string[])
+      const tuLichSu = goiYTuLichSu
+        ? historyApi
+            .goiY(typedValue, 4)
+            .then((items) => items.map((item) => item.query))
+            .catch(() => [] as string[])
+        : Promise.resolve([] as string[])
+
+      void Promise.all([tuLichSu, tuChiMuc]).then(([lichSu, chiMuc]) => {
+        const daCo = new Set<string>()
+        const gop: string[] = []
+        for (const item of [...lichSu, ...chiMuc]) {
+          const khoa = item.trim().toLowerCase()
+          if (khoa && !daCo.has(khoa)) {
+            daCo.add(khoa)
+            gop.push(item)
+          }
+        }
+        setSuggestions(gop.slice(0, 8))
+      })
     }, SUGGEST_DEBOUNCE_MS)
 
     return () => window.clearTimeout(timer)
-  }, [typedValue, suggestible])
+  }, [typedValue, suggestible, goiYTuLichSu])
 
   const bookmarked = useMemo(() => {
     if (!displayedUrl) {

@@ -279,6 +279,39 @@ jobs:
   # Ba thứ chỉ job này bắt được — bộ test in-process về nguyên tắc không thể:
   # thông điệp có serialize được không (Instant cần JavaTimeModule), phân
   # hoạch theo host có ổn định không, và thông điệp lớn có qua nổi trần không.
+  # Test tích hợp dựng PostgreSQL và MongoDB thật cho ba service dữ liệu cá
+  # nhân. Job riêng vì cùng lý do với kafka-integration: chậm, và hỏng vì
+  # những nguyên nhân hạ tầng khác hẳn lỗi mã nguồn.
+  #
+  # Ba thứ chỉ job này bắt được: ràng buộc CHECK của PostgreSQL có chặn đúng
+  # không, TTL index của MongoDB có được tạo từ annotation không, và phép gộp
+  # jsonb `||` có giữ đúng ngữ nghĩa PATCH không.
+  data-integration:
+    name: Tích hợp CSDL (Testcontainers)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài đặt JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Chạy test tích hợp CSDL
+        working-directory: backend
+        run: ./mvnw -B verify -Pdocker-it
+
+      - name: Lưu báo cáo
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bao-cao-data-it
+          path: backend/**/target/surefire-reports/
+          retention-days: 7
+
   kafka-integration:
     name: Tích hợp Kafka (Testcontainers)
     runs-on: ubuntu-latest

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type JSX, type MouseEvent as ReactMouseEve
 import { useTabStore, HOME_URL, type TabInfo } from '../store/tabStore'
 import {
   CloseIcon,
+  IncognitoIcon,
   PlusIcon,
   SpinnerIcon,
   VnSearchMark,
@@ -102,6 +103,12 @@ function Tab({ tab, active, single, onSelect, onClose }: TabProps): JSX.Element 
       <span className="flex h-4 w-4 shrink-0 items-center justify-center">
         {tab.loading ? (
           <SpinnerIcon className="h-3.5 w-3.5 text-brand" />
+        ) : tab.incognito ? (
+          /* Biểu tượng ẩn danh THAY CHO favicon, không đứng cạnh nó.
+             Người dùng liếc vào hàng thẻ để biết thẻ nào đang riêng tư, và
+             một huy hiệu nhỏ nằm cạnh favicon thì ở kích thước 16px là không
+             phân biệt được. Đổi hẳn biểu tượng thì không thể nhầm. */
+          <IncognitoIcon className="h-4 w-4 text-violet-400" />
         ) : isHome ? (
           <VnSearchMark className="h-4 w-4 text-muted" />
         ) : (

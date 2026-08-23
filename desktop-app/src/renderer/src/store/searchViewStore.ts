@@ -1,4 +1,7 @@
 import { create } from 'zustand'
+import { historyApi } from '../lib/userDataApi'
+import { useSettingsStore } from './settingsStore'
+import { useTabStore } from './tabStore'
 
 /**
  * Hai chế độ xem kết quả — chính là hai tab dưới thanh tìm kiếm.
@@ -34,6 +37,28 @@ export const useSearchViewStore = create<SearchViewState>((set) => ({
   runSearch: (query) => {
     const trimmed = query.trim()
     set({ query: trimmed || null, mode: 'web' })
+
+    if (!trimmed) {
+      return
+    }
+
+    // Ghi truy vấn lên history-service, để lần sau ô địa chỉ gợi ý lại được.
+    //
+    // BA điều kiện chặn, cùng bộ luật với lịch sử ghé thăm:
+    //   1. thẻ đang mở là thẻ ẩn danh   -> không gửi
+    //   2. người dùng tắt lưu lịch sử   -> tôn trọng lựa chọn đó
+    //   3. (trong userDataApi) chưa đăng nhập -> không có chỗ để lưu
+    //
+    // `resultCount` gửi 0 ở đây vì thời điểm này chưa có kết quả nào; máy chủ
+    // ghi nhận truy vấn trước, và con số đó chỉ dùng để đánh giá chất lượng
+    // máy tìm kiếm chứ không hiện cho người dùng.
+    const tabStore = useTabStore.getState()
+    const tabHienTai = tabStore.tabs.find((tab) => tab.id === tabStore.activeTabId)
+    const anDanh = tabHienTai?.incognito === true
+    if (anDanh || !useSettingsStore.getState().tuyChon.luuLichSu) {
+      return
+    }
+    void historyApi.ghiTruyVan(trimmed, 0)
   },
 
   setMode: (mode) => set({ mode }),

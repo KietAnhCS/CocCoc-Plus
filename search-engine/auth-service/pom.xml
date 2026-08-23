@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  auth-service :8081 — máy chủ uỷ quyền (Authorization Server) của VnSearch.
+  ============================================================================
+
+  Đây là service DUY NHẤT giữ khoá ký JWT và kho mật khẩu. Mọi service khác
+  chỉ cầm khoá công khai lấy từ JWKS của nó.
+
+  Hệ quả về vận hành, đáng nói vì nó ảnh hưởng tới cách triển khai:
+    - Service này phải được vá và soát kỹ hơn bảy service còn lại. Chiếm được
+      nó là chiếm được toàn hệ thống; chiếm được search-service thì không.
+    - Nó KHÔNG được dùng chung CSDL với bất cứ service nào khác. Một lỗi SQL
+      injection ở service khác không được phép chạm tới bảng mật khẩu.
+    - Nó là điểm chết chung cho việc ĐĂNG NHẬP, nhưng KHÔNG phải cho việc
+      TRUY VẤN: token đã phát vẫn dùng được 15 phút sau khi nó sập, vì các
+      service khác kiểm chữ ký cục bộ chứ không hỏi nó.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+	</parent>
+
+	<artifactId>auth-service</artifactId>
+	<name>auth-service</name>
+	<description>Tài khoản, mật khẩu, phát hành và thu hồi JWT (OAuth2)</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-platform</artifactId>
+		</dependency>
+
+		<!-- Ký và tuần tự hoá JWT/JWKS. Nimbus là thư viện mà chính Spring
+		     Security dùng bên dưới, nên hai bên nói cùng một ngôn ngữ và không
+		     có lớp chuyển đổi nào ở giữa để hiểu sai.
+
+		     KHÔNG tự cài phần mã hoá. Chữ ký RS256 viết tay là chỗ dễ sai nhất
+		     trong cả hệ thống, sai một cách IM LẶNG (token vẫn trông hợp lệ),
+		     và không bài test nào của người viết ra nó phát hiện được. -->
+		<dependency>
+			<groupId>com.nimbusds</groupId>
+			<artifactId>nimbus-jose-jwt</artifactId>
+		</dependency>
+
+		<!-- Kho tài khoản trên PostgreSQL, lược đồ do Flyway quản lý theo phiên
+		     bản. Xem PostgresUserStore và src/main/resources/db/migration. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-jdbc</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+
+		<!-- Kho refresh token và danh sách thu hồi. Redis chứ không phải bảng
+		     SQL vì cả hai đều là dữ liệu CÓ HẠN DÙNG: Redis tự xoá theo TTL,
+		     còn với SQL thì phải tự viết job dọn dẹp — và một job dọn dẹp bị
+		     quên chạy sẽ biến bảng thành nơi lưu vĩnh viễn những thứ lẽ ra đã
+		     phải biến mất. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+
+		<!-- Testcontainers: test tích hợp chạy trên PostgreSQL THẬT, không phải
+		     H2. Một CSDL nhúng có phương ngữ SQL khác thì mọi bài test đều xanh
+		     trên thứ mà môi trường thật không dùng. -->
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

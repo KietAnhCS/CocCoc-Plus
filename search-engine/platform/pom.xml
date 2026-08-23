@@ -43,6 +43,14 @@
 			<artifactId>spring-boot-starter-security</artifactId>
 		</dependency>
 
+		<!-- OAuth2 Resource Server: xác minh chữ ký JWT bằng khoá công khai lấy
+		     từ JWKS của auth-service. Mỗi service tự kiểm, không service nào
+		     giữ khoá ký — xem Javadoc ServiceSecurityConfig. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+		</dependency>
+
 		<!-- Kiểm tra ràng buộc tham số ngay ở biên controller (@Valid, @Max...)
 		     thay vì rải if-throw trong thân hàm. GlobalExceptionHandler dịch
 		     các ngoại lệ của nó thành thân lỗi chuẩn. -->
@@ -69,6 +77,24 @@
 		<dependency>
 			<groupId>net.logstash.logback</groupId>
 			<artifactId>logstash-logback-encoder</artifactId>
+		</dependency>
+
+		<!-- OpenAPI 3 sinh tự động từ chính mã nguồn, kèm Swagger UI ở
+		     /swagger-ui.html.
+
+		     VÌ SAO KHÔNG VIẾT TAY MỘT TỆP openapi.yaml. Một đặc tả viết tay sẽ
+		     lệch khỏi mã nguồn ngay ở lần sửa controller thứ hai, và một đặc tả
+		     sai còn tệ hơn không có đặc tả: bên tích hợp tin nó, viết mã theo
+		     nó, rồi mới phát hiện máy chủ trả về thứ khác. Sinh từ mã nguồn thì
+		     nó không thể lệch.
+
+		     Với tám service, đây cũng là cách duy nhất để nhìn được toàn bộ bề
+		     mặt API: Gateway gom tất cả các tệp /v3/api-docs lại thành một danh
+		     sách chọn trong Swagger UI của nó. -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.8.13</version>
 		</dependency>
 
 		<dependency>

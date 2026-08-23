@@ -1,313 +1,537 @@
-# Chay ca backend + PostgreSQL bang MOT lenh:
+# ===========================================================================
+# VnSearch — toàn hệ thống, chạy được trên một máy 8 GB.
+# ===========================================================================
 #
-#   docker compose up -d --build
+#   docker compose up -d                          rút gọn   ≈ 2,6 GB
+#   docker compose --profile full up -d           đầy đủ    ≈ 5,4 GB
+#   docker compose --profile kafka up -d          + Kafka   ≈ +1,2 GB
+#   docker compose --profile observability up -d  + giám sát ≈ +0,6 GB
 #
-# Backend phuc vu o http://localhost:8080. Frontend (Electron) chay rieng tren
-# may that — xem run-frontend.bat — vi no la ung dung desktop co cua so, khong
-# phai mot dich vu mang.
+# ---------------------------------------------------------------------------
+# NGÂN SÁCH BỘ NHỚ — vì sao mỗi con số là con số đó
+# ---------------------------------------------------------------------------
 #
-# ═══════════════════════════════════════════════════════════════════════════
-# BA MUC DO, CHON BANG PROFILE
-# ═══════════════════════════════════════════════════════════════════════════
+#   search-service      1536 MB   ƯU TIÊN. Chỉ mục đảo, Trie gợi ý và vector
+#                                 PageRank đều nằm trong heap, và chúng lớn
+#                                 theo kích thước corpus chứ không theo số
+#                                 người dùng.
+#   crawler-service      768 MB   frontier + bộ lọc Bloom.
+#   postgres             512 MB   shared_buffers=128MB.
+#   auth-service         512 MB   BCrypt tốn CPU, không tốn heap.
+#   api-gateway          384 MB   chỉ định tuyến, không giữ trạng thái.
+#   analytics-service    384 MB   số liệu 24 giờ trong bộ nhớ.
+#   history-service      384 MB   mọi truy vấn đi thẳng xuống Mongo.
+#   downloads-service    384 MB   CRUD mỏng.
+#   settings-service     384 MB   một bảng, một cột JSONB.
+#   mongo                384 MB   wiredTigerCacheSizeGB=0.25.
+#   redis                128 MB   maxmemory-policy allkeys-lru.
+#   football-service      64 MB   Go, không có JVM.
 #
-#   docker compose up -d --build
-#       backend + PostgreSQL.  ~1,5 GB RAM.  Du de demo tim kiem.
+# Ba service phụ (history/downloads/settings) để 384 MB chứ không 512: chúng
+# thật sự chỉ làm CRUD, và 128 MB tiết kiệm được ở mỗi cái đủ để chạy thêm
+# một service nữa trên cùng cái máy.
 #
-#   docker compose --profile kafka up -d --build
-#       Them Kafka + kafka-ui + crawler-worker.  ~3 GB RAM.
-#       Crawl chuyen sang che do PHAN TAN: ba Modular Service chay o tien
-#       trinh rieng.
-#
-#   docker compose --profile kafka --profile monitoring up -d --build
-#       Them Prometheus + Grafana + Alertmanager + kafka-exporter.  ~4 GB RAM.
-#       Chuoi quan sat day du.
-#
-# VI SAO PHAI CHIA PROFILE thay vi bat het. Bay dich vu chay cung luc tren mot
-# may tinh ca nhan la khoang 4 GB RAM va vai phut khoi dong. Bat mot sinh vien
-# tra cai gia do CHI DE xem thu ket qua tim kiem la cach chac chan nhat khien
-# ho khong bao gio chay `docker compose up` lan thu hai.
-#
-# Mac dinh phai la thu nhe nhat ma van chay duoc. Phan nang la thu BAT THEM
-# khi thuc su can nhin no.
+# ---------------------------------------------------------------------------
+# `mem_limit` CHỨ KHÔNG PHẢI `deploy.resources.limits`
+# ---------------------------------------------------------------------------
+# Khối `deploy:` chỉ có tác dụng với Docker Swarm. Với `docker compose up`
+# thường — cách mọi người thật sự chạy dự án này — nó bị BỎ QUA HOÀN TOÀN, và
+# không có cảnh báo nào. Một giới hạn bộ nhớ tưởng là có nhưng không có sẽ lộ
+# ra dưới dạng máy hết RAM, không phải dưới dạng một dòng lỗi.
+
+name: vnsearch
+
+# ---------------------------------------------------------------------------
+# Neo YAML dùng chung. Đổi một chỗ, áp cho mọi service Java.
+# ---------------------------------------------------------------------------
+x-java-service: &java-service
+  build:
+    context: ./backend
+    dockerfile: Dockerfile
+  restart: unless-stopped
+  networks: [vnsearch]
+  # Chỉ ghi 3 tệp log, mỗi tệp 10 MB. Mặc định của Docker là KHÔNG GIỚI HẠN:
+  # tám service chạy vài ngày là log ăn hết đĩa, và triệu chứng đầu tiên
+  # thường là PostgreSQL không ghi được nữa.
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-java-env: &java-env
+  # MỌI service phải thấy CÙNG một địa chỉ JWKS và cùng issuer/audience.
+  # Lệch nhau nghĩa là token do auth-service phát bị service khác từ chối,
+  # và thông báo lỗi duy nhất người dùng thấy là 401.
+  AUTH_JWKS_URI: http://auth-service:8081/oauth2/jwks
+  AUTH_ISSUER_URI: http://auth-service:8081
+  AUTH_AUDIENCE: vnsearch-api
+  ADMIN_API_KEY: ${ADMIN_API_KEY:?Thieu ADMIN_API_KEY. Sinh khoa - openssl rand -hex 32}
+  APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+  TZ: Asia/Ho_Chi_Minh
+
 services:
+
+  # =========================================================================
+  # HẠ TẦNG DỮ LIỆU
+  # =========================================================================
+
   postgres:
     image: postgres:17-alpine
     container_name: vnsearch-postgres
+    networks: [vnsearch]
     environment:
       POSTGRES_DB: vnsearch
       POSTGRES_USER: vnsearch
-      # Doc tu bien moi truong (hoac tep .env canh docker-compose.yml).
-      # Mac dinh `vnsearch` cho demo cuc bo; dat POSTGRES_PASSWORD de doi.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
-      # Sắp xếp theo chuẩn C cho tốc độ; việc so khớp tiếng Việt do
-      # VietnameseTokenizer tự cài đảm nhiệm chứ không dựa vào collation của DB.
-      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
-    ports:
-      - "5432:5432"
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-}
+      DOWNLOADS_DB_PASSWORD: ${DOWNLOADS_DB_PASSWORD:-}
+      SETTINGS_DB_PASSWORD: ${SETTINGS_DB_PASSWORD:-}
+    command:
+      # 128 MB thay vì mặc định 128 MB... mặc định thật là 128 MB nhưng
+      # PostgreSQL còn cấp phát work_mem cho MỖI phép sắp xếp của MỖI kết nối.
+      # Bốn service nhân năm kết nối nhân 4 MB là 80 MB chỉ riêng phần đó.
+      - postgres
+      - -c
+      - shared_buffers=128MB
+      - -c
+      - work_mem=2MB
+      - -c
+      - max_connections=50
+    ports: ["5432:5432"]
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./search-engine/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      # Chạy MỘT LẦN lúc khởi tạo volume. Tạo 3 CSDL riêng cho 3 service —
+      # xem chú thích dài trong chính tệp này về nguyên tắc "database per
+      # service".
+      - ./deploy/postgres/init-db.sh:/docker-entrypoint-initdb.d/10-init-db.sh:ro
+    mem_limit: 512m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vnsearch -d vnsearch"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
-  backend:
-    build:
-      context: ./search-engine
-    container_name: vnsearch-backend
-    depends_on:
-      postgres:
-        # Doi PostgreSQL THAT SU san sang, khong chi "container da khoi dong":
-        # `depends_on` tran khong doi den luc Postgres nhan ket noi, nen backend
-        # se hoi mot cong chua ai nghe roi lui ve nguon JSON mot cach nham lan.
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
-        # `required: false` — mau chot de GIU DUOC che do mac dinh nhe.
-        #
-        # Kafka chi ton tai trong profile `kafka`. Mot `depends_on` thuong se
-        # keo no vao MOI lan chay, ke ca `docker compose up` tran — dung thu
-        # ma viec chia profile sinh ra de tranh.
-        #
-        # Voi `required: false`: co profile `kafka` thi backend CHO Kafka
-        # healthy roi moi khoi dong; khong co thi backend bo qua phu thuoc nay
-        # va chay binh thuong.
-        #
-        # Vi sao phai cho: khi APP_CRAWLER_BUS=kafka, KafkaCrawlConfig dat
-        # fatalIfBrokerNotAvailable(true) — ung dung TU CHOI khoi dong neu
-        # broker chua san sang. Do la hanh vi dung (hong to hon hong am tham),
-        # nhung no bien thu tu khoi dong thanh mot rang buoc that.
-        required: false
-    environment:
-      # Khoa quan tri. Cu phap `:?` lam `docker compose up` DUNG NGAY voi thong
-      # bao nay neu chua dat bien, thay vi khoi dong roi chet trong container
-      # (noi khong ai doc log). Cung triet ly "hong to hon hong am tham" ma
-      # SecurityConfig da chon, chi la ap o tang dieu phoi.
-      # Sinh khoa: openssl rand -hex 32
-      ADMIN_API_KEY: ${ADMIN_API_KEY:?Thieu ADMIN_API_KEY - xem README.md muc "Chay bang Docker"}
-      # Bật profile `prod` để logback-spring.xml chuyển sang log JSON.
-      #
-      # Không có dòng này thì nhánh <springProfile name="prod"> trong
-      # logback-spring.xml KHÔNG BAO GIỜ chạy: thư viện đã có trong pom.xml,
-      # cấu hình đã viết xong, nhưng đường chạy thật duy nhất lại không bật nó,
-      # nên log ra vẫn là dạng văn xuôi có mã màu ANSI — thứ khó lọc theo trường
-      # và bẩn khi đổ vào một hệ thống thu thập log.
-      SPRING_PROFILES_ACTIVE: prod
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
-
-      # Bus su kien crawl. Mac dinh `memory` de `docker compose up` khong doi
-      # Kafka.
-      #
-      # VI SAO PHAI CO O DAY, KHONG CHI O crawler-worker. Backend la noi giu
-      # endpoint POST /api/admin/crawl — tuc no la BEN PHAT su kien. Neu chi
-      # crawler-worker duoc dat `kafka` thi cum Modular Services co day du ha
-      # tang nhung KHONG CO GI chay qua: backend crawl in-process, khong ghi
-      # len topic nao, va ba service ngoi khong.
-      #
-      # Loi nay im lang hoan toan — moi container `healthy`, moi topic ton
-      # tai, khong mot dong log loi nao. Chi co dieu topic rong mai mai.
-      #
-      # Chay che do phan tan: dat APP_CRAWLER_BUS=kafka trong .env, roi
-      #   docker compose --profile kafka up -d
-      APP_CRAWLER_BUS: ${APP_CRAWLER_BUS:-memory}
-      APP_CRAWLER_KAFKA_BOOTSTRAP: kafka:9092
-
-      # Bat PostgreSQL lam nguon corpus UU TIEN. An toan ngay ca khi CSDL con
-      # rong: PostgresDocumentStore.isAvailable() tra ve false khi bang khong co
-      # tai lieu nao, nen chuoi du phong tu lui ve JSON.
-      APP_STORAGE_POSTGRES_ENABLED: "true"
-      # `postgres` la ten dich vu trong mang noi bo cua compose, KHONG phai
-      # localhost — localhost trong container la chinh container do.
-      APP_STORAGE_POSTGRES_URL: jdbc:postgresql://postgres:5432/vnsearch
-      APP_STORAGE_POSTGRES_USER: vnsearch
-      APP_CORS_ALLOWED_ORIGINS: http://localhost:5173
-      # Doi sang `bm25` de dung cau hinh dat MRR cao nhat (0,9093 so voi 0,8758)
-      # — xem docs/EVALUATION.md.
-      APP_RANKING_SCORER: tfidf
-    ports:
-      - "8080:8080"
-    volumes:
-      # Mount corpus va file chi muc tu may that. Nho vay:
-      #   - corpus lon (data/crawled-multi.json) duoc dung neu co;
-      #   - file chi muc dung san ghi ra day va SONG SOT qua cac lan tao lai
-      #     container, nen lan khoi dong sau khong phai lap chi muc lai.
-      - ./search-engine/data:/app/data
-    healthcheck:
-      # PHAI la /api/health chu KHONG phai /api/admin/stats. Duong dan admin can
-      # header X-API-Key, ma healthcheck khong gui header nao — no se nhan 401,
-      # container bi danh dau unhealthy, roi `restart: unless-stopped` khoi dong
-      # lai vo han. /api/health la endpoint cong khai va tra 503 khi chi muc
-      # rong, dung thu healthcheck can phan biet.
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/api/health || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 12
-      # Lap chi muc lan dau tren corpus 5.011 trang mat vai chuc giay; khong co
-      # start_period thi healthcheck bao "unhealthy" trong khi backend van dang
-      # khoi dong binh thuong.
-      start_period: 90s
+      retries: 5
+      start_period: 20s
     restart: unless-stopped
 
-  # ═════════════════════════════════════════════════════════════════════════
-  # PROFILE `kafka` — bus su kien va crawler-worker tach rieng
-  # ═════════════════════════════════════════════════════════════════════════
+  redis:
+    image: redis:7-alpine
+    container_name: vnsearch-redis
+    networks: [vnsearch]
+    command:
+      - redis-server
+      - --maxmemory
+      - 100mb
+      # Refresh token và denylist đều CÓ HẠN DÙNG, nên đuổi mục cũ nhất khi
+      # đầy là hành vi đúng. `noeviction` (mặc định) sẽ khiến Redis từ chối
+      # mọi phép ghi khi đầy — tức là không ai đăng nhập được nữa.
+      - --maxmemory-policy
+      - allkeys-lru
+      # KHÔNG bật lưu bền. Mất dữ liệu Redis nghĩa là mọi người phải đăng nhập
+      # lại — phiền, nhưng không mất gì vĩnh viễn. Đổi lại: không tốn đĩa,
+      # không có lúc dừng vì fork lúc snapshot.
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+    ports: ["6379:6379"]
+    mem_limit: 128m
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
 
-  # Kafka che do KRaft: KHONG con Zookeeper.
-  #
-  # Truoc Kafka 3.3, moi cum deu can them mot cum Zookeeper rieng chi de giu
-  # sieu du lieu — hai he thong phan tan phai van hanh thay vi mot. KRaft dua
-  # phan do vao chinh Kafka. Voi mot do an thi khac biet la mot container thay
-  # vi hai, va mot loai su co thay vi hai.
+  mongo:
+    image: mongo:7
+    container_name: vnsearch-mongo
+    profiles: [full]
+    networks: [vnsearch]
+    command:
+      # Mặc định WiredTiger lấy 50% RAM MÁY trừ 1 GB — trên máy 8 GB là 3 GB,
+      # gấp tám lần giới hạn container. Nó KHÔNG tự đọc giới hạn của Docker,
+      # nên container sẽ bị hệ điều hành giết ngay khi dữ liệu lớn lên.
+      - --wiredTigerCacheSizeGB
+      - "0.25"
+    ports: ["27017:27017"]
+    volumes:
+      - mongo-data:/data/db
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  # =========================================================================
+  # HỒ SƠ RÚT GỌN — luôn chạy. Đủ để tìm kiếm và đăng nhập.
+  # =========================================================================
+
+  api-gateway:
+    <<: *java-service
+    container_name: vnsearch-gateway
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: services/api-gateway
+        ARTIFACT: api-gateway
+    depends_on:
+      redis: {condition: service_healthy}
+      auth-service: {condition: service_started}
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8080"
+      REDIS_HOST: redis
+      AUTH_SERVICE_URL: http://auth-service:8081
+      SEARCH_SERVICE_URL: http://search-service:8082
+      CRAWLER_SERVICE_URL: http://crawler-service:8083
+      ANALYTICS_SERVICE_URL: http://analytics-service:8084
+      HISTORY_SERVICE_URL: http://history-service:8085
+      DOWNLOADS_SERVICE_URL: http://downloads-service:8086
+      SETTINGS_SERVICE_URL: http://settings-service:8087
+      FOOTBALL_SERVICE_URL: http://football-service:8090
+    # CỔNG DUY NHẤT phơi ra ngoài, và đó là điểm mấu chốt: bảy service kia
+    # KHÔNG có khối `ports`, nên chúng chỉ với tới được từ trong mạng
+    # `vnsearch`. Mở cổng của chúng ra máy thật là mở một đường vòng qua mọi
+    # thứ Gateway đang canh.
+    ports: ["8080:8080"]
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  auth-service:
+    <<: *java-service
+    container_name: vnsearch-auth
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: services/auth-service
+        ARTIFACT: auth-service
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8081"
+      # Profile `postgres` bật CÙNG LÚC bốn thứ: kho tài khoản PostgreSQL,
+      # DataSource, Flyway, và kho refresh token trên Redis. Xem
+      # application-postgres.properties về lý do gói chúng vào một cái tên.
+      SPRING_PROFILES_ACTIVE: postgres
+      AUTH_DB_URL: jdbc:postgresql://postgres:5432/vnsearch_auth
+      AUTH_DB_USER: vnsearch_auth
+      AUTH_DB_PASSWORD: ${AUTH_DB_PASSWORD:-${POSTGRES_PASSWORD:-vnsearch}}
+      REDIS_HOST: redis
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+      # Khoá ký JWT. ĐỂ TRỐNG = sinh mới mỗi lần khởi động, và mọi người bị
+      # đăng xuất sau mỗi lần triển khai. Chấp nhận được khi chạy thử; môi
+      # trường thật phải mount một tệp JWK vào đây.
+      AUTH_JWK_PATH: ${AUTH_JWK_PATH:-}
+    volumes:
+      - ./backend/data:/app/data
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  search-service:
+    <<: *java-service
+    container_name: vnsearch-search
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: services/search-service
+        ARTIFACT: search-service
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8082"
+      APP_STORAGE_POSTGRES_ENABLED: "true"
+      APP_STORAGE_POSTGRES_URL: jdbc:postgresql://postgres:5432/vnsearch
+      APP_STORAGE_POSTGRES_USER: vnsearch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
+      # GHI ĐÈ tham số JVM của Dockerfile.
+      #
+      # Dockerfile đặt UseSerialGC + TieredStopAtLevel=1 — đúng cho bảy service
+      # nhỏ, SAI cho service này. Với heap hơn 1 GB, SerialGC dừng cả tiến
+      # trình hàng trăm mili giây mỗi lần dọn rác, và một truy vấn tìm kiếm
+      # rơi vào đó sẽ chậm thấy rõ. G1 giữ khoảng dừng dưới 200 ms.
+      #
+      # TieredStopAtLevel=1 cũng bị bỏ: service này chạy vòng lặp chấm điểm
+      # hàng triệu lần, và nó cần trình biên dịch C2 tối ưu hết mức. Đổi lại
+      # là khởi động chậm hơn vài giây — không đáng kể với một tiến trình sống
+      # hàng tuần.
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=70
+        -XX:+UseG1GC
+        -XX:MaxGCPauseMillis=200
+        -XX:+ExitOnOutOfMemoryError
+        -Djava.security.egd=file:/dev/./urandom
+    volumes:
+      - ./backend/data:/app/data
+    mem_limit: 1536m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      # 90 giây: service này dựng lại chỉ mục lúc khởi động. Thời gian chờ
+      # ngắn hơn sẽ khiến Docker giết nó ngay giữa lúc nó đang làm đúng việc
+      # của mình, và vòng lặp khởi động lại vô hạn bắt đầu.
+      start_period: 90s
+
+  football-service:
+    build:
+      context: ./backend/services/football-service
+    container_name: vnsearch-football
+    networks: [vnsearch]
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      # Dùng chung CSDL `vnsearch` với search-service nhưng trong một schema
+      # riêng tên `football`. Xem internal/store/store.go.
+      #
+      # Truyền TỪNG PHẦN thay vì một URL ghép sẵn — đây là một lỗi thật đã gặp
+      # ở lần chạy đầu: mật khẩu sinh ngẫu nhiên chứa dấu `@`, nó cắt URL sai
+      # chỗ, và Postgres trả về "password authentication failed" trong khi mật
+      # khẩu hoàn toàn đúng. Service tự ghép bằng url.UserPassword nên mọi ký
+      # tự đều được mã hoá.
+      FOOTBALL_DB_HOST: postgres
+      FOOTBALL_DB_PORT: "5432"
+      FOOTBALL_DB_USER: vnsearch
+      FOOTBALL_DB_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
+      FOOTBALL_DB_NAME: vnsearch
+      # Thiếu khoá này không mở ra lỗ hổng nào, service chỉ lui về dữ liệu mẫu.
+      FOOTBALL_API_KEY: ${FOOTBALL_API_KEY:-}
+      FOOTBALL_API_BASE_URL: ${FOOTBALL_API_BASE_URL:-https://v3.football.api-sports.io}
+      FOOTBALL_PORT: "8090"
+      FOOTBALL_DAILY_BUDGET: "95"
+    mem_limit: 64m
+    healthcheck:
+      # Ảnh chạy là distroless — không có shell, không có wget. Tệp nhị phân
+      # tự gọi chính nó. Xem hàm healthCheck trong cmd/server/main.go.
+      test: ["CMD", "/football-service", "--health-check"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+
+  # =========================================================================
+  # HỒ SƠ `full` — thêm bốn service và MongoDB.
+  # =========================================================================
+
+  crawler-service:
+    <<: *java-service
+    container_name: vnsearch-crawler
+    profiles: [full]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: services/crawler-service
+        ARTIFACT: crawler-service
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8083"
+      APP_STORAGE_POSTGRES_ENABLED: "true"
+      APP_STORAGE_POSTGRES_URL: jdbc:postgresql://postgres:5432/vnsearch
+      APP_STORAGE_POSTGRES_USER: vnsearch
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
+      APP_CRAWLER_BUS: ${APP_CRAWLER_BUS:-memory}
+      APP_CRAWLER_KAFKA_BOOTSTRAP: kafka:9092
+      JAVA_TOOL_OPTIONS: >-
+        -XX:MaxRAMPercentage=70
+        -XX:+UseSerialGC
+        -XX:+ExitOnOutOfMemoryError
+        -Djava.security.egd=file:/dev/./urandom
+    volumes:
+      - ./backend/data:/app/data
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8083/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  analytics-service:
+    <<: *java-service
+    container_name: vnsearch-analytics
+    profiles: [full]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: services/analytics-service
+        ARTIFACT: analytics-service
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8084"
+      CRAWLER_SERVICE_URL: http://crawler-service:8083
+      AUTH_SERVICE_URL: http://auth-service:8081
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8084/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  history-service:
+    <<: *java-service
+    container_name: vnsearch-history
+    profiles: [full]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: services/history-service
+        ARTIFACT: history-service
+    depends_on:
+      mongo: {condition: service_healthy}
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8085"
+      MONGO_URI: mongodb://mongo:27017/vnsearch_history
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8085/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  downloads-service:
+    <<: *java-service
+    container_name: vnsearch-downloads
+    profiles: [full]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: services/downloads-service
+        ARTIFACT: downloads-service
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8086"
+      DOWNLOADS_DB_URL: jdbc:postgresql://postgres:5432/vnsearch_downloads
+      DOWNLOADS_DB_USER: vnsearch_downloads
+      DOWNLOADS_DB_PASSWORD: ${DOWNLOADS_DB_PASSWORD:-${POSTGRES_PASSWORD:-vnsearch}}
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8086/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  settings-service:
+    <<: *java-service
+    container_name: vnsearch-settings
+    profiles: [full]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      args:
+        MODULE: services/settings-service
+        ARTIFACT: settings-service
+    depends_on:
+      postgres: {condition: service_healthy}
+    environment:
+      <<: *java-env
+      SERVER_PORT: "8087"
+      SETTINGS_DB_URL: jdbc:postgresql://postgres:5432/vnsearch_settings
+      SETTINGS_DB_USER: vnsearch_settings
+      SETTINGS_DB_PASSWORD: ${SETTINGS_DB_PASSWORD:-${POSTGRES_PASSWORD:-vnsearch}}
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8087/actuator/health | grep -q UP"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+  # =========================================================================
+  # HỒ SƠ `kafka`
+  # =========================================================================
+
   kafka:
     image: apache/kafka:3.8.1
     container_name: vnsearch-kafka
-    profiles: [kafka, monitoring]
+    profiles: [kafka]
+    networks: [vnsearch]
     environment:
-      KAFKA_NODE_ID: 1
-      # Mot node lam CA hai vai. Chi dung cho mot may; moi truong that tach
-      # controller ra rieng de nang cap broker khong dung toi tang bau cu.
+      KAFKA_NODE_ID: "1"
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-
-      # HAI listener, va day la cho hay sai nhat khi chay Kafka trong Docker:
-      #   PLAINTEXT      -> cho container khac trong mang compose  (kafka:9092)
-      #   PLAINTEXT_HOST -> cho tien trinh tren may that           (localhost:29092)
-      #
-      # Kafka tra ve dia chi ADVERTISED cho client, roi client tu ket noi lai
-      # bang dia chi do. Neu chi khai bao mot listener `kafka:9092` thi mot
-      # cong cu chay tren may that se phan giai duoc broker luc dau, nhan ve
-      # ten `kafka`, roi that bai vi ten do khong ton tai ngoai mang Docker.
-      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,PLAINTEXT_HOST://:29092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-
-      # Mot node thi khong the co ban sao thu hai. Mac dinh cua Kafka la 3, va
-      # de nguyen thi topic noi bo khong tao duoc — cum khoi dong roi treo.
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
-
-      # 0 giay thay vi 3 giay mac dinh: khong phai cho moi lan mot consumer
-      # tham gia nhom. Chi hop ly khi phat trien.
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
-
-      KAFKA_NUM_PARTITIONS: 12
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
-
-      # PHAI khop voi MAX_MESSAGE_BYTES trong KafkaCrawlConfig (4 MB). Lech
-      # nhau thi producer gui duoc ma broker tu choi — loi chi lo ra o dung
-      # nhung trang giau noi dung nhat.
-      KAFKA_MESSAGE_MAX_BYTES: 4194304
-      KAFKA_REPLICA_FETCH_MAX_BYTES: 4194304
-
-      KAFKA_LOG_RETENTION_HOURS: 168
-      KAFKA_HEAP_OPTS: "-Xmx768m -Xms512m"
-    ports:
-      - "29092:29092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+      # 512 MB heap. Mặc định của Kafka là 1 GB — quá tay cho một broker một
+      # nút chạy trên máy lập trình viên.
+      KAFKA_HEAP_OPTS: -Xmx512m -Xms256m
+    ports: ["9092:9092"]
     volumes:
       - kafka-data:/var/lib/kafka/data
+    mem_limit: 1024m
     healthcheck:
-      # Hoi chinh broker qua giao thuc that, khong phai chi xem cong co mo.
-      # Cong mo tu rat som trong qua trinh khoi dong, nen kiem tra cong se bao
-      # "san sang" trong khi broker con dang nap log.
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
-      interval: 10s
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 15s
       timeout: 10s
-      retries: 15
-      start_period: 30s
+      retries: 10
+      start_period: 45s
     restart: unless-stopped
 
-  # Giao dien xem topic, thong diep va do tre tieu thu.
-  #
-  # Khong phai do trang tri: khi mot thong diep roi vao dead-letter topic, day
-  # la cho doc noi dung va header nguyen nhan goc. Khong co no thi phai go
-  # lenh kafka-console-consumer voi mot ta tham so.
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: vnsearch-kafka-ui
-    profiles: [kafka, monitoring]
+    profiles: [kafka]
+    networks: [vnsearch]
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka: {condition: service_healthy}
     environment:
       KAFKA_CLUSTERS_0_NAME: vnsearch
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       DYNAMIC_CONFIG_ENABLED: "true"
-    ports:
-      - "8081:8080"
+    ports: ["8090:8080"]
+    mem_limit: 256m
     restart: unless-stopped
 
-  # Crawler worker — CUNG anh voi backend, khac VAI.
-  #
-  # Vi sao cung anh: mot anh da qua kiem thu, mot quy trinh dung, mot noi de
-  # va loi. Vai duoc quyet dinh boi bien moi truong, khong phai boi ma nguon.
-  # Day la nguyen tac "cung mot anh chay o moi moi truong" ma configmap.yaml
-  # da neu, ap cho hai vai tro khac nhau cua cung mot he thong.
-  #
-  # Vi sao tach tien trinh: hai cong viec co ho so tai nguyen NGUOC NHAU.
-  # Phuc vu truy van la CPU + bo nho (chi muc dao nam trong RAM); tieu thu
-  # Kafka de boc lien ket va tai anh la cho mang. Nhot chung mot tien trinh thi
-  # mot dot crawl lam cham moi truy van, va co gian de chiu tai crawl thi phai
-  # nhan ban ca chi muc.
-  crawler-worker:
-    build:
-      context: ./search-engine
-    container_name: vnsearch-crawler-worker
-    profiles: [kafka, monitoring]
-    depends_on:
-      kafka:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    environment:
-      ADMIN_API_KEY: ${ADMIN_API_KEY:?Thieu ADMIN_API_KEY - xem README.md muc "Chay bang Docker"}
-      SPRING_PROFILES_ACTIVE: prod
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
-
-      # Cong tac chuyen che do. Khong co dong nay thi ung dung chay bus
-      # in-process va toan bo phan Kafka nam im — dung nhu thiet ke.
-      APP_CRAWLER_BUS: kafka
-      APP_CRAWLER_KAFKA_BOOTSTRAP: kafka:9092
-
-      # Vai tro `worker`: KHONG giu kho anh. Kho do nam trong bo nho tien trinh
-      # va chi duoc nap o dung mot noi — tien trinh phuc vu API. Chay o ca hai
-      # thi Kafka chia doi luong va moi ben chi co mot nua so anh, trong khi
-      # giao dien van hien binh thuong. Xem ImageStoreListener.
-      APP_CRAWLER_ROLE: worker
-      APP_CRAWLER_ROLE_IS_API: "false"
-
-      APP_STORAGE_POSTGRES_ENABLED: "true"
-      APP_STORAGE_POSTGRES_URL: jdbc:postgresql://postgres:5432/vnsearch
-      APP_STORAGE_POSTGRES_USER: vnsearch
-    volumes:
-      - ./search-engine/data:/app/data
-    healthcheck:
-      # PHẢI là /actuator/health, KHÔNG phải /actuator/health/liveness. Nhóm
-      # probe liveness/readiness chỉ tự bật khi Spring Boot nhận ra mình đang
-      # chạy trong Kubernetes; ở đây là Docker Compose thuần nên đường dẫn đó
-      # trả 404 và container không bao giờ đạt healthy — tiến trình vẫn tiêu
-      # thụ Kafka bình thường, chỉ mỗi cột STATUS đứng mãi ở "starting" rồi
-      # "unhealthy". Muốn dùng lại /liveness thì phải thêm biến môi trường
-      # MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED=true.
-      test: ["CMD-SHELL", "wget -q -O- http://localhost:8080/actuator/health || exit 1"]
-      interval: 15s
-      timeout: 5s
-      retries: 10
-      start_period: 90s
-    restart: unless-stopped
-
-  # ═════════════════════════════════════════════════════════════════════════
-  # PROFILE `monitoring` — chuoi quan sat day du
-  # ═════════════════════════════════════════════════════════════════════════
+  # =========================================================================
+  # HỒ SƠ `observability`
+  # =========================================================================
 
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: vnsearch-prometheus
-    profiles: [monitoring]
+    profiles: [observability]
+    networks: [vnsearch]
     volumes:
       - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./deploy/monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
@@ -315,135 +539,61 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.path=/prometheus
-      # 15 ngay: du de nhin lai mot su co tuan truoc, du ngan de khong an het
-      # o dia cua may ca nhan.
-      - --storage.tsdb.retention.time=15d
-      # Cho nap lai cau hinh bang POST /-/reload, khong phai khoi dong lai.
-      - --web.enable-lifecycle
-    ports:
-      - "9090:9090"
+      # Giữ 7 ngày thay vì mặc định 15: trên máy lập trình viên, số liệu cũ
+      # hơn một tuần không ai xem, và mỗi ngày là vài trăm megabyte đĩa.
+      - --storage.tsdb.retention.time=7d
+    ports: ["9090:9090"]
+    mem_limit: 384m
     restart: unless-stopped
 
   grafana:
     image: grafana/grafana:11.3.0
     container_name: vnsearch-grafana
-    profiles: [monitoring]
+    profiles: [observability]
+    networks: [vnsearch]
     depends_on: [prometheus]
     environment:
-      # Mat khau demo cuc bo. Moi truong that dat GRAFANA_PASSWORD.
-      GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
-      # Tat viec goi ve may chu Grafana kiem tra phien ban — mot container
-      # giam sat khong nen tu mo ket noi ra Internet.
+      GF_USERS_ALLOW_SIGN_UP: "false"
       GF_ANALYTICS_REPORTING_ENABLED: "false"
-      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
-      # Mo thang bang dieu khien VnSearch khi vao trang chu.
       GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/vnsearch.json
     volumes:
       - ./deploy/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./deploy/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
-    ports:
-      - "3000:3000"
+    ports: ["3000:3000"]
+    mem_limit: 256m
     restart: unless-stopped
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: vnsearch-alertmanager
-    profiles: [monitoring]
+    profiles: [observability]
+    networks: [vnsearch]
     volumes:
       - ./deploy/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager-data:/alertmanager
     command:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
-    ports:
-      - "9093:9093"
+    ports: ["9093:9093"]
+    mem_limit: 128m
     restart: unless-stopped
 
-  # Kafka phoi so lieu qua JMX, khong phai HTTP. Container nay dich sang dinh
-  # dang Prometheus.
-  #
-  # Thang do quan trong nhat no cho ra la `kafka_consumergroup_lag` — vua la
-  # tin hieu canh bao, vua la tin hieu CO GIAN cho KEDA. Xem
-  # deploy/k8s/base/crawler-worker.yaml.
-  kafka-exporter:
-    image: danielqsj/kafka-exporter:v1.7.0
-    container_name: vnsearch-kafka-exporter
-    profiles: [monitoring]
-    depends_on:
-      kafka:
-        condition: service_healthy
-    command: ["--kafka.server=kafka:9092"]
-    ports:
-      - "9308:9308"
-    restart: unless-stopped
-
-  # ═════════════════════════════════════════════════════════════════════════
-  # PROFILE `football` — du lieu bong da (microservice viet bang Go)
-  # ═════════════════════════════════════════════════════════════════════════
-  #
-  # Vi sao la mot service RIENG chu khong phai them mot controller vao backend
-  # Java: no co mot rang buoc ma phan con lai cua he thong khong co — han muc
-  # 100 luot goi ra ngoai moi ngay. Rang buoc do quyet dinh gan nhu moi thiet
-  # ke ben trong (dem bao lau, het han muc thi lam gi), va nhet no chung vao
-  # mot ung dung dang toi uu cho viec khac se lam ca hai ben kho hieu hon.
-  #
-  # No cung KHONG nam trong profile mac dinh: khong phai ai chay repo nay cung
-  # quan tam den bong da, va service nay tu no da chay duoc bang du lieu mau.
-  football-service:
-    build:
-      context: ./football-service
-    container_name: vnsearch-football
-    profiles: [football]
-    depends_on:
-      postgres:
-        # Bat buoc phai `service_healthy`: service nay TU tao schema `football`
-        # luc khoi dong, nen no can Postgres that su nhan ket noi chu khong chi
-        # can container da chay.
-        condition: service_healthy
-    environment:
-      # Dung chung CSDL `vnsearch` voi backend Java, nhung trong mot schema
-      # rieng ten `football`. Xem football-service/internal/store/store.go.
-      #
-      # Truyen TUNG PHAN thay vi mot URL ghep san — day la mot loi that da gap
-      # o lan chay dau: mat khau sinh ngau nhien chua dau `@`, no cat URL sai
-      # cho, va Postgres tra ve "password authentication failed" trong khi mat
-      # khau hoan toan dung. Service tu ghep bang url.UserPassword nen moi ky
-      # tu deu duoc ma hoa. Xem buildDatabaseURL trong internal/config.
-      FOOTBALL_DB_HOST: postgres
-      FOOTBALL_DB_PORT: "5432"
-      FOOTBALL_DB_USER: vnsearch
-      FOOTBALL_DB_PASSWORD: ${POSTGRES_PASSWORD:-vnsearch}
-      FOOTBALL_DB_NAME: vnsearch
-
-      # Khoa API-Football. KHONG dung cu phap `:?` nhu ADMIN_API_KEY: thieu
-      # khoa nay khong mo ra lo hong nao, service chi lui ve du lieu mau. Xem
-      # football-service/internal/sample.
-      FOOTBALL_API_KEY: ${FOOTBALL_API_KEY:-}
-
-      # Cung mot du lieu duoc ban o hai noi: thang tu api-sports.io, hoac qua
-      # RapidAPI. Chi khac cach xung danh, va service TU SUY RA tu dia chi nay
-      # (xem rapidAPIHost trong internal/apifootball) — nen doi nha cung cap
-      # chi la doi mot dong trong .env, khong dung toi ma nguon.
-      FOOTBALL_API_BASE_URL: ${FOOTBALL_API_BASE_URL:-https://v3.football.api-sports.io}
-
-      FOOTBALL_PORT: "8090"
-      FOOTBALL_DAILY_BUDGET: "95"
-    ports:
-      - "8090:8090"
-    healthcheck:
-      # Anh chay la distroless — khong co shell, khong co wget. Tep nhi phan tu
-      # goi chinh no. Xem ham healthCheck trong cmd/server/main.go.
-      test: ["CMD", "/football-service", "--health-check"]
-      interval: 15s
-      timeout: 5s
-      retries: 5
-      start_period: 20s
-    restart: unless-stopped
+# ---------------------------------------------------------------------------
+# Một mạng riêng, KHÔNG dùng mạng `default`.
+#
+# Với mạng riêng, chỉ container trong mạng này phân giải được tên nhau. Cộng
+# với việc bảy service không mở cổng ra máy thật, đó là hai lớp giữ cho
+# Gateway thật sự là cửa duy nhất.
+# ---------------------------------------------------------------------------
+networks:
+  vnsearch:
+    driver: bridge
 
 volumes:
   postgres-data:
+  mongo-data:
   kafka-data:
   prometheus-data:
   grafana-data:

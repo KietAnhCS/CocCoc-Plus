@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  api-gateway :8080 — cửa duy nhất mà máy khách nhìn thấy.
+  ============================================================================
+
+  VÌ SAO CỔNG 8080. Đó là cổng mà bản một khối từng dùng, và desktop-app đang
+  gọi tới (`API_BASE = 'http://localhost:8080'`). Giữ nguyên nghĩa là toàn bộ
+  giao diện không phải sửa một dòng nào khi backend tách thành tám tiến trình —
+  đúng lời hứa của một API Gateway.
+
+  VÌ SAO SPRING CLOUD GATEWAY CHỨ KHÔNG PHẢI NGINX. Nginx định tuyến tốt hơn và
+  nhẹ hơn nhiều. Nhưng ba việc dưới đây cần hiểu JWT và cần gọi Redis, và làm
+  chúng trong nginx nghĩa là viết Lua:
+    - kiểm chữ ký JWT một lần cho cả hệ thống,
+    - tra danh sách thu hồi token (denylist) trên Redis,
+    - giới hạn tần suất theo NGƯỜI DÙNG chứ không theo địa chỉ IP.
+  Với một dự án Java, chọn thứ nói cùng ngôn ngữ với phần còn lại là chọn thứ
+  mà người bảo trì đọc được.
+
+  VÌ SAO NÓ LÀ WEBFLUX CHỨ KHÔNG PHẢI SERVLET. Spring Cloud Gateway chạy trên
+  ngăn xếp phản ứng (Netty), không phải Tomcat. Hệ quả thực tế: module này
+  KHÔNG dùng được `vnsearch-platform` — mọi thứ trong đó là servlet filter.
+  Đây là lý do gateway phải khai lại CORS và giới hạn tần suất theo cách riêng,
+  và là một khoản trùng lặp CÓ CHỦ Ý, không phải sơ suất.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>api-gateway</artifactId>
+	<name>api-gateway</name>
+	<description>API Gateway: định tuyến, xác thực JWT, giới hạn tần suất, gom OpenAPI</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
+		</dependency>
+
+		<!-- Kiểm chữ ký JWT NGAY TẠI BIÊN. Làm ở đây nghĩa là một token hỏng bị
+		     chặn trước khi tốn một chặng mạng nội bộ; các service phía sau vẫn
+		     kiểm lại lần nữa, vì chúng gọi thẳng được và không được phép tin
+		     rằng mọi request đều đã qua cửa này. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+
+		<!-- Giới hạn tần suất phân tán và danh sách thu hồi token. Bản phản ứng
+		     (reactive) chứ không phải bản servlet: một lượt gọi Redis chặn
+		     luồng trong Netty sẽ làm nghẽn cả event loop. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-actuator</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-registry-prometheus</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>net.logstash.logback</groupId>
+			<artifactId>logstash-logback-encoder</artifactId>
+		</dependency>
+
+		<!-- Gom OpenAPI của tám service thành MỘT trang Swagger. Không có nó,
+		     người tích hợp phải nhớ tám địa chỉ và tự đoán service nào giữ
+		     endpoint nào. -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webflux-ui</artifactId>
+			<version>2.8.13</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

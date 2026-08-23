@@ -1,0 +1,200 @@
+# ============================================================================
+# api-gateway :8080 — bảng định tuyến của toàn hệ thống.
+# ============================================================================
+#
+# YAML chứ không phải .properties, khác bảy service kia. Lý do: bảng tuyến là
+# một danh sách lồng nhau (mỗi tuyến có predicates và filters, mỗi cái lại là
+# một danh sách). Diễn đạt nó bằng cú pháp properties cho ra những dòng kiểu
+#   spring.cloud.gateway.routes[3].filters[1].name=...
+# — đọc không ra, và sửa thì phải đánh lại số thứ tự của mọi tuyến phía sau.
+
+spring:
+  application:
+    name: api-gateway
+
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Khoá CÔNG KHAI lấy từ auth-service. Xem chú thích trong
+          # vnsearch-common.properties về việc vì sao là JWKS chứ không phải
+          # một khoá dán sẵn.
+          jwk-set-uri: ${AUTH_JWKS_URI:http://auth-service:8081/oauth2/jwks}
+          issuer-uri: ${AUTH_ISSUER_URI:http://auth-service:8081}
+          audiences: ${AUTH_AUDIENCE:vnsearch-api}
+
+  cloud:
+    gateway:
+      server:
+        webflux:
+          # ================================================================
+          # BẢNG TUYẾN
+          # ================================================================
+          # Thứ tự QUAN TRỌNG: Spring Cloud Gateway lấy tuyến KHỚP ĐẦU TIÊN.
+          # Vì thế mọi đường dẫn hẹp phải đứng trước đường dẫn rộng — xem cặp
+          # `auth-admin-users` và `analytics-admin` đứng trước `crawler-admin`
+          # bên dưới, cả ba đều bắt đầu bằng /api/admin/.
+          #
+          # KHÔNG dùng service discovery (Eureka/Consul). Với tám service cố
+          # định, một bảng tuyến đọc được đáng giá hơn một sổ đăng ký phải
+          # dựng, phải theo dõi, và phải sửa khi nó hỏng. Trong Kubernetes thì
+          # chính DNS của cụm đã là sổ đăng ký.
+          routes:
+
+            # ---- auth-service ----------------------------------------------
+            - id: auth-oauth2
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+              predicates:
+                - Path=/oauth2/**,/.well-known/**
+
+            # ĐỨNG TRƯỚC crawler-admin: /api/admin/users/** hẹp hơn
+            # /api/admin/**, và tuyến khớp đầu tiên sẽ thắng.
+            - id: auth-admin-users
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+              predicates:
+                - Path=/api/admin/users/**
+
+            - id: auth-api
+              uri: ${AUTH_SERVICE_URL:http://auth-service:8081}
+              predicates:
+                - Path=/api/auth/**
+
+            # ---- search-service --------------------------------------------
+            - id: search-api
+              uri: ${SEARCH_SERVICE_URL:http://search-service:8082}
+              predicates:
+                - Path=/api/search,/api/suggest,/api/images,/api/feed,/api/health
+              filters:
+                # Giới hạn tần suất theo NGƯỜI DÙNG (hoặc theo IP với khách vãng
+                # lai) — xem RateLimitConfig. replenishRate là số lượt mỗi giây
+                # ở trạng thái ổn định; burstCapacity cho phép một loạt ngắn,
+                # đúng cách người ta thật sự dùng ô tìm kiếm: gõ, dừng, gõ tiếp.
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 30
+                    key-resolver: "#{@nguoiDungHoacDiaChi}"
+
+            - id: search-soap
+              uri: ${SEARCH_SERVICE_URL:http://search-service:8082}
+              predicates:
+                - Path=/ws/**
+
+            # ---- analytics-service -----------------------------------------
+            # ĐỨNG TRƯỚC crawler-admin, cùng lý do với auth-admin-users.
+            - id: analytics-admin
+              uri: ${ANALYTICS_SERVICE_URL:http://analytics-service:8084}
+              predicates:
+                - Path=/api/admin/analytics/**
+
+            - id: analytics-events
+              uri: ${ANALYTICS_SERVICE_URL:http://analytics-service:8084}
+              predicates:
+                - Path=/api/events
+
+            # ---- crawler-service -------------------------------------------
+            # Tuyến RỘNG NHẤT trong nhóm /api/admin/, nên đứng CUỐI nhóm.
+            - id: crawler-admin
+              uri: ${CRAWLER_SERVICE_URL:http://crawler-service:8083}
+              predicates:
+                - Path=/api/admin/**
+
+            # ---- history-service -------------------------------------------
+            - id: history-api
+              uri: ${HISTORY_SERVICE_URL:http://history-service:8085}
+              predicates:
+                - Path=/api/history/**
+
+            # ---- downloads-service -----------------------------------------
+            - id: downloads-api
+              uri: ${DOWNLOADS_SERVICE_URL:http://downloads-service:8086}
+              predicates:
+                - Path=/api/downloads/**
+
+            # ---- settings-service ------------------------------------------
+            - id: settings-api
+              uri: ${SETTINGS_SERVICE_URL:http://settings-service:8087}
+              predicates:
+                - Path=/api/settings/**
+
+            # ---- football-service (Go) -------------------------------------
+            # Service duy nhất không viết bằng Java. Với Gateway thì điều đó
+            # không có nghĩa gì cả — nó chỉ thấy một địa chỉ HTTP. Đó chính là
+            # điều một API Gateway mua được: ngôn ngữ của service là chuyện
+            # riêng của service.
+            #
+            # StripPrefix=2 vì football-service phục vụ ở /v1/**, còn máy khách
+            # gọi /api/football/v1/**. Không cắt thì mọi request đều 404.
+            - id: football-api
+              uri: ${FOOTBALL_SERVICE_URL:http://football-service:8090}
+              predicates:
+                - Path=/api/football/**
+              filters:
+                - StripPrefix=2
+
+# --- CORS ---
+# Chỉ khai Ở ĐÂY. Trình duyệt không biết bảy service phía sau tồn tại.
+app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  gateway:
+    denylist:
+      # Tra danh sách thu hồi token trên Redis. Tắt được để chạy thử không cần
+      # Redis; TẮT Ở MÔI TRƯỜNG THẬT nghĩa là "đăng xuất" không có hiệu lực
+      # thật trong 15 phút.
+      enabled: ${GATEWAY_DENYLIST_ENABLED:true}
+
+server:
+  port: ${SERVER_PORT:8080}
+
+# --- Quan sát được ---
+management:
+  endpoints:
+    web:
+      exposure:
+        # KHÔNG dùng "*": nhóm mặc định còn chứa /actuator/env (phơi mọi biến
+        # môi trường) và /actuator/heapdump (tải về toàn bộ bộ nhớ tiến trình —
+        # ở Gateway, bộ nhớ đó chứa mọi access token vừa đi qua).
+        include: health,metrics,prometheus,gateway
+  endpoint:
+    health:
+      show-details: never
+  metrics:
+    tags:
+      application: api-gateway
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      percentiles:
+        http.server.requests: 0.5,0.95,0.99
+
+# --- OpenAPI gom từ tám service ---
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    urls:
+      - name: auth-service
+        url: /api/auth/v3/api-docs
+      - name: search-service
+        url: /api/search/v3/api-docs
+      - name: crawler-service
+        url: /api/admin/v3/api-docs
+      - name: history-service
+        url: /api/history/v3/api-docs
+      - name: downloads-service
+        url: /api/downloads/v3/api-docs
+      - name: settings-service
+        url: /api/settings/v3/api-docs
+
+logging:
+  level:
+    # Bật khi cần xem một request rơi vào tuyến nào. Rất ồn — chỉ bật lúc gỡ
+    # lỗi định tuyến, và đó là loại lỗi mà không có dòng log này thì chỉ còn
+    # cách đoán.
+    org.springframework.cloud.gateway: ${GATEWAY_LOG_LEVEL:INFO}

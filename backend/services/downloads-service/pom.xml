@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  downloads-service :8086 — Sổ tải xuống, đồng bộ giữa các thiết bị
+  ============================================================================
+
+  VÌ SAO DÙNG SQL Ở ĐÂY MÀ history-service DÙNG NoSQL. Hai loại dữ liệu khác
+  nhau ở đúng những điểm quyết định lựa chọn:
+
+    - Bản ghi tải xuống là thứ người dùng CHỜ ĐỢI thấy đúng. Một mục biến mất
+      hay hiện sai trạng thái là một lỗi họ nhận ra ngay; một lượt ghé thăm
+      thiếu thì không ai để ý.
+    - Nó có TRẠNG THÁI chuyển theo quy tắc (đang tải -> xong / huỷ / gián
+      đoạn), và một phép cập nhật sai thứ tự sẽ đưa nó về trạng thái vô lý.
+      Ràng buộc CHECK của CSDL chặn điều đó ở tầng thấp nhất.
+    - Nó KHÔNG tự hết hạn. Người dùng muốn tìm lại tệp đã tải từ năm ngoái.
+
+  Tóm lại: cần đúng, cần ràng buộc, cần vĩnh viễn — ba lý do chọn SQL.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>downloads-service</artifactId>
+	<name>downloads-service</name>
+	<description>Sổ tải xuống, đồng bộ giữa các thiết bị</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-platform</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-jdbc</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

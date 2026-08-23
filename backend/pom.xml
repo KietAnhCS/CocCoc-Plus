@@ -67,9 +67,9 @@
 	<description>VnSearch — reactor cha cho các microservice và thư viện dùng chung</description>
 
 	<modules>
-		<module>core</module>
-		<module>platform</module>
-		<module>auth-service</module>
+		<module>libs/core</module>
+		<module>libs/platform</module>
+		<module>services/auth-service</module>
 		
 		
 		

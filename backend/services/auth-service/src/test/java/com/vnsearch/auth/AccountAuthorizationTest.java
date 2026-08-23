@@ -273,16 +273,22 @@ class AccountAuthorizationTest {
     }
 
     /**
-     * Đăng xuất gọi được kể cả khi không có token hợp lệ.
+     * Đăng xuất gọi được kể cả khi KHÔNG còn access token.
      *
      * <p>Người dùng bấm "đăng xuất" thì kết quả họ mong đợi là <i>đã đăng
      * xuất</i>. Trả 401 cho một trạng thái vốn đã đúng chỉ khiến giao diện phải
      * viết một nhánh xử lý lỗi cho việc không có gì sai.
+     *
+     * <p><b>Không gửi header {@code Authorization} rỗng hay hỏng.</b> Bản đầu
+     * của bài này gửi {@code Bearer token-da-het-han} và nhận 401 — không phải
+     * lỗi của controller: {@code BearerTokenAuthenticationFilter} từ chối một
+     * token không giải mã được <i>trước</i> khi request tới controller, kể cả
+     * trên đường dẫn {@code permitAll}. Hợp đồng vì thế là: máy khách BỎ HẲN
+     * header khi token đã hết hạn. Xem Javadoc {@code AuthController.logout}.
      */
     @Test
-    void dangXuatGoiDuocKeCaKhiTokenKhongHopLe() throws Exception {
+    void dangXuatGoiDuocKeCaKhiKhongCoAccessToken() throws Exception {
         mockMvc.perform(post("/api/auth/logout")
-                        .header("Authorization", "Bearer token-da-het-han")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"refreshToken\":\"khong-ton-tai\"}"))
                 .andExpect(status().isNoContent());

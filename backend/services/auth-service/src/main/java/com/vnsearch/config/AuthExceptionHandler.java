@@ -1,6 +1,7 @@
 package com.vnsearch.config;
 
 import com.vnsearch.auth.UserService;
+import com.vnsearch.oauth.TokenService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -47,6 +48,26 @@ public class AuthExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleInvalidCredentials(
             UserService.InvalidCredentialsException e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.UNAUTHORIZED, e.getMessage(), null);
+    }
+
+    /**
+     * Refresh token không hợp lệ, đã dùng, hoặc tài khoản sau nó đã bị vô hiệu
+     * hoá → <b>400</b>.
+     *
+     * <p><b>Vì sao cần handler này ở đây</b> dù {@code OAuth2Controller} đã có
+     * một cái y hệt: {@code @ExceptionHandler} khai trong một controller chỉ áp
+     * cho <i>chính controller đó</i>. {@code /api/auth/refresh} nằm ở
+     * {@code AuthController}, nên không có dòng này thì cùng một ngoại lệ trả
+     * <b>500</b> ở đường này và <b>400</b> ở đường kia — hai câu trả lời khác
+     * nhau cho cùng một tình huống, và cái 500 còn nói sai sự thật: máy chủ
+     * không hỏng, người gọi mới là bên gửi thứ không dùng được.
+     *
+     * <p>Lỗi này lộ ra nhờ bài {@code giaHanBangTokenBiaRaBiTuChoi}.
+     */
+    @ExceptionHandler(TokenService.InvalidGrantException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidGrant(
+            TokenService.InvalidGrantException e) {
+        return GlobalExceptionHandler.errorResponse(HttpStatus.BAD_REQUEST, e.getMessage(), null);
     }
 
     /** Vi phạm luật nghiệp vụ của tầng tài khoản (tên đã tồn tại, mật khẩu ngắn...). */

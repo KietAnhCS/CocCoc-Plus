@@ -140,9 +140,18 @@ public class AuthController {
      * token hiện tại vẫn dùng được thêm 15 phút — đúng khoảng thời gian mà
      * người vừa bấm nút tin rằng mình đã an toàn.
      *
-     * <p>Trả {@code 204} kể cả khi token đã hết hạn hoặc không tồn tại: người
-     * dùng bấm "đăng xuất" thì kết quả họ mong đợi là <i>đã đăng xuất</i>, và
-     * báo lỗi cho một trạng thái vốn đã đúng chỉ gây bối rối.
+     * <p>Trả {@code 204} kể cả khi refresh token đã hết hạn hoặc không tồn
+     * tại: người dùng bấm "đăng xuất" thì kết quả họ mong đợi là <i>đã đăng
+     * xuất</i>, và báo lỗi cho một trạng thái vốn đã đúng chỉ gây bối rối.
+     *
+     * <p><b>Header {@code Authorization} là TUỲ CHỌN, và máy khách phải BỎ HẲN
+     * nó khi access token đã hết hạn</b> — đừng gửi một token hỏng. Lý do nằm
+     * ngoài tầm với của lớp này: {@code BearerTokenAuthenticationFilter} của
+     * Spring Security xử lý header đó <i>trước</i> khi request tới controller,
+     * và một token không giải mã được sẽ thành 401 ngay tại đó, bất kể đường
+     * dẫn có {@code permitAll} hay không. Gửi kèm token còn hạn thì tốt hơn:
+     * khi đó access token hiện tại cũng được đưa vào danh sách thu hồi, chứ
+     * không chỉ refresh token bị huỷ.
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@RequestBody(required = false) RefreshRequest request,

@@ -5,7 +5,7 @@
 # Khai báo bằng tệp thì `docker compose up` cho ra một Grafana đã nối dây sẵn,
 # và tệp này nằm trong Git nên mọi thay đổi đều có lịch sử.
 #
-# Đây cũng chính là lập luận mà deploy/k8s/base/configmap.yaml đã dùng cho cấu
+# Đây cũng chính là lập luận mà khối `x-java-env` trong docker-compose.yml dùng cho cấu
 # hình ứng dụng, áp cho tầng công cụ.
 
 apiVersion: 1

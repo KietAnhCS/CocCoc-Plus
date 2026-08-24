@@ -58,7 +58,7 @@ export const useSearchViewStore = create<SearchViewState>((set) => ({
     if (anDanh || !useSettingsStore.getState().tuyChon.luuLichSu) {
       return
     }
-    void historyApi.ghiTruyVan(trimmed, 0)
+    void historyApi.recordSearch(trimmed, 0)
   },
 
   setMode: (mode) => set({ mode }),

@@ -21,7 +21,7 @@ function SettingsPage(): JSX.Element | null {
   const loi = useSettingsStore((s) => s.loi)
   const nap = useSettingsStore((s) => s.nap)
   const dat = useSettingsStore((s) => s.dat)
-  const khoiPhucMacDinh = useSettingsStore((s) => s.khoiPhucMacDinh)
+  const resetToDefaults = useSettingsStore((s) => s.resetToDefaults)
 
   const acquire = useOverlayStore((s) => s.acquire)
   const release = useOverlayStore((s) => s.release)
@@ -129,7 +129,7 @@ function SettingsPage(): JSX.Element | null {
 
           <div className="mt-8 border-t border-line pt-5">
             <button
-              onClick={() => void khoiPhucMacDinh()}
+              onClick={() => void resetToDefaults()}
               className="rounded-lg border border-line px-4 py-2 text-[13px] text-muted
                          transition hover:border-danger/40 hover:text-danger
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"

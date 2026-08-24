@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  vnsearch-core-common — nền chung, KHÔNG phụ thuộc vào module nào khác
+  ============================================================================
+
+  Tầng đáy của ba module core. Nó chứa đúng ba thứ mà cả tìm kiếm lẫn thu thập
+  đều cần: mô hình dữ liệu (`model`), cấu trúc dữ liệu tự cài (`datastructure`
+  — Trie, BloomFilter, LRUCache, MinHeap) và số liệu sử dụng (`analytics`).
+
+  RÀNG BUỘC: module này KHÔNG được phép `import` bất kỳ lớp nào của
+  core-search hay core-crawler. Một chiều phụ thuộc ngược ở đây sẽ nối ba
+  module thành lại một khối, và cái khối đó chính là thứ vừa được tách ra.
+
+  Vì sao `analytics` nằm ở đây chứ không ở core-search: analytics-service cần
+  nó, crawler-service cũng cần nó, và bản thân nó chỉ dùng `model` với
+  `datastructure`. Đặt ở core-search sẽ bắt analytics-service kéo theo cả chỉ
+  mục đảo và bộ tách từ tiếng Việt mà nó không bao giờ đụng tới.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>vnsearch-core-common</artifactId>
+	<name>vnsearch-core-common</name>
+	<description>Mô hình dữ liệu, cấu trúc dữ liệu tự cài và số liệu sử dụng</description>
+
+	<dependencies>
+		<!-- `spring-boot-starter` TRẦN, không phải `-web`: nó mang DI, @Value,
+		     autoconfigure và SLF4J/Logback mà KHÔNG kéo theo Tomcat. Thư viện
+		     này không được biết tới HTTP. -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.fasterxml.jackson.datatype</groupId>
+			<artifactId>jackson-datatype-jsr310</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>io.micrometer</groupId>
+			<artifactId>micrometer-core</artifactId>
+		</dependency>
+	</dependencies>
+
+</project>

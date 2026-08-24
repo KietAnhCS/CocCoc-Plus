@@ -185,7 +185,7 @@
     {
       "type": "timeseries",
       "title": "Độ trễ tiêu thụ theo consumer group",
-      "description": "Số thông điệp mỗi nhóm còn nợ. Đây vừa là tín hiệu cảnh báo, vừa là tín hiệu co giãn cho KEDA — CPU không dùng được vì worker chờ mạng nên CPU gần bằng 0 trong khi hàng đợi dài ra.",
+      "description": "Số thông điệp mỗi nhóm còn nợ. Đây vừa là tín hiệu cảnh báo, vừa là căn cứ để tăng bản sao crawler-service — CPU không dùng được vì worker chờ mạng nên CPU gần bằng 0 trong khi hàng đợi dài ra.",
       "datasource": { "type": "prometheus", "uid": "${DS_PROMETHEUS}" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [

@@ -41,7 +41,7 @@ interface DownloadStoreState {
   huy: (id: string) => void
   moTep: (id: string) => Promise<void>
   moThuMuc: (id: string) => void
-  xoaMuc: (id: string) => void
+  deleteVisit: (id: string) => void
   xoaDaXong: () => void
   dongBoLai: () => Promise<void>
 }
@@ -107,7 +107,7 @@ function tuRemote(dto: DownloadDto): MucTaiXuong {
 }
 
 /** Gộp hai nguồn, local thắng khi trùng id. */
-function gop(local: MucTaiXuong[], remote: MucTaiXuong[]): MucTaiXuong[] {
+function merge(local: MucTaiXuong[], remote: MucTaiXuong[]): MucTaiXuong[] {
   const theoId = new Map<string, MucTaiXuong>()
   for (const item of remote) {
     theoId.set(item.id, item)
@@ -133,7 +133,7 @@ export const useDownloadStore = create<DownloadStoreState>((set, get) => ({
     const apDung = (infos: DownloadInfo[]): void => {
       const local = infos.map(tuLocal)
       const remote = get().items.filter((item) => !item.onThisDevice)
-      const items = gop(local, remote)
+      const items = merge(local, remote)
       set({
         items,
         dangTai: local.filter((item) => item.state === 'IN_PROGRESS' || item.state === 'PAUSED')
@@ -164,18 +164,18 @@ export const useDownloadStore = create<DownloadStoreState>((set, get) => ({
 
   moThuMuc: (id) => void window.downloads.showInFolder(id),
 
-  xoaMuc: (id) => {
+  deleteVisit: (id) => {
     void window.downloads.remove(id)
     // Xoá cả trên máy chủ, nhưng KHÔNG chờ: người dùng vừa bấm xoá và mục đã
     // biến mất khỏi danh sách local. Bắt họ chờ một lượt gọi mạng cho một
     // thao tác đã hiển nhiên là làm chậm giao diện không vì gì.
-    void downloadsApi.xoa(id).catch(() => undefined)
+    void downloadsApi.remove(id).catch(() => undefined)
     set((state) => ({ items: state.items.filter((item) => item.id !== id) }))
   },
 
   xoaDaXong: () => {
     void window.downloads.clearFinished()
-    void downloadsApi.xoaHet().catch(() => undefined)
+    void downloadsApi.clear().catch(() => undefined)
     set((state) => ({
       items: state.items.filter((item) => item.state === 'IN_PROGRESS' || item.state === 'PAUSED')
     }))
@@ -190,9 +190,9 @@ export const useDownloadStore = create<DownloadStoreState>((set, get) => ({
    */
   dongBoLai: async () => {
     try {
-      const remote = (await downloadsApi.danhSach()).map(tuRemote)
+      const remote = (await downloadsApi.list()).map(tuRemote)
       set((state) => ({
-        items: gop(
+        items: merge(
           state.items.filter((item) => item.onThisDevice),
           remote
         )
@@ -223,7 +223,7 @@ function dongBoMuc(info: DownloadInfo): void {
 
   if (!daBaoBatDau.has(info.id)) {
     daBaoBatDau.add(info.id)
-    void downloadsApi.batDau({
+    void downloadsApi.start({
       id: info.id,
       sourceUrl: info.url,
       fileName: info.fileName,
@@ -242,7 +242,7 @@ function dongBoMuc(info: DownloadInfo): void {
   }
   lanDongBoCuoi.set(info.id, Date.now())
 
-  void downloadsApi.capNhat(info.id, {
+  void downloadsApi.update(info.id, {
     receivedBytes: info.receivedBytes,
     state: info.state,
     localPath: info.savePath || undefined

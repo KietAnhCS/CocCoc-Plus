@@ -150,7 +150,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.service == 'football-service' && './backend/services/football-service' || './backend' }}
+          context: ./backend
           push: true
           build-args: |
             MODULE=services/${{ matrix.service }}
@@ -246,10 +246,13 @@ jobs:
               --certificate-oidc-issuer https://token.actions.githubusercontent.com
             ```
 
-            ## Triển khai lên Kubernetes
+            ## Chạy toàn bộ hệ thống
 
             ```bash
-            kubectl apply -k deploy/k8s/overlays/dev
+            docker compose up -d
             ```
+
+            Một lệnh là lên đủ 9 service, PostgreSQL, Redis, MongoDB và cụm
+            giám sát Prometheus / Grafana / Alertmanager.
 
             Chi tiết: [`docs/DEVOPS.md`](docs/DEVOPS.md)

@@ -60,7 +60,17 @@
 	<dependencies>
 		<dependency>
 			<groupId>com.vnsearch</groupId>
-			<artifactId>vnsearch-core</artifactId>
+			<artifactId>vnsearch-core-common</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-core-crawler</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-core-search</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>

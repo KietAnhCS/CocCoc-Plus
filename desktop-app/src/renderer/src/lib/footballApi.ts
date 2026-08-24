@@ -1,14 +1,35 @@
 /**
- * Máy khách của football-service — microservice Go phục vụ dữ liệu bóng đá.
+ * Máy khách của football-service — microservice phục vụ dữ liệu bóng đá.
  *
- * Cổng RIÊNG (8090), không phải 8080 của backend Java, và đó là điểm đáng nhớ
- * nhất ở tệp này: hai máy chủ khác nhau, vòng đời khác nhau. Backend tìm kiếm
- * tắt thì phần tìm kiếm hỏng nhưng bảng thể thao vẫn chạy, và ngược lại. Vì
- * vậy mọi hàm ở đây đều tự lo phần lỗi của mình thay vì để một lỗi mạng lan
- * lên và làm trắng cả cửa sổ.
+ * Đi qua Gateway ở cổng 8080 như MỌI service khác, không gọi thẳng cổng 8090
+ * nữa. Bản trước gọi thẳng, và nó hỏng ngay khi chạy bằng Docker: trong
+ * docker-compose.yml football-service KHÔNG có khối `ports`, nên cổng 8090
+ * không tồn tại trên máy thật và cả tab Bóng đá chỉ nhận
+ * ERR_CONNECTION_REFUSED.
+ *
+ * Một cổng duy nhất còn là điều kiện để `connect-src` trong CSP thu về đúng
+ * một địa chỉ, và để service này thừa hưởng cùng lớp giới hạn tần suất, cùng
+ * chính sách CORS như phần còn lại.
+ *
+ * Service này từng viết bằng Go và giờ là Java; không có dòng nào ở tệp này
+ * phải đổi vì chuyện đó. Gateway chỉ thấy một địa chỉ HTTP — đó chính là thứ
+ * một API Gateway mua được.
  */
 
-export const FOOTBALL_API_BASE = 'http://localhost:8090'
+export const FOOTBALL_API_BASE = 'http://localhost:8080'
+
+/**
+ * Tiền tố Gateway dùng để nhận ra tuyến bóng đá.
+ *
+ * Các hàm dưới vẫn viết đường dẫn THẬT của service (`/api/v1/...`) cho khớp
+ * với FootballController; {@link footballUrl} là chỗ duy nhất dịch sang đường
+ * dẫn Gateway, và Gateway viết ngược lại bằng RewritePath.
+ */
+const FOOTBALL_PREFIX = '/api/football'
+
+function footballUrl(path: string): URL {
+  return new URL(FOOTBALL_PREFIX + path.replace(/^\/api/, ''), FOOTBALL_API_BASE)
+}
 
 const REQUEST_TIMEOUT_MS = 8000
 
@@ -142,7 +163,7 @@ async function getEnvelope<T>(
   path: string,
   params: Record<string, string> = {}
 ): Promise<FootballEnvelope<T>> {
-  const url = new URL(path, FOOTBALL_API_BASE)
+  const url = footballUrl(path)
   for (const [key, value] of Object.entries(params)) {
     if (value !== '') {
       url.searchParams.set(key, value)
@@ -395,7 +416,7 @@ export async function fetchPlayers(search: string): Promise<FootballPlayer[]> {
  * gói miễn phí thì đó là chuyện thường gặp, vì không phải mùa nào cũng mở.
  */
 export async function fetchPlayer(playerId: string): Promise<FootballPlayer | null> {
-  const url = new URL(`/api/v1/players/${encodeURIComponent(playerId)}`, FOOTBALL_API_BASE)
+  const url = footballUrl(`/api/v1/players/${encodeURIComponent(playerId)}`)
 
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
@@ -429,7 +450,7 @@ export interface FootballStatus {
  * "khoá không hợp lệ" tự chế thì không.
  */
 export async function saveApiKey(key: string): Promise<void> {
-  const url = new URL('/api/v1/config/api-key', FOOTBALL_API_BASE)
+  const url = footballUrl('/api/v1/config/api-key')
   const response = await fetch(url, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
@@ -450,7 +471,7 @@ export async function saveApiKey(key: string): Promise<void> {
 }
 
 export async function fetchStatus(): Promise<FootballStatus> {
-  const url = new URL('/api/v1/status', FOOTBALL_API_BASE)
+  const url = footballUrl('/api/v1/status')
   const response = await fetch(url, {
     headers: { Accept: 'application/json' },
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)

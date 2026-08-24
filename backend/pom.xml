@@ -67,7 +67,9 @@
 	<description>VnSearch — reactor cha cho các microservice và thư viện dùng chung</description>
 
 	<modules>
-		<module>libs/core</module>
+		<module>libs/core-common</module>
+		<module>libs/core-crawler</module>
+		<module>libs/core-search</module>
 		<module>libs/platform</module>
 		<module>services/api-gateway</module>
 		<module>services/auth-service</module>
@@ -77,6 +79,7 @@
 		<module>services/history-service</module>
 		<module>services/downloads-service</module>
 		<module>services/settings-service</module>
+		<module>services/football-service</module>
 		
 		
 		
@@ -169,7 +172,17 @@
 			     module con chỉ cần groupId + artifactId. -->
 			<dependency>
 				<groupId>com.vnsearch</groupId>
-				<artifactId>vnsearch-core</artifactId>
+				<artifactId>vnsearch-core-common</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.vnsearch</groupId>
+				<artifactId>vnsearch-core-crawler</artifactId>
+				<version>${project.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>com.vnsearch</groupId>
+				<artifactId>vnsearch-core-search</artifactId>
 				<version>${project.version}</version>
 			</dependency>
 			<dependency>

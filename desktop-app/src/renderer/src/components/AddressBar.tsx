@@ -60,22 +60,22 @@ function AddressBar(): JSX.Element {
       const tuChiMuc = suggest(typedValue).catch(() => [] as string[])
       const tuLichSu = goiYTuLichSu
         ? historyApi
-            .goiY(typedValue, 4)
+            .suggest(typedValue, 4)
             .then((items) => items.map((item) => item.query))
             .catch(() => [] as string[])
         : Promise.resolve([] as string[])
 
-      void Promise.all([tuLichSu, tuChiMuc]).then(([lichSu, chiMuc]) => {
+      void Promise.all([tuLichSu, tuChiMuc]).then(([visitHistory, chiMuc]) => {
         const daCo = new Set<string>()
-        const gop: string[] = []
-        for (const item of [...lichSu, ...chiMuc]) {
+        const merge: string[] = []
+        for (const item of [...visitHistory, ...chiMuc]) {
           const khoa = item.trim().toLowerCase()
           if (khoa && !daCo.has(khoa)) {
             daCo.add(khoa)
-            gop.push(item)
+            merge.push(item)
           }
         }
-        setSuggestions(gop.slice(0, 8))
+        setSuggestions(merge.slice(0, 8))
       })
     }, SUGGEST_DEBOUNCE_MS)
 

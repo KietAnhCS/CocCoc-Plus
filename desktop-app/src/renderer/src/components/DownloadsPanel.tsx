@@ -28,7 +28,7 @@ function DownloadsPanel(): JSX.Element {
   // bằng cờ `initialized` nên nó chỉ chạy ĐÚNG MỘT LẦN trong cả vòng đời ứng
   // dụng. Lượt gọi `dongBoLai` nằm trong đó vì thế cũng chỉ chạy một lần —
   // thường là lúc bảng mở lần đầu, khi người dùng CHƯA đăng nhập. Lúc đó
-  // `downloadsApi.danhSach` ném `ChuaDangNhap` ngay trước khi chạm mạng, và
+  // `downloadsApi.list` ném `NotAuthenticated` ngay trước khi chạm mạng, và
   // `dongBoLai` nuốt lỗi đó.
   //
   // Hậu quả nếu gộp lại: đăng nhập xong, bảng KHÔNG BAO GIỜ kéo lại sổ tải
@@ -92,7 +92,7 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
   const huy = useDownloadStore((s) => s.huy)
   const moTep = useDownloadStore((s) => s.moTep)
   const moThuMuc = useDownloadStore((s) => s.moThuMuc)
-  const xoaMuc = useDownloadStore((s) => s.xoaMuc)
+  const deleteVisit = useDownloadStore((s) => s.deleteVisit)
 
   const dangChay = item.state === 'IN_PROGRESS' || item.state === 'PAUSED'
   // `null` = chưa biết tổng số byte (máy chủ không gửi Content-Length). Phải
@@ -189,7 +189,7 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
         </div>
 
         <button
-          onClick={() => xoaMuc(item.id)}
+          onClick={() => deleteVisit(item.id)}
           className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-full text-faint
                      transition hover:bg-danger/15 hover:text-danger focus-visible:outline-none
                      group-hover:flex"

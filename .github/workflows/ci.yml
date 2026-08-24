@@ -5,17 +5,22 @@
 # đỏ và ứng dụng không khởi động được, và lỗi đó tồn tại trong cây làm việc mà
 # không có gì báo. Một bộ test không được chạy là một bộ test không tồn tại.
 #
-# BỐN CỔNG CHẶN của job `backend`, mỗi cổng bắt một loại hỏng khác nhau:
+# BỐN CỔNG CHẶN của backend, mỗi cổng bắt một loại hỏng khác nhau. Chúng nằm
+# trong HAI job chạy song song, vì phân tích tĩnh không cần chờ test và ngược
+# lại: tách ra thì thời gian chờ của một pull request bằng nhánh CHẬM NHẤT chứ
+# không bằng tổng hai nhánh. Tách còn cho biết ngay hỏng thuộc loại nào — chỉ
+# cần đọc tên job đỏ.
 #
-#   Cổng                 Bắt được gì                        Hỏng thì sao
-#   ──────────────────── ────────────────────────────────── ────────────
-#   521 bài test         Logic từng khối sai                Build đỏ
-#   Độ phủ (JaCoCo)      Mã mới không có test               Build đỏ
-#   Phân tích tĩnh       Lỗi mà test không chạy tới         Build đỏ
-#   Chất lượng xếp hạng  Tìm kiếm tệ đi mà test vẫn xanh    Build đỏ
+#   Cổng                 Bắt được gì                        Job
+#   ──────────────────── ────────────────────────────────── ────────────────
+#   521 bài test         Logic từng khối sai                backend-test
+#   Độ phủ (JaCoCo)      Mã mới không có test               backend-test
+#   Chất lượng xếp hạng  Tìm kiếm tệ đi mà test vẫn xanh    backend-test
+#   Phân tích tĩnh       Lỗi mà test không chạy tới         backend-static
 #
-# Cổng thứ tư là cổng đặc thù của một hệ thống tìm kiếm: ba cổng đầu đều có thể
-# xanh trong khi kết quả trả về cho người dùng đã tệ đi. Xem RankingQualityTest.
+# Cả bốn cổng hỏng đều làm build đỏ. Cổng "chất lượng xếp hạng" là cổng đặc thù
+# của một hệ thống tìm kiếm: ba cổng kia đều có thể xanh trong khi kết quả trả
+# về cho người dùng đã tệ đi. Xem RankingQualityTest.
 #
 # ═══════════════════════════════════════════════════════════════════════════
 # MỘT ĐIỀU KIỆN NGẦM MÀ CI TỪNG VẤP PHẢI SUỐT NHIỀU NGÀY
@@ -71,13 +76,17 @@ permissions:
   contents: read
 
 jobs:
-  backend:
-    name: Backend (Java 21)
+  # ═══════════════════════════════════════════════════════════════════════
+  # Backend, nhánh 1/2 — test và độ phủ
+  # ═══════════════════════════════════════════════════════════════════════
+  #
+  # `-Dspotbugs.skip=true` ở đây KHÔNG phải là nới lỏng cổng chặn: SpotBugs vẫn
+  # chạy đầy đủ, chỉ là ở job `backend-static` song song. Bỏ nó ra khỏi nhánh
+  # này để kết quả test về sớm hơn — đây là nhánh lập trình viên thực sự ngồi
+  # chờ.
+  backend-test:
+    name: 'Backend: test + độ phủ'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      # Cần để đẩy báo cáo SpotBugs lên tab Security dưới dạng SARIF.
-      security-events: write
 
     steps:
       - uses: actions/checkout@v4
@@ -92,20 +101,26 @@ jobs:
           cache: maven
 
       # `verify` chứ không phải `test`: pha verify mới chạy jacoco:check và
-      # spotbugs:check. Chạy `test` là bỏ qua hai trong bốn cổng chặn.
-      - name: Test, đo độ phủ và phân tích tĩnh
+      # sinh báo cáo gộp. Chạy `test` là bỏ qua cổng độ phủ.
+      - name: Test và đo độ phủ
         working-directory: backend
         # -B (batch) tắt thanh tiến độ động, thứ chỉ có nghĩa trên terminal
         # thật và chỉ làm bẩn log của CI.
-        run: ./mvnw -B clean verify
+        run: ./mvnw -B clean verify -Dspotbugs.skip=true
 
       # Đưa con số độ phủ vào phần tóm tắt của lần chạy, để đọc được ngay trên
       # trang Actions mà không phải tải tệp về rồi mở ra.
+      #
+      # Đường dẫn phải là báo cáo GỘP của module `coverage`. Trong reactor đa
+      # module, `backend/target/site/jacoco/` KHÔNG BAO GIỜ tồn tại: mỗi module
+      # sinh báo cáo trong target của chính nó, còn thư mục gốc không chứa mã
+      # nguồn nào. Trỏ sai chỗ thì bước này im lặng in "không có báo cáo" ở mọi
+      # lần chạy, và phần tóm tắt trông như thể độ phủ chưa từng được đo.
       - name: Tóm tắt độ phủ
         if: always()
         working-directory: backend
         run: |
-          CSV=target/site/jacoco/jacoco.csv
+          CSV=coverage/target/site/jacoco-aggregate/jacoco.csv
           if [ ! -f "$CSV" ]; then
             echo "Không có báo cáo JaCoCo (build hỏng trước khi sinh được)." >> "$GITHUB_STEP_SUMMARY"
             exit 0
@@ -118,6 +133,50 @@ jobs:
               printf "| Nhánh  | %d | %d | %.1f%% |\n", bc, bm, 100*bc/(bc+bm)
               printf "| Dòng   | %d | %d | %.1f%% |\n", lc, lm, 100*lc/(lc+lm)
             }' "$CSV" >> "$GITHUB_STEP_SUMMARY"
+
+      # Báo cáo test được đăng lên ngay cả khi bước trên THẤT BẠI — đó mới là
+      # lúc cần đọc chúng. `if: always()` là bắt buộc, vì mặc định các bước sau
+      # một bước hỏng đều bị bỏ qua.
+      - name: Lưu báo cáo test và độ phủ
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bao-cao-backend
+          path: |
+            backend/**/target/surefire-reports/
+            backend/coverage/target/site/jacoco-aggregate/
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Backend, nhánh 2/2 — phân tích tĩnh
+  # ═══════════════════════════════════════════════════════════════════════
+  #
+  # `-DskipTests -Djacoco.skip=true`: SpotBugs đọc BYTECODE, nó không cần bài
+  # test nào chạy cả, và JaCoCo chỉ có nghĩa khi có test. Bỏ hai thứ đó đi thì
+  # nhánh này còn lại đúng phần biên dịch, nên `-T 1C` (mỗi lõi một luồng
+  # reactor) an toàn: không module nào tranh nhau cổng hay container như lúc
+  # chạy test.
+  backend-static:
+    name: 'Backend: phân tích tĩnh (SpotBugs)'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Cần để đẩy báo cáo SpotBugs lên tab Security dưới dạng SARIF.
+      security-events: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cài đặt JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Phân tích tĩnh
+        working-directory: backend
+        run: ./mvnw -B -T 1C clean verify -DskipTests -Djacoco.skip=true
 
       # Cảnh báo phân tích tĩnh hiện thẳng trong tab Security và trong diff của
       # pull request, thay vì nằm trong một tệp XML không ai mở.
@@ -145,19 +204,6 @@ jobs:
           sarif_file: backend/sarif/
           category: spotbugs
         continue-on-error: true
-
-      # Báo cáo test được đăng lên ngay cả khi bước trên THẤT BẠI — đó mới là
-      # lúc cần đọc chúng. `if: always()` là bắt buộc, vì mặc định các bước sau
-      # một bước hỏng đều bị bỏ qua.
-      - name: Lưu báo cáo test và độ phủ
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bao-cao-backend
-          path: |
-            backend/**/target/surefire-reports/
-            backend/coverage/target/site/jacoco-aggregate/
-          retention-days: 7
 
   frontend:
     name: Frontend (Electron + TypeScript)
@@ -217,7 +263,9 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      # Chỉ DỰNG ảnh, không đẩy lên đâu cả — việc đẩy là của release.yml. Mục
+      # Chỉ DỰNG ảnh, không đẩy lên đâu cả — việc đẩy thuộc về hai workflow
+      # khác: cd.yml (thẻ `sha-...`, sau mỗi lần CI xanh trên main) và
+      # release.yml (thẻ semver và `latest`, mỗi lần đặt thẻ `v*.*.*`). Mục
       # đích ở đây là bắt lỗi Dockerfile sớm: một Dockerfile hỏng chỉ lộ ra lúc
       # triển khai thì đã quá muộn.
       #
@@ -230,8 +278,18 @@ jobs:
           push: false
           load: true
           tags: vnsearch-backend:ci
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Dockerfile CÓ giá trị mặc định cho MODULE/ARTIFACT, nhưng dựa vào
+          # mặc định nghĩa là CI dựng một ảnh khác với ảnh mà cd.yml và
+          # release.yml dựng — hai workflow đó luôn truyền build-arg tường
+          # minh. Ghi rõ ở đây để cả ba nơi dựng đúng cùng một thứ.
+          build-args: |
+            MODULE=services/search-service
+            ARTIFACT=search-service
+          # Scope riêng: bộ đệm gha không có scope thì dùng chung khoá với các
+          # workflow khác, nên ảnh của cd.yml/release.yml ghi đè qua lại và
+          # hầu như lần nào cũng trượt đệm.
+          cache-from: type=gha,scope=ci-backend
+          cache-to: type=gha,mode=max,scope=ci-backend
 
       # Quét CVE trong ảnh — thư viện hệ thống của ảnh nền, không chỉ phụ thuộc
       # Java. Dependabot không nhìn thấy tầng này.
@@ -239,7 +297,8 @@ jobs:
       # KHÔNG chặn build ở đây: ảnh nền `eclipse-temurin` gần như luôn có vài
       # CVE chưa có bản vá, và một cổng chặn đỏ thường trực sẽ bị vô hiệu hoá
       # trong vòng một tuần. Kết quả đẩy lên tab Security để theo dõi; việc chặn
-      # phát hành nằm ở release.yml, nơi mức CRITICAL mới thực sự chặn.
+      # nằm ở CẢ HAI workflow đẩy ảnh — cd.yml và release.yml — nơi mức CRITICAL
+      # mới thực sự làm job đỏ và ảnh không đi xa hơn được.
       - name: Quét lỗ hổng bằng Trivy
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -259,30 +318,35 @@ jobs:
         continue-on-error: true
 
   # ═══════════════════════════════════════════════════════════════════════
-  # Test tích hợp Kafka — chạy với một broker THẬT
+  # Test tích hợp CSDL — PostgreSQL và MongoDB THẬT qua Testcontainers
   # ═══════════════════════════════════════════════════════════════════════
   #
-  # Job RIÊNG, chạy song song với job `backend`, vì hai lý do:
-  #
-  #   1. Nó chậm (dựng broker mất ~15 giây) và job chính phải nhanh — nó là
-  #      thứ lập trình viên chờ để biết mã có xanh không.
-  #   2. Nó hỏng vì những lý do KHÁC: Docker không có, kéo ảnh thất bại, mạng
-  #      chậm. Trộn vào job chính thì một sự cố hạ tầng CI trông y hệt một lỗi
-  #      mã nguồn.
-  #
-  # Ba thứ chỉ job này bắt được — bộ test in-process về nguyên tắc không thể:
-  # thông điệp có serialize được không (Instant cần JavaTimeModule), phân
-  # hoạch theo host có ổn định không, và thông điệp lớn có qua nổi trần không.
-  # Test tích hợp dựng PostgreSQL và MongoDB thật cho ba service dữ liệu cá
-  # nhân. Job riêng vì cùng lý do với kafka-integration: chậm, và hỏng vì
+  # Job riêng vì cùng lý do với kafka-integration: nó chậm, và nó hỏng vì
   # những nguyên nhân hạ tầng khác hẳn lỗi mã nguồn.
   #
   # Ba thứ chỉ job này bắt được: ràng buộc CHECK của PostgreSQL có chặn đúng
   # không, TTL index của MongoDB có được tạo từ annotation không, và phép gộp
   # jsonb `||` có giữ đúng ngữ nghĩa PATCH không.
+  #
+  # Ma trận theo service thay vì một lần `verify` trên cả reactor: bốn service
+  # này kéo bốn bộ container độc lập, chạy nối tiếp thì thời gian cộng dồn mà
+  # không đổi lại được gì. `fail-fast: false` để một service đỏ không huỷ ba
+  # nhánh còn lại — lúc sửa cần biết ĐỦ danh sách chỗ hỏng, không phải chỗ
+  # hỏng đầu tiên.
   data-integration:
-    name: Tích hợp CSDL (Testcontainers)
+    name: 'Tích hợp CSDL: ${{ matrix.service }}'
     runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # Đúng bốn module có bài test gắn @Tag("docker-it"). Thêm tên vào đây
+        # khi (và chỉ khi) một service mới có test gắn nhãn đó.
+        service:
+          - downloads-service
+          - football-service
+          - history-service
+          - settings-service
 
     steps:
       - uses: actions/checkout@v4
@@ -294,18 +358,39 @@ jobs:
           distribution: temurin
           cache: maven
 
+      # `-am` (also-make) là bắt buộc: module service phụ thuộc các thư viện
+      # dùng chung trong libs/, và chúng chưa có sẵn trong kho cục bộ của
+      # runner. Thiếu `-am` thì reactor đỏ ngay ở bước phân giải phụ thuộc.
       - name: Chạy test tích hợp CSDL
         working-directory: backend
-        run: ./mvnw -B verify -Pdocker-it
+        run: ./mvnw -B verify -Pdocker-it -pl services/${{ matrix.service }} -am
 
+      # Tên artifact phải KHÁC NHAU giữa các nhánh ma trận: upload-artifact@v4
+      # từ chối hai lần tải lên trùng tên trong cùng một lần chạy, nên nhánh
+      # thứ hai sẽ đỏ vì xung đột tên chứ không phải vì test.
       - name: Lưu báo cáo
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: bao-cao-data-it
+          name: bao-cao-data-it-${{ matrix.service }}
           path: backend/**/target/surefire-reports/
           retention-days: 7
 
+  # ═══════════════════════════════════════════════════════════════════════
+  # Test tích hợp Kafka — chạy với một broker THẬT
+  # ═══════════════════════════════════════════════════════════════════════
+  #
+  # Job RIÊNG, chạy song song với hai job backend, vì hai lý do:
+  #
+  #   1. Nó chậm (dựng broker mất ~15 giây) và job chính phải nhanh — nó là
+  #      thứ lập trình viên chờ để biết mã có xanh không.
+  #   2. Nó hỏng vì những lý do KHÁC: Docker không có, kéo ảnh thất bại, mạng
+  #      chậm. Trộn vào job chính thì một sự cố hạ tầng CI trông y hệt một lỗi
+  #      mã nguồn.
+  #
+  # Ba thứ chỉ job này bắt được — bộ test in-process về nguyên tắc không thể:
+  # thông điệp có serialize được không (Instant cần JavaTimeModule), phân
+  # hoạch theo host có ổn định không, và thông điệp lớn có qua nổi trần không.
   kafka-integration:
     name: Tích hợp Kafka (Testcontainers)
     runs-on: ubuntu-latest
@@ -322,11 +407,14 @@ jobs:
 
       # Hồ sơ `kafka-it` đảo ngược bộ lọc nhóm test: chỉ chạy @Tag("kafka-it").
       # Nhờ vậy job này mất khoảng một phút thay vì chạy lại 490 bài đã chạy ở
-      # job `backend`. Hai cổng chặn nặng (JaCoCo, SpotBugs) cũng tắt trong hồ
-      # sơ đó — xem pom.xml.
+      # job `backend-test`. Hai cổng chặn nặng (JaCoCo, SpotBugs) cũng tắt
+      # trong hồ sơ đó — xem pom.xml.
+      #
+      # libs/core-crawler là module DUY NHẤT có test gắn nhãn ấy, nên `-pl` cắt
+      # reactor xuống đúng nó, còn `-am` dựng trước các thư viện nó phụ thuộc.
       - name: Chạy test tích hợp
         working-directory: backend
-        run: ./mvnw -B verify -Pkafka-it
+        run: ./mvnw -B verify -Pkafka-it -pl libs/core-crawler -am
 
       - name: Lưu báo cáo test tích hợp
         if: always()
@@ -391,3 +479,40 @@ jobs:
         run: |
           docker compose config --quiet
           docker compose --profile kafka config --quiet
+
+      # Ma trận service trong cd.yml và release.yml là hai bản chép tay của
+      # cùng một danh sách đã nằm sẵn trong docker-compose.yml. Chúng lệch nhau
+      # theo kiểu KHÔNG ai thấy: thêm một service vào compose mà quên thêm vào
+      # ma trận thì cả hai workflow vẫn xanh, chỉ là service đó không bao giờ
+      # có ảnh — và điều đó chỉ lộ ra trên máy đích, lúc nó cố tự dựng từ mã
+      # nguồn không có ở đó.
+      - name: Đối chiếu ma trận service với docker-compose
+        env:
+          ADMIN_API_KEY: chi-de-kiem-dinh-0123456789abcdef
+        run: |
+          docker compose config --format json > /tmp/compose.json
+          python3 - <<'PY'
+          import json, sys, yaml
+
+          with open('/tmp/compose.json') as f:
+              compose = json.load(f)
+          expected = sorted(n for n, s in compose['services'].items() if 'build' in s)
+
+          targets = {
+              '.github/workflows/cd.yml': 'dung-anh',
+              '.github/workflows/release.yml': 'anh-docker',
+          }
+          bad = False
+          for path, job in targets.items():
+              with open(path, encoding='utf-8') as f:
+                  wf = yaml.safe_load(f)
+              actual = sorted(wf['jobs'][job]['strategy']['matrix']['service'])
+              if actual != expected:
+                  bad = True
+                  print(f'{path} (job {job}) lech voi docker-compose.yml')
+                  print('  thieu : ', sorted(set(expected) - set(actual)))
+                  print('  thua  : ', sorted(set(actual) - set(expected)))
+              else:
+                  print(f'{path} (job {job}) khop: {len(actual)} service')
+          sys.exit(1 if bad else 0)
+          PY

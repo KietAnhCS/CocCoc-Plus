@@ -48,7 +48,11 @@ on:
   # phát hành là một thẻ CŨ, không phải HEAD.
   workflow_dispatch:
     inputs:
-      phien-ban:
+      # Tên `version` chứ không phải `phien-ban`: dấu gạch nối trong tên đầu vào
+      # buộc mọi chỗ tham chiếu phải viết `inputs.phien-ban`, và dấu `-` cũng
+      # chính là toán tử TRỪ trong cú pháp biểu thức của Actions. Nó chạy được,
+      # nhưng một tên không cần dấu gạch nối thì không có gì để mà đọc nhầm.
+      version:
         description: Thẻ ảnh (để trống = dùng SHA của commit hiện tại)
         required: false
         type: string
@@ -115,11 +119,17 @@ jobs:
         run: |
           echo "duong-dan=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/search-engine" >> "$GITHUB_OUTPUT"
 
+      # Giá trị do người dùng gõ đi qua `env:` chứ không dán thẳng vào `run:`.
+      # Dán thẳng nghĩa là Actions thay chuỗi đó vào mã shell TRƯỚC khi shell
+      # chạy, nên một thẻ tên `a; rm -rf /` trở thành hai câu lệnh. Qua `env:`
+      # thì nó chỉ còn là dữ liệu.
       - id: phien-ban
         name: Xác định thẻ phiên bản
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [ -n "${{ github.event.inputs.phien-ban }}" ]; then
-            echo "the=${{ github.event.inputs.phien-ban }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$INPUT_VERSION" ]; then
+            echo "the=$INPUT_VERSION" >> "$GITHUB_OUTPUT"
           else
             echo "the=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
           fi
@@ -214,24 +224,53 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Lớp phủ chỉ chứa `image:`. Chạy chồng lên docker-compose.yml gốc thì
-      # mọi thứ khác — mem_limit, healthcheck, biến môi trường — giữ nguyên,
-      # và `image:` thắng `build:` nên máy đích KÉO ảnh thay vì tự dựng.
+      # Lớp phủ chỉ chứa `image:` và `pull_policy:`. Chạy chồng lên
+      # docker-compose.yml gốc thì mọi thứ khác — mem_limit, healthcheck, biến
+      # môi trường — giữ nguyên.
+      #
+      # VÌ SAO PHẢI CÓ `pull_policy: always`. Lớp phủ KHÔNG xoá được khối
+      # `build:` của tệp gốc — phép ghép của Compose là hợp nhất, không phải
+      # thay thế, và `docker compose config` xác nhận `build` vẫn còn nguyên
+      # sau khi ghép. Với một service có CẢ `image` lẫn `build`, Compose mặc
+      # định DỰNG khi ảnh chưa có sẵn trên máy thay vì kéo về. Trên máy đích —
+      # nơi thường không có mã nguồn — đó là một lỗi khó hiểu, và tệ hơn: nó
+      # vứt bỏ đúng cái ảnh vừa được quét CVE và ký ở job trên. `always` buộc
+      # Compose kéo đúng digest đã ghim.
+      # Danh sách service KHÔNG viết tay ở đây. Nó được hỏi thẳng
+      # docker-compose.yml: mọi service có khối `build:` là mọi service cần một
+      # ảnh. Viết tay lần thứ hai nghĩa là ngày nào đó thêm một service vào
+      # compose mà quên thêm vào đây, và lớp phủ sẽ im lặng bỏ sót đúng service
+      # đó — máy đích tự dựng nó từ mã nguồn thay vì kéo ảnh đã ký.
+      - name: Liệt kê service cần ghim ảnh
+        id: danh-sach
+        env:
+          ADMIN_API_KEY: chi-de-kiem-dinh-0123456789abcdef
+        run: |
+          services=$(docker compose -f docker-compose.yml config --format json \
+            | jq -r '.services | to_entries[] | select(.value.build) | .key' \
+            | sort)
+          echo "$services"
+          {
+            echo 'ten<<EOF'
+            echo "$services"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
       - name: Sinh docker-compose.release.yml
         env:
           KHO: ${{ needs.dung-anh.outputs.kho }}
           THE: ${{ needs.dung-anh.outputs.the }}
+          SERVICES: ${{ steps.danh-sach.outputs.ten }}
         run: |
           {
             echo "# Sinh tự động bởi .github/workflows/cd.yml — đừng sửa tay."
             echo "# Phiên bản: $THE"
             echo "services:"
-            for svc in api-gateway auth-service search-service crawler-service \
-                       analytics-service history-service downloads-service \
-                       settings-service football-service; do
+            for svc in $SERVICES; do
               digest=$(crane digest "$KHO/$svc:$THE")
               echo "  $svc:"
               echo "    image: $KHO/$svc@$digest"
+              echo "    pull_policy: always"
             done
           } > docker-compose.release.yml
           cat docker-compose.release.yml

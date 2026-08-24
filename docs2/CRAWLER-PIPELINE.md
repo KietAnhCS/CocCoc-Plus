@@ -13033,7 +13033,8 @@ flowchart TD
 
 ```
 run-crawl.bat 8 3
-└─ mvnw exec:java -Dexec.args="8 3 data/crawled-documents.json"
+└─ mvnw.cmd -q -pl libs/core-crawler -am compile exec:java
+   -Dexec.args="8 3 data/crawled-documents.json"
    └─ MultiDomainCrawlRunner.main
       ├─ ContentStorage.loadFromJson       (nối tiếp corpus cũ)
       ├─ ImageStorage.pathFor + loadQuietly (nối tiếp kho ảnh)
@@ -13064,15 +13065,18 @@ run-crawl.bat 8 3
                ├─ urlFilter.isAllowedByRobots → RobotsTxtParser (cache theo domain)
                └─ processPage(task, config)
                   ├─ HtmlDownloader.download
-                  │  ├─ ensureTargetAllowed  → SeedUrlValidator (SSRF)
+                  │  ├─ assertTargetAllowed  → SeedUrlValidator (SSRF)
                   │  ├─ dnsResolver.resolveHostOf → LRUCache
                   │  └─ Jsoup.connect(...).get()   3 lần thử, 10 s timeout
                   ├─ ContentParser.parse    → WebDocument (docId 0, outlinks [])
                   ├─ LanguageFilter.accept  → detect() 3 tầng → setLanguage()
                   ├─ ContentSeenFilter.seenBefore → SHA-256(normalize(bodyText))
-                  ├─ claimPageSlot(8)       → vòng CAS
-                  ├─ ContentStorage.save    → putIfAbsent
-                  ├─ doc.setDocId(0 + docIdSeq.getAndIncrement())
+                  ├─ ContentStorage.save    → putIfAbsent   ★ LƯU TRƯỚC, ĐẾM SAU
+                  │  └─ trả false (URL đã có bản ghi) → return, KHÔNG đếm trùng
+                  ├─ pagesCrawled.incrementAndGet()  → count
+                  │  ↳ bộ đếm cấp SAU khi lưu thành công nên dãy docId đặc, không thủng lỗ
+                  ├─ doc.setDocId(restoredDocCount + count - 1)
+                  │  ↳ cộng mốc corpus cũ để phiên NỐI TIẾP không cấp lại docId đã dùng
                   ├─ bus.publishPage(PageEvent)
                   │  ├─ UrlExtractorService.onPage
                   │  │  ├─ Jsoup.parse(html, baseUri)

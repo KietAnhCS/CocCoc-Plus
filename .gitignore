@@ -8,6 +8,7 @@ backend/.mvn/wrapper/maven-wrapper.jar
 desktop-app/node_modules/
 desktop-app/out/
 desktop-app/dist/
+*.tsbuildinfo
 
 # Data / runtime (nhung van commit mot mau seed nho de demo khong can crawl lai)
 backend/data/*.json

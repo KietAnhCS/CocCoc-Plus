@@ -27,6 +27,12 @@ on:
   # mới phát hiện tuần sau. Một dự án ngủ đông vài tháng vẫn được soi lại.
   schedule:
     - cron: '30 2 * * 1'   # 02:30 UTC thứ Hai hằng tuần
+  # Chạy tay. Cần cho việc DỰNG LẠI BASELINE: CodeQL so alert của một pull
+  # request với lần phân tích gần nhất trên nhánh base, nên nếu run của `main`
+  # bị xoá thì baseline mất và MỌI alert cũ bị tính là mới — pull request kế
+  # tiếp lĩnh nguyên một loạt cảnh báo không phải của nó. Thiếu lối chạy tay
+  # thì chỉ còn cách đợi lịch thứ Hai hoặc đẩy thêm commit vào `main`.
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

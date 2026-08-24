@@ -79,11 +79,7 @@ describe('ghi lượt ghé khi điều hướng', () => {
     phatSuKien({ tabs: [the('https://vnexpress.net/bong-da', false)], activeTabId: 't1' })
 
     expect(browsing.ghi).toHaveBeenCalledTimes(1)
-    expect(browsing.ghi).toHaveBeenCalledWith(
-      'https://vnexpress.net/bong-da',
-      'Tiêu đề',
-      false
-    )
+    expect(browsing.ghi).toHaveBeenCalledWith('https://vnexpress.net/bong-da', 'Tiêu đề', false)
   })
 
   it('không ghi lại cùng một địa chỉ ở những sự kiện sau', () => {

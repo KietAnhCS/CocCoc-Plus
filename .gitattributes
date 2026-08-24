@@ -1,7 +1,14 @@
 # Chuan hoa ket thuc dong.
 #
 # Mac dinh: Git tu nhan dien file van ban va chuan hoa ve LF trong kho.
-* text=auto
+# eol=lf chu khong chi text=auto: text=auto de Git tu quyet dinh khi CHECKOUT.
+# Voi core.autocrlf=true tren may Windows, cay lam viec ra CRLF trong khi
+# prettier cua desktop-app doi LF — da gap that: hang tram canh bao "Delete CR"
+# o nhung tep khong ai sua, du de nhan chim moi canh bao dinh dang co that.
+# Ghim eol=lf de moi ban sao deu ra LF. Luu y: neu may nao dat
+# core.autocrlf=true thi config do van thang thuoc tinh nay, phai dat
+# core.autocrlf=input cho repo.
+* text=auto eol=lf
 
 # Script Windows BAT BUOC phai co ket thuc dong CRLF. Voi LF, cmd.exe phan tich
 # sai va an mat vai ky tu dau moi dong — trieu chung la nhung dong bao loi kieu

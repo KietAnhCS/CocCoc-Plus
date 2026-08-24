@@ -34,6 +34,22 @@ spring:
       server:
         webflux:
           # ================================================================
+          # KHỬ TRÙNG HEADER CORS
+          # ================================================================
+          # `platform` lib (vnsearch-common) BẬT CORS riêng ở từng service
+          # phía sau — có chủ ý, để service còn gọi thẳng được lúc gỡ lỗi, và
+          # CorsPreflightTest ghim lại điều đó. Nhưng khi gọi QUA Gateway,
+          # response đi hai vòng CORS: một lần ở service (bị Gateway forward
+          # nguyên header), một lần ở chính Gateway (GatewaySecurityConfig).
+          # Trình duyệt nhận được "Access-Control-Allow-Origin: X, X" — HAI
+          # giá trị trong một header là bất hợp lệ theo spec Fetch, nên trình
+          # duyệt chặn thẳng, không phải lỗi mạng hay sai origin.
+          #
+          # RETAIN_UNIQUE giữ lại các giá trị duy nhất trong danh sách trùng —
+          # ở đây hai giá trị luôn giống hệt nhau nên kết quả gọn về một.
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Allow-Methods Access-Control-Allow-Headers, RETAIN_UNIQUE
+          # ================================================================
           # BẢNG TUYẾN
           # ================================================================
           # Thứ tự QUAN TRỌNG: Spring Cloud Gateway lấy tuyến KHỚP ĐẦU TIÊN.
@@ -123,20 +139,27 @@ spring:
               predicates:
                 - Path=/api/settings/**
 
-            # ---- football-service (Go) -------------------------------------
-            # Service duy nhất không viết bằng Java. Với Gateway thì điều đó
-            # không có nghĩa gì cả — nó chỉ thấy một địa chỉ HTTP. Đó chính là
-            # điều một API Gateway mua được: ngôn ngữ của service là chuyện
-            # riêng của service.
+            # ---- football-service ------------------------------------------
+            # Service này từng viết bằng Go và Gateway không hề biết chuyện đó
+            # — nó chỉ thấy một địa chỉ HTTP. Viết lại bằng Java cũng không
+            # đụng tới một dòng nào ở đây. Đó chính là điều một API Gateway
+            # mua được: ngôn ngữ của service là chuyện riêng của service.
             #
-            # StripPrefix=2 vì football-service phục vụ ở /v1/**, còn máy khách
-            # gọi /api/football/v1/**. Không cắt thì mọi request đều 404.
+            # RewritePath chứ KHÔNG phải StripPrefix. Đây là một lỗi đã có
+            # thật: StripPrefix=2 cắt /api/football/v1/fixtures thành
+            # /v1/fixtures, nhưng football-service phục vụ ở /api/v1/** (xem
+            # FootballController), nên mọi request qua tuyến này đều 404.
+            # Lỗi đó nằm im vì giao diện gọi thẳng cổng 8090, không đi qua đây.
+            #
+            # Phép viết lại dưới giữ nguyên phần sau /api/football/ và gắn lại
+            # tiền tố /api/ mà service thật sự lắng nghe:
+            #     /api/football/v1/fixtures  ->  /api/v1/fixtures
             - id: football-api
               uri: ${FOOTBALL_SERVICE_URL:http://football-service:8090}
               predicates:
                 - Path=/api/football/**
               filters:
-                - StripPrefix=2
+                - RewritePath=/api/football/(?<duoi>.*), /api/$\{duoi}
 
 # --- CORS ---
 # Chỉ khai Ở ĐÂY. Trình duyệt không biết bảy service phía sau tồn tại.

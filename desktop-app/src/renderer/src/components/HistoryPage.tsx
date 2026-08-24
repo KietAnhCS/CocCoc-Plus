@@ -31,7 +31,7 @@ function HistoryPage(): JSX.Element | null {
   const loi = useBrowsingStore((s) => s.loi)
   const chuaDangNhap = useBrowsingStore((s) => s.chuaDangNhap)
   const nap = useBrowsingStore((s) => s.nap)
-  const xoaMuc = useBrowsingStore((s) => s.xoaMuc)
+  const deleteVisit = useBrowsingStore((s) => s.deleteVisit)
 
   const navigate = useTabStore((s) => s.navigate)
   const acquire = useOverlayStore((s) => s.acquire)
@@ -131,7 +131,7 @@ function HistoryPage(): JSX.Element | null {
           />
         )}
 
-        {nhom.map(([nhan, danhSach]) => (
+        {nhom.map(([nhan, list]) => (
           <section key={nhan} className="mb-6">
             <h2
               className="sticky top-0 z-10 bg-surface py-2 text-[12px] font-semibold
@@ -140,7 +140,7 @@ function HistoryPage(): JSX.Element | null {
               {nhan}
             </h2>
             <ul>
-              {danhSach.map((item) => (
+              {list.map((item) => (
                 <li
                   key={item.id}
                   className="group flex items-center gap-3 rounded-lg pr-2 hover:bg-raised"
@@ -171,14 +171,14 @@ function HistoryPage(): JSX.Element | null {
                       <span className="block truncate text-[11px] text-faint">
                         {hostOf(item.url)}
                         {/* Ghé nhiều lần thì gộp thành một dòng — xem
-                            HistoryService.ghiLuotGhe. Hiện số lần để người
+                            HistoryService.recordVisit. Hiện số lần để người
                             dùng hiểu vì sao chỉ có một dòng. */}
                         {item.visitCount > 1 && ` — ${item.visitCount} lần`}
                       </span>
                     </span>
                   </button>
                   <button
-                    onClick={() => void xoaMuc(item.id)}
+                    onClick={() => void deleteVisit(item.id)}
                     className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full
                                text-faint transition hover:bg-danger/15 hover:text-danger
                                focus-visible:outline-none group-hover:flex"
@@ -211,12 +211,12 @@ function NutXoaDuLieu(): JSX.Element {
   const [khoang, setKhoang] = useState<Khoang>('gio-qua')
   const [dangXoa, setDangXoa] = useState(false)
   const tong = useBrowsingStore((s) => s.tong)
-  const xoaTheoKhoang = useBrowsingStore((s) => s.xoaTheoKhoang)
+  const deleteVisitRange = useBrowsingStore((s) => s.deleteVisitRange)
 
   async function xacNhan(): Promise<void> {
     setDangXoa(true)
     try {
-      await xoaTheoKhoang(khoang)
+      await deleteVisitRange(khoang)
       setMoHop(false)
     } finally {
       setDangXoa(false)
@@ -267,7 +267,7 @@ function NutXoaDuLieu(): JSX.Element {
                 >
                   <input
                     type="radio"
-                    name="khoang-xoa"
+                    name="khoang-remove"
                     checked={khoang === value}
                     onChange={() => setKhoang(value)}
                     className="accent-brand"

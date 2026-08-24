@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  football-service :8090 — Dữ liệu bóng đá, có đệm và có hạn mức
+  ============================================================================
+
+  Trước đây service này viết bằng Go. Viết lại bằng Java để cả hệ thống chỉ
+  còn MỘT chuỗi công cụ: một lệnh `./mvnw verify` chạy hết mọi test, một
+  Dockerfile dựng mọi ảnh, và tầng `vnsearch-platform` lo sẵn CORS, hạn chế
+  tần suất, bộ xử lý lỗi chung. Cái giá phải trả là ảnh nặng hơn và tốn thêm
+  RAM — đổi lại là không còn hai bộ quy ước và hai cách cấu hình song song.
+
+  Hợp đồng HTTP giữ NGUYÊN: vẫn `/api/v1/**` trên cổng 8090, nên tuyến
+  `football-api` của Gateway và desktop-app không phải đổi một dòng nào.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>football-service</artifactId>
+	<name>football-service</name>
+	<description>Dữ liệu bóng đá, có đệm và có hạn mức</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-platform</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-jdbc</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-core</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.flywaydb</groupId>
+			<artifactId>flyway-database-postgresql</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>postgresql</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

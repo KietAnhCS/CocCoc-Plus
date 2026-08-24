@@ -34,7 +34,7 @@
 	<dependencies>
 		<dependency>
 			<groupId>com.vnsearch</groupId>
-			<artifactId>vnsearch-core</artifactId>
+			<artifactId>vnsearch-core-search</artifactId>
 		</dependency>
 		<dependency>
 			<groupId>com.vnsearch</groupId>

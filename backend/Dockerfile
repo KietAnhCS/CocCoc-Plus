@@ -40,7 +40,9 @@ WORKDIR /build
 # dựng tới: Maven đọc toàn bộ danh sách <modules> của POM cha trước khi biết
 # nó cần dựng cái nào. Thiếu một tệp là lỗi "Child module does not exist".
 COPY pom.xml .
-COPY libs/core/pom.xml libs/core/
+COPY libs/core-common/pom.xml libs/core-common/
+COPY libs/core-crawler/pom.xml libs/core-crawler/
+COPY libs/core-search/pom.xml libs/core-search/
 COPY libs/platform/pom.xml libs/platform/
 COPY services/api-gateway/pom.xml services/api-gateway/
 COPY services/auth-service/pom.xml services/auth-service/
@@ -50,6 +52,7 @@ COPY services/analytics-service/pom.xml services/analytics-service/
 COPY services/history-service/pom.xml services/history-service/
 COPY services/downloads-service/pom.xml services/downloads-service/
 COPY services/settings-service/pom.xml services/settings-service/
+COPY services/football-service/pom.xml services/football-service/
 COPY coverage/pom.xml coverage/
 
 # Làm nóng kho thư viện. `|| true` là có ý: đây thuần tuý là một bước TỐI ƯU
@@ -144,6 +147,6 @@ ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k \
 
 # Cổng thật do biến SERVER_PORT quyết định (xem application.properties của từng
 # service). EXPOSE ở đây chỉ là tài liệu — nó không mở cổng nào cả.
-EXPOSE 8080-8087
+EXPOSE 8080-8090
 
 ENTRYPOINT ["java", "-jar", "app.jar"]

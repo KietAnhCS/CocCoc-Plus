@@ -15,37 +15,24 @@
 # đó là một điểm hỏng đơn lẻ có hình dạng con người.
 #
 # ═══════════════════════════════════════════════════════════════════════════
-# THIẾT KẾ: HAI MÔI TRƯỜNG, HAI MỨC TIN CẬY
+# ĐÍCH TRIỂN KHAI LÀ DOCKER COMPOSE, KHÔNG PHẢI KUBERNETES
 # ═══════════════════════════════════════════════════════════════════════════
 #
-#   staging     tự động, mỗi lần đẩy lên main
-#   production  PHẢI có người bấm duyệt (GitHub Environment protection rule)
+# Toàn bộ hệ thống nằm trong MỘT tệp docker-compose.yml và lên bằng MỘT lệnh.
+# Vì thế CD ở đây làm đúng hai việc, và không giả vờ làm gì hơn:
 #
-# Vì sao production không tự động: kiểm thử tự động bắt được lỗi hồi quy, chứ
-# không bắt được "tính năng này đúng nhưng chưa nên phát hành". Một người bấm
-# nút là chỗ để phán đoán đó xảy ra.
+#   1. Dựng, ký (cosign) và quét CVE từng ảnh, đẩy lên ghcr.io.
+#   2. Sinh `docker-compose.release.yml` — bản compose đã GHIM ảnh theo
+#      digest — rồi đính kèm vào lần chạy như một artifact.
 #
-# ═══════════════════════════════════════════════════════════════════════════
-# CỔNG CHẶN: CHƯA CÓ CỤM THÌ KHÔNG TRIỂN KHAI
-# ═══════════════════════════════════════════════════════════════════════════
+# Máy đích chỉ cần tải tệp đó về và chạy:
 #
-# Chặng triển khai chỉ chạy khi biến kho `CD_TRIEN_KHAI_THAT` được đặt bằng
-# `true`. Chưa đặt thì job bị BỎ QUA, không phải THẤT BẠI — và đó là khác biệt
-# quan trọng chứ không phải chuyện thẩm mỹ:
+#   docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
 #
-#   - Một job thất bại thường trực dạy cả nhóm bỏ qua màu đỏ. Sau vài tuần thì
-#     lần đỏ THẬT cũng chẳng ai nhìn nữa. Cổng chặn nào cũng vô hiệu hoá theo
-#     đúng cách đó.
-#   - Job có `environment:` sẽ tạo một bản ghi Deployment trên GitHub NGAY KHI
-#     bắt đầu chạy. Thất bại ở bước đầu tiên vẫn để lại một deployment đỏ
-#     thường trực ở trang chủ kho — báo sai rằng bản phát hành đang hỏng, trong
-#     khi sự thật là chưa hề có bản phát hành nào.
-#
-# Bật khi đã có cụm thật:
-#   Settings > Secrets and variables > Actions > Variables
-#     CD_TRIEN_KHAI_THAT = true
-#   Settings > Environments > staging > Environment secrets
-#     KUBE_CONFIG = <kubeconfig đã mã hoá base64>
+# Vì sao không có bước SSH tự động vào máy đích: nó cần một khoá riêng nằm
+# trong secret của kho, và một máy đích luôn bật. Chừng nào chưa có cả hai,
+# thêm bước đó chỉ tạo ra một job đỏ thường trực — mà một job đỏ thường trực
+# dạy cả nhóm bỏ qua màu đỏ, kể cả lần đỏ thật.
 name: CD
 
 on:
@@ -57,27 +44,20 @@ on:
     types: [completed]
     branches: [main]
 
-  # Triển khai tay: chọn môi trường và phiên bản. Cần cho việc quay lui —
-  # lúc đó thứ ta muốn phát hành là một thẻ CŨ, không phải HEAD.
+  # Phát hành tay: chọn phiên bản. Cần cho việc quay lui — lúc đó thứ ta muốn
+  # phát hành là một thẻ CŨ, không phải HEAD.
   workflow_dispatch:
     inputs:
-      moi-truong:
-        description: Môi trường triển khai
-        required: true
-        default: staging
-        type: choice
-        options: [staging, production]
       phien-ban:
         description: Thẻ ảnh (để trống = dùng SHA của commit hiện tại)
         required: false
         type: string
 
 concurrency:
-  # KHÔNG huỷ giữa chừng (`cancel-in-progress` không đặt): huỷ một lần triển
-  # khai đang chạy có thể để lại cụm ở trạng thái nửa vời — vài Pod bản mới,
-  # vài Pod bản cũ. Xếp hàng chờ là hành vi đúng ở đây, khác hẳn với CI nơi
-  # huỷ bản cũ là đúng.
-  group: cd-${{ github.event.inputs.moi-truong || 'staging' }}
+  # KHÔNG huỷ giữa chừng (`cancel-in-progress` không đặt): huỷ một lần đang
+  # chạy có thể để lại nửa số ảnh đã ký và nửa số chưa. Xếp hàng chờ là hành
+  # vi đúng ở đây, khác hẳn với CI nơi huỷ bản cũ là đúng.
+  group: cd-${{ github.ref }}
 
 permissions:
   contents: read
@@ -160,7 +140,7 @@ jobs:
         name: Dựng và đẩy
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.service == 'football-service' && './backend/services/football-service' || './backend' }}
+          context: ./backend
           push: true
           build-args: |
             MODULE=services/${{ matrix.service }}
@@ -207,33 +187,19 @@ jobs:
           severity: CRITICAL
 
   # ═══════════════════════════════════════════════════════════════════════
-  trien-khai:
-    name: Triển khai lên ${{ github.event.inputs.moi-truong || 'staging' }}
+  # Bản compose đã ghim ảnh theo DIGEST, không phải theo thẻ.
+  #
+  # Thẻ là một con trỏ di động: hai máy kéo ảnh ở hai thời điểm khác nhau có
+  # thể chạy hai bản mã khác nhau dưới cùng một tên. Digest là mã băm của
+  # chính nội dung ảnh — ghim nó là ghim đúng thứ vừa được quét và vừa được ký
+  # ở job trên.
+  ban-phat-hanh:
+    name: Sinh bản compose ghim theo digest
     needs: dung-anh
-
-    # Vì sao cổng chặn dùng `vars` chứ không phải `secrets`:
-    #
-    # Ngữ cảnh `secrets` KHÔNG dùng được trong `if` ở cấp job — GitHub chỉ mở
-    # nó ra bên trong các bước. Mà muốn đọc được secret gắn theo môi trường thì
-    # job buộc phải khai `environment:`, và chính việc khai đó đã sinh ra bản
-    # ghi Deployment trước khi bước nào chạy. Nói cách khác, mọi cách kiểm tra
-    # `KUBE_CONFIG` từ BÊN TRONG job đều đến quá muộn: deployment đỏ đã được
-    # tạo rồi mới phát hiện là không có gì để triển khai.
-    #
-    # `vars` thì đọc được ngay ở đây, nên job bị bỏ qua trọn vẹn: không
-    # deployment, không màu đỏ, và lần chạy CD kết thúc xanh vì phần việc nó
-    # thật sự làm được (dựng, ký, quét ảnh) đã làm xong.
-    if: vars.CD_TRIEN_KHAI_THAT == 'true'
     runs-on: ubuntu-latest
-
-    # GitHub Environment. Đây là chỗ đặt quy tắc "phải có người duyệt": cấu
-    # hình ở Settings > Environments > production > Required reviewers.
-    #
-    # Bí mật cũng gắn theo môi trường, nên KUBE_CONFIG của staging không dùng
-    # được cho production kể cả khi ai đó sửa nhầm workflow này.
-    environment:
-      name: ${{ github.event.inputs.moi-truong || 'staging' }}
-      url: https://vnsearch.local
+    permissions:
+      contents: read
+      packages: read
 
     steps:
       - uses: actions/checkout@v4
@@ -241,119 +207,66 @@ jobs:
       - name: Cài crane
         uses: imjasonh/setup-crane@v0.4
 
-      - name: Cài kubectl
-        uses: azure/setup-kubectl@v4
+      - name: Đăng nhập ghcr.io
+        uses: docker/login-action@v3
         with:
-          version: v1.30.0
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      # Lưới an toàn lớp hai. Cổng `vars` bên trên đã chặn trường hợp "chưa có
-      # cụm nào cả"; bước này bắt trường hợp hẹp hơn và dễ xảy ra hơn: biến đã
-      # bật, staging đã có KUBE_CONFIG, nhưng môi trường production vừa tạo thì
-      # chưa. Không có bước này thì lỗi đó nổ ra muộn hơn nhiều, ở giữa một lệnh
-      # kubectl, với thông báo khó hiểu hơn nhiều.
-      - name: Nạp kubeconfig
-        env:
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
-        run: |
-          if [ -z "$KUBE_CONFIG" ]; then
-            echo "::error::Thiếu secret KUBE_CONFIG cho môi trường này."
-            echo "Tạo bằng: Settings > Environments > <tên> > Environment secrets"
-            exit 1
-          fi
-          mkdir -p "$HOME/.kube"
-          echo "$KUBE_CONFIG" | base64 -d > "$HOME/.kube/config"
-          chmod 600 "$HOME/.kube/config"
-
-      # GHIM ảnh theo DIGEST, không phải theo thẻ.
-      #
-      # Thẻ là một con trỏ di động: hai node kéo ảnh ở hai thời điểm khác nhau
-      # có thể chạy hai bản mã khác nhau dưới cùng một tên. Digest là mã băm
-      # của chính nội dung ảnh — ghim nó là ghim đúng thứ vừa được kiểm thử và
-      # vừa được ký ở job trên. Cùng lập luận đã ghi trong overlays/prod.
-      - name: Ghim ảnh theo digest
-        working-directory: deploy/k8s/overlays/${{ github.event.inputs.moi-truong == 'production' && 'prod' || 'dev' }}
+      # Lớp phủ chỉ chứa `image:`. Chạy chồng lên docker-compose.yml gốc thì
+      # mọi thứ khác — mem_limit, healthcheck, biến môi trường — giữ nguyên,
+      # và `image:` thắng `build:` nên máy đích KÉO ảnh thay vì tự dựng.
+      - name: Sinh docker-compose.release.yml
         env:
           KHO: ${{ needs.dung-anh.outputs.kho }}
           THE: ${{ needs.dung-anh.outputs.the }}
         run: |
-          for svc in api-gateway auth-service search-service crawler-service \
-                     analytics-service history-service downloads-service settings-service; do
-            digest=$(crane digest "$KHO/$svc:$THE")
-            kustomize edit set image "$KHO/$svc=$KHO/$svc@$digest"
-          done
-          cat kustomization.yaml
+          {
+            echo "# Sinh tự động bởi .github/workflows/cd.yml — đừng sửa tay."
+            echo "# Phiên bản: $THE"
+            echo "services:"
+            for svc in api-gateway auth-service search-service crawler-service \
+                       analytics-service history-service downloads-service \
+                       settings-service football-service; do
+              digest=$(crane digest "$KHO/$svc:$THE")
+              echo "  $svc:"
+              echo "    image: $KHO/$svc@$digest"
+            done
+          } > docker-compose.release.yml
+          cat docker-compose.release.yml
 
-      # Chạy khô TRƯỚC. Nó bắt được manifest sai ngay trên cụm thật (CRD thiếu,
-      # quota không đủ, webhook từ chối) mà `kubectl kustomize` cục bộ không
-      # thấy — và bắt được TRƯỚC khi thay đổi nào được ghi vào cụm.
-      - name: Chạy khô
+      # Kiểm luôn tại chỗ: lớp phủ ghép được với tệp gốc thì mới đính kèm.
+      # Không có bước này thì lỗi ghép chỉ lộ ra trên máy đích, lúc demo.
+      - name: Kiểm lớp phủ ghép được với tệp gốc
+        env:
+          ADMIN_API_KEY: chi-de-kiem-dinh-0123456789abcdef
         run: |
-          kubectl apply -k "deploy/k8s/overlays/${{ github.event.inputs.moi-truong == 'production' && 'prod' || 'dev' }}" \
-            --dry-run=server
+          docker compose -f docker-compose.yml -f docker-compose.release.yml \
+            config --quiet
 
-      - name: Áp dụng
-        run: |
-          kubectl apply -k "deploy/k8s/overlays/${{ github.event.inputs.moi-truong == 'production' && 'prod' || 'dev' }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-compose-release
+          path: docker-compose.release.yml
+          retention-days: 30
 
-      # Chờ triển khai xong VÀ tự quay lui nếu hỏng.
-      #
-      # `rollout status` trả về mã khác 0 khi hết thời gian chờ. Không có bước
-      # này thì workflow báo xanh ngay sau `apply` — trong khi Pod mới có thể
-      # đang trong vòng lặp khởi động lại. "Đã triển khai" phải nghĩa là "đang
-      # chạy được", không phải "đã gửi lệnh đi".
-      - name: Chờ cuốn chiếu hoàn tất
-        id: cuon-chieu
-        run: |
-          for bo in vnsearch-backend vnsearch-crawler-worker; do
-            echo "::group::$bo"
-            kubectl -n vnsearch rollout status "deployment/$bo" --timeout=5m
-            echo "::endgroup::"
-          done
-
-      - name: Quay lui khi cuốn chiếu thất bại
-        if: failure() && steps.cuon-chieu.outcome == 'failure'
-        run: |
-          echo "::error::Cuốn chiếu thất bại — đang quay lui về bản trước."
-          for bo in vnsearch-backend vnsearch-crawler-worker; do
-            kubectl -n vnsearch rollout undo "deployment/$bo" || true
-          done
-          kubectl -n vnsearch get pods -o wide
-
-      # Kiểm tra sau triển khai: hỏi ứng dụng qua đúng đường mà người dùng đi.
-      # `rollout status` chỉ nói Pod đã sẵn sàng theo probe; bước này nói hệ
-      # thống thật sự trả lời được.
-      - name: Kiểm tra sau triển khai
-        run: |
-          kubectl -n vnsearch run kiem-tra-cd \
-            --image=curlimages/curl:8.10.1 --rm -i --restart=Never --quiet -- \
-            curl -sSf --max-time 10 http://vnsearch-backend/api/health
-
-  # ═══════════════════════════════════════════════════════════════════════
-  # Một job bị bỏ qua trong im lặng trông hệt như một job bị quên. Job này nói
-  # rõ ràng vào phần tóm tắt của lần chạy rằng việc bỏ qua là CÓ CHỦ Ý, và cần
-  # làm gì để mở cổng — nên không ai phải đọc ngược YAML mới hiểu chuyện gì.
-  #
-  # Nó KHÔNG khai `environment:`, nên không sinh ra bản ghi Deployment nào.
-  bo-qua-trien-khai:
-    name: Bỏ qua triển khai (chưa trỏ tới cụm thật)
-    needs: dung-anh
-    if: vars.CD_TRIEN_KHAI_THAT != 'true'
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Giải thích vì sao không triển khai
+      - name: Ghi hướng dẫn triển khai vào phần tóm tắt
+        env:
+          THE: ${{ needs.dung-anh.outputs.the }}
         run: |
           {
-            echo "## Đã dựng xong ảnh, chưa triển khai"
+            echo "## Ảnh đã sẵn sàng — phiên bản \`$THE\`"
             echo
-            echo "Ảnh đã được dựng, ký bằng cosign và quét CVE thành công."
-            echo "Chặng triển khai bị bỏ qua vì kho chưa được trỏ tới một cụm"
-            echo "Kubernetes thật."
+            echo "Tải artifact \`docker-compose-release\` về cạnh"
+            echo "\`docker-compose.yml\`, rồi trên máy đích chạy:"
             echo
-            echo "Bật khi đã có cụm:"
+            echo '```bash'
+            echo 'docker compose -f docker-compose.yml \'
+            echo '               -f docker-compose.release.yml up -d'
+            echo '```'
             echo
-            echo '1. `Settings > Secrets and variables > Actions > Variables`'
-            echo '   thêm `CD_TRIEN_KHAI_THAT` = `true`'
-            echo '2. `Settings > Environments > staging > Environment secrets`'
-            echo '   thêm `KUBE_CONFIG` = kết quả của `base64 -w0 ~/.kube/config`'
+            echo "Toàn bộ 9 service, ba CSDL và ba service giám sát lên cùng"
+            echo "một lệnh. Grafana ở http://localhost:3000, Prometheus ở"
+            echo "http://localhost:9090."
           } >> "$GITHUB_STEP_SUMMARY"

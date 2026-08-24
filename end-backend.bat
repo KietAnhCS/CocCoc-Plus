@@ -53,7 +53,7 @@ for /f "delims=" %%m in ('powershell -NoProfile -Command "[math]::Round((Get-Cim
 if defined RAM_BEFORE echo RAM trống lúc bắt đầu: %RAM_BEFORE% GB
 
 rem ===========================================================================
-rem TIẾN TRÌNH JAR CHẠY TRÊN MÁY THẬT - cổng 8080 đến 8087
+rem TIẾN TRÌNH JAR CHẠY TRÊN MÁY THẬT - cổng 8080 đến 8087, và 8090
 rem ===========================================================================
 echo.
 echo Đang dừng các service chạy trực tiếp bằng jar...
@@ -66,7 +66,8 @@ call :kill_port 8084 analytics-service
 call :kill_port 8085 history-service
 call :kill_port 8086 downloads-service
 call :kill_port 8087 settings-service
-if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-8087.
+call :kill_port 8090 football-service
+if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-8087 và 8090.
 
 if defined LOCAL_ONLY goto :report
 
@@ -99,9 +100,11 @@ if defined ADMIN_API_KEY goto :key_ok
 set "ADMIN_API_KEY=khoa-tam-chi-de-compose-doc-duoc-tep"
 :key_ok
 
-rem Truyền ĐỦ mọi profile: không truyền thì compose chỉ nhìn thấy hồ sơ rút gọn
-rem và các container của full/kafka/observability ở lại chạy tiếp.
-set "PROFILES=--profile full --profile kafka --profile observability"
+rem Chỉ còn MỘT hồ sơ tuỳ chọn là `kafka`: mọi thứ khác nằm trong hồ sơ mặc
+rem định nên `down` trần đã dọn hết. Vẫn phải truyền `--profile kafka`, vì
+rem không truyền thì compose không nhìn thấy kafka với kafka-ui và hai
+rem container đó ở lại chạy tiếp.
+set "PROFILES=--profile kafka"
 
 if defined STOP_ONLY (
     echo.
@@ -238,7 +241,7 @@ goto :fail
 
 :usage
 echo.
-echo   end-backend.bat                dừng tiến trình jar ^(cổng 8080-8087^), hạ
+echo   end-backend.bat                dừng tiến trình jar ^(cổng 8080-8087, 8090^), hạ
 echo                                  container rồi tắt Docker Desktop
 echo   end-backend.bat --local        chỉ dừng tiến trình jar, không đụng Docker
 echo   end-backend.bat --keep-docker  hạ container nhưng để Docker Desktop chạy

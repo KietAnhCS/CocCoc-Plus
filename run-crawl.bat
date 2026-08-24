@@ -42,8 +42,10 @@ if not exist "pom.xml" (
     goto :fail
 )
 
-if not exist "libs\core\pom.xml" (
-    echo [LỖI] Không thấy module "libs\core" - nơi chứa các runner dòng lệnh.
+if not exist "libs\core-crawler\pom.xml" (
+    echo [LỖI] Không thấy module "libs\core-crawler" - nơi chứa các runner crawl.
+    echo       Module này tách ra từ "libs\core" cũ; nếu kho của bạn vẫn còn
+    echo       "libs\core" thì hãy kéo bản mới nhất về.
     goto :fail
 )
 
@@ -111,11 +113,14 @@ echo Đang biên dịch và chạy crawler...
 echo   Ctrl+C để dừng. Điểm kiểm tra ghi mỗi max^(250 trang, 25%% corpus hiện có^),
 echo   nên ở corpus lớn có thể mất vài nghìn trang cuối.
 echo.
-rem `-pl libs/core`: các runner dòng lệnh nằm trong module vnsearch-core, không
-rem còn nằm ở gốc như thời backend là một ứng dụng duy nhất. exec:java KHÔNG
-rem tách tiến trình, nên thư mục làm việc vẫn là thư mục gọi Maven, tức
-rem "backend" - và đường dẫn "data/..." ở trên vẫn trỏ đúng backend\data.
-call "%MVNW%" -q -pl libs/core compile exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
+rem `-pl libs/core-crawler`: các runner dòng lệnh nằm trong module
+rem vnsearch-core-crawler, không còn nằm ở gốc như thời backend là một ứng dụng
+rem duy nhất, và cũng không còn nằm ở "libs/core" như thời core còn là một khối.
+rem
+rem exec:java KHÔNG tách tiến trình, nên thư mục làm việc vẫn là thư mục gọi
+rem Maven, tức "backend" - và đường dẫn "data/..." ở trên vẫn trỏ đúng
+rem backend\data.
+call "%MVNW%" -q -pl libs/core-crawler compile exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
 if errorlevel 1 (
     echo.
     echo [LỖI] Phiên crawl kết thúc bất thường.

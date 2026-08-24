@@ -8,7 +8,7 @@ import { authHeader, ensureFreshToken, getAuthToken } from './authToken'
  * header, dịch lỗi — và ba bản sao của quy trình đó sẽ lệch nhau. Riêng phần
  * kiểu dữ liệu thì tách rõ theo từng service ở dưới.
  *
- * <h2>Mọi request đều đi qua {@link goi}</h2>
+ * <h2>Mọi request đều đi qua {@link request}</h2>
  *
  * <p>Không endpoint nào tự gọi `fetch`. Đó là cách duy nhất bảo đảm bốn việc
  * xảy ra ở MỌI lượt gọi:
@@ -35,10 +35,10 @@ import { authHeader, ensureFreshToken, getAuthToken } from './authToken'
 const TIMEOUT_MS = 8000
 
 /** Ứng dụng đang chạy mà không có backend — dừng thử để đỡ tốn. */
-export class ChuaDangNhap extends Error {
+export class NotAuthenticated extends Error {
   constructor() {
     super('Chưa đăng nhập.')
-    this.name = 'ChuaDangNhap'
+    this.name = 'NotAuthenticated'
   }
 }
 
@@ -47,7 +47,7 @@ export class ChuaDangNhap extends Error {
  * `authToken` không được phép phụ thuộc `authApi`, và `authApi` thì phụ thuộc
  * `authToken`.
  */
-async function giaHan(refreshToken: string): Promise<{
+async function refreshSession(refreshToken: string): Promise<{
   token: string
   refreshToken: string
   expiresAt: string
@@ -64,7 +64,7 @@ async function giaHan(refreshToken: string): Promise<{
   return response.json()
 }
 
-interface TuyChonGoi {
+interface RequestOptions {
   method?: string
   body?: unknown
   params?: Record<string, string | number | undefined>
@@ -72,12 +72,12 @@ interface TuyChonGoi {
   headers?: Record<string, string>
 }
 
-async function goi<T>(path: string, options: TuyChonGoi = {}): Promise<T> {
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   if (!getAuthToken()) {
-    throw new ChuaDangNhap()
+    throw new NotAuthenticated()
   }
-  if (!(await ensureFreshToken(giaHan))) {
-    throw new ChuaDangNhap()
+  if (!(await ensureFreshToken(refreshSession))) {
+    throw new NotAuthenticated()
   }
 
   const url = new URL(path, API_BASE)
@@ -102,7 +102,7 @@ async function goi<T>(path: string, options: TuyChonGoi = {}): Promise<T> {
   if (response.status === 401) {
     // Token vừa bị thu hồi ở nơi khác (đăng xuất mọi thiết bị, đổi mật khẩu,
     // tài khoản bị khoá). Dọn phía máy này để giao diện về đúng trạng thái.
-    throw new ChuaDangNhap()
+    throw new NotAuthenticated()
   }
   if (!response.ok) {
     throw new Error(`${response.status} ${response.statusText}`)
@@ -114,9 +114,9 @@ async function goi<T>(path: string, options: TuyChonGoi = {}): Promise<T> {
 }
 
 /** Chạy nền: hỏng thì im lặng. Xem Javadoc đầu tệp. */
-async function goiNen(path: string, options: TuyChonGoi): Promise<void> {
+async function sendAndForget(path: string, options: RequestOptions): Promise<void> {
   try {
-    await goi(path, options)
+    await request(path, options)
   } catch {
     // Có chủ ý.
   }
@@ -142,7 +142,7 @@ export interface SearchQueryDto {
   searchedAt: string
 }
 
-export interface TrangDto<T> {
+export interface PageDto<T> {
   content: T[]
   totalElements: number
   number: number
@@ -158,41 +158,41 @@ export const historyApi = {
    * vào việc máy chủ có làm đúng hay không, và người dùng không kiểm chứng
    * được. Nơi quyết định là `browsingHistoryStore`.
    */
-  ghiLuotGhe: (url: string, title: string): Promise<void> =>
-    goiNen('/api/history/visits', { method: 'POST', body: { url, title } }),
+  recordVisit: (url: string, title: string): Promise<void> =>
+    sendAndForget('/api/history/visits', { method: 'POST', body: { url, title } }),
 
-  ghiTruyVan: (query: string, resultCount: number): Promise<void> =>
-    goiNen('/api/history/searches', { method: 'POST', body: { query, resultCount } }),
+  recordSearch: (query: string, resultCount: number): Promise<void> =>
+    sendAndForget('/api/history/searches', { method: 'POST', body: { query, resultCount } }),
 
-  lichSu: (params: {
+  visitHistory: (params: {
     q?: string
     from?: string
     to?: string
     page?: number
     size?: number
-  }): Promise<TrangDto<VisitDto>> => goi('/api/history/visits', { params }),
+  }): Promise<PageDto<VisitDto>> => request('/api/history/visits', { params }),
 
-  lichSuTimKiem: (page = 0, size = 50): Promise<TrangDto<SearchQueryDto>> =>
-    goi('/api/history/searches', { params: { page, size } }),
+  searchHistory: (page = 0, size = 50): Promise<PageDto<SearchQueryDto>> =>
+    request('/api/history/searches', { params: { page, size } }),
 
-  goiY: (prefix: string, limit = 8): Promise<SearchQueryDto[]> =>
-    goi('/api/history/searches/suggest', { params: { prefix, limit } }),
+  suggest: (prefix: string, limit = 8): Promise<SearchQueryDto[]> =>
+    request('/api/history/searches/suggest', { params: { prefix, limit } }),
 
-  xoaMuc: (id: string): Promise<void> =>
-    goi(`/api/history/visits/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deleteVisit: (id: string): Promise<void> =>
+    request(`/api/history/visits/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
   /** Bỏ trống cả hai mốc = xoá sạch. Giao diện PHẢI hỏi lại trước khi gọi. */
-  xoaTheoKhoang: (from?: string, to?: string): Promise<{ deleted: number }> =>
-    goi('/api/history/visits', { method: 'DELETE', params: { from, to } }),
+  deleteVisitRange: (from?: string, to?: string): Promise<{ deleted: number }> =>
+    request('/api/history/visits', { method: 'DELETE', params: { from, to } }),
 
-  tomTat: (): Promise<{ visits: number }> => goi('/api/history/summary')
+  summary: (): Promise<{ visits: number }> => request('/api/history/summary')
 }
 
 // ===========================================================================
 // TẢI XUỐNG  —  downloads-service :8086
 // ===========================================================================
 
-export type TrangThaiTai = 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'INTERRUPTED'
+export type DownloadState = 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'INTERRUPTED'
 
 export interface DownloadDto {
   id: string
@@ -202,7 +202,7 @@ export interface DownloadDto {
   totalBytes: number | null
   receivedBytes: number
   percent: number | null
-  state: TrangThaiTai
+  state: DownloadState
   onThisDevice: boolean
   startedAt: string
   finishedAt: string | null
@@ -240,7 +240,7 @@ export const downloadsApi = {
    * không tạo bản ghi thứ hai — `id` do tiến trình chính sinh, xem
    * `downloadManager.ts`.
    */
-  batDau: (item: {
+  start: (item: {
     id: string
     sourceUrl: string
     fileName: string
@@ -248,39 +248,39 @@ export const downloadsApi = {
     totalBytes?: number | null
     localPath?: string
   }): Promise<void> =>
-    goiNen('/api/downloads', { method: 'POST', body: item, headers: deviceHeader() }),
+    sendAndForget('/api/downloads', { method: 'POST', body: item, headers: deviceHeader() }),
 
-  capNhat: (
+  update: (
     id: string,
-    patch: { receivedBytes?: number; state?: TrangThaiTai; localPath?: string }
+    patch: { receivedBytes?: number; state?: DownloadState; localPath?: string }
   ): Promise<void> =>
-    goiNen(`/api/downloads/${encodeURIComponent(id)}`, {
+    sendAndForget(`/api/downloads/${encodeURIComponent(id)}`, {
       method: 'PATCH',
       body: patch,
       headers: deviceHeader()
     }),
 
-  danhSach: (page = 0, size = 50): Promise<DownloadDto[]> =>
-    goi('/api/downloads', { params: { page, size }, headers: deviceHeader() }),
+  list: (page = 0, size = 50): Promise<DownloadDto[]> =>
+    request('/api/downloads', { params: { page, size }, headers: deviceHeader() }),
 
-  xoa: (id: string): Promise<void> =>
-    goi(`/api/downloads/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  remove: (id: string): Promise<void> =>
+    request(`/api/downloads/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 
-  xoaHet: (): Promise<{ deleted: number }> => goi('/api/downloads', { method: 'DELETE' })
+  clear: (): Promise<{ deleted: number }> => request('/api/downloads', { method: 'DELETE' })
 }
 
 // ===========================================================================
 // TUỲ CHỌN  —  settings-service :8087
 // ===========================================================================
 
-export interface KhoiTuyChon {
+export interface SettingsBlock {
   settings: Record<string, unknown>
   version: number
   updatedAt?: string
 }
 
 export const settingsApi = {
-  doc: (): Promise<KhoiTuyChon> => goi('/api/settings'),
+  read: (): Promise<SettingsBlock> => request('/api/settings'),
 
   /**
    * GỘP: chỉ gửi những khoá thay đổi.
@@ -292,19 +292,19 @@ export const settingsApi = {
    * <p>Không gửi `If-Match` nghĩa là "ghi đè, tôi biết mình đang làm gì" —
    * đúng cho lần đồng bộ đầu tiên của một máy mới, sai cho mọi lúc khác.
    */
-  gop: (patch: Record<string, unknown>, version?: number): Promise<KhoiTuyChon> =>
-    goi('/api/settings', {
+  merge: (patch: Record<string, unknown>, version?: number): Promise<SettingsBlock> =>
+    request('/api/settings', {
       method: 'PATCH',
       body: patch,
       headers: version === undefined ? {} : { 'If-Match': String(version) }
     }),
 
-  thayThe: (settings: Record<string, unknown>, version?: number): Promise<KhoiTuyChon> =>
-    goi('/api/settings', {
+  replace: (settings: Record<string, unknown>, version?: number): Promise<SettingsBlock> =>
+    request('/api/settings', {
       method: 'PUT',
       body: settings,
       headers: version === undefined ? {} : { 'If-Match': String(version) }
     }),
 
-  khoiPhucMacDinh: (): Promise<void> => goi('/api/settings', { method: 'DELETE' })
+  resetToDefaults: (): Promise<void> => request('/api/settings', { method: 'DELETE' })
 }

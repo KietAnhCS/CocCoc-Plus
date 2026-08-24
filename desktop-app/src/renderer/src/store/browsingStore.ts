@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { historyApi, ChuaDangNhap, type VisitDto } from '../lib/userDataApi'
+import { historyApi, NotAuthenticated, type VisitDto } from '../lib/userDataApi'
 
 /**
  * Lịch sử duyệt web LƯU TRÊN MÁY CHỦ — khác hẳn `historyStore`.
@@ -31,8 +31,8 @@ interface BrowsingState {
   nap: (tuKhoa?: string) => Promise<void>
   /** Ghi một lượt ghé thăm. Bỏ qua nếu thẻ đang ẩn danh. */
   ghi: (url: string, title: string, incognito: boolean) => void
-  xoaMuc: (id: string) => Promise<void>
-  xoaTheoKhoang: (khoang: Khoang) => Promise<number>
+  deleteVisit: (id: string) => Promise<void>
+  deleteVisitRange: (khoang: Khoang) => Promise<number>
 }
 
 /**
@@ -91,7 +91,7 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
     const khoa = tuKhoa ?? get().tuKhoa
     set({ dangTai: true, loi: null, tuKhoa: khoa })
     try {
-      const trang = await historyApi.lichSu({ q: khoa || undefined, page: 0, size: 100 })
+      const trang = await historyApi.visitHistory({ q: khoa || undefined, page: 0, size: 100 })
       set({
         items: trang.content,
         tong: trang.totalElements,
@@ -99,7 +99,7 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
         chuaDangNhap: false
       })
     } catch (error) {
-      if (error instanceof ChuaDangNhap) {
+      if (error instanceof NotAuthenticated) {
         // KHÔNG phải lỗi. Lịch sử là dữ liệu cá nhân, nên chưa đăng nhập thì
         // không có gì để hiện — và màn hình phải mời đăng nhập chứ không báo
         // hỏng.
@@ -126,10 +126,10 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
     }
     urlVuaGhi = url
     lucVuaGhi = bayGio
-    void historyApi.ghiLuotGhe(url, title)
+    void historyApi.recordVisit(url, title)
   },
 
-  xoaMuc: async (id) => {
+  deleteVisit: async (id) => {
     // Bỏ khỏi danh sách NGAY, không chờ máy chủ: người dùng vừa bấm xoá và
     // mục phải biến mất tức thì. Nếu lượt gọi hỏng thì lần nạp lại sau sẽ
     // hiện lại nó — sai lệch tạm thời, chấp nhận được, đổi lấy giao diện
@@ -139,14 +139,14 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
       tong: Math.max(0, state.tong - 1)
     }))
     try {
-      await historyApi.xoaMuc(id)
+      await historyApi.deleteVisit(id)
     } catch {
       await get().nap()
     }
   },
 
-  xoaTheoKhoang: async (khoang) => {
-    const ketQua = await historyApi.xoaTheoKhoang(mocBatDau(khoang))
+  deleteVisitRange: async (khoang) => {
+    const ketQua = await historyApi.deleteVisitRange(mocBatDau(khoang))
     await get().nap()
     return ketQua.deleted
   }
@@ -164,9 +164,9 @@ export function nhomTheoNgay(items: VisitDto[]): Array<[string, VisitDto[]]> {
   const nhom = new Map<string, VisitDto[]>()
   for (const item of items) {
     const nhan = nhanNgay(new Date(item.visitedAt))
-    const danhSach = nhom.get(nhan)
-    if (danhSach) {
-      danhSach.push(item)
+    const list = nhom.get(nhan)
+    if (list) {
+      list.push(item)
     } else {
       nhom.set(nhan, [item])
     }

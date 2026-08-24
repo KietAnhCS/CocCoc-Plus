@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  vnsearch-core-crawler — thu thập dữ liệu
+  ============================================================================
+
+  Frontier hai tầng, bộ lọc Bloom cho URL đã thấy, robots.txt, bóc nội dung
+  HTML, và bus sự kiện crawl (trong tiến trình hoặc qua Kafka).
+
+  PHỤ THUỘC ĐÚNG MỘT CHIỀU: core-crawler -> core-common. Nó KHÔNG biết gì về
+  chỉ mục đảo hay xếp hạng — crawler chỉ sinh ra tài liệu, còn việc lập chỉ
+  mục là chuyện của core-search.
+
+  Vì sao `jsoup` và `spring-kafka` nằm ở đây chứ không ở core-common: chỉ
+  crawler bóc HTML và chỉ crawler đẩy sự kiện lên bus. Để chúng ở tầng dưới
+  nghĩa là analytics-service — vốn chỉ cần vài lớp thống kê — cũng phải kéo
+  theo cả một client Kafka.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>vnsearch-core-crawler</artifactId>
+	<name>vnsearch-core-crawler</name>
+	<description>Crawler: frontier, robots.txt, bóc nội dung và bus sự kiện</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-core-common</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.jsoup</groupId>
+			<artifactId>jsoup</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>kafka</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.testcontainers</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.kafka</groupId>
+			<artifactId>spring-kafka-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<!-- Chạy runner crawl đa domain từ dòng lệnh:
+			     ./mvnw -pl libs/core-crawler exec:java -Dexec.mainClass=... -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

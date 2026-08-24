@@ -1,5 +1,6 @@
 package com.vnsearch.football;
 
+import com.vnsearch.football.service.FootballService;
 import com.vnsearch.football.store.FootballStore;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -63,6 +64,9 @@ class FootballApiIT {
     @Autowired
     private FootballStore store;
 
+    @Autowired
+    private FootballService service;
+
     @Test
     void healthEndpointIsPublicAndReportsRunningWithoutAKey() throws Exception {
         mockMvc.perform(get("/api/v1/health"))
@@ -73,11 +77,13 @@ class FootballApiIT {
 
     @Test
     void quotaNumbersAreReadFromTheTableFlywayJustCreated() throws Exception {
+        int used = service.used();
+
         mockMvc.perform(get("/api/v1/status"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.used").value(0))
+                .andExpect(jsonPath("$.used").value(used))
                 .andExpect(jsonPath("$.budget").value(95))
-                .andExpect(jsonPath("$.remaining").value(95));
+                .andExpect(jsonPath("$.remaining").value(95 - used));
     }
 
     @Test

@@ -48,7 +48,6 @@ if not exist "backend\pom.xml" (
     goto :fail
 )
 
-rem === Khoá quản trị ===
 if defined ADMIN_API_KEY goto :key_ok
 if not exist "%ENV_FILE%" goto :key_new
 for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
@@ -83,7 +82,6 @@ if not defined KEY_PROBE (
     goto :fail
 )
 
-rem === Mật khẩu quản trị mồi của auth-service ===
 if defined BOOTSTRAP_ADMIN_PASSWORD goto :pw_ok
 if not exist "%ENV_FILE%" goto :pw_new
 for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
@@ -113,9 +111,6 @@ if not defined BOOTSTRAP_ADMIN_USERNAME set "BOOTSTRAP_ADMIN_USERNAME=admin"
 
 if defined USE_DOCKER goto :docker_path
 
-rem ===========================================================================
-rem CHẠY TRỰC TIẾP BẰNG JAR - không cần Docker
-rem ===========================================================================
 where java >nul 2>nul
 if errorlevel 1 (
     echo [LỖI] Không tìm thấy Java.
@@ -170,15 +165,6 @@ if defined PORT_BUSY (
     goto :fail
 )
 
-rem Trong mạng Docker các service gọi nhau bằng tên container. Chạy trên máy
-rem thật thì mọi địa chỉ đó phải trỏ về localhost.
-rem
-rem KHÔNG chỉ địa chỉ service: mọi chuỗi kết nối CSDL trong
-rem application.properties cũng mặc định trỏ tới tên container `postgres` và
-rem `mongo`. Thiếu phần ghi đè bên dưới thì history, downloads, settings và
-rem football chết ngay lúc khởi động vì UnknownHostException, trong khi cửa sổ
-rem console của chúng đã kịp đóng - triệu chứng nhìn thấy chỉ là "cổng 8085
-rem đến 8090 không có ai trả lời", không hề trỏ về nguyên nhân.
 set "AUTH_SERVICE_URL=http://localhost:8081"
 set "SEARCH_SERVICE_URL=http://localhost:8082"
 set "CRAWLER_SERVICE_URL=http://localhost:8083"
@@ -191,16 +177,6 @@ set "AUTH_ISSUER_URI=http://localhost:8081"
 set "AUTH_JWKS_URI=http://localhost:8081/oauth2/jwks"
 set "REDIS_HOST=localhost"
 
-rem NẠP TOÀN BỘ .env.
-rem
-rem `docker compose` tự đọc tệp này, còn `java -jar` thì KHÔNG - và đó là chỗ
-rem hai đường chạy lặng lẽ khác nhau. Triệu chứng đã gặp thật: FOOTBALL_API_KEY
-rem nằm sẵn trong .env, chạy bằng Docker thì bảng bóng đá có tỉ số, chạy bằng
-rem jar thì service báo sampleOnly=true và ô tỉ số ở trang tab mới BIẾN MẤT
-rem hoàn toàn (MatchTile trả về null khi không có trận). Không có gì báo lỗi cả.
-rem
-rem `if not defined` chứ không đặt đè: biến đã có sẵn trong môi trường phải
-rem thắng tệp .env, giống thứ tự ưu tiên mà compose dùng.
 if exist "%ENV_FILE%" (
     for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
         if not defined %%a set "%%a=%%b"
@@ -208,13 +184,6 @@ if exist "%ENV_FILE%" (
 )
 if not defined POSTGRES_PASSWORD set "POSTGRES_PASSWORD=vnsearch"
 
-rem Bus crawl: .env ghi `kafka` vì nó viết cho đường compose, nơi
-rem `--profile kafka` dựng sẵn broker. Đường jar KHÔNG dựng gì cả, và một
-rem APP_CRAWLER_BUS=kafka trỏ vào hư không làm KafkaCrawlConfig ném lỗi lúc
-rem nạp bean - giết luôn cả search-service lẫn crawler-service, với dấu vết
-rem duy nhất nằm sâu trong stack trace của một bean tên imageStoreListener.
-rem
-rem Vì vậy chỉ giữ `kafka` khi THẬT SỰ có ai đó lắng nghe ở cổng 9092.
 if /i "%APP_CRAWLER_BUS%"=="kafka" (
     set "KAFKA_UP="
     for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":9092 .*LISTENING"') do set "KAFKA_UP=1"
@@ -307,9 +276,6 @@ call :restore_cp
 endlocal
 exit /b 0
 
-rem ===========================================================================
-rem CHẠY BẰNG DOCKER COMPOSE
-rem ===========================================================================
 :docker_path
 where docker >nul 2>nul
 if errorlevel 1 (
@@ -323,10 +289,6 @@ if errorlevel 1 (
     goto :fail
 )
 
-rem Không còn hồ sơ `full` hay `observability` trong docker-compose.yml: một
-rem lệnh `up` là lên toàn bộ hệ thống, kể cả Prometheus/Grafana/Alertmanager.
-rem Vì thế --core và --full KHÔNG đổi được gì ở đường Docker; chúng chỉ còn ý
-rem nghĩa cho đường chạy jar bên trên.
 if "%MODE%"=="core" (
     echo.
     echo [GHI CHÚ] --docker luôn bật TOÀN BỘ hệ thống. Tham số --core/--full chỉ
@@ -354,13 +316,13 @@ echo   Prometheus      http://localhost:9090
 echo   Alertmanager    http://localhost:9093
 echo   Xem log         docker compose logs -f api-gateway
 echo   Thêm Kafka      docker compose --profile kafka up -d
+echo   Kafka UI        http://localhost:8091   ^(chỉ khi bật hồ sơ kafka^)
 echo   TẮT HẾT         end-backend.bat
 echo.
 call :restore_cp
 endlocal
 exit /b 0
 
-rem ===========================================================================
 :need_jar
 if not exist "%ROOT%backend\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" set "NEED_BUILD=1"
 goto :eof
@@ -373,18 +335,6 @@ echo [LỖI] Cổng %~1 đang bị tiến trình PID %PORT_PID% chiếm.
 set "PORT_BUSY=1"
 goto :eof
 
-rem Mặc định chạy NGẦM và đổ log ra tệp.
-rem
-rem Bản trước mở `cmd /k` cho mỗi service, tức 9 cửa sổ console phủ kín màn
-rem hình - vừa rối lúc demo, vừa dễ tắt nhầm một cái rồi không hiểu vì sao
-rem một service biến mất. Log nằm trong tệp còn đọc lại được sau khi tiến
-rem trình đã chết, điều mà một cửa sổ bị đóng không cho.
-rem
-rem Dùng Start-Process của PowerShell chứ không phải `start /b`: tiến trình
-rem con của `start /b` dùng chung console với tệp .bat này, nên chúng nhận
-rem tín hiệu đóng và chết theo khi cửa sổ gọi script đóng lại.
-rem
-rem Muốn lại 9 cửa sổ như cũ: run-backend.bat --windows
 :launch
 if not exist "services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" (
     echo [LỖI] Chưa có "services\%~1\target\%~1-0.0.1-SNAPSHOT.jar".

@@ -9,12 +9,6 @@ for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
 set "OLD_CP=%OLD_CP: =%"
 chcp 65001 >nul
 
-rem --no-football giữ lại cho quen tay nhưng KHÔNG còn tác dụng gì.
-rem
-rem Bản trước, tab Bóng đá gọi thẳng http://localhost:8090 nên tệp này phải tự
-rem bật football-service. Giờ giao diện đi qua Gateway ở cổng 8080 như mọi
-rem service khác (xem FOOTBALL_API_BASE trong desktop-app/src/renderer/src/lib/
-rem footballApi.ts), nên ở đây chỉ còn đúng một thứ phải sống: api-gateway.
 :parse
 if "%~1"=="" goto :parsed
 if /i "%~1"=="--no-football" (
@@ -84,9 +78,6 @@ if not exist "%ELECTRON_BIN%" (
     goto :fail
 )
 
-rem ===========================================================================
-rem API GATEWAY - cửa duy nhất của backend
-rem ===========================================================================
 set "BE_PID="
 for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":8080 .*LISTENING"') do set "BE_PID=%%p"
 if defined BE_PID (

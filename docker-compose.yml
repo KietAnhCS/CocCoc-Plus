@@ -542,7 +542,13 @@ services:
       KAFKA_CLUSTERS_0_NAME: vnsearch
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
       DYNAMIC_CONFIG_ENABLED: "true"
-    ports: ["8090:8080"]
+    # 8091 chứ KHÔNG phải 8090. Không có xung đột thật — football-service không
+    # có khối `ports` nên 8090 chưa hề bị chiếm trên máy thật — nhưng 8090 là
+    # cổng của football-service BÊN TRONG mạng `vnsearch` (SERVER_PORT: 8090,
+    # và Gateway trỏ FOOTBALL_SERVICE_URL vào đó). Dùng lại đúng con số ấy cho
+    # một thứ hoàn toàn khác là mời gọi người đọc mở http://localhost:8090 rồi
+    # kết luận sai về service nào đang trả lời.
+    ports: ["8091:8080"]
     mem_limit: 256m
     restart: unless-stopped
 

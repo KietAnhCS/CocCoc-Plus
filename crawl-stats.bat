@@ -1,7 +1,6 @@
 @echo off
 setlocal
 
-rem Bật UTF-8 cho console để chữ tiếng Việt của script PowerShell hiện đúng.
 for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
 set "OLD_CP=%OLD_CP: =%"
 chcp 65001 >nul
@@ -14,11 +13,6 @@ if not exist "%PS1%" (
     goto :fail
 )
 
-rem   crawl-stats.bat                      thống kê mọi corpus trong backend\data
-rem   crawl-stats.bat data/thu-nghiem.json chỉ một tệp
-rem   crawl-stats.bat -NoLinks             bỏ qua phần đếm liên kết
-rem   crawl-stats.bat -NoImages            bỏ qua phần thống kê ảnh
-rem   thêm --no-pause để không dừng lại ở cuối, dùng khi gọi từ script khác
 set "ARGS="
 set "NOPAUSE="
 :parse

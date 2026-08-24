@@ -52,9 +52,6 @@ set "RAM_BEFORE="
 for /f "delims=" %%m in ('powershell -NoProfile -Command "[math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1MB,2)"') do set "RAM_BEFORE=%%m"
 if defined RAM_BEFORE echo RAM trống lúc bắt đầu: %RAM_BEFORE% GB
 
-rem ===========================================================================
-rem TIẾN TRÌNH JAR CHẠY TRÊN MÁY THẬT - cổng 8080 đến 8087, và 8090
-rem ===========================================================================
 echo.
 echo Đang dừng các service chạy trực tiếp bằng jar...
 set "KILLED="
@@ -71,9 +68,6 @@ if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-808
 
 if defined LOCAL_ONLY goto :report
 
-rem ===========================================================================
-rem CONTAINER DOCKER
-rem ===========================================================================
 where docker >nul 2>nul
 if errorlevel 1 (
     echo.
@@ -88,8 +82,6 @@ if errorlevel 1 (
     goto :shutdown_desktop
 )
 
-rem docker-compose.yml khai báo ADMIN_API_KEY với cú pháp ${...:?}, tức compose
-rem dừng ngay nếu biến này trống - kể cả với lệnh `down`.
 if defined ADMIN_API_KEY goto :key_ok
 if not exist "%ENV_FILE%" goto :key_placeholder
 for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
@@ -100,10 +92,6 @@ if defined ADMIN_API_KEY goto :key_ok
 set "ADMIN_API_KEY=khoa-tam-chi-de-compose-doc-duoc-tep"
 :key_ok
 
-rem Chỉ còn MỘT hồ sơ tuỳ chọn là `kafka`: mọi thứ khác nằm trong hồ sơ mặc
-rem định nên `down` trần đã dọn hết. Vẫn phải truyền `--profile kafka`, vì
-rem không truyền thì compose không nhìn thấy kafka với kafka-ui và hai
-rem container đó ở lại chạy tiếp.
 set "PROFILES=--profile kafka"
 
 if defined STOP_ONLY (
@@ -212,8 +200,6 @@ call :restore_cp
 endlocal
 exit /b 0
 
-rem ===========================================================================
-rem Dừng tiến trình đang giữ cổng %1. %2 là tên service, chỉ để in ra.
 :kill_port
 set "PORT_PID="
 for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":%~1 .*LISTENING"') do set "PORT_PID=%%p"
@@ -235,7 +221,7 @@ echo           docker rm -f vnsearch-gateway vnsearch-auth vnsearch-search
 echo           docker rm -f vnsearch-crawler vnsearch-analytics vnsearch-history
 echo           docker rm -f vnsearch-downloads vnsearch-settings vnsearch-football
 echo           docker rm -f vnsearch-postgres vnsearch-redis vnsearch-mongo
-echo           docker rm -f vnsearch-kafka vnsearch-kafka-ui
+echo           docker rm -f vnsearch-kafka vnsearch-kafka-ui vnsearch-kafka-exporter
 echo           docker rm -f vnsearch-prometheus vnsearch-grafana vnsearch-alertmanager
 goto :fail
 

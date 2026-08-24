@@ -61,7 +61,7 @@ jobs:
             build-mode: none    # ngôn ngữ thông dịch, không cần biên dịch
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Khởi tạo CodeQL
         uses: github/codeql-action/init@v3

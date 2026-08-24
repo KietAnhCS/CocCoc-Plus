@@ -99,7 +99,7 @@ jobs:
       kho: ${{ steps.kho.outputs.duong-dan }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Đường dẫn kho ảnh, ĐÃ HẠ VỀ CHỮ THƯỜNG.
       #
@@ -299,7 +299,7 @@ jobs:
       packages: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cài crane
         uses: imjasonh/setup-crane@v0.4

@@ -106,7 +106,7 @@ class UserServiceTest {
     // ------------------------------------------------------------------
 
     @Test
-    void dangKyTaoTaiKhoanVaiTroUSER() throws IOException {
+    void registrationCreatesAccountWithUserRole() throws IOException {
         User user = service.register("nguyenvana", "matkhaudaidu");
 
         assertEquals("nguyenvana", user.username());
@@ -124,7 +124,7 @@ class UserServiceTest {
      * vai tro vao {@code register}, bai nay khong bien dich duoc nua.
      */
     @Test
-    void khongCoDuongNaoTuDangKyThanhAdmin() throws IOException {
+    void thereIsNoPathToSelfRegisterAsAdmin() throws IOException {
         User user = service.register("keTanCong", "matkhaudaidu");
 
         assertEquals(Role.USER, user.role());
@@ -135,7 +135,7 @@ class UserServiceTest {
     }
 
     @Test
-    void matKhauKhongBaoGioDuocLuuThoTrongKhoTaiKhoan() throws IOException {
+    void passwordIsNeverStoredInPlaintext() throws IOException {
         service.register("nguyenvana", "matkhauRatBiMat");
 
         String hash = store.find("nguyenvana").orElseThrow().passwordHash();
@@ -148,7 +148,7 @@ class UserServiceTest {
 
     /** Cung mot mat khau, hai nguoi -> hai hash KHAC nhau, nho salt. */
     @Test
-    void hashCuaHaiNguoiCungMatKhauVanKhacNhau() throws IOException {
+    void twoUsersWithTheSamePasswordGetDifferentHashes() throws IOException {
         service.register("nguoi.mot", "cungmotmatkhau");
         service.register("nguoi.hai", "cungmotmatkhau");
 
@@ -158,7 +158,7 @@ class UserServiceTest {
     }
 
     @Test
-    void tenTaiKhoanKhongPhanBietHoaThuong() throws IOException {
+    void usernameIsCaseInsensitive() throws IOException {
         service.register("NguyenVanA", "matkhaudaidu");
 
         assertEquals("nguyenvana", store.findAll().get(0).username());
@@ -167,7 +167,7 @@ class UserServiceTest {
     }
 
     @Test
-    void tuChoiTenTaiKhoanKhongHopLe() {
+    void rejectsInvalidUsername() {
         assertThrows(UserService.AuthException.class, () -> service.register("ab", "matkhaudaidu"));
         assertThrows(UserService.AuthException.class,
                 () -> service.register("co khoang trang", "matkhaudaidu"));
@@ -176,7 +176,7 @@ class UserServiceTest {
     }
 
     @Test
-    void tuChoiMatKhauQuaNganHoacQuaDai() {
+    void rejectsPasswordThatIsTooShortOrTooLong() {
         assertThrows(UserService.AuthException.class, () -> service.register("nguoidung", "ngan"));
         assertThrows(UserService.AuthException.class,
                 () -> service.register("nguoidung", "x".repeat(500)));
@@ -187,7 +187,7 @@ class UserServiceTest {
      * tai trong RAM se bien mat o lan khoi dong sau, va nguoi dung khong hieu vi sao.
      */
     @Test
-    void ghiThatBaiThiDangKyThatBai() {
+    void registrationFailsWhenTheWriteFails() {
         store.failWrites = true;
 
         assertThrows(IOException.class, () -> service.register("nguoidung", "matkhaudaidu"));
@@ -198,7 +198,7 @@ class UserServiceTest {
     // ------------------------------------------------------------------
 
     @Test
-    void dangNhapDungThiTraVeTaiKhoanVaGhiMocThoiGian() throws IOException {
+    void successfulLoginReturnsTheAccountAndRecordsTheTimestamp() throws IOException {
         service.register("nguoidung", "matkhaudaidu");
         clock.advance(Duration.ofHours(1));
 
@@ -216,7 +216,7 @@ class UserServiceTest {
      * khoan: ke tan cong thu mot danh sach ten va biet ten nao co that.
      */
     @Test
-    void saiTenVaSaiMatKhauNoiGiongHetNhau() throws IOException {
+    void wrongUsernameAndWrongPasswordReportIdentically() throws IOException {
         service.register("nguoidung", "matkhaudaidu");
 
         String saiMatKhau = assertThrows(UserService.InvalidCredentialsException.class,
@@ -228,7 +228,7 @@ class UserServiceTest {
     }
 
     @Test
-    void taiKhoanBiVoHieuHoaThiKhongDangNhapDuoc() throws IOException {
+    void disabledAccountCannotLogIn() throws IOException {
         service.register("nguoidung", "matkhaudaidu");
         service.setEnabled("nguoidung", false);
 
@@ -241,7 +241,7 @@ class UserServiceTest {
     // ------------------------------------------------------------------
 
     @Test
-    void khoaTamSauNamLanSai() throws IOException {
+    void locksTemporarilyAfterFiveFailedAttempts() throws IOException {
         service.register("nguoidung", "matkhaudaidu");
 
         for (int i = 0; i < UserService.MAX_FAILED_ATTEMPTS; i++) {
@@ -260,7 +260,7 @@ class UserServiceTest {
      * thanh mot cuoc tan cong tu choi dich vu nham vao nguoi dung that.
      */
     @Test
-    void hetThoiGianKhoaThiDangNhapLaiDuoc() throws IOException {
+    void loginWorksAgainOnceTheLockExpires() throws IOException {
         service.register("nguoidung", "matkhaudaidu");
         for (int i = 0; i < UserService.MAX_FAILED_ATTEMPTS; i++) {
             assertThrows(UserService.InvalidCredentialsException.class,
@@ -273,7 +273,7 @@ class UserServiceTest {
     }
 
     @Test
-    void dangNhapThanhCongXoaBoDemSai() throws IOException {
+    void successfulLoginClearsTheFailureCounter() throws IOException {
         service.register("nguoidung", "matkhaudaidu");
         for (int i = 0; i < UserService.MAX_FAILED_ATTEMPTS - 1; i++) {
             assertThrows(UserService.InvalidCredentialsException.class,
@@ -295,7 +295,7 @@ class UserServiceTest {
     // ------------------------------------------------------------------
 
     @Test
-    void doiMatKhauThiMatKhauCuKhongConDungDuoc() throws IOException {
+    void afterPasswordChangeTheOldPasswordNoLongerWorks() throws IOException {
         service.register("nguoidung", "matkhaucu123");
 
         service.changePassword("nguoidung", "matkhaucu123", "matkhaumoi456");
@@ -314,7 +314,7 @@ class UserServiceTest {
      * ra ngoai — bien mot phien bi lo tam thoi thanh mat tai khoan vinh vien.
      */
     @Test
-    void doiMatKhauPhaiBietMatKhauHienTai() throws IOException {
+    void changingPasswordRequiresTheCurrentPassword() throws IOException {
         service.register("nguoidung", "matkhaucu123");
 
         assertThrows(UserService.InvalidCredentialsException.class,
@@ -325,7 +325,7 @@ class UserServiceTest {
     }
 
     @Test
-    void matKhauMoiVanPhaiQuaLuatDoDai() throws IOException {
+    void newPasswordStillMustPassTheLengthRule() throws IOException {
         service.register("nguoidung", "matkhaucu123");
 
         assertThrows(UserService.AuthException.class,
@@ -333,7 +333,7 @@ class UserServiceTest {
     }
 
     @Test
-    void khongDoiMatKhauThanhChinhNo() throws IOException {
+    void cannotChangePasswordToTheSameOne() throws IOException {
         service.register("nguoidung", "matkhaucu123");
 
         UserService.AuthException e = assertThrows(UserService.AuthException.class,
@@ -344,7 +344,7 @@ class UserServiceTest {
 
     /** Sai mat khau hien tai nhieu lan cung bi khoa tam — neu khong, day la mot may do. */
     @Test
-    void doiMatKhauSaiNhieuLanCungBiKhoaTam() throws IOException {
+    void repeatedWrongPasswordChangesAlsoLockTemporarily() throws IOException {
         service.register("nguoidung", "matkhaucu123");
 
         for (int i = 0; i < UserService.MAX_FAILED_ATTEMPTS; i++) {
@@ -363,7 +363,7 @@ class UserServiceTest {
      * doi. Thong bao phai noi ro dieu do thay vi mot cau "khong tim thay".
      */
     @Test
-    void phienDungKhoaApiKhongDoiDuocMatKhau() {
+    void apiKeySessionCannotChangeThePassword() {
         UserService.AuthException e = assertThrows(UserService.AuthException.class,
                 () -> service.changePassword("admin-api-key", "gi-do", "matkhaumoi456"));
 
@@ -375,7 +375,7 @@ class UserServiceTest {
     // ------------------------------------------------------------------
 
     @Test
-    void doiVaiTroGiuNguyenMatKhau() throws IOException {
+    void changingRoleKeepsThePassword() throws IOException {
         service.register("nguoidung", "matkhaudaidu");
         String hashTruoc = store.find("nguoidung").orElseThrow().passwordHash();
 
@@ -387,14 +387,14 @@ class UserServiceTest {
     }
 
     @Test
-    void doiVaiTroChoTaiKhoanKhongTonTaiThiBao() {
+    void changingRoleOfAMissingAccountReportsAnError() {
         assertThrows(UserService.AuthException.class,
                 () -> service.changeRole("khongtontai", Role.ADMIN));
     }
 
     /** Ban cong khai KHONG duoc mang hash mat khau ra ngoai. */
     @Test
-    void banCongKhaiKhongChuaHash() throws IOException {
+    void publicViewContainsNoHash() throws IOException {
         User.PublicView view = service.register("nguoidung", "matkhaudaidu").toPublic();
 
         assertEquals("nguoidung", view.username());

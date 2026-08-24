@@ -36,7 +36,7 @@ class CorpusStatsTest {
     }
 
     @Test
-    void corpusRongTraVeSoKhongChuKhongPhaiNaN() {
+    void emptyCorpusReturnsZeroNotNaN() {
         CorpusStats stats = CorpusStats.from(List.of(), BODY_CHARS, ZONE);
 
         assertEquals(0, stats.documents());
@@ -48,12 +48,12 @@ class CorpusStatsTest {
     }
 
     @Test
-    void danhSachNullDuocDoiXuNhuCorpusRong() {
+    void treatsNullListAsEmptyCorpus() {
         assertEquals(0, CorpusStats.from(null, BODY_CHARS, ZONE).documents());
     }
 
     @Test
-    void demTrangHostVaLienKet() {
+    void countsPagesHostsAndLinks() {
         CorpusStats stats = CorpusStats.from(List.of(
                 doc("https://vnexpress.net/a", "vi",
                         List.of("https://vnexpress.net/b", "https://tuoitre.vn/x"),
@@ -76,7 +76,7 @@ class CorpusStatsTest {
     }
 
     @Test
-    void phanBoNgonNguSapXepGiamDan() {
+    void languageDistributionIsSortedDescending() {
         CorpusStats stats = CorpusStats.from(List.of(
                 doc("https://a.vn/1", "vi", List.of(), "x", Instant.EPOCH),
                 doc("https://a.vn/2", "vi", List.of(), "x", Instant.EPOCH),
@@ -96,7 +96,7 @@ class CorpusStatsTest {
      * di rat xa trong khi trung vi mo ta dung phan lon corpus.
      */
     @Test
-    void baoCaTrungBinhVaTrungViDoDaiThanBai() {
+    void reportsAverageAndMedianBodyLength() {
         CorpusStats stats = CorpusStats.from(List.of(
                 doc("https://a.vn/1", "vi", List.of(), "x".repeat(10), Instant.EPOCH),
                 doc("https://a.vn/2", "vi", List.of(), "x".repeat(20), Instant.EPOCH),
@@ -107,7 +107,7 @@ class CorpusStatsTest {
     }
 
     @Test
-    void mocThoiGianCuNhatVaMoiNhat() {
+    void tracksOldestAndNewestTimestamps() {
         Instant older = Instant.parse("2026-08-01T00:00:00Z");
         Instant newer = Instant.parse("2026-08-10T00:00:00Z");
 
@@ -120,7 +120,7 @@ class CorpusStatsTest {
     }
 
     @Test
-    void chuoiNgayLienTucVaDuDoDai() {
+    void dailySeriesIsContiguousAndFullLength() {
         CorpusStats stats = CorpusStats.from(List.of(
                 doc("https://a.vn/1", "vi", List.of(), "x", Instant.now())), BODY_CHARS, ZONE);
 
@@ -132,7 +132,7 @@ class CorpusStatsTest {
     }
 
     @Test
-    void trangKhongCoMocThoiGianKhongLamNgaGiCa() {
+    void pageWithoutTimestampBreaksNothing() {
         CorpusStats stats = CorpusStats.from(List.of(
                 doc("https://a.vn/1", "vi", List.of(), "x", null)), BODY_CHARS, ZONE);
 

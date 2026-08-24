@@ -30,12 +30,12 @@ public class HistoryService {
     private static final Logger log = LoggerFactory.getLogger(HistoryService.class);
 
     /** Trần cứng cho mọi truy vấn phân trang, kể cả khi người gọi xin nhiều hơn. */
-    private static final int SIZE_TOI_DA = 200;
+    private static final int MAX_PAGE_SIZE = 200;
 
     /** Trần độ dài một URL được ghi. Dài hơn thì gần như chắc chắn là rác. */
-    private static final int URL_TOI_DA = 2048;
-    private static final int TITLE_TOI_DA = 512;
-    private static final int QUERY_TOI_DA = 200;
+    private static final int MAX_URL_LENGTH = 2048;
+    private static final int MAX_TITLE_LENGTH = 512;
+    private static final int MAX_QUERY_LENGTH = 200;
 
     private final VisitRepository visits;
     private final SearchQueryRepository queries;
@@ -63,7 +63,7 @@ public class HistoryService {
      * hỏi người ta đặt ra với lịch sử là "tôi đã vào trang nào", không phải
      * "tôi vào lúc 9:03 hay 9:07".
      */
-    public VisitDocument ghiLuotGhe(String username, String url, String title, boolean incognito) {
+    public VisitDocument recordVisit(String username, String url, String title, boolean incognito) {
         if (incognito) {
             // Đường này lẽ ra không bao giờ tới đây: chế độ ẩn danh nghĩa là
             // máy khách KHÔNG gửi gì lên. Ghi log ở mức WARN để nếu nó xảy ra
@@ -73,20 +73,20 @@ public class HistoryService {
                     username);
             return null;
         }
-        String urlSach = catNgan(url, URL_TOI_DA);
-        if (urlSach == null || urlSach.isBlank()) {
+        String cleanUrl = truncate(url, MAX_URL_LENGTH);
+        if (cleanUrl == null || cleanUrl.isBlank()) {
             return null;
         }
-        Instant bayGio = clock.instant();
+        Instant now = clock.instant();
 
-        Optional<VisitDocument> daCo = visits.findByUsernameAndUrl(username, urlSach);
-        if (daCo.isPresent()) {
-            VisitDocument cu = daCo.get();
-            return visits.save(new VisitDocument(cu.id(), username, urlSach,
-                    catNgan(title, TITLE_TOI_DA), cu.host(), bayGio, cu.visitCount() + 1, false));
+        Optional<VisitDocument> existing = visits.findByUsernameAndUrl(username, cleanUrl);
+        if (existing.isPresent()) {
+            VisitDocument previous = existing.get();
+            return visits.save(new VisitDocument(previous.id(), username, cleanUrl,
+                    truncate(title, MAX_TITLE_LENGTH), previous.host(), now, previous.visitCount() + 1, false));
         }
-        return visits.save(new VisitDocument(null, username, urlSach,
-                catNgan(title, TITLE_TOI_DA), hostCua(urlSach), bayGio, 1, false));
+        return visits.save(new VisitDocument(null, username, cleanUrl,
+                truncate(title, MAX_TITLE_LENGTH), hostOf(cleanUrl), now, 1, false));
     }
 
     /**
@@ -96,29 +96,29 @@ public class HistoryService {
      * thời điểm, không thêm dòng. Nhờ vậy phần gợi ý luôn hiện những truy vấn
      * <i>khác nhau</i>, thay vì mười bản sao của cùng một chữ.
      */
-    public SearchQueryDocument ghiTruyVan(String username, String query, int resultCount) {
-        String sach = catNgan(query, QUERY_TOI_DA);
-        if (sach == null || sach.isBlank()) {
+    public SearchQueryDocument recordSearch(String username, String query, int resultCount) {
+        String clean = truncate(query, MAX_QUERY_LENGTH);
+        if (clean == null || clean.isBlank()) {
             return null;
         }
-        String chuanHoa = chuanHoa(sach);
-        Instant bayGio = clock.instant();
+        String normalized = normalize(clean);
+        Instant now = clock.instant();
 
-        return queries.findByUsernameAndNormalized(username, chuanHoa)
-                .map(cu -> queries.save(new SearchQueryDocument(cu.id(), username, sach,
-                        chuanHoa, resultCount, bayGio)))
-                .orElseGet(() -> queries.save(new SearchQueryDocument(null, username, sach,
-                        chuanHoa, resultCount, bayGio)));
+        return queries.findByUsernameAndNormalized(username, normalized)
+                .map(previous -> queries.save(new SearchQueryDocument(previous.id(), username, clean,
+                        normalized, resultCount, now)))
+                .orElseGet(() -> queries.save(new SearchQueryDocument(null, username, clean,
+                        normalized, resultCount, now)));
     }
 
     // ------------------------------------------------------------ đọc
 
-    public Page<VisitDocument> lichSu(String username, String tuKhoa,
-                                      Instant from, Instant to, int trang, int soLuong) {
-        Pageable pageable = PageRequest.of(Math.max(trang, 0), gioiHan(soLuong));
+    public Page<VisitDocument> visitHistory(String username, String keyword,
+                                            Instant from, Instant to, int page, int size) {
+        Pageable pageable = PageRequest.of(Math.max(page, 0), clamp(size));
 
-        if (tuKhoa != null && !tuKhoa.isBlank()) {
-            return visits.timTheoTuKhoa(username, thoatRegex(tuKhoa), pageable);
+        if (keyword != null && !keyword.isBlank()) {
+            return visits.searchByKeyword(username, quoteRegex(keyword), pageable);
         }
         if (from != null && to != null) {
             return visits.findByUsernameAndVisitedAtBetweenOrderByVisitedAtDesc(
@@ -136,27 +136,27 @@ public class HistoryService {
      * hàm mũ — <i>ReDoS</i>, và nó làm treo cả tiến trình CSDL chứ không chỉ
      * request đó.
      */
-    public List<SearchQueryDocument> goiY(String username, String tienTo, int soLuong) {
-        if (tienTo == null || tienTo.isBlank()) {
+    public List<SearchQueryDocument> suggest(String username, String prefix, int size) {
+        if (prefix == null || prefix.isBlank()) {
             return List.of();
         }
-        String mau = "^" + thoatRegex(chuanHoa(tienTo));
-        return queries.goiYTheoTienTo(username, mau, PageRequest.of(0, gioiHan(soLuong)));
+        String pattern = "^" + quoteRegex(normalize(prefix));
+        return queries.suggestByPrefix(username, pattern, PageRequest.of(0, clamp(size)));
     }
 
-    public Page<SearchQueryDocument> lichSuTimKiem(String username, int trang, int soLuong) {
+    public Page<SearchQueryDocument> searchHistory(String username, int page, int size) {
         return queries.findByUsernameOrderBySearchedAtDesc(username,
-                PageRequest.of(Math.max(trang, 0), gioiHan(soLuong)));
+                PageRequest.of(Math.max(page, 0), clamp(size)));
     }
 
     // ------------------------------------------------------------ xoá
 
-    public boolean xoaMotLuotGhe(String username, String id) {
-        boolean xoaDuoc = visits.deleteByIdAndUsername(id, username) > 0;
-        if (xoaDuoc) {
+    public boolean deleteVisit(String username, String id) {
+        boolean deleted = visits.deleteByIdAndUsername(id, username) > 0;
+        if (deleted) {
             audit.record(username, "HISTORY_DELETE_ONE", "visits:" + id, "SUCCESS", null);
         }
-        return xoaDuoc;
+        return deleted;
     }
 
     /**
@@ -167,41 +167,41 @@ public class HistoryService {
      * nhánh cho cùng một thao tác xoá là hai chỗ có thể sai, và cái sai ở đây
      * xoá dữ liệu của người dùng.
      */
-    public long xoaTheoKhoang(String username, Instant from, Instant to) {
-        Instant batDau = from == null ? Instant.EPOCH : from;
-        Instant ketThuc = to == null ? clock.instant() : to;
-        long soVisit = visits.deleteByUsernameAndVisitedAtBetween(username, batDau, ketThuc);
-        long soQuery = queries.deleteByUsernameAndSearchedAtBetween(username, batDau, ketThuc);
+    public long deleteRange(String username, Instant from, Instant to) {
+        Instant start = from == null ? Instant.EPOCH : from;
+        Instant end = to == null ? clock.instant() : to;
+        long visitCount = visits.deleteByUsernameAndVisitedAtBetween(username, start, end);
+        long queryCount = queries.deleteByUsernameAndSearchedAtBetween(username, start, end);
 
         // Ghi lại MỌI lần xoá hàng loạt. Đây là dữ liệu cá nhân bị huỷ vĩnh
         // viễn: khi người dùng hỏi "vì sao lịch sử của tôi biến mất", dòng log
         // này là câu trả lời duy nhất.
         log.info("Xoá lịch sử của {}: {} lượt ghé, {} truy vấn, trong khoảng {} .. {}",
-                username, soVisit, soQuery, batDau, ketThuc);
+                username, visitCount, queryCount, start, end);
         audit.record(username, "HISTORY_DELETE_RANGE", "visits+searches:" + username, "SUCCESS",
-                "deleted=" + (soVisit + soQuery));
-        return soVisit + soQuery;
+                "deleted=" + (visitCount + queryCount));
+        return visitCount + queryCount;
     }
 
-    public long demLuotGhe(String username) {
+    public long countVisits(String username) {
         return visits.countByUsername(username);
     }
 
     // ------------------------------------------------------------ tiện ích
 
-    private static int gioiHan(int soLuong) {
-        return Math.min(Math.max(soLuong, 1), SIZE_TOI_DA);
+    private static int clamp(int size) {
+        return Math.min(Math.max(size, 1), MAX_PAGE_SIZE);
     }
 
-    private static String catNgan(String value, int toiDa) {
+    private static String truncate(String value, int max) {
         if (value == null) {
             return null;
         }
         String trimmed = value.trim();
-        return trimmed.length() <= toiDa ? trimmed : trimmed.substring(0, toiDa);
+        return trimmed.length() <= max ? trimmed : trimmed.substring(0, max);
     }
 
-    private static String chuanHoa(String value) {
+    private static String normalize(String value) {
         return value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 
@@ -213,11 +213,11 @@ public class HistoryService {
      * đó. Đây là ranh giới giữa "tìm chữ (a+)+" và "chạy một biểu thức có độ
      * phức tạp hàm mũ trên máy chủ CSDL".
      */
-    private static String thoatRegex(String value) {
+    private static String quoteRegex(String value) {
         return Pattern.quote(value);
     }
 
-    private static String hostCua(String url) {
+    private static String hostOf(String url) {
         try {
             String host = new URI(url).getHost();
             return host == null ? "" : host.replaceFirst("^www\\.", "");

@@ -36,7 +36,7 @@ public class SettingsRepository {
     public record Snapshot(String json, long version, Instant updatedAt) {
     }
 
-    public Optional<Snapshot> doc(String username) {
+    public Optional<Snapshot> read(String username) {
         return jdbc.sql("""
                         SELECT settings::text AS settings, version, updated_at
                           FROM user_settings
@@ -69,8 +69,8 @@ public class SettingsRepository {
      * khác đã ghi trước — máy khách phải đọc lại và gộp, chứ không được ghi đè.
      */
     @Transactional
-    public Optional<Snapshot> gop(String username, String jsonMoi, Long expectedVersion) {
-        int soDong = jdbc.sql("""
+    public Optional<Snapshot> merge(String username, String newJson, Long expectedVersion) {
+        int rows = jdbc.sql("""
                         INSERT INTO user_settings (username, settings, version)
                         VALUES (:username, :settings::jsonb, 1)
                         ON CONFLICT (username) DO UPDATE SET
@@ -81,26 +81,26 @@ public class SettingsRepository {
                             OR user_settings.version = :expectedVersion::bigint
                         """)
                 .param("username", username)
-                .param("settings", jsonMoi)
+                .param("settings", newJson)
                 .param("expectedVersion", expectedVersion)
                 .update();
 
         // 0 dòng: hoặc xung đột phiên bản, hoặc (không thể xảy ra) mất dòng.
         // Trả rỗng để tầng trên dịch thành 409, thay vì báo thành công cho một
         // phép ghi chưa xảy ra.
-        return soDong == 0 ? Optional.empty() : doc(username);
+        return rows == 0 ? Optional.empty() : read(username);
     }
 
     /**
      * THAY THẾ toàn bộ khối (ngữ nghĩa PUT).
      *
-     * <p>Khác {@link #gop}: mọi khoá không có trong {@code jsonMoi} đều biến
+     * <p>Khác {@link #merge}: mọi khoá không có trong {@code newJson} đều biến
      * mất. Dùng cho nút "Khôi phục cài đặt gốc" và cho lần đồng bộ đầu tiên
      * của một thiết bị mới.
      */
     @Transactional
-    public Optional<Snapshot> thayThe(String username, String jsonMoi, Long expectedVersion) {
-        int soDong = jdbc.sql("""
+    public Optional<Snapshot> replace(String username, String newJson, Long expectedVersion) {
+        int rows = jdbc.sql("""
                         INSERT INTO user_settings (username, settings, version)
                         VALUES (:username, :settings::jsonb, 1)
                         ON CONFLICT (username) DO UPDATE SET
@@ -111,10 +111,10 @@ public class SettingsRepository {
                             OR user_settings.version = :expectedVersion::bigint
                         """)
                 .param("username", username)
-                .param("settings", jsonMoi)
+                .param("settings", newJson)
                 .param("expectedVersion", expectedVersion)
                 .update();
-        return soDong == 0 ? Optional.empty() : doc(username);
+        return rows == 0 ? Optional.empty() : read(username);
     }
 
     /**
@@ -125,7 +125,7 @@ public class SettingsRepository {
      * {@code '; DROP TABLE} chỉ là một tên khoá không tồn tại.
      */
     @Transactional
-    public Optional<Snapshot> xoaKhoa(String username, String khoa) {
+    public Optional<Snapshot> deleteKey(String username, String khoa) {
         jdbc.sql("""
                         UPDATE user_settings
                            SET settings   = settings - :khoa,
@@ -136,11 +136,11 @@ public class SettingsRepository {
                 .param("username", username)
                 .param("khoa", khoa)
                 .update();
-        return doc(username);
+        return read(username);
     }
 
     @Transactional
-    public void xoaHet(String username) {
+    public void deleteAll(String username) {
         jdbc.sql("DELETE FROM user_settings WHERE username = :username")
                 .param("username", username)
                 .update();

@@ -74,71 +74,71 @@ public class DownloadController {
     }
 
     @PostMapping
-    public ResponseEntity<DownloadRecord.PublicView> batDau(
+    public ResponseEntity<DownloadRecord.PublicView> start(
             @Valid @RequestBody BatDauRequest request,
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
 
-        DownloadRecord record = downloads.batDau(CallerIdentity.required(),
+        DownloadRecord record = downloads.start(CallerIdentity.required(),
                 UUID.fromString(request.id()), request.sourceUrl(), request.fileName(),
                 request.mimeType(), request.totalBytes(), request.localPath(), deviceId);
         return ResponseEntity.status(HttpStatus.CREATED).body(record.toPublic(deviceId));
     }
 
     @PatchMapping("/{id}")
-    public ResponseEntity<DownloadRecord.PublicView> capNhat(
+    public ResponseEntity<DownloadRecord.PublicView> update(
             @PathVariable String id,
             @RequestBody CapNhatRequest request,
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
 
-        return downloads.capNhat(CallerIdentity.required(), UUID.fromString(id),
+        return downloads.update(CallerIdentity.required(), UUID.fromString(id),
                         request.receivedBytes(), request.state(), request.localPath())
                 .map(record -> ResponseEntity.ok(record.toPublic(deviceId)))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @GetMapping
-    public List<DownloadRecord.PublicView> danhSach(
+    public List<DownloadRecord.PublicView> list(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "50") int size,
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
-        return downloads.danhSach(CallerIdentity.required(), page, size).stream()
+        return downloads.list(CallerIdentity.required(), page, size).stream()
                 .map(record -> record.toPublic(deviceId))
                 .toList();
     }
 
     /** Những lượt còn đang tải — giao diện hỏi riêng để vẽ thanh tiến độ. */
     @GetMapping("/active")
-    public List<DownloadRecord.PublicView> dangChay(
+    public List<DownloadRecord.PublicView> listActive(
             @RequestHeader(value = "X-Device-Id", required = false) String deviceId) {
-        return downloads.dangChay(CallerIdentity.required()).stream()
+        return downloads.listActive(CallerIdentity.required()).stream()
                 .map(record -> record.toPublic(deviceId))
                 .toList();
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> xoa(@PathVariable String id) {
+    public ResponseEntity<Void> delete(@PathVariable String id) {
         String username = CallerIdentity.required();
-        boolean xoaDuoc = downloads.xoa(username, UUID.fromString(id));
-        if (xoaDuoc) {
+        boolean deleted = downloads.delete(username, UUID.fromString(id));
+        if (deleted) {
             audit.record(username, "DOWNLOAD_DELETE", "downloads:" + id, "SUCCESS", null);
         }
-        return xoaDuoc
+        return deleted
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
     }
 
-    /** Xoá sổ tải xuống. Chỉ xoá mục ĐÃ KẾT THÚC — xem {@code DownloadRepository.xoaHet}. */
+    /** Xoá sổ tải xuống. Chỉ xoá mục ĐÃ KẾT THÚC — xem {@code DownloadRepository.deleteFinished}. */
     @DeleteMapping
-    public Map<String, Object> xoaHet() {
+    public Map<String, Object> deleteFinished() {
         String username = CallerIdentity.required();
-        int soDong = downloads.xoaHet(username);
+        int soDong = downloads.deleteFinished(username);
         audit.record(username, "DOWNLOAD_DELETE_ALL", null, "SUCCESS", "deleted=" + soDong);
         return Map.of("deleted", soDong);
     }
 
     @GetMapping("/summary")
-    public Map<String, Object> tomTat() {
-        return Map.of("total", downloads.dem(CallerIdentity.required()));
+    public Map<String, Object> summary() {
+        return Map.of("total", downloads.count(CallerIdentity.required()));
     }
 
     /**
@@ -150,7 +150,7 @@ public class DownloadController {
      * qua gói tin đến trễ thay vì thử lại mãi.
      */
     @ExceptionHandler(DownloadService.ChuyenTrangThaiKhongHopLe.class)
-    public ResponseEntity<ProblemDetail> chuyenTrangThaiSai(
+    public ResponseEntity<ProblemDetail> invalidTransition(
             DownloadService.ChuyenTrangThaiKhongHopLe e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.CONFLICT, e.getMessage(), null);
     }
@@ -163,7 +163,7 @@ public class DownloadController {
      * hỏng, trong khi thực tế người gọi vừa gửi một chuỗi không hợp lệ.
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<ProblemDetail> idKhongHopLe(IllegalArgumentException e) {
+    public ResponseEntity<ProblemDetail> invalidId(IllegalArgumentException e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.BAD_REQUEST,
                 "Mã tải xuống không hợp lệ (phải là UUID).", null);
     }

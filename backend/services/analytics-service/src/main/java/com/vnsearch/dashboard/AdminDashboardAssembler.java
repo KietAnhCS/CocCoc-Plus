@@ -60,11 +60,11 @@ public class AdminDashboardAssembler {
     private static final Logger log = LoggerFactory.getLogger(AdminDashboardAssembler.class);
 
     /** Giá trị trả về khi không lấy được khối chỉ mục. */
-    private static final AdminDashboard.IndexStats INDEX_KHONG_RO =
+    private static final AdminDashboard.IndexStats INDEX_UNKNOWN =
             new AdminDashboard.IndexStats(0, 0, 0L, 0.0, "khong-ro", 0L);
 
     /** Giá trị trả về khi không lấy được khối tài khoản. */
-    private static final AdminDashboard.AccountStats ACCOUNTS_KHONG_RO =
+    private static final AdminDashboard.AccountStats ACCOUNTS_UNKNOWN =
             new AdminDashboard.AccountStats(0, 0, 0, 0);
 
     private final UsageAnalyticsService analytics;
@@ -90,10 +90,10 @@ public class AdminDashboardAssembler {
         return new AdminDashboard(
                 Instant.now(),
                 analytics.snapshot(top),
-                layAnToan("corpus", null, () -> corpusStats(callerAuthHeader)),
-                layAnToan("chỉ mục", INDEX_KHONG_RO,
+                safeFetch("corpus", null, () -> corpusStats(callerAuthHeader)),
+                safeFetch("chỉ mục", INDEX_UNKNOWN,
                         () -> indexStats(callerAuthHeader)),
-                layAnToan("tài khoản", ACCOUNTS_KHONG_RO,
+                safeFetch("tài khoản", ACCOUNTS_UNKNOWN,
                         () -> accountStats(callerAuthHeader)));
     }
 
@@ -106,23 +106,23 @@ public class AdminDashboardAssembler {
      * hạn, JSON đổi hình dạng — đều dẫn tới cùng một quyết định ở đây: hiện
      * khối trống. Liệt kê kiểu ngoại lệ chỉ tạo ra một danh sách sẽ thiếu.
      */
-    private <T> T layAnToan(String ten, T mangDuPhong, Supplier<T> nguon) {
+    private <T> T safeFetch(String name, T fallback, Supplier<T> source) {
         try {
-            return nguon.get();
+            return source.get();
         } catch (Exception e) {
-            log.warn("Không lấy được khối '{}' cho bảng điều khiển: {}", ten, e.toString());
-            return mangDuPhong;
+            log.warn("Không lấy được khối '{}' cho bảng điều khiển: {}", name, e.toString());
+            return fallback;
         }
     }
 
     private AdminDashboard.IndexStats indexStats(String authHeader) {
         Map<String, Object> body = crawlerClient.get()
                 .uri("/api/admin/stats")
-                .headers(headers -> chuyenTiepDanhTinh(headers, authHeader))
+                .headers(headers -> forwardIdentity(headers, authHeader))
                 .retrieve()
                 .body(Map.class);
         if (body == null) {
-            return INDEX_KHONG_RO;
+            return INDEX_UNKNOWN;
         }
         return new AdminDashboard.IndexStats(
                 // Tên khoá phải khớp CHÍNH XÁC với những gì
@@ -131,18 +131,18 @@ public class AdminDashboardAssembler {
                 // khiển, và không ai biết đó là "không có tài liệu" hay "gọi
                 // sai khoá". Đây là cái giá của hợp đồng bằng Map thay vì bằng
                 // một kiểu có tên.
-                soNguyen(body.get("totalDocuments")),
-                soNguyen(body.get("totalTerms")),
-                soDai(body.get("indexSizeBytes")),
-                soThuc(body.get("cacheHitRate")),
+                toInt(body.get("totalDocuments")),
+                toInt(body.get("totalTerms")),
+                toLong(body.get("indexSizeBytes")),
+                toDouble(body.get("cacheHitRate")),
                 body.get("scorer") == null ? "khong-ro" : body.get("scorer").toString(),
-                soDai(body.get("bloomFilterBits")));
+                toLong(body.get("bloomFilterBits")));
     }
 
     private CorpusStats corpusStats(String authHeader) {
         return crawlerClient.get()
                 .uri("/api/admin/corpus-stats")
-                .headers(headers -> chuyenTiepDanhTinh(headers, authHeader))
+                .headers(headers -> forwardIdentity(headers, authHeader))
                 .retrieve()
                 .body(CorpusStats.class);
     }
@@ -150,20 +150,20 @@ public class AdminDashboardAssembler {
     private AdminDashboard.AccountStats accountStats(String authHeader) {
         Map<String, Object> body = authClient.get()
                 .uri("/api/admin/users/stats")
-                .headers(headers -> chuyenTiepDanhTinh(headers, authHeader))
+                .headers(headers -> forwardIdentity(headers, authHeader))
                 .retrieve()
                 .body(Map.class);
         if (body == null) {
-            return ACCOUNTS_KHONG_RO;
+            return ACCOUNTS_UNKNOWN;
         }
         return new AdminDashboard.AccountStats(
-                soNguyen(body.get("total")),
-                soNguyen(body.get("admins")),
-                soNguyen(body.get("disabled")),
-                soNguyen(body.get("activeSessions")));
+                toInt(body.get("total")),
+                toInt(body.get("admins")),
+                toInt(body.get("disabled")),
+                toInt(body.get("activeSessions")));
     }
 
-    private static void chuyenTiepDanhTinh(HttpHeaders headers, String authHeader) {
+    private static void forwardIdentity(HttpHeaders headers, String authHeader) {
         if (authHeader != null && !authHeader.isBlank()) {
             headers.set(HttpHeaders.AUTHORIZATION, authHeader);
         }
@@ -174,15 +174,15 @@ public class AdminDashboardAssembler {
     // thập phân — nên ép thẳng sang một kiểu cụ thể sẽ ném ClassCastException
     // đúng vào ngày corpus đủ lớn để một con số vượt Integer.MAX_VALUE.
 
-    private static int soNguyen(Object value) {
+    private static int toInt(Object value) {
         return value instanceof Number number ? number.intValue() : 0;
     }
 
-    private static long soDai(Object value) {
+    private static long toLong(Object value) {
         return value instanceof Number number ? number.longValue() : 0L;
     }
 
-    private static double soThuc(Object value) {
+    private static double toDouble(Object value) {
         return value instanceof Number number ? number.doubleValue() : 0.0;
     }
 }

@@ -1,5 +1,5 @@
 import { useEffect, type JSX } from 'react'
-import { useDownloadStore, doDoc, conLai, type MucTaiXuong } from '../store/downloadStore'
+import { useDownloadStore, formatBytes, timeRemaining, type MucTaiXuong } from '../store/downloadStore'
 import { useSessionStore } from '../store/sessionStore'
 import { hostOf } from '../lib/site'
 import { CloseIcon, DownloadIcon } from './icons'
@@ -68,7 +68,7 @@ function DownloadsPanel(): JSX.Element {
 
       <ul>
         {items.map((item) => (
-          <DongTaiXuong key={item.id} item={item} />
+          <DownloadRow key={item.id} item={item} />
         ))}
       </ul>
 
@@ -86,7 +86,7 @@ function DownloadsPanel(): JSX.Element {
   )
 }
 
-function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
+function DownloadRow({ item }: { item: MucTaiXuong }): JSX.Element {
   const tamDung = useDownloadStore((s) => s.tamDung)
   const tiepTuc = useDownloadStore((s) => s.tiepTuc)
   const huy = useDownloadStore((s) => s.huy)
@@ -143,13 +143,13 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
                 />
               </div>
               <p className="mt-1 text-[11px] text-faint">
-                {doDoc(item.receivedBytes)}
-                {item.totalBytes !== null && ` / ${doDoc(item.totalBytes)}`}
+                {formatBytes(item.receivedBytes)}
+                {item.totalBytes !== null && ` / ${formatBytes(item.totalBytes)}`}
                 {item.state === 'PAUSED' && ' — đã tạm dừng'}
                 {item.speedBytesPerSecond !== null &&
                   item.state === 'IN_PROGRESS' &&
-                  ` — ${doDoc(item.speedBytesPerSecond)}/giây`}
-                {conLai(item) && ` — còn ${conLai(item)}`}
+                  ` — ${formatBytes(item.speedBytesPerSecond)}/giây`}
+                {timeRemaining(item) && ` — còn ${timeRemaining(item)}`}
               </p>
             </>
           )}
@@ -158,7 +158,7 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
             <p className="mt-1 text-[11px] text-faint">
               {item.state === 'COMPLETED' && (
                 <>
-                  {doDoc(item.receivedBytes)}
+                  {formatBytes(item.receivedBytes)}
                   {!item.onThisDevice && ' — đã tải trên máy khác'}
                 </>
               )}
@@ -169,21 +169,21 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
 
           <div className="mt-1.5 flex flex-wrap gap-2 text-[12px]">
             {item.state === 'IN_PROGRESS' && (
-              <NutNho onClick={() => tamDung(item.id)}>Tạm dừng</NutNho>
+              <SmallButton onClick={() => tamDung(item.id)}>Tạm dừng</SmallButton>
             )}
-            {item.state === 'PAUSED' && <NutNho onClick={() => tiepTuc(item.id)}>Tiếp tục</NutNho>}
-            {dangChay && <NutNho onClick={() => huy(item.id)}>Huỷ</NutNho>}
+            {item.state === 'PAUSED' && <SmallButton onClick={() => tiepTuc(item.id)}>Tiếp tục</SmallButton>}
+            {dangChay && <SmallButton onClick={() => huy(item.id)}>Huỷ</SmallButton>}
 
             {/* Chỉ hiện "Mở tệp" khi tệp THẬT SỰ nằm trên máy này. Một nút mở
                 một tệp không tồn tại là nút chỉ biết báo lỗi. */}
             {item.state === 'COMPLETED' && item.onThisDevice && (
               <>
-                <NutNho onClick={() => void moTep(item.id)}>Mở tệp</NutNho>
-                <NutNho onClick={() => moThuMuc(item.id)}>Mở thư mục</NutNho>
+                <SmallButton onClick={() => void moTep(item.id)}>Mở tệp</SmallButton>
+                <SmallButton onClick={() => moThuMuc(item.id)}>Mở thư mục</SmallButton>
               </>
             )}
             {item.state === 'INTERRUPTED' && (
-              <NutNho onClick={() => tiepTuc(item.id)}>Thử lại</NutNho>
+              <SmallButton onClick={() => tiepTuc(item.id)}>Thử lại</SmallButton>
             )}
           </div>
         </div>
@@ -205,7 +205,7 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
   )
 }
 
-function NutNho({
+function SmallButton({
   onClick,
   children
 }: {

@@ -68,7 +68,7 @@ interface SettingsState {
   resetToDefaults: () => Promise<void>
 }
 
-function docCucBo(): TuyChon {
+function readLocal(): TuyChon {
   try {
     const raw = window.localStorage.getItem(KHOA_CUC_BO)
     if (!raw) {
@@ -83,7 +83,7 @@ function docCucBo(): TuyChon {
   }
 }
 
-function ghiCucBo(tuyChon: TuyChon): void {
+function writeLocal(tuyChon: TuyChon): void {
   try {
     window.localStorage.setItem(KHOA_CUC_BO, JSON.stringify(tuyChon))
   } catch {
@@ -92,7 +92,7 @@ function ghiCucBo(tuyChon: TuyChon): void {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  tuyChon: docCucBo(),
+  tuyChon: readLocal(),
   version: 0,
   dangDongBo: false,
   chiCucBo: false,
@@ -105,7 +105,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       // Máy chủ là nguồn sự thật, nhưng vẫn gộp lên MẶC ĐỊNH: khối trên máy
       // chủ có thể thiếu những khoá mới thêm ở phiên bản ứng dụng này.
       const tuyChon = { ...MAC_DINH, ...(khoi.settings as Partial<TuyChon>) }
-      ghiCucBo(tuyChon)
+      writeLocal(tuyChon)
       set({ tuyChon, version: khoi.version, dangDongBo: false, chiCucBo: false })
     } catch (error) {
       if (error instanceof NotAuthenticated) {
@@ -124,7 +124,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // Áp NGAY, không chờ máy chủ. Một ô chuyển chủ đề mà phải đợi một lượt gọi
     // mạng mới đổi màu là một ô chuyển trông như bị hỏng.
     const tuyChon = { ...get().tuyChon, [khoa]: giaTri }
-    ghiCucBo(tuyChon)
+    writeLocal(tuyChon)
     set({ tuyChon })
 
     try {
@@ -150,7 +150,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   resetToDefaults: async () => {
-    ghiCucBo(MAC_DINH)
+    writeLocal(MAC_DINH)
     set({ tuyChon: MAC_DINH, version: 0 })
     try {
       await settingsApi.resetToDefaults()

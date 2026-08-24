@@ -3,7 +3,7 @@ import { useSidePanelStore, type RailItem } from '../store/sidePanelStore'
 import { useFootballAppStore } from '../store/footballAppStore'
 import { useThemeStore } from '../store/themeStore'
 import { useAdminCredential, useAdminStore } from '../store/adminStore'
-import { NutTaiXuong } from './DownloadIndicator'
+import { DownloadButton } from './DownloadIndicator'
 import { findApp } from '../lib/apps'
 import AppTile from './AppTile'
 import { siteGradient, siteInitial, hostOf } from '../lib/site'
@@ -128,15 +128,15 @@ function SideRail(): JSX.Element {
         <button className="rail-btn" aria-label="Dịch trang" title="Dịch trang này">
           <TranslateIcon className="h-[18px] w-[18px]" />
         </button>
-        <NutTaiXuong
-          lopNut="rail-btn"
-          nhan="Nhật ký và tải xuống"
-          moTa="Nhật ký và tải xuống"
+        <DownloadButton
+          buttonClass="rail-btn"
+          label="Nhật ký và tải xuống"
+          description="Nhật ký và tải xuống"
           active={open === 'downloads'}
           onClick={() => togglePanel('downloads')}
         >
           <ClockIcon className="h-[18px] w-[18px]" />
-        </NutTaiXuong>
+        </DownloadButton>
         <button
           onClick={toggleTheme}
           className="rail-btn"

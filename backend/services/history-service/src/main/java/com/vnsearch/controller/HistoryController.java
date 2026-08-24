@@ -79,12 +79,12 @@ public class HistoryController {
     // ------------------------------------------------------------ lượt ghé
 
     @PostMapping("/visits")
-    public ResponseEntity<VisitDocument> ghiLuotGhe(@Valid @RequestBody VisitRequest request) {
-        VisitDocument ghiDuoc = history.ghiLuotGhe(
+    public ResponseEntity<VisitDocument> recordVisit(@Valid @RequestBody VisitRequest request) {
+        VisitDocument saved = history.recordVisit(
                 CallerIdentity.required(), request.url(), request.title(), false);
-        return ghiDuoc == null
+        return saved == null
                 ? ResponseEntity.noContent().build()
-                : ResponseEntity.status(HttpStatus.CREATED).body(ghiDuoc);
+                : ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     /**
@@ -95,13 +95,13 @@ public class HistoryController {
      * @param to   mốc cuối (ISO-8601)
      */
     @GetMapping("/visits")
-    public Page<VisitDocument> lichSu(
+    public Page<VisitDocument> visitHistory(
             @RequestParam(value = "q", required = false) String q,
             @RequestParam(value = "from", required = false) Instant from,
             @RequestParam(value = "to", required = false) Instant to,
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "50") int size) {
-        return history.lichSu(CallerIdentity.required(), q, from, to, page, size);
+        return history.visitHistory(CallerIdentity.required(), q, from, to, page, size);
     }
 
     /**
@@ -113,8 +113,8 @@ public class HistoryController {
      * gọi biết là để lộ rằng một id nào đó có thật.
      */
     @DeleteMapping("/visits/{id}")
-    public ResponseEntity<Void> xoaMotMuc(@PathVariable String id) {
-        return history.xoaMotLuotGhe(CallerIdentity.required(), id)
+    public ResponseEntity<Void> deleteVisit(@PathVariable String id) {
+        return history.deleteVisit(CallerIdentity.required(), id)
                 ? ResponseEntity.noContent().build()
                 : ResponseEntity.notFound().build();
     }
@@ -128,29 +128,29 @@ public class HistoryController {
      * lần gọi đều được ghi log ở {@code HistoryService}.
      */
     @DeleteMapping("/visits")
-    public Map<String, Object> xoaTheoKhoang(
+    public Map<String, Object> deleteRange(
             @RequestParam(value = "from", required = false) Instant from,
             @RequestParam(value = "to", required = false) Instant to) {
-        return Map.of("deleted", history.xoaTheoKhoang(CallerIdentity.required(), from, to));
+        return Map.of("deleted", history.deleteRange(CallerIdentity.required(), from, to));
     }
 
     // ------------------------------------------------------- lịch sử tìm kiếm
 
     @PostMapping("/searches")
-    public ResponseEntity<SearchQueryDocument> ghiTruyVan(
+    public ResponseEntity<SearchQueryDocument> recordSearch(
             @Valid @RequestBody SearchRequest request) {
-        SearchQueryDocument ghiDuoc = history.ghiTruyVan(
+        SearchQueryDocument saved = history.recordSearch(
                 CallerIdentity.required(), request.query(), request.resultCount());
-        return ghiDuoc == null
+        return saved == null
                 ? ResponseEntity.noContent().build()
-                : ResponseEntity.status(HttpStatus.CREATED).body(ghiDuoc);
+                : ResponseEntity.status(HttpStatus.CREATED).body(saved);
     }
 
     @GetMapping("/searches")
-    public Page<SearchQueryDocument> lichSuTimKiem(
+    public Page<SearchQueryDocument> searchHistory(
             @RequestParam(value = "page", defaultValue = "0") int page,
             @RequestParam(value = "size", defaultValue = "50") int size) {
-        return history.lichSuTimKiem(CallerIdentity.required(), page, size);
+        return history.searchHistory(CallerIdentity.required(), page, size);
     }
 
     /**
@@ -162,15 +162,15 @@ public class HistoryController {
      * người dùng đứng trước — thứ họ đã tìm gần như luôn đúng ý hơn.
      */
     @GetMapping("/searches/suggest")
-    public List<SearchQueryDocument> goiY(
+    public List<SearchQueryDocument> suggest(
             @RequestParam("prefix") String prefix,
             @RequestParam(value = "limit", defaultValue = "8") int limit) {
-        return history.goiY(CallerIdentity.required(), prefix, limit);
+        return history.suggest(CallerIdentity.required(), prefix, limit);
     }
 
     /** Số mục đang có — giao diện hiện "Xoá 1.234 mục?" trước khi xác nhận. */
     @GetMapping("/summary")
-    public Map<String, Object> tomTat() {
-        return Map.of("visits", history.demLuotGhe(CallerIdentity.required()));
+    public Map<String, Object> summary() {
+        return Map.of("visits", history.countVisits(CallerIdentity.required()));
     }
 }

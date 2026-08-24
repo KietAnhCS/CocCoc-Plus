@@ -28,14 +28,14 @@ class LiveFootballClientTest {
     }
 
     @Test
-    void maCoLucLaSoCoLucLaChuoi() throws Exception {
+    void idIsSometimesANumberAndSometimesAString() throws Exception {
         assertThat(LiveFootballClient.flexId(json("5225838"))).isEqualTo("5225838");
         assertThat(LiveFootballClient.flexId(json("\"4813374\""))).isEqualTo("4813374");
         assertThat(LiveFootballClient.flexId(json("null"))).isEmpty();
     }
 
     @Test
-    void tranChuaDaThiKhongCoTiSoChuKhongPhaiKhongDeu() throws Exception {
+    void notYetPlayedMatchHasNoScoreRatherThanZeroZero() throws Exception {
         Match match = client.toMatch(json("""
                 {
                   "id": 1, "leagueId": 47, "tournamentStage": "3",
@@ -57,7 +57,7 @@ class LiveFootballClientTest {
     }
 
     @Test
-    void dongHoTranDauChanOChinMuoiPhut() throws Exception {
+    void matchClockIsCappedAtNinetyMinutes() throws Exception {
         String raw = """
                 {
                   "id": 2, "leagueId": 47,
@@ -68,18 +68,18 @@ class LiveFootballClientTest {
                 }
                 """;
 
-        Match sauMotTieng = client.toMatch(json(raw), PREMIER_LEAGUE,
+        Match afterOneHour = client.toMatch(json(raw), PREMIER_LEAGUE,
                 Instant.parse("2026-08-24T11:00:00Z"));
-        Match sauBaTieng = client.toMatch(json(raw), PREMIER_LEAGUE,
+        Match afterThreeHours = client.toMatch(json(raw), PREMIER_LEAGUE,
                 Instant.parse("2026-08-24T13:00:00Z"));
 
-        assertThat(sauMotTieng.status()).isEqualTo(MatchStatus.LIVE);
-        assertThat(sauMotTieng.elapsed()).isEqualTo(60);
-        assertThat(sauBaTieng.elapsed()).isEqualTo(90);
+        assertThat(afterOneHour.status()).isEqualTo(MatchStatus.LIVE);
+        assertThat(afterOneHour.elapsed()).isEqualTo(60);
+        assertThat(afterThreeHours.elapsed()).isEqualTo(90);
     }
 
     @Test
-    void tranKetThucGiuNguyenTiSo() throws Exception {
+    void finishedMatchKeepsTheFinalScore() throws Exception {
         Match match = client.toMatch(json("""
                 {
                   "id": 3, "leagueId": 47,
@@ -96,7 +96,7 @@ class LiveFootballClientTest {
     }
 
     @Test
-    void anhHuyHieuSuyRaTuMaDoi() {
+    void badgeImageIsDerivedFromTheTeamId() {
         assertThat(LiveFootballClient.teamLogo("8456")).endsWith("teamlogo/8456.png");
         assertThat(LiveFootballClient.teamLogo("")).isEmpty();
         assertThat(LiveFootballClient.leagueLogo("47")).endsWith("leaguelogo/47.png");

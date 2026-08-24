@@ -33,12 +33,12 @@ public enum DownloadState {
     INTERRUPTED;
 
     /** Da ket thuc chua — quyet dinh viec co bat buoc {@code finished_at} hay khong. */
-    public boolean daKetThuc() {
+    public boolean isTerminal() {
         return this == COMPLETED || this == CANCELLED || this == INTERRUPTED;
     }
 
     /**
-     * Chuyen tu trang thai nay sang {@code moi} co hop le khong.
+     * Chuyen tu trang thai nay sang {@code next} co hop le khong.
      *
      * <p><b>Vi sao can luat nay o tang Java du CSDL da co rang buoc.</b> Rang
      * buoc CHECK chan duoc mot trang thai KHONG TON TAI, nhung khong chan duoc
@@ -49,15 +49,15 @@ public enum DownloadState {
      * <p>Khong co phep kiem nay, mot tep da tai xong se hien lai thanh "dang
      * tai 87%" va nam do vinh vien.
      */
-    public boolean chuyenDuocSang(DownloadState moi) {
-        if (this == moi) {
+    public boolean canTransitionTo(DownloadState next) {
+        if (this == next) {
             return true;
         }
         return switch (this) {
             case IN_PROGRESS -> true;                   // sang bat ky trang thai nao
-            case PAUSED -> moi != COMPLETED;            // phai tiep tuc truoc khi xong
+            case PAUSED -> next != COMPLETED;           // phai tiep tuc truoc khi xong
             case COMPLETED, CANCELLED -> false;         // trang thai cuoi
-            case INTERRUPTED -> moi == IN_PROGRESS;     // chi duoc thu lai
+            case INTERRUPTED -> next == IN_PROGRESS;    // chi duoc thu lai
         };
     }
 }

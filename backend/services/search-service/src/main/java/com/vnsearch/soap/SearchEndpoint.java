@@ -38,68 +38,68 @@ import org.springframework.ws.server.endpoint.annotation.ResponsePayload;
  * {@code NullPointerException} ở dòng đầu tiên chạm tới tham số.
  */
 @Endpoint
-public class TimKiemEndpoint {
+public class SearchEndpoint {
 
     /** Phải khớp {@code targetNamespace} trong tim-kiem.xsd. */
     private static final String NAMESPACE = "http://vnsearch.com/soap/tim-kiem/v1";
 
-    private static final int TRANG_MAC_DINH = 1;
-    private static final int SO_LUONG_MAC_DINH = 10;
-    private static final int SO_LUONG_TOI_DA = 100;
-    private static final int GOI_Y_MAC_DINH = 10;
-    private static final int GOI_Y_TOI_DA = 50;
+    private static final int DEFAULT_PAGE = 1;
+    private static final int DEFAULT_PAGE_SIZE = 10;
+    private static final int MAX_PAGE_SIZE = 100;
+    private static final int DEFAULT_SUGGEST_SIZE = 10;
+    private static final int MAX_SUGGEST_SIZE = 50;
 
     private final SearchEngineFacade facade;
 
-    public TimKiemEndpoint(SearchEngineFacade facade) {
+    public SearchEndpoint(SearchEngineFacade facade) {
         this.facade = facade;
     }
 
     @PayloadRoot(namespace = NAMESPACE, localPart = "TimKiemRequest")
     @ResponsePayload
-    public TimKiemResponse timKiem(@RequestPayload TimKiemRequest request) {
-        int trang = clamp(request.getTrang(), TRANG_MAC_DINH, 1, Integer.MAX_VALUE);
-        int soLuong = clamp(request.getSoLuong(), SO_LUONG_MAC_DINH, 1, SO_LUONG_TOI_DA);
+    public TimKiemResponse search(@RequestPayload TimKiemRequest request) {
+        int page = clamp(request.getTrang(), DEFAULT_PAGE, 1, Integer.MAX_VALUE);
+        int pageSize = clamp(request.getSoLuong(), DEFAULT_PAGE_SIZE, 1, MAX_PAGE_SIZE);
 
-        SearchResponse ketQua = facade.search(request.getTuKhoa(), trang, soLuong);
+        SearchResponse result = facade.search(request.getTuKhoa(), page, pageSize);
 
         TimKiemResponse response = new TimKiemResponse();
-        response.setTuKhoa(ketQua.query());
-        response.setTongSoKetQua(ketQua.totalResults());
-        response.setTrang(ketQua.page());
-        response.setThoiGianMs(ketQua.timeTakenMs());
-        for (SearchResult item : ketQua.results()) {
-            response.getKetQua().add(sang(item));
+        response.setTuKhoa(result.query());
+        response.setTongSoKetQua(result.totalResults());
+        response.setTrang(result.page());
+        response.setThoiGianMs(result.timeTakenMs());
+        for (SearchResult item : result.results()) {
+            response.getKetQua().add(toResult(item));
         }
-        if (ketQua.droppedTerms() != null) {
-            response.getTuBiBoQua().addAll(ketQua.droppedTerms());
+        if (result.droppedTerms() != null) {
+            response.getTuBiBoQua().addAll(result.droppedTerms());
         }
         return response;
     }
 
     @PayloadRoot(namespace = NAMESPACE, localPart = "GoiYRequest")
     @ResponsePayload
-    public GoiYResponse goiY(@RequestPayload GoiYRequest request) {
-        int soLuong = clamp(request.getSoLuong(), GOI_Y_MAC_DINH, 1, GOI_Y_TOI_DA);
+    public GoiYResponse suggest(@RequestPayload GoiYRequest request) {
+        int limit = clamp(request.getSoLuong(), DEFAULT_SUGGEST_SIZE, 1, MAX_SUGGEST_SIZE);
 
         GoiYResponse response = new GoiYResponse();
         response.setTienTo(request.getTienTo());
-        response.getGoiY().addAll(facade.suggest(request.getTienTo(), soLuong));
+        response.getGoiY().addAll(facade.suggest(request.getTienTo(), limit));
         return response;
     }
 
-    private static KetQua sang(SearchResult item) {
-        KetQua ketQua = new KetQua();
-        ketQua.setTieuDe(item.title());
-        ketQua.setDuongDan(item.url());
-        ketQua.setTrichDoan(item.snippet());
-        ketQua.setDiem(item.score());
-        ketQua.setDiemPageRank(item.pageRankScore());
+    private static KetQua toResult(SearchResult item) {
+        KetQua result = new KetQua();
+        result.setTieuDe(item.title());
+        result.setDuongDan(item.url());
+        result.setTrichDoan(item.snippet());
+        result.setDiem(item.score());
+        result.setDiemPageRank(item.pageRankScore());
         // Chuỗi ISO-8601, và null vẫn là null: XSD khai phần tử này
         // minOccurs="0" nên vắng mặt là hợp lệ. Điền một chuỗi rỗng thay cho
         // null sẽ khiến bên gọi tưởng có giá trị mà giá trị đó vô nghĩa.
-        ketQua.setThoiDiemThuThap(item.crawledAt() == null ? null : item.crawledAt().toString());
-        return ketQua;
+        result.setThoiDiemThuThap(item.crawledAt() == null ? null : item.crawledAt().toString());
+        return result;
     }
 
     /**
@@ -109,10 +109,10 @@ public class TimKiemEndpoint {
      * phần tử vắng mặt, và tự động unbox một {@code null} là
      * {@code NullPointerException} — xem Javadoc lớp.
      */
-    private static int clamp(Integer giaTri, int macDinh, int min, int max) {
-        if (giaTri == null) {
-            return macDinh;
+    private static int clamp(Integer value, int fallback, int min, int max) {
+        if (value == null) {
+            return fallback;
         }
-        return Math.min(Math.max(giaTri, min), max);
+        return Math.min(Math.max(value, min), max);
     }
 }

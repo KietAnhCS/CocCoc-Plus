@@ -34,7 +34,7 @@ public class DownloadRepository {
 
     private static final RowMapper<DownloadRecord> ROW_MAPPER = DownloadRepository::mapRow;
 
-    private static final String CAC_COT = """
+    private static final String COLUMNS = """
             id, username, source_url, file_name, mime_type, total_bytes, received_bytes,
             state, local_path, device_id, started_at, finished_at, updated_at
             """;
@@ -59,7 +59,7 @@ public class DownloadRepository {
      * của người khác sẽ GHI ĐÈ được bản ghi đó.
      */
     @Transactional
-    public void luu(DownloadRecord record) {
+    public void save(DownloadRecord record) {
         jdbc.sql("""
                         INSERT INTO downloads
                                (id, username, source_url, file_name, mime_type, total_bytes,
@@ -93,8 +93,8 @@ public class DownloadRepository {
                 .update();
     }
 
-    public Optional<DownloadRecord> tim(UUID id, String username) {
-        return jdbc.sql("SELECT " + CAC_COT
+    public Optional<DownloadRecord> find(UUID id, String username) {
+        return jdbc.sql("SELECT " + COLUMNS
                         + " FROM downloads WHERE id = :id AND username = :username")
                 .param("id", id)
                 .param("username", username)
@@ -103,8 +103,8 @@ public class DownloadRepository {
     }
 
     /** Trang sổ tải xuống, mới nhất trước — khớp đúng chỉ mục {@code ix_downloads_user_started}. */
-    public List<DownloadRecord> cuaNguoiDung(String username, int offset, int limit) {
-        return jdbc.sql("SELECT " + CAC_COT + """
+    public List<DownloadRecord> findByUser(String username, int offset, int limit) {
+        return jdbc.sql("SELECT " + COLUMNS + """
                          FROM downloads
                         WHERE username = :username
                         ORDER BY started_at DESC
@@ -118,8 +118,8 @@ public class DownloadRepository {
     }
 
     /** Những lượt còn đang chạy — dùng chỉ mục một phần {@code ix_downloads_dang_chay}. */
-    public List<DownloadRecord> dangChay(String username) {
-        return jdbc.sql("SELECT " + CAC_COT + """
+    public List<DownloadRecord> findActive(String username) {
+        return jdbc.sql("SELECT " + COLUMNS + """
                          FROM downloads
                         WHERE username = :username
                           AND state IN ('IN_PROGRESS', 'PAUSED')
@@ -131,7 +131,7 @@ public class DownloadRepository {
     }
 
     @Transactional
-    public boolean xoa(UUID id, String username) {
+    public boolean delete(UUID id, String username) {
         return jdbc.sql("DELETE FROM downloads WHERE id = :id AND username = :username")
                 .param("id", id)
                 .param("username", username)
@@ -146,7 +146,7 @@ public class DownloadRepository {
      * tệp vẫn về đích, nhưng không ai biết nó ở đâu.
      */
     @Transactional
-    public int xoaHet(String username) {
+    public int deleteFinished(String username) {
         return jdbc.sql("""
                         DELETE FROM downloads
                          WHERE username = :username
@@ -156,7 +156,7 @@ public class DownloadRepository {
                 .update();
     }
 
-    public int dem(String username) {
+    public int count(String username) {
         return jdbc.sql("SELECT count(*) FROM downloads WHERE username = :username")
                 .param("username", username)
                 .query(Integer.class)
@@ -173,23 +173,23 @@ public class DownloadRepository {
                 // getLong tra ve 0 cho NULL, nen phai hoi wasNull() — neu
                 // khong, "khong biet tong so byte" bien thanh "tep rong", va
                 // giao dien hien 100% cho mot luot tai vua bat dau.
-                soDaiHoacNull(rs, "total_bytes"),
+                longOrNull(rs, "total_bytes"),
                 rs.getLong("received_bytes"),
                 DownloadState.valueOf(rs.getString("state")),
                 rs.getString("local_path"),
                 rs.getString("device_id"),
-                mocThoiGian(rs, "started_at"),
-                mocThoiGian(rs, "finished_at"),
-                mocThoiGian(rs, "updated_at"));
+                instantOrNull(rs, "started_at"),
+                instantOrNull(rs, "finished_at"),
+                instantOrNull(rs, "updated_at"));
     }
 
-    private static Long soDaiHoacNull(ResultSet rs, String cot) throws SQLException {
-        long value = rs.getLong(cot);
+    private static Long longOrNull(ResultSet rs, String column) throws SQLException {
+        long value = rs.getLong(column);
         return rs.wasNull() ? null : value;
     }
 
-    private static Instant mocThoiGian(ResultSet rs, String cot) throws SQLException {
-        Timestamp timestamp = rs.getTimestamp(cot);
+    private static Instant instantOrNull(ResultSet rs, String column) throws SQLException {
+        Timestamp timestamp = rs.getTimestamp(column);
         return timestamp == null ? null : timestamp.toInstant();
     }
 }

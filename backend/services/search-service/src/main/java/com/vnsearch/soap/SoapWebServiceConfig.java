@@ -66,17 +66,17 @@ public class SoapWebServiceConfig extends WsConfigurerAdapter {
     }
 
     @Bean(name = "tim-kiem")
-    public DefaultWsdl11Definition wsdl(XsdSchema timKiemSchema) {
+    public DefaultWsdl11Definition wsdl(XsdSchema searchSchema) {
         DefaultWsdl11Definition definition = new DefaultWsdl11Definition();
         definition.setPortTypeName("TimKiemPort");
         definition.setLocationUri("/ws");
         definition.setTargetNamespace("http://vnsearch.com/soap/tim-kiem/v1");
-        definition.setSchema(timKiemSchema);
+        definition.setSchema(searchSchema);
         return definition;
     }
 
     @Bean
-    public XsdSchema timKiemSchema() {
+    public XsdSchema searchSchema() {
         Resource xsd = new ClassPathResource("wsdl/tim-kiem.xsd");
         return new SimpleXsdSchema(xsd);
     }

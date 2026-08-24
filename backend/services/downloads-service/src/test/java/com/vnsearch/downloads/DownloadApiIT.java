@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("docker-it")
-@Import(DownloadApiIT.KhongCanJwksThat.class)
+@Import(DownloadApiIT.NoRealJwksNeeded.class)
 class DownloadApiIT {
 
     @Container
@@ -44,7 +44,7 @@ class DownloadApiIT {
                     .withPassword("kiem-thu");
 
     @DynamicPropertySource
-    static void csdl(DynamicPropertyRegistry registry) {
+    static void datasourceProps(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -52,7 +52,7 @@ class DownloadApiIT {
     }
 
     @TestConfiguration
-    static class KhongCanJwksThat {
+    static class NoRealJwksNeeded {
         @Bean
         JwtDecoder jwtDecoder() {
             return token -> {
@@ -67,18 +67,18 @@ class DownloadApiIT {
     private static final String AN = "an";
     private static final String BINH = "binh";
 
-    private static RequestPostProcessor nguoiDung(String ten) {
-        return jwt().jwt(builder -> builder.subject(ten).claim("roles", List.of("USER")));
+    private static RequestPostProcessor asUser(String name) {
+        return jwt().jwt(builder -> builder.subject(name).claim("roles", List.of("USER")));
     }
 
-    private String batDau(String nguoi, String tenTep) throws Exception {
+    private String startDownload(String user, String fileName) throws Exception {
         String id = UUID.randomUUID().toString();
         String than = "{\"id\":\"" + id + "\",\"sourceUrl\":\"https://vi.wikipedia.org/tep.pdf\","
-                + "\"fileName\":\"" + tenTep + "\",\"mimeType\":\"application/pdf\","
+                + "\"fileName\":\"" + fileName + "\",\"mimeType\":\"application/pdf\","
                 + "\"totalBytes\":1000}";
         mockMvc.perform(post("/api/downloads")
-                        .with(nguoiDung(nguoi))
-                        .header("X-Device-Id", "may-" + nguoi)
+                        .with(asUser(user))
+                        .header("X-Device-Id", "may-" + user)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(than))
                 .andExpect(status().isCreated())
@@ -88,16 +88,16 @@ class DownloadApiIT {
     }
 
     @Test
-    void chuaDangNhapThiBiTuChoi() throws Exception {
+    void anonymousRequestIsRejected() throws Exception {
         mockMvc.perform(get("/api/downloads")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void batDauRoiCapNhatTienDo() throws Exception {
-        String id = batDau(AN, "bao-cao.pdf");
+    void startsThenUpdatesProgress() throws Exception {
+        String id = startDownload(AN, "bao-cao.pdf");
 
         mockMvc.perform(patch("/api/downloads/" + id)
-                        .with(nguoiDung(AN))
+                        .with(asUser(AN))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"receivedBytes\":400}"))
                 .andExpect(status().isOk())
@@ -106,113 +106,113 @@ class DownloadApiIT {
     }
 
     @Test
-    void goiLaiCungIdKhongTaoBanGhiThuHai() throws Exception {
+    void repeatingTheSameIdDoesNotCreateASecondRecord() throws Exception {
         String id = UUID.randomUUID().toString();
         String than = "{\"id\":\"" + id + "\",\"sourceUrl\":\"https://a.vn/x.zip\","
                 + "\"fileName\":\"x.zip\",\"totalBytes\":10}";
 
         for (int lan = 0; lan < 3; lan++) {
             mockMvc.perform(post("/api/downloads")
-                            .with(nguoiDung("idempotent"))
+                            .with(asUser("idempotent"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(than))
                     .andExpect(status().isCreated());
         }
 
-        mockMvc.perform(get("/api/downloads/summary").with(nguoiDung("idempotent")))
+        mockMvc.perform(get("/api/downloads/summary").with(asUser("idempotent")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.total").value(1));
     }
 
     @Test
-    void tienDoDenTreKhongDayNguocTrangThai() throws Exception {
-        String id = batDau("tretin", "phim.mp4");
+    void lateProgressDoesNotPushTheStateBackwards() throws Exception {
+        String id = startDownload("tretin", "phim.mp4");
 
         mockMvc.perform(patch("/api/downloads/" + id)
-                        .with(nguoiDung("tretin"))
+                        .with(asUser("tretin"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"receivedBytes\":1000,\"state\":\"COMPLETED\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.finishedAt").isNotEmpty());
 
         mockMvc.perform(patch("/api/downloads/" + id)
-                        .with(nguoiDung("tretin"))
+                        .with(asUser("tretin"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"receivedBytes\":870,\"state\":\"IN_PROGRESS\"}"))
                 .andExpect(status().isConflict());
 
-        mockMvc.perform(get("/api/downloads").with(nguoiDung("tretin")))
+        mockMvc.perform(get("/api/downloads").with(asUser("tretin")))
                 .andExpect(jsonPath("$[0].state").value("COMPLETED"));
     }
 
     @Test
-    void byteNhanChiTang() throws Exception {
-        String id = batDau("chitang", "anh.png");
+    void receivedBytesOnlyIncrease() throws Exception {
+        String id = startDownload("chitang", "anh.png");
 
-        mockMvc.perform(patch("/api/downloads/" + id).with(nguoiDung("chitang"))
+        mockMvc.perform(patch("/api/downloads/" + id).with(asUser("chitang"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"receivedBytes\":600}"))
                 .andExpect(jsonPath("$.receivedBytes").value(600));
 
-        mockMvc.perform(patch("/api/downloads/" + id).with(nguoiDung("chitang"))
+        mockMvc.perform(patch("/api/downloads/" + id).with(asUser("chitang"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"receivedBytes\":200}"))
                 .andExpect(jsonPath("$.receivedBytes").value(600));
     }
 
     @Test
-    void khongDocDuocSoTaiXuongCuaNguoiKhac() throws Exception {
-        String id = batDau(BINH, "rieng-tu.pdf");
+    void cannotReadAnotherUsersDownloads() throws Exception {
+        String id = startDownload(BINH, "rieng-tu.pdf");
 
-        mockMvc.perform(get("/api/downloads").with(nguoiDung("ke-la")))
+        mockMvc.perform(get("/api/downloads").with(asUser("ke-la")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$").isEmpty());
 
-        mockMvc.perform(delete("/api/downloads/" + id).with(nguoiDung("ke-la")))
+        mockMvc.perform(delete("/api/downloads/" + id).with(asUser("ke-la")))
                 .andExpect(status().isNotFound());
     }
 
     @Test
-    void tepTaiTrenMayKhacThiKhongHienNutMo() throws Exception {
-        batDau("nhieumay", "tren-may-kia.pdf");
+    void fileDownloadedOnAnotherDeviceHidesTheOpenButton() throws Exception {
+        startDownload("nhieumay", "tren-may-kia.pdf");
 
         mockMvc.perform(get("/api/downloads")
-                        .with(nguoiDung("nhieumay"))
+                        .with(asUser("nhieumay"))
                         .header("X-Device-Id", "mot-may-khac"))
                 .andExpect(jsonPath("$[0].onThisDevice").value(false));
     }
 
     @Test
-    void idKhongPhaiUuidTraVe400() throws Exception {
-        mockMvc.perform(delete("/api/downloads/khong-phai-uuid").with(nguoiDung(AN)))
+    void nonUuidIdReturns400() throws Exception {
+        mockMvc.perform(delete("/api/downloads/khong-phai-uuid").with(asUser(AN)))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void xoaHetChiXoaMucDaKetThuc() throws Exception {
-        String dangChay = batDau("dondep", "dang-tai.iso");
-        String daXong = batDau("dondep", "da-xong.iso");
+    void deleteAllOnlyRemovesFinishedItems() throws Exception {
+        String dangChay = startDownload("dondep", "dang-tai.iso");
+        String daXong = startDownload("dondep", "da-xong.iso");
 
-        mockMvc.perform(patch("/api/downloads/" + daXong).with(nguoiDung("dondep"))
+        mockMvc.perform(patch("/api/downloads/" + daXong).with(asUser("dondep"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"receivedBytes\":1000,\"state\":\"COMPLETED\"}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/api/downloads").with(nguoiDung("dondep")))
+        mockMvc.perform(delete("/api/downloads").with(asUser("dondep")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deleted").value(1));
 
-        mockMvc.perform(get("/api/downloads/active").with(nguoiDung("dondep")))
+        mockMvc.perform(get("/api/downloads/active").with(asUser("dondep")))
                 .andExpect(jsonPath("$[0].id").value(dangChay));
     }
 
     @Test
-    void khongBietTongSoByteThiPhanTramLaNull() throws Exception {
+    void percentIsNullWhenTotalBytesAreUnknown() throws Exception {
         String id = UUID.randomUUID().toString();
         String than = "{\"id\":\"" + id + "\",\"sourceUrl\":\"https://a.vn/stream\","
                 + "\"fileName\":\"stream.bin\"}";
         mockMvc.perform(post("/api/downloads")
-                        .with(nguoiDung("khongro"))
+                        .with(asUser("khongro"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(than))
                 .andExpect(status().isCreated())

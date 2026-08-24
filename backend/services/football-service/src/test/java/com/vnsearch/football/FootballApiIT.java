@@ -40,7 +40,7 @@ class FootballApiIT {
                     .withPassword("kiem-thu");
 
     @DynamicPropertySource
-    static void csdl(DynamicPropertyRegistry registry) {
+    static void databaseProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -64,7 +64,7 @@ class FootballApiIT {
     private FootballStore store;
 
     @Test
-    void endpointSucKhoeMoCongKhaiVaBaoDangChayKhongKhoa() throws Exception {
+    void healthEndpointIsPublicAndReportsRunningWithoutAKey() throws Exception {
         mockMvc.perform(get("/api/v1/health"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("UP"))
@@ -72,7 +72,7 @@ class FootballApiIT {
     }
 
     @Test
-    void soHanMucDocDuocTuBangVuaDuocFlywayTao() throws Exception {
+    void quotaNumbersAreReadFromTheTableFlywayJustCreated() throws Exception {
         mockMvc.perform(get("/api/v1/status"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.used").value(0))
@@ -81,7 +81,7 @@ class FootballApiIT {
     }
 
     @Test
-    void chuaCoKhoaThiTraVeRongKemNguonUnavailable() throws Exception {
+    void withoutAnApiKeyReturnsEmptyWithSourceUnavailable() throws Exception {
         mockMvc.perform(get("/api/v1/leagues"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data").isEmpty())
@@ -89,9 +89,9 @@ class FootballApiIT {
     }
 
     @Test
-    void demGhiVaDocLaiDuocQuaKieuJsonb() {
-        Instant hetHan = Instant.now().plusSeconds(600);
-        store.put("v1:kiem-thu", "[{\"id\":\"47\"}]", hetHan);
+    void cacheIsWrittenAndReadBackThroughTheJsonbType() {
+        Instant expiresAt = Instant.now().plusSeconds(600);
+        store.put("v1:kiem-thu", "[{\"id\":\"47\"}]", expiresAt);
 
         Optional<com.vnsearch.football.store.CacheEntry> entry = store.find("v1:kiem-thu");
 
@@ -101,15 +101,15 @@ class FootballApiIT {
     }
 
     @Test
-    void soLuotGoiDemDungTheoMocThoiGian() {
-        int truoc = store.callsSince(Instant.now().minusSeconds(60));
+    void callCountIsCountedCorrectlyByTimestamp() {
+        int before = store.callsSince(Instant.now().minusSeconds(60));
         store.recordCall("/leagues", "search=arsenal");
 
-        assertThat(store.callsSince(Instant.now().minusSeconds(60))).isEqualTo(truoc + 1);
+        assertThat(store.callsSince(Instant.now().minusSeconds(60))).isEqualTo(before + 1);
     }
 
     @Test
-    void cauHinhLuuDuocVaGhiDeDuoc() {
+    void settingsCanBeSavedAndOverwritten() {
         store.putSetting("api_key", "khoa-cu");
         store.putSetting("api_key", "khoa-moi");
 

@@ -39,7 +39,7 @@ class FootballControllerTest {
     }
 
     @Test
-    void ngayViaPhamDinhDangBiChanTruocKhiTonHanMuc() throws Exception {
+    void malformedDateIsRejectedBeforeSpendingQuota() throws Exception {
         mvc.perform(get("/api/v1/fixtures").param("date", "24-08-2026"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("BAD_DATE"));
@@ -48,21 +48,21 @@ class FootballControllerTest {
     }
 
     @Test
-    void ngayKhongTonTaiBiChan() throws Exception {
+    void nonExistentDateIsRejected() throws Exception {
         mvc.perform(get("/api/v1/fixtures").param("date", "2026-02-31"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("BAD_DATE"));
     }
 
     @Test
-    void timDoiKhongCoBoLocNaoThiBiChan() throws Exception {
+    void teamSearchWithoutAnyFilterIsRejected() throws Exception {
         mvc.perform(get("/api/v1/teams"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("MISSING_FILTER"));
     }
 
     @Test
-    void timCauThuDuoiBaKyTuThiBiChan() throws Exception {
+    void playerSearchShorterThanThreeCharactersIsRejected() throws Exception {
         mvc.perform(get("/api/v1/players").param("search", "ab"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error.code").value("SEARCH_TOO_SHORT"));
@@ -71,7 +71,7 @@ class FootballControllerTest {
     }
 
     @Test
-    void phanHoiMangTheoMocThoiGianLayDuLieu() throws Exception {
+    void responseCarriesTheFetchedAtTimestamp() throws Exception {
         when(service.leagues("", "")).thenReturn(Payload.of(
                 List.of(new League("47", "Premier League", "ENG", "icon.png", "flag.png",
                         "Active")),
@@ -85,7 +85,7 @@ class FootballControllerTest {
     }
 
     @Test
-    void khongTimThayCauThuThiTraBonKhongBon() throws Exception {
+    void missingPlayerReturns404() throws Exception {
         when(service.player("999", "2026")).thenReturn(Payload.of(null, Source.UNAVAILABLE, NOW));
 
         mvc.perform(get("/api/v1/players/999"))
@@ -94,7 +94,7 @@ class FootballControllerTest {
     }
 
     @Test
-    void muaGiaiSuyRaTheoNamBatDau() throws Exception {
+    void seasonIsDerivedFromTheStartYear() throws Exception {
         when(service.player("10", "2026")).thenReturn(Payload.of(null, Source.UNAVAILABLE, NOW));
 
         mvc.perform(get("/api/v1/players/10")).andExpect(status().isNotFound());

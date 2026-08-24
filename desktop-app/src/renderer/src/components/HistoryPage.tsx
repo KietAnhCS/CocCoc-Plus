@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
-import { useBrowsingStore, nhomTheoNgay, gioPhut, type Khoang } from '../store/browsingStore'
+import { useBrowsingStore, groupByDay, timeOfDay, type Khoang } from '../store/browsingStore'
 import { useOverlayStore } from '../store/overlayStore'
 import { usePagesStore } from '../store/pagesStore'
 import { useTabStore } from '../store/tabStore'
@@ -66,7 +66,7 @@ function HistoryPage(): JSX.Element | null {
     return null
   }
 
-  const nhom = nhomTheoNgay(items)
+  const nhom = groupByDay(items)
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-surface">
@@ -92,7 +92,7 @@ function HistoryPage(): JSX.Element | null {
           {tong.toLocaleString('vi-VN')} mục
         </span>
 
-        <NutXoaDuLieu />
+        <ClearDataButton />
 
         <button
           onClick={dong}
@@ -106,7 +106,7 @@ function HistoryPage(): JSX.Element | null {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         {chuaDangNhap && (
-          <TrangThaiRong
+          <EmptyState
             tieuDe="Đăng nhập để xem nhật ký"
             moTa="Lịch sử duyệt web được lưu theo tài khoản và đồng bộ giữa các máy.
                   Bấm avatar trên thanh công cụ để đăng nhập."
@@ -121,7 +121,7 @@ function HistoryPage(): JSX.Element | null {
           <p className="py-10 text-center text-[13px] text-faint">Đang tải…</p>
         )}
         {!chuaDangNhap && !loi && !dangTai && items.length === 0 && (
-          <TrangThaiRong
+          <EmptyState
             tieuDe={tuKhoa ? 'Không tìm thấy gì' : 'Nhật ký còn trống'}
             moTa={
               tuKhoa
@@ -146,7 +146,7 @@ function HistoryPage(): JSX.Element | null {
                   className="group flex items-center gap-3 rounded-lg pr-2 hover:bg-raised"
                 >
                   <span className="w-14 shrink-0 pl-2 text-[12px] tabular-nums text-faint">
-                    {gioPhut(item.visitedAt)}
+                    {timeOfDay(item.visitedAt)}
                   </span>
                   <button
                     onClick={() => {
@@ -206,14 +206,14 @@ function HistoryPage(): JSX.Element | null {
  * xác nhận nói rõ CON SỐ sẽ bị xoá — "Xoá 1.247 mục?" là một câu hỏi trả lời
  * được, còn "Bạn có chắc không?" thì không.
  */
-function NutXoaDuLieu(): JSX.Element {
+function ClearDataButton(): JSX.Element {
   const [moHop, setMoHop] = useState(false)
   const [khoang, setKhoang] = useState<Khoang>('gio-qua')
   const [dangXoa, setDangXoa] = useState(false)
   const tong = useBrowsingStore((s) => s.tong)
   const deleteVisitRange = useBrowsingStore((s) => s.deleteVisitRange)
 
-  async function xacNhan(): Promise<void> {
+  async function confirmDelete(): Promise<void> {
     setDangXoa(true)
     try {
       await deleteVisitRange(khoang)
@@ -287,7 +287,7 @@ function NutXoaDuLieu(): JSX.Element {
                 Huỷ
               </button>
               <button
-                onClick={() => void xacNhan()}
+                onClick={() => void confirmDelete()}
                 disabled={dangXoa}
                 className="rounded-lg bg-danger px-4 py-2 text-[13px] font-medium text-white
                            transition hover:brightness-110 disabled:opacity-60
@@ -303,7 +303,7 @@ function NutXoaDuLieu(): JSX.Element {
   )
 }
 
-function TrangThaiRong({ tieuDe, moTa }: { tieuDe: string; moTa: string }): JSX.Element {
+function EmptyState({ tieuDe, moTa }: { tieuDe: string; moTa: string }): JSX.Element {
   return (
     <div className="flex flex-col items-center px-8 py-20 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-full bg-raised text-faint">

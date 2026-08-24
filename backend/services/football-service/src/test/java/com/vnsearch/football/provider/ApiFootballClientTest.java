@@ -19,7 +19,7 @@ class ApiFootballClientTest {
     }
 
     @Test
-    void quyMaTranDauVeBaTrangThai() {
+    void mapsFixtureCodesToThreeStatuses() {
         assertThat(ApiFootballClient.toStatus("FT")).isEqualTo(MatchStatus.FINISHED);
         assertThat(ApiFootballClient.toStatus("1H")).isEqualTo(MatchStatus.LIVE);
         assertThat(ApiFootballClient.toStatus("NS")).isEqualTo(MatchStatus.SCHEDULED);
@@ -27,7 +27,7 @@ class ApiFootballClientTest {
     }
 
     @Test
-    void tranDaKetThucKhongMangSoPhutDaDa() throws Exception {
+    void finishedMatchCarriesNoElapsedMinutes() throws Exception {
         Match match = ApiFootballClient.toMatch(json("""
                 {
                   "fixture": {"id": 1, "date": "2026-08-24T19:00:00+00:00",
@@ -46,7 +46,7 @@ class ApiFootballClientTest {
     }
 
     @Test
-    void tranDangDaGiuLaiSoPhut() throws Exception {
+    void liveMatchKeepsTheElapsedMinutes() throws Exception {
         Match match = ApiFootballClient.toMatch(json("""
                 {
                   "fixture": {"id": 2, "date": "", "status": {"short": "2H", "elapsed": 67}},
@@ -63,7 +63,7 @@ class ApiFootballClientTest {
     }
 
     @Test
-    void doiKhongCoMaVietTatThiDungTenDayDu() throws Exception {
+    void teamWithoutACodeUsesItsFullName() throws Exception {
         Team withCode = ApiFootballClient.toTeam(json(
                 "{\"id\": 33, \"name\": \"Manchester United\", \"code\": \"MUN\"}"));
         Team withoutCode = ApiFootballClient.toTeam(json(
@@ -74,14 +74,14 @@ class ApiFootballClientTest {
     }
 
     @Test
-    void diemPhongDoRongKhacDiemKhong() {
+    void blankRatingDiffersFromZeroRating() {
         assertThat(ApiFootballClient.parseRating("")).isNull();
         assertThat(ApiFootballClient.parseRating("khong-phai-so")).isNull();
         assertThat(ApiFootballClient.parseRating("7.283333")).isEqualTo(7.283333);
     }
 
     @Test
-    void loiNamTrongThanPhanHoiChuKhongPhaiMaTrangThai() throws Exception {
+    void errorsLiveInTheResponseBodyNotTheStatusCode() throws Exception {
         assertThat(ApiFootballClient.errorMessage(json("[]"))).isEmpty();
         assertThat(ApiFootballClient.errorMessage(json("{}"))).isEmpty();
         assertThat(ApiFootballClient.errorMessage(json(
@@ -91,7 +91,7 @@ class ApiFootballClientTest {
     }
 
     @Test
-    void nhanRaDiaChiRapidApiTuChinhBaseUrl() {
+    void detectsTheRapidApiHostFromTheBaseUrl() {
         assertThat(ApiFootballClient.rapidApiHost("https://api-football-v1.p.rapidapi.com"))
                 .isEqualTo("api-football-v1.p.rapidapi.com");
         assertThat(ApiFootballClient.rapidApiHost("https://v3.football.api-sports.io"))
@@ -99,7 +99,7 @@ class ApiFootballClientTest {
     }
 
     @Test
-    void thongKeCauThuDocDuocCaTruongVietSaiChinhTa() throws Exception {
+    void playerStatsReadEvenTheMisspelledField() throws Exception {
         Player player = ApiFootballClient.toPlayer(json("""
                 {
                   "player": {"id": 276, "name": "Neymar", "firstname": "Neymar",

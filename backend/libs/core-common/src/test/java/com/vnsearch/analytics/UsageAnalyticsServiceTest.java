@@ -61,7 +61,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void demLuotTimVaLuotBamThanhTiLeCtr() {
+    void countsSearchesAndClicksIntoClickThroughRate() {
         service.recordSearch("s1", "ha noi", 12, 30);
         service.recordSearch("s1", "hue", 5, 20);
         service.recordClick("s1", "https://vnexpress.net/a", 1);
@@ -75,7 +75,7 @@ class UsageAnalyticsServiceTest {
 
     /** Chua co luot tim nao thi CTR phai la 0, khong phai NaN. */
     @Test
-    void khongChiaChoKhongKhiChuaCoDuLieu() {
+    void doesNotDivideByZeroWhenThereIsNoData() {
         UsageSnapshot snapshot = service.snapshot(10);
 
         assertEquals(0.0, snapshot.clickThroughRate());
@@ -85,7 +85,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void moiMaPhienLaMotNguoiTruyCap() {
+    void eachSessionIdIsOneVisitor() {
         service.recordVisit("s1");
         service.recordVisit("s1");
         service.recordVisit("s2");
@@ -98,7 +98,7 @@ class UsageAnalyticsServiceTest {
      * khong khong dong nao lot duoc vao bang xep hang.
      */
     @Test
-    void gopTruyVanKhacHoaVaKhoangTrang() {
+    void mergesQueriesDifferingByCaseAndWhitespace() {
         service.recordSearch("s1", "Ha Noi", 3, 10);
         service.recordSearch("s1", "  ha noi ", 3, 10);
         service.recordSearch("s2", "ha  noi", 3, 10);
@@ -111,7 +111,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void xepHangLienKetTheoSoLuotBamVaThuHangTrungBinh() {
+    void ranksLinksByClickCountAndAveragePosition() {
         service.recordClick("s1", "https://vnexpress.net/a", 1);
         service.recordClick("s2", "https://vnexpress.net/a", 3);
         service.recordClick("s3", "https://tuoitre.vn/b", 2);
@@ -125,7 +125,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void gopLienKetTheoTenMien() {
+    void groupsLinksByHost() {
         service.recordClick("s1", "https://www.vnexpress.net/a", 1);
         service.recordClick("s1", "https://vnexpress.net/b", 2);
         service.recordClick("s1", "https://tuoitre.vn/c", 1);
@@ -137,7 +137,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void demTruyVanKhongCoKetQua() {
+    void countsZeroResultQueries() {
         service.recordSearch("s1", "co ket qua", 7, 10);
         service.recordSearch("s1", "khong ket qua", 0, 10);
 
@@ -149,7 +149,7 @@ class UsageAnalyticsServiceTest {
 
     /** Do tre am (may khach khong biet) khong duoc lam lech trung binh. */
     @Test
-    void boQuaDoTreKhongHopLe() {
+    void ignoresInvalidLatency() {
         service.recordSearch("s1", "a", 1, 100);
         service.recordSearch("s1", "b", 1, -1);
 
@@ -157,7 +157,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void phanBoDoTreRoiDungKhoang() {
+    void latencyDistributionFallsIntoTheRightBuckets() {
         service.recordSearch("s1", "a", 1, 5);      // < 10 ms
         service.recordSearch("s1", "b", 1, 150);    // 100-200 ms
         service.recordSearch("s1", "c", 1, 5_000);  // > 1 s
@@ -170,7 +170,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void chuoiGioLuonDu24DiemVaDiemCuoiLaGioHienTai() {
+    void hourlySeriesAlwaysHas24PointsEndingAtTheCurrentHour() {
         service.recordSearch("s1", "a", 1, 10);
 
         List<UsageSnapshot.HourPoint> hourly = service.snapshot(10).hourly();
@@ -185,7 +185,7 @@ class UsageAnalyticsServiceTest {
      * hien lai nhu so lieu cua gio hien tai.
      */
     @Test
-    void oGioCuBiGhiDeSauMotNgay() {
+    void oldHourSlotIsOverwrittenAfterOneDay() {
         service.recordSearch("s1", "a", 1, 10);
         clock.advance(Duration.ofHours(24));
         service.recordSearch("s2", "b", 1, 10);
@@ -200,7 +200,7 @@ class UsageAnalyticsServiceTest {
 
     /** Gio bi bo trong phai hien 0, khong duoc bien mat khoi truc thoi gian. */
     @Test
-    void gioKhongCoHoatDongVanCoMatVoiGiaTriKhong() {
+    void hourWithoutActivityStillAppearsAsZero() {
         service.recordSearch("s1", "a", 1, 10);
         clock.advance(Duration.ofHours(2));
 
@@ -212,7 +212,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void phienNgungHoatDongKhongConDuocTinhLaDangHoatDong() {
+    void idleSessionIsNoLongerCountedAsActive() {
         service.recordVisit("s1");
         clock.advance(Duration.ofMinutes(UsageAnalyticsService.ACTIVE_WINDOW_MINUTES + 1));
         service.recordVisit("s2");
@@ -224,7 +224,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void thoiLuongPhienLaKhoangCachGiuaSuKienDauVaCuoi() {
+    void sessionDurationIsTheGapBetweenFirstAndLastEvent() {
         service.recordVisit("s1");
         clock.advance(Duration.ofMinutes(6));
         service.recordSearch("s1", "a", 1, 10);
@@ -237,7 +237,7 @@ class UsageAnalyticsServiceTest {
      * Vuot tran thi so lieu THIEU (va noi ra), chu khong duoc phep lon vo han.
      */
     @Test
-    void banTruyVanCoTranVaBaoLaDaCat() {
+    void queryTableHasACapAndReportsTruncation() {
         for (int i = 0; i <= UsageAnalyticsService.MAX_TRACKED_QUERIES; i++) {
             service.recordSearch("s1", "truy van so " + i, 1, 10);
         }
@@ -250,7 +250,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void banLienKetCoTran() {
+    void linkTableHasACap() {
         for (int i = 0; i <= UsageAnalyticsService.MAX_TRACKED_LINKS; i++) {
             service.recordClick("s1", "https://example.com/" + i, 1);
         }
@@ -259,7 +259,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void duLieuRacKhongLamHongGiGiaCa() {
+    void junkInputCorruptsNothing() {
         service.recordSearch("s1", "   ", 1, 10);   // truy van rong
         service.recordSearch(null, "a", 1, 10);      // khong co ma phien
         service.recordClick("s1", "khong-phai-url", 1);
@@ -274,7 +274,7 @@ class UsageAnalyticsServiceTest {
     }
 
     @Test
-    void datLaiXoaSachSoLieu() {
+    void resetClearsAllMetrics() {
         service.recordSearch("s1", "a", 1, 10);
         service.recordClick("s1", "https://a.com/1", 1);
 
@@ -294,7 +294,7 @@ class UsageAnalyticsServiceTest {
      * bat duoc loai loi de gap nhat: mot bo dem khong nguyen tu lam mat so dem.
      */
     @Test
-    void demDungKhiNhieuLuongCungGhi() throws InterruptedException {
+    void countsCorrectlyUnderConcurrentWrites() throws InterruptedException {
         int threads = 8;
         int perThread = 500;
         ExecutorService pool = Executors.newFixedThreadPool(threads);

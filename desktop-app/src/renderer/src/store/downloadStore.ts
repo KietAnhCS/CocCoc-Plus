@@ -78,7 +78,7 @@ const lanDongBoCuoi = new Map<string, number>()
 /** Những mục đã báo "bắt đầu" lên máy chủ — tránh gọi POST hai lần. */
 const daBaoBatDau = new Set<string>()
 
-function tuLocal(info: DownloadInfo): MucTaiXuong {
+function fromLocal(info: DownloadInfo): MucTaiXuong {
   return { ...info, onThisDevice: true }
 }
 
@@ -89,7 +89,7 @@ function tuLocal(info: DownloadInfo): MucTaiXuong {
  * dẫn cục bộ ra ngoài (nó lộ cấu trúc thư mục và tên người dùng hệ điều hành —
  * xem chú thích cột `local_path` trong V1__so_tai_xuong.sql).
  */
-function tuRemote(dto: DownloadDto): MucTaiXuong {
+function fromRemote(dto: DownloadDto): MucTaiXuong {
   return {
     id: dto.id,
     url: dto.sourceUrl,
@@ -130,8 +130,8 @@ export const useDownloadStore = create<DownloadStoreState>((set, get) => ({
     }
     set({ initialized: true })
 
-    const apDung = (infos: DownloadInfo[]): void => {
-      const local = infos.map(tuLocal)
+    const apply = (infos: DownloadInfo[]): void => {
+      const local = infos.map(fromLocal)
       const remote = get().items.filter((item) => !item.onThisDevice)
       const items = merge(local, remote)
       set({
@@ -140,12 +140,12 @@ export const useDownloadStore = create<DownloadStoreState>((set, get) => ({
           .length
       })
       for (const info of infos) {
-        dongBoMuc(info)
+        syncItem(info)
       }
     }
 
-    window.downloads.onChanged(apDung)
-    void window.downloads.list().then(apDung)
+    window.downloads.onChanged(apply)
+    void window.downloads.list().then(apply)
     void get().dongBoLai()
   },
 
@@ -190,7 +190,7 @@ export const useDownloadStore = create<DownloadStoreState>((set, get) => ({
    */
   dongBoLai: async () => {
     try {
-      const remote = (await downloadsApi.list()).map(tuRemote)
+      const remote = (await downloadsApi.list()).map(fromRemote)
       set((state) => ({
         items: merge(
           state.items.filter((item) => item.onThisDevice),
@@ -216,7 +216,7 @@ export const useDownloadStore = create<DownloadStoreState>((set, get) => ({
  *       kết thúc, lúc đó gửi ngay vì sẽ không còn sự kiện nào nữa.</li>
  * </ol>
  */
-function dongBoMuc(info: DownloadInfo): void {
+function syncItem(info: DownloadInfo): void {
   if (info.incognito) {
     return
   }
@@ -257,7 +257,7 @@ function dongBoMuc(info: DownloadInfo): void {
 }
 
 /** Số byte thành chuỗi đọc được. Dùng chung cho tiến độ và tốc độ. */
-export function doDoc(bytes: number | null): string {
+export function formatBytes(bytes: number | null): string {
   if (bytes === null || !Number.isFinite(bytes)) {
     return '—'
   }
@@ -274,7 +274,7 @@ export function doDoc(bytes: number | null): string {
 }
 
 /** Thời gian còn lại, hoặc `null` khi chưa ước lượng được. */
-export function conLai(item: MucTaiXuong): string | null {
+export function timeRemaining(item: MucTaiXuong): string | null {
   if (item.totalBytes === null || !item.speedBytesPerSecond || item.state !== 'IN_PROGRESS') {
     return null
   }

@@ -95,7 +95,7 @@ spring:
                   args:
                     redis-rate-limiter.replenishRate: 10
                     redis-rate-limiter.burstCapacity: 30
-                    key-resolver: "#{@nguoiDungHoacDiaChi}"
+                    key-resolver: "#{@userOrIpKeyResolver}"
 
             - id: search-soap
               uri: ${SEARCH_SERVICE_URL:http://search-service:8082}

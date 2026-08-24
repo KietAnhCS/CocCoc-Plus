@@ -54,10 +54,10 @@ public record DownloadRecord(
             Instant finishedAt) {
     }
 
-    public PublicView toPublic(String thietBiDangHoi) {
+    public PublicView toPublic(String requestingDeviceId) {
         return new PublicView(id, sourceUrl, fileName, mimeType, totalBytes, receivedBytes,
-                phanTram(), state,
-                deviceId != null && deviceId.equals(thietBiDangHoi),
+                percent(), state,
+                deviceId != null && deviceId.equals(requestingDeviceId),
                 startedAt, finishedAt);
     }
 
@@ -69,7 +69,7 @@ public record DownloadRecord(
      * dinh) voi "dang tai, moi duoc 0%" (hien thanh tien do o vach dau). Hai
      * thu trong khac nhau va noi len hai dieu khac nhau.
      */
-    private Integer phanTram() {
+    private Integer percent() {
         if (totalBytes == null || totalBytes <= 0) {
             return null;
         }

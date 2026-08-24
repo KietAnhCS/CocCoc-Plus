@@ -50,14 +50,14 @@ class CrawlAdminApiTest {
     // --------------------------------------------------------- chức năng
 
     @Test
-    void thongKeChiMucPhanAnhCorpusMau() throws Exception {
+    void indexStatsReflectTheSampleCorpus() throws Exception {
         mockMvc.perform(get("/api/admin/stats").header(HEADER_KHOA, KHOA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalDocuments").value(3));
     }
 
     @Test
-    void thongKeCorpusTraVeDuTruong() throws Exception {
+    void corpusStatsReturnEveryField() throws Exception {
         mockMvc.perform(get("/api/admin/corpus-stats").header(HEADER_KHOA, KHOA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.documents").value(3))
@@ -66,14 +66,14 @@ class CrawlAdminApiTest {
     }
 
     @Test
-    void lapChiMucLaiTraVeOk() throws Exception {
+    void reindexReturnsOk() throws Exception {
         mockMvc.perform(post("/api/admin/reindex").header(HEADER_KHOA, KHOA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("OK"));
     }
 
     @Test
-    void hoiTrangThaiMotJobKhongTonTaiTraVe404() throws Exception {
+    void statusOfAMissingJobReturns404() throws Exception {
         mockMvc.perform(get("/api/admin/crawl/khong-he-ton-tai/status")
                         .header(HEADER_KHOA, KHOA))
                 .andExpect(status().isNotFound());
@@ -89,7 +89,7 @@ class CrawlAdminApiTest {
      * tìm lỗi ở chỗ khác.
      */
     @Test
-    void crawlVoiDanhSachHatGiongRongTraVe400() throws Exception {
+    void crawlWithAnEmptySeedListReturns400() throws Exception {
         mockMvc.perform(post("/api/admin/crawl")
                         .header(HEADER_KHOA, KHOA)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -104,7 +104,7 @@ class CrawlAdminApiTest {
      * thực biết đường dẫn nào tồn tại.
      */
     @Test
-    void khongCoKhoaThiBiTuChoi() throws Exception {
+    void requestWithoutApiKeyIsRejected() throws Exception {
         mockMvc.perform(get("/api/admin/stats")).andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/admin/reindex")).andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/admin/crawl")
@@ -115,7 +115,7 @@ class CrawlAdminApiTest {
     }
 
     @Test
-    void khoaSaiCungBiTuChoi() throws Exception {
+    void wrongApiKeyIsAlsoRejected() throws Exception {
         mockMvc.perform(get("/api/admin/stats")
                         .header(HEADER_KHOA, "khoa-sai-nhung-du-dai-16"))
                 .andExpect(status().isUnauthorized());
@@ -130,7 +130,7 @@ class CrawlAdminApiTest {
      * quên nghĩ tới phân quyền — mặc định đóng, không phải mặc định mở.
      */
     @Test
-    void duongDanQuanTriMoiCungBiChanSan() throws Exception {
+    void aNewAdminPathIsBlockedByDefault() throws Exception {
         mockMvc.perform(get("/api/admin/mot-endpoint-chua-ton-tai"))
                 .andExpect(status().isUnauthorized());
     }

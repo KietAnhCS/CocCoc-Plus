@@ -88,7 +88,7 @@ class AccountAuthorizationTest {
      * giờ đụng tới {@code data/users.json} thật.
      */
     @DynamicPropertySource
-    static void khoTaiKhoanRieng(DynamicPropertyRegistry registry) {
+    static void isolatedUserStore(DynamicPropertyRegistry registry) {
         registry.add("app.auth.users-path",
                 () -> "target/test-users-" + UUID.randomUUID() + ".json");
     }
@@ -127,7 +127,7 @@ class AccountAuthorizationTest {
     // ---------------------------------------------------------------- đăng ký
 
     @Test
-    void aiCungDangKyDuoc() throws Exception {
+    void anyoneCanRegister() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(JSON.writeValueAsString(
@@ -145,7 +145,7 @@ class AccountAuthorizationTest {
      * thang quyền kinh điển (mass assignment).
      */
     @Test
-    void thanRequestKhongDatDuocVaiTro() throws Exception {
+    void requestBodyCannotSetTheRole() throws Exception {
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -160,7 +160,7 @@ class AccountAuthorizationTest {
     // -------------------------------------------------------------- đăng nhập
 
     @Test
-    void dangNhapSaiTraVe401VaKhongCoToken() throws Exception {
+    void failedLoginReturns401AndNoToken() throws Exception {
         users.createAccount("nguoi.sai.mk", "matkhaudaidu", Role.USER);
 
         mockMvc.perform(post("/api/auth/login")
@@ -179,7 +179,7 @@ class AccountAuthorizationTest {
      * tận request tiếp theo.
      */
     @Test
-    void dangNhapTraVeCapTokenJwt() throws Exception {
+    void loginReturnsAJwtTokenPair() throws Exception {
         Tokens tokens = login("nguoi.co.token", "matkhaudaidu", Role.USER);
 
         assertEquals(3, tokens.access().split("\\.").length,
@@ -191,12 +191,12 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void khongCoDanhTinhThiMeTraVe401() throws Exception {
+    void meReturns401WithoutIdentity() throws Exception {
         mockMvc.perform(get("/api/auth/me")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void meNoiRoDangNhapBangDuongNao() throws Exception {
+    void meStatesWhichAuthenticationPathWasUsed() throws Exception {
         String token = accessToken("nguoi.hoi.me", "matkhaudaidu", Role.USER);
 
         mockMvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
@@ -208,7 +208,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void tokenBiaRaBiTuChoi() throws Exception {
+    void forgedTokenIsRejected() throws Exception {
         mockMvc.perform(get("/api/auth/me")
                         .header("Authorization", "Bearer token-bia-ra"))
                 .andExpect(status().isUnauthorized());
@@ -217,7 +217,7 @@ class AccountAuthorizationTest {
     // ---------------------------------------------------------------- gia hạn
 
     @Test
-    void giaHanTraVeCapTokenMoiVaHuyTokenCu() throws Exception {
+    void refreshReturnsANewTokenPairAndRevokesTheOldOne() throws Exception {
         Tokens dau = login("nguoi.gia.han", "matkhaudaidu", Role.USER);
 
         String body = mockMvc.perform(post("/api/auth/refresh")
@@ -240,7 +240,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void giaHanBangTokenBiaRaBiTuChoi() throws Exception {
+    void refreshWithAForgedTokenIsRejected() throws Exception {
         mockMvc.perform(post("/api/auth/refresh")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"refreshToken\":\"khong-ton-tai\"}"))
@@ -257,7 +257,7 @@ class AccountAuthorizationTest {
      * Bài này canh vế <i>chắc chắn kiểm được</i>: cửa gia hạn đã đóng.
      */
     @Test
-    void dangXuatHuyRefreshToken() throws Exception {
+    void logoutRevokesTheRefreshToken() throws Exception {
         Tokens tokens = login("nguoi.dang.xuat", "matkhaudaidu", Role.USER);
 
         mockMvc.perform(post("/api/auth/logout")
@@ -287,7 +287,7 @@ class AccountAuthorizationTest {
      * header khi token đã hết hạn. Xem Javadoc {@code AuthController.logout}.
      */
     @Test
-    void dangXuatGoiDuocKeCaKhiKhongCoAccessToken() throws Exception {
+    void logoutCanBeCalledEvenWithoutAnAccessToken() throws Exception {
         mockMvc.perform(post("/api/auth/logout")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"refreshToken\":\"khong-ton-tai\"}"))
@@ -295,13 +295,13 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void dangXuatMoiThietBiVanCanXacThuc() throws Exception {
+    void logoutEverywhereStillRequiresAuthentication() throws Exception {
         mockMvc.perform(post("/api/auth/logout-all"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void dangXuatMoiThietBiDongMoiPhien() throws Exception {
+    void logoutEverywhereClosesEverySession() throws Exception {
         Tokens mot = login("nguoi.hai.may", "matkhaudaidu", Role.USER);
         Tokens hai = login("nguoi.hai.may", "matkhaudaidu", Role.USER);
 
@@ -320,7 +320,7 @@ class AccountAuthorizationTest {
     // ------------------------------------------------------------- đổi mật khẩu
 
     @Test
-    void chuaDangNhapThiKhongDoiDuocMatKhau() throws Exception {
+    void cannotChangePasswordWithoutLoggingIn() throws Exception {
         mockMvc.perform(post("/api/auth/password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -329,7 +329,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void doiMatKhauSaiMatKhauHienTaiThiBiTuChoi() throws Exception {
+    void changePasswordIsRejectedWhenCurrentPasswordIsWrong() throws Exception {
         String token = accessToken("nguoi.doi.mk.sai", "matkhaudaidu", Role.USER);
 
         mockMvc.perform(post("/api/auth/password")
@@ -348,7 +348,7 @@ class AccountAuthorizationTest {
      * đang gọi — là giữ lại đúng thứ có thể đã bị đánh cắp.
      */
     @Test
-    void doiMatKhauDongMoiPhien() throws Exception {
+    void changingPasswordClosesEverySession() throws Exception {
         Tokens tokens = login("nguoi.doi.mk", "matkhaudaidu", Role.USER);
 
         mockMvc.perform(post("/api/auth/password")
@@ -375,7 +375,7 @@ class AccountAuthorizationTest {
     // ------------------------------------------------------------- quản trị
 
     @Test
-    void nguoiDungThuongKhongQuanLyDuocTaiKhoan() throws Exception {
+    void ordinaryUserCannotManageAccounts() throws Exception {
         String token = accessToken("nguoi.thuong.2", "matkhaudaidu", Role.USER);
 
         // 403, KHÔNG phải 401: máy chủ biết họ là ai, và từ chối.
@@ -384,7 +384,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void quanTriVienDocDuocDanhSachTaiKhoan() throws Exception {
+    void adminCanReadTheAccountList() throws Exception {
         String token = accessToken("quan.tri", "matkhaudaidu", Role.ADMIN);
 
         mockMvc.perform(get("/api/admin/users").header("Authorization", "Bearer " + token))
@@ -397,7 +397,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void quanTriDocDuocSoLieuTaiKhoan() throws Exception {
+    void adminCanReadAccountStatistics() throws Exception {
         String token = accessToken("quan.tri.stats", "matkhaudaidu", Role.ADMIN);
 
         mockMvc.perform(get("/api/admin/users/stats").header("Authorization", "Bearer " + token))
@@ -408,7 +408,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void quanTriNangVaiTroVaPhienCuBiDong() throws Exception {
+    void adminPromotesRoleAndOldSessionsAreClosed() throws Exception {
         Tokens naNhan = login("nguoi.duoc.nang", "matkhaudaidu", Role.USER);
         String quanTri = accessToken("quan.tri.nang", "matkhaudaidu", Role.ADMIN);
 
@@ -428,7 +428,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void quanTriKhongTuHaQuyenChinhMinh() throws Exception {
+    void adminCannotDemoteThemselves() throws Exception {
         String token = accessToken("quan.tri.tu.ha", "matkhaudaidu", Role.ADMIN);
 
         mockMvc.perform(post("/api/admin/users/quan.tri.tu.ha/role")
@@ -441,7 +441,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void quanTriKhongTuXoaChinhMinh() throws Exception {
+    void adminCannotDeleteThemselves() throws Exception {
         String token = accessToken("quan.tri.tu.xoa", "matkhaudaidu", Role.ADMIN);
 
         mockMvc.perform(delete("/api/admin/users/quan.tri.tu.xoa")
@@ -452,7 +452,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void quanTriXoaHanTaiKhoanVaDongPhienCuaNguoiDo() throws Exception {
+    void adminDeletesAccountAndClosesItsSessions() throws Exception {
         Tokens naNhan = login("nguoi.bi.xoa", "matkhaudaidu", Role.USER);
         String quanTri = accessToken("quan.tri.xoa", "matkhaudaidu", Role.ADMIN);
 
@@ -468,7 +468,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void xoaTaiKhoanKhongTonTaiTraVe404() throws Exception {
+    void deletingAMissingAccountReturns404() throws Exception {
         String token = accessToken("quan.tri.404", "matkhaudaidu", Role.ADMIN);
 
         mockMvc.perform(delete("/api/admin/users/khong-he-ton-tai")
@@ -483,7 +483,7 @@ class AccountAuthorizationTest {
      * rằng máy chủ hỏng, trong khi thực tế nó đang chạy đúng.
      */
     @Test
-    void saiPhuongThucTraVe405ChuKhongPhai500() throws Exception {
+    void wrongHttpMethodReturns405Not500() throws Exception {
         String token = accessToken("quan.tri.405", "matkhaudaidu", Role.ADMIN);
 
         mockMvc.perform(put("/api/admin/users")
@@ -494,7 +494,7 @@ class AccountAuthorizationTest {
     // ------------------------------------------------------------ OAuth2 chuẩn
 
     @Test
-    void oauth2TokenCapTokenBangGrantPassword() throws Exception {
+    void oauth2TokenIssuesTokensForThePasswordGrant() throws Exception {
         users.createAccount("nguoi.oauth", "matkhaudaidu", Role.USER);
 
         mockMvc.perform(post("/oauth2/token")
@@ -517,7 +517,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void oauth2TokenTuChoiGrantKhongHoTro() throws Exception {
+    void oauth2TokenRejectsAnUnsupportedGrant() throws Exception {
         mockMvc.perform(post("/oauth2/token")
                         .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                         .param("grant_type", "client_credentials"))
@@ -535,7 +535,7 @@ class AccountAuthorizationTest {
      * {@code "d"} (số mũ riêng của RSA) xuất hiện thêm.
      */
     @Test
-    void jwksChiChuaKhoaCongKhai() throws Exception {
+    void jwksContainsOnlyThePublicKey() throws Exception {
         String body = mockMvc.perform(get("/oauth2/jwks"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.keys[0].kty").value("RSA"))
@@ -549,7 +549,7 @@ class AccountAuthorizationTest {
     }
 
     @Test
-    void sieuDuLieuMayChuUyQuyenDayDu() throws Exception {
+    void authorizationServerMetadataIsComplete() throws Exception {
         mockMvc.perform(get("/.well-known/openid-configuration"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.issuer").exists())

@@ -49,7 +49,7 @@ class FootballServiceTest {
     }
 
     @Test
-    void khoaDemChuanHoaChuThuongVaKhoangTrang() {
+    void cacheKeyNormalisesCaseAndWhitespace() {
         assertThat(FootballService.cacheKey("leagues", " Arsenal ", ""))
                 .isEqualTo("v1:leagues:arsenal:-");
         assertThat(FootballService.cacheKey("leagues", "ARSENAL", null))
@@ -57,7 +57,7 @@ class FootballServiceTest {
     }
 
     @Test
-    void chuaCoKhoaThiTraVeRongVaKhongDungToiDem() {
+    void withoutAnApiKeyReturnsEmptyAndNeverTouchesTheCache() {
         properties.setApiKey("");
 
         Payload<List<League>> payload = service().leagues("", "");
@@ -68,7 +68,7 @@ class FootballServiceTest {
     }
 
     @Test
-    void demConHanThiTraThangKhongGoiRaNgoai() throws Exception {
+    void freshCacheIsReturnedDirectlyWithoutAnyOutboundCall() throws Exception {
         when(store.find(anyString())).thenReturn(Optional.of(new CacheEntry(
                 encoded("Premier League"), NOW.minusSeconds(60), NOW.plusSeconds(600))));
 
@@ -82,7 +82,7 @@ class FootballServiceTest {
     }
 
     @Test
-    void hetHanMucThiTraDemQuaHanChuKhongTraRong() throws Exception {
+    void exhaustedQuotaReturnsStaleCacheInsteadOfEmpty() throws Exception {
         when(store.find(anyString())).thenReturn(Optional.of(new CacheEntry(
                 encoded("Premier League"), NOW.minusSeconds(7200), NOW.minusSeconds(3600))));
         when(store.callsSince(any())).thenReturn(properties.getDailyBudget());
@@ -96,7 +96,7 @@ class FootballServiceTest {
     }
 
     @Test
-    void hetHanMucVaKhongCoDemThiTraRong() {
+    void exhaustedQuotaWithoutCacheReturnsEmpty() {
         when(store.find(anyString())).thenReturn(Optional.empty());
         when(store.callsSince(any())).thenReturn(properties.getDailyBudget());
 
@@ -107,7 +107,7 @@ class FootballServiceTest {
     }
 
     @Test
-    void banGhiDemHongThiCoiNhuThieu() {
+    void corruptCacheRecordIsTreatedAsMissing() {
         when(store.find(anyString())).thenReturn(Optional.of(
                 new CacheEntry("{khong-phai-json}", NOW.minusSeconds(60), NOW.plusSeconds(600))));
         when(store.callsSince(any())).thenReturn(properties.getDailyBudget());

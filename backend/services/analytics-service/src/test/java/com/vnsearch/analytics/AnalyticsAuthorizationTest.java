@@ -68,13 +68,13 @@ class AnalyticsAuthorizationTest {
     private MockMvc mockMvc;
 
     @Test
-    void khongCoKhoaThiKhongDocDuocSoLieu() throws Exception {
+    void withoutApiKeyMetricsAreNotReadable() throws Exception {
         mockMvc.perform(get("/api/admin/analytics"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void khoaSaiCungKhongDocDuoc() throws Exception {
+    void wrongApiKeyIsAlsoRejected() throws Exception {
         mockMvc.perform(get("/api/admin/analytics").header(KEY_HEADER, "khoa-sai-hoan-toan"))
                 .andExpect(status().isUnauthorized());
     }
@@ -89,7 +89,7 @@ class AnalyticsAuthorizationTest {
      * thống đang chạy — tức là một bài test tích hợp đội lốt test đơn vị.
      */
     @Test
-    void khoaDungThiTraVeKhoiSoLieuCuaChinhNo() throws Exception {
+    void validKeyReturnsItsOwnMetricsBlock() throws Exception {
         mockMvc.perform(get("/api/admin/analytics").header(KEY_HEADER, VALID_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.generatedAt").exists())
@@ -110,7 +110,7 @@ class AnalyticsAuthorizationTest {
      * {@code AdminDashboardAssembler.INDEX_KHONG_RO}.
      */
     @Test
-    void servicePhuThuocChetThiVanTraVe200VoiKhoiRong() throws Exception {
+    void deadDependencyStillReturns200WithEmptyBlock() throws Exception {
         mockMvc.perform(get("/api/admin/analytics").header(KEY_HEADER, VALID_KEY))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.index.scorer").value("khong-ro"))
@@ -119,7 +119,7 @@ class AnalyticsAuthorizationTest {
     }
 
     @Test
-    void datLaiSoLieuCungCanKhoa() throws Exception {
+    void resettingMetricsAlsoRequiresApiKey() throws Exception {
         mockMvc.perform(post("/api/admin/analytics/reset"))
                 .andExpect(status().isUnauthorized());
 
@@ -132,7 +132,7 @@ class AnalyticsAuthorizationTest {
      * duoc so lieu, tuc khong con so lieu nao dang doc.
      */
     @Test
-    void aiCungGuiDuocSuKienSuDung() throws Exception {
+    void anyoneCanPostUsageEvents() throws Exception {
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -142,7 +142,7 @@ class AnalyticsAuthorizationTest {
     }
 
     @Test
-    void suKienLaKieuKhongBiTuChoiChuKhongAmThamBoQua() throws Exception {
+    void malformedEventIsRejectedNotSilentlyIgnored() throws Exception {
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"khong-ton-tai\",\"sessionId\":\"phien-1\"}"))
@@ -150,7 +150,7 @@ class AnalyticsAuthorizationTest {
     }
 
     @Test
-    void truyVanQuaDaiBiTuChoiNgayTaiBienUngDung() throws Exception {
+    void overlongQueryIsRejectedAtTheApplicationBoundary() throws Exception {
         mockMvc.perform(post("/api/events")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"type\":\"search\",\"sessionId\":\"phien-1\",\"query\":\""
@@ -160,7 +160,7 @@ class AnalyticsAuthorizationTest {
 
     /** Tham so {@code top} co chan tren de mot request khong ep may chu cap phat lon. */
     @Test
-    void thamSoTopBiChanTren() throws Exception {
+    void topParameterIsCappedAtTheUpperBound() throws Exception {
         mockMvc.perform(get("/api/admin/analytics").param("top", "1000000")
                         .header(KEY_HEADER, VALID_KEY))
                 .andExpect(status().isBadRequest());

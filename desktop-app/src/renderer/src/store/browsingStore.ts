@@ -44,12 +44,12 @@ interface BrowsingState {
  */
 const KHONG_GHI = ['vnsearch://', 'about:', 'chrome://', 'devtools://']
 
-function boQua(url: string): boolean {
+function shouldSkip(url: string): boolean {
   return !url || KHONG_GHI.some((prefix) => url.startsWith(prefix))
 }
 
 /** Mốc bắt đầu của một khoảng, dạng ISO. `undefined` = từ đầu. */
-function mocBatDau(khoang: Khoang): string | undefined {
+function rangeStart(khoang: Khoang): string | undefined {
   const bayGio = new Date()
   switch (khoang) {
     case 'gio-qua':
@@ -117,7 +117,7 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
     // LUẬT ĐẦU TIÊN, không có ngoại lệ: ẩn danh thì không gửi gì cả. Xem
     // Javadoc của HistoryController về việc vì sao lọc ở MÁY KHÁCH chứ không
     // nhờ máy chủ "đừng lưu".
-    if (incognito || boQua(url)) {
+    if (incognito || shouldSkip(url)) {
       return
     }
     const bayGio = Date.now()
@@ -146,7 +146,7 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
   },
 
   deleteVisitRange: async (khoang) => {
-    const ketQua = await historyApi.deleteVisitRange(mocBatDau(khoang))
+    const ketQua = await historyApi.deleteVisitRange(rangeStart(khoang))
     await get().nap()
     return ketQua.deleted
   }
@@ -160,10 +160,10 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
  * chủ sẽ khiến một người ở Việt Nam thấy các mục lúc 7 giờ sáng nằm dưới nhãn
  * "hôm qua" nếu máy chủ chạy giờ UTC.
  */
-export function nhomTheoNgay(items: VisitDto[]): Array<[string, VisitDto[]]> {
+export function groupByDay(items: VisitDto[]): Array<[string, VisitDto[]]> {
   const nhom = new Map<string, VisitDto[]>()
   for (const item of items) {
-    const nhan = nhanNgay(new Date(item.visitedAt))
+    const nhan = dayLabel(new Date(item.visitedAt))
     const list = nhom.get(nhan)
     if (list) {
       list.push(item)
@@ -174,7 +174,7 @@ export function nhomTheoNgay(items: VisitDto[]): Array<[string, VisitDto[]]> {
   return [...nhom.entries()]
 }
 
-function nhanNgay(ngay: Date): string {
+function dayLabel(ngay: Date): string {
   const homNay = new Date()
   homNay.setHours(0, 0, 0, 0)
   const homQua = new Date(homNay.getTime() - 86_400_000)
@@ -194,6 +194,6 @@ function nhanNgay(ngay: Date): string {
 }
 
 /** Giờ:phút của một mốc thời gian, theo giờ máy người dùng. */
-export function gioPhut(iso: string): string {
+export function timeOfDay(iso: string): string {
   return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 }

@@ -61,7 +61,7 @@ public class AuthExceptionHandler {
      * nhau cho cùng một tình huống, và cái 500 còn nói sai sự thật: máy chủ
      * không hỏng, người gọi mới là bên gửi thứ không dùng được.
      *
-     * <p>Lỗi này lộ ra nhờ bài {@code giaHanBangTokenBiaRaBiTuChoi}.
+     * <p>Lỗi này lộ ra nhờ bài {@code refreshWithAForgedTokenIsRejected}.
      */
     @ExceptionHandler(TokenService.InvalidGrantException.class)
     public ResponseEntity<ProblemDetail> handleInvalidGrant(

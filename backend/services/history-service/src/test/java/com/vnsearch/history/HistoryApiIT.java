@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("docker-it")
-@Import(HistoryApiIT.KhongCanJwksThat.class)
+@Import(HistoryApiIT.NoRealJwksNeeded.class)
 class HistoryApiIT {
 
     @Container
@@ -47,7 +47,7 @@ class HistoryApiIT {
     }
 
     @TestConfiguration
-    static class KhongCanJwksThat {
+    static class NoRealJwksNeeded {
         @Bean
         JwtDecoder jwtDecoder() {
             return token -> {
@@ -66,33 +66,33 @@ class HistoryApiIT {
     private SearchQueryRepository queries;
 
     @BeforeEach
-    void donSach() {
+    void cleanUp() {
         visits.deleteAll();
         queries.deleteAll();
     }
 
-    private static RequestPostProcessor nguoiDung(String ten) {
-        return jwt().jwt(builder -> builder.subject(ten).claim("roles", List.of("USER")));
+    private static RequestPostProcessor asUser(String name) {
+        return jwt().jwt(builder -> builder.subject(name).claim("roles", List.of("USER")));
     }
 
-    private void ghe(String nguoi, String url, String tieuDe) throws Exception {
+    private void visit(String user, String url, String title) throws Exception {
         mockMvc.perform(post("/api/history/visits")
-                        .with(nguoiDung(nguoi))
+                        .with(asUser(user))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"url\":\"" + url + "\",\"title\":\"" + tieuDe + "\"}"))
+                        .content("{\"url\":\"" + url + "\",\"title\":\"" + title + "\"}"))
                 .andExpect(status().isCreated());
     }
 
     @Test
-    void chuaDangNhapThiBiTuChoi() throws Exception {
+    void anonymousRequestIsRejected() throws Exception {
         mockMvc.perform(get("/api/history/visits")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void ghiRoiDocLai() throws Exception {
-        ghe("an", "https://vnexpress.net/bai-viet", "Một bài báo");
+    void writesThenReadsBack() throws Exception {
+        visit("an", "https://vnexpress.net/bai-viet", "Một bài báo");
 
-        mockMvc.perform(get("/api/history/visits").with(nguoiDung("an")))
+        mockMvc.perform(get("/api/history/visits").with(asUser("an")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].title").value("Một bài báo"))
                 .andExpect(jsonPath("$.content[0].host").value("vnexpress.net"))
@@ -100,74 +100,74 @@ class HistoryApiIT {
     }
 
     @Test
-    void ghiLaiCungUrlThiGopChuKhongThemDong() throws Exception {
-        ghe("gop", "https://a.vn/trang", "Lần một");
-        ghe("gop", "https://a.vn/trang", "Lần hai");
-        ghe("gop", "https://a.vn/trang", "Lần ba");
+    void rewritingTheSameUrlMergesInsteadOfAppending() throws Exception {
+        visit("gop", "https://a.vn/trang", "Lần một");
+        visit("gop", "https://a.vn/trang", "Lần hai");
+        visit("gop", "https://a.vn/trang", "Lần ba");
 
-        mockMvc.perform(get("/api/history/visits").with(nguoiDung("gop")))
+        mockMvc.perform(get("/api/history/visits").with(asUser("gop")))
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].visitCount").value(3))
                 .andExpect(jsonPath("$.content[0].title").value("Lần ba"));
     }
 
     @Test
-    void khongDocDuocLichSuCuaNguoiKhac() throws Exception {
-        ghe("binh", "https://rieng-tu.vn/trang", "Bí mật");
+    void cannotReadAnotherUsersHistory() throws Exception {
+        visit("binh", "https://rieng-tu.vn/trang", "Bí mật");
 
-        mockMvc.perform(get("/api/history/visits").with(nguoiDung("ke-la")))
+        mockMvc.perform(get("/api/history/visits").with(asUser("ke-la")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test
-    void timTheoTuKhoaTrongTieuDeVaDiaChi() throws Exception {
-        ghe("tim", "https://a.vn/java-spring", "Hướng dẫn Spring Boot");
-        ghe("tim", "https://b.vn/nau-an", "Cách làm bánh mì");
+    void searchesKeywordInTitleAndUrl() throws Exception {
+        visit("tim", "https://a.vn/java-spring", "Hướng dẫn Spring Boot");
+        visit("tim", "https://b.vn/nau-an", "Cách làm bánh mì");
 
-        mockMvc.perform(get("/api/history/visits").param("q", "spring").with(nguoiDung("tim")))
+        mockMvc.perform(get("/api/history/visits").param("q", "spring").with(asUser("tim")))
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].url").value("https://a.vn/java-spring"));
 
-        mockMvc.perform(get("/api/history/visits").param("q", "bánh").with(nguoiDung("tim")))
+        mockMvc.perform(get("/api/history/visits").param("q", "bánh").with(asUser("tim")))
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
-    void xoaMotMucCuaNguoiKhacTraVe404() throws Exception {
-        ghe("chu-so-huu", "https://a.vn/cua-toi", "Của tôi");
+    void deletingAnotherUsersEntryReturns404() throws Exception {
+        visit("chu-so-huu", "https://a.vn/cua-toi", "Của tôi");
         String id = visits.findAll().get(0).id();
 
-        mockMvc.perform(delete("/api/history/visits/" + id).with(nguoiDung("ke-la")))
+        mockMvc.perform(delete("/api/history/visits/" + id).with(asUser("ke-la")))
                 .andExpect(status().isNotFound());
 
-        mockMvc.perform(delete("/api/history/visits/" + id).with(nguoiDung("chu-so-huu")))
+        mockMvc.perform(delete("/api/history/visits/" + id).with(asUser("chu-so-huu")))
                 .andExpect(status().isNoContent());
     }
 
     @Test
-    void xoaTheoKhoangXoaCaLichSuTimKiem() throws Exception {
-        ghe("don", "https://a.vn/1", "Một");
-        ghe("don", "https://a.vn/2", "Hai");
+    void rangeDeleteAlsoClearsSearchHistory() throws Exception {
+        visit("don", "https://a.vn/1", "Một");
+        visit("don", "https://a.vn/2", "Hai");
         mockMvc.perform(post("/api/history/searches")
-                        .with(nguoiDung("don"))
+                        .with(asUser("don"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"máy tính\",\"resultCount\":5}"))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(delete("/api/history/visits").with(nguoiDung("don")))
+        mockMvc.perform(delete("/api/history/visits").with(asUser("don")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.deleted").value(3));
 
-        mockMvc.perform(get("/api/history/visits").with(nguoiDung("don")))
+        mockMvc.perform(get("/api/history/visits").with(asUser("don")))
                 .andExpect(jsonPath("$.totalElements").value(0));
     }
 
     @Test
-    void goiYTheoTienTo() throws Exception {
+    void suggestsByPrefix() throws Exception {
         for (String truyVan : List.of("máy tính xách tay", "máy giặt", "điện thoại")) {
             mockMvc.perform(post("/api/history/searches")
-                            .with(nguoiDung("goiy"))
+                            .with(asUser("goiy"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"query\":\"" + truyVan + "\",\"resultCount\":3}"))
                     .andExpect(status().isCreated());
@@ -175,49 +175,49 @@ class HistoryApiIT {
 
         mockMvc.perform(get("/api/history/searches/suggest")
                         .param("prefix", "máy")
-                        .with(nguoiDung("goiy")))
+                        .with(asUser("goiy")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(2));
     }
 
     @Test
-    void tienToChuaKyTuDacBietKhongLamHongTruyVan() throws Exception {
+    void prefixWithSpecialCharactersDoesNotBreakTheQuery() throws Exception {
         mockMvc.perform(post("/api/history/searches")
-                        .with(nguoiDung("redos"))
+                        .with(asUser("redos"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"query\":\"(a+)+ regex\",\"resultCount\":0}"))
                 .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/history/searches/suggest")
                         .param("prefix", "(a+)+")
-                        .with(nguoiDung("redos")))
+                        .with(asUser("redos")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1));
 
         mockMvc.perform(get("/api/history/searches/suggest")
                         .param("prefix", ".*")
-                        .with(nguoiDung("redos")))
+                        .with(asUser("redos")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
-    void goLaiCungTruyVanThiChiCapNhatThoiDiem() throws Exception {
+    void retypingTheSameQueryOnlyUpdatesTheTimestamp() throws Exception {
         for (int lan = 0; lan < 3; lan++) {
             mockMvc.perform(post("/api/history/searches")
-                            .with(nguoiDung("lap"))
+                            .with(asUser("lap"))
                             .contentType(MediaType.APPLICATION_JSON)
                             .content("{\"query\":\"  Máy Tính  \",\"resultCount\":1}"))
                     .andExpect(status().isCreated());
         }
 
-        mockMvc.perform(get("/api/history/searches").with(nguoiDung("lap")))
+        mockMvc.perform(get("/api/history/searches").with(asUser("lap")))
                 .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     @Test
-    void anDanhKhongBaoGioToiDuocMayChu() throws Exception {
-        mockMvc.perform(get("/api/history/visits").with(nguoiDung("an-danh")))
+    void incognitoNeverReachesTheServer() throws Exception {
+        mockMvc.perform(get("/api/history/visits").with(asUser("an-danh")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalElements").value(0));
         assertTrue(visits.findAll().isEmpty());

@@ -48,25 +48,47 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
     }
     set({ initialized: true })
 
+    // Địa chỉ ĐÃ GHI vào nhật ký của từng thẻ.
+    //
+    // Phải là một bảng riêng chứ không so với ảnh chụp trước đó, và đây là một
+    // lỗi đã có thật: nhật ký trống trơn dù người dùng đã đăng nhập và không
+    // dùng ẩn danh.
+    //
+    // Một lượt điều hướng sinh ra ÍT NHẤT hai sự kiện:
+    //
+    //   1. { url: mới, loading: true  }   -> bị chặn vì trang chưa tải xong,
+    //                                        nhưng `set({ tabs })` ở cuối hàm
+    //                                        đã kịp lưu địa chỉ MỚI vào store
+    //   2. { url: mới, loading: false }   -> lúc này ảnh chụp "trước" cũng đã
+    //                                        mang địa chỉ mới, nên phép so
+    //                                        "địa chỉ có đổi không" trả về SAI
+    //
+    // Tức là điều kiện cũ không bao giờ đúng cùng lúc với `!loading`, và không
+    // một lượt ghé nào được ghi. Nó im lặng tuyệt đối: `recordVisit` gọi qua
+    // `sendAndForget`, vốn nuốt mọi lỗi, mà ở đây thì đến một lượt gọi cũng không có.
+    //
+    // Bộ kiểm thử không bắt được vì tests/api gọi thẳng POST /api/history/visits,
+    // không đi qua tầng này.
+    const daGhi = new Map<string, string>()
+
     const applySnapshot = ({ tabs, activeTabId }: TabsSnapshot): void => {
       const history = useHistoryStore.getState()
       const liveIds = new Set(tabs.map((tab) => tab.id))
-
-      const truoc = new Map(get().tabs.map((tab) => [tab.id, tab.url]))
 
       for (const tab of tabs) {
         history.ensureTab(tab.id, tab.url)
         history.recordNavigation(tab.id, tab.url)
 
-        // Ghi lên history-service khi địa chỉ THẬT SỰ đổi và trang đã tải
-        // xong. Ghi lúc `loading` còn true thì tiêu đề vẫn là địa chỉ thô —
-        // và nhật ký đầy những dòng không đọc được.
+        // Ghi lên history-service khi trang đã tải xong và địa chỉ này chưa
+        // từng được ghi cho thẻ đó. Ghi lúc `loading` còn true thì tiêu đề vẫn
+        // là địa chỉ thô — và nhật ký đầy những dòng không đọc được.
         //
         // Ba điều kiện chặn, theo thứ tự rẻ tới đắt:
         //   1. thẻ ẩn danh                -> không bao giờ gửi
         //   2. người dùng tắt lưu lịch sử -> tôn trọng lựa chọn đó
-        //   3. địa chỉ chưa đổi           -> không có gì mới để ghi
-        if (!tab.loading && truoc.get(tab.id) !== tab.url) {
+        //   3. địa chỉ đã ghi rồi         -> không có gì mới để ghi
+        if (!tab.loading && daGhi.get(tab.id) !== tab.url) {
+          daGhi.set(tab.id, tab.url)
           const luuLichSu = useSettingsStore.getState().tuyChon.luuLichSu
           useBrowsingStore.getState().ghi(tab.url, tab.title, tab.incognito || !luuLichSu)
         }
@@ -74,6 +96,11 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
       for (const id of history.trackedTabIds()) {
         if (!liveIds.has(id)) {
           history.removeTab(id)
+        }
+      }
+      for (const id of daGhi.keys()) {
+        if (!liveIds.has(id)) {
+          daGhi.delete(id)
         }
       }
 

@@ -64,7 +64,7 @@ public class AnalyticsServiceApplication {
      * hiện khối trống còn hữu ích hơn bắt người xem chờ.
      */
     @Bean
-    public RestClientCustomizer thoiGianChoNganGon() {
+    public RestClientCustomizer shortTimeouts() {
         return builder -> {
             SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
             factory.setConnectTimeout(Duration.ofSeconds(2));

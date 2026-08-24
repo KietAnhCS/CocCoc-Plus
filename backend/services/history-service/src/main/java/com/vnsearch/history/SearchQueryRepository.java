@@ -30,7 +30,7 @@ public interface SearchQueryRepository extends MongoRepository<SearchQueryDocume
      * thoat ky tu lam o {@code HistoryService}, khong lam o day.
      */
     @Query("{ 'username': ?0, 'normalized': { $regex: ?1, $options: 'i' } }")
-    List<SearchQueryDocument> goiYTheoTienTo(String username, String tienToNeoDau,
+    List<SearchQueryDocument> suggestByPrefix(String username, String anchoredPrefix,
                                               Pageable pageable);
 
     /** Da go truy van nay chua — de cap nhat thoi diem thay vi them dong moi. */

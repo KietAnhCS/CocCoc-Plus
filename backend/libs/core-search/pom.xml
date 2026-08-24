@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ============================================================================
+  vnsearch-core-search — chỉ mục, truy vấn, xếp hạng và kho tài liệu
+  ============================================================================
+
+  Phần thuật toán nặng nhất của đồ án: chỉ mục đảo nén VByte, bộ tách từ tiếng
+  Việt, phân tích truy vấn thành cây AST, BM25 và TF-IDF, PageRank, bộ dựng
+  đoạn trích, kho tài liệu trên JSON hoặc PostgreSQL, và bộ đánh giá IR.
+
+  PHỤ THUỘC: core-search -> core-crawler -> core-common.
+
+  Vì sao core-search cần core-crawler chứ không ngược lại: kho tài liệu và bộ
+  đánh giá đọc dữ liệu qua `ContentStorage` — giao diện do crawler định nghĩa
+  vì crawler là bên GHI. Chiều này giữ cho một hệ thống chỉ-đọc (dựng chỉ mục
+  từ kho có sẵn) vẫn dùng lại được nguyên phần crawler mà không phải tách thêm
+  một module thứ tư chỉ để chứa một giao diện.
+-->
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>com.vnsearch</groupId>
+		<artifactId>vnsearch-parent</artifactId>
+		<version>0.0.1-SNAPSHOT</version>
+		<relativePath>../../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>vnsearch-core-search</artifactId>
+	<name>vnsearch-core-search</name>
+	<description>Chỉ mục đảo, phân tích truy vấn, xếp hạng và kho tài liệu</description>
+
+	<dependencies>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-core-common</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>com.vnsearch</groupId>
+			<artifactId>vnsearch-core-crawler</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.postgresql</groupId>
+			<artifactId>postgresql</artifactId>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<!-- Chạy bộ đánh giá IR từ dòng lệnh:
+			     ./mvnw -pl libs/core-search exec:java -Dexec.mainClass=... -->
+			<plugin>
+				<groupId>org.codehaus.mojo</groupId>
+				<artifactId>exec-maven-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>

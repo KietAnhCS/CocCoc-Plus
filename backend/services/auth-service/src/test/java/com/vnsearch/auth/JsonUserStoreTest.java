@@ -22,7 +22,7 @@ class JsonUserStoreTest {
     }
 
     @Test
-    void ghiRoiNapLaiGiuNguyenTaiKhoan(@TempDir Path dir) throws IOException {
+    void writeThenReloadKeepsTheAccount(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("users.json");
 
         JsonUserStore store = new JsonUserStore(file.toString());
@@ -38,7 +38,7 @@ class JsonUserStoreTest {
     }
 
     @Test
-    void chuaCoTepThiKhoRongChuKhongPhaiLoi(@TempDir Path dir) throws IOException {
+    void missingFileGivesAnEmptyStoreNotAnError(@TempDir Path dir) throws IOException {
         JsonUserStore store = new JsonUserStore(dir.resolve("chua-ton-tai.json").toString());
 
         assertEquals(0, store.count());
@@ -46,7 +46,7 @@ class JsonUserStoreTest {
     }
 
     @Test
-    void tuTaoThuMucCha(@TempDir Path dir) throws IOException {
+    void createsTheParentDirectoryItself(@TempDir Path dir) throws IOException {
         Path nested = dir.resolve("chua/co/thu/muc/users.json");
 
         JsonUserStore store = new JsonUserStore(nested.toString());
@@ -56,7 +56,7 @@ class JsonUserStoreTest {
     }
 
     @Test
-    void tenTaiKhoanKhongPhanBietHoaThuong(@TempDir Path dir) throws IOException {
+    void usernameIsCaseInsensitive(@TempDir Path dir) throws IOException {
         JsonUserStore store = new JsonUserStore(dir.resolve("users.json").toString());
         store.save(user("NguyenVanA", Role.USER));
 
@@ -65,7 +65,7 @@ class JsonUserStoreTest {
     }
 
     @Test
-    void ghiDeTheoTen(@TempDir Path dir) throws IOException {
+    void savesOverwriteByUsername(@TempDir Path dir) throws IOException {
         JsonUserStore store = new JsonUserStore(dir.resolve("users.json").toString());
         store.save(user("nguoidung", Role.USER));
         store.save(user("nguoidung", Role.ADMIN));
@@ -75,7 +75,7 @@ class JsonUserStoreTest {
     }
 
     @Test
-    void xoaTaiKhoan(@TempDir Path dir) throws IOException {
+    void deletesAnAccount(@TempDir Path dir) throws IOException {
         JsonUserStore store = new JsonUserStore(dir.resolve("users.json").toString());
         store.save(user("nguoidung", Role.USER));
 
@@ -91,7 +91,7 @@ class JsonUserStoreTest {
      * sua nham khong duoc phep khoa toan bo nguoi dung ra ngoai.
      */
     @Test
-    void banGhiHongBiBoQuaChuKhongLamSapKho(@TempDir Path dir) throws IOException {
+    void corruptRecordIsSkippedWithoutBreakingTheStore(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("users.json");
         Files.writeString(file, """
                 [
@@ -111,7 +111,7 @@ class JsonUserStoreTest {
 
     /** Truong la (phien ban sau them vao) khong duoc lam vo phep doc. */
     @Test
-    void truongLaKhongLamVoPhepDoc(@TempDir Path dir) throws IOException {
+    void unknownFieldDoesNotBreakReading(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("users.json");
         Files.writeString(file, """
                 [
@@ -126,7 +126,7 @@ class JsonUserStoreTest {
 
     /** Vai tro la trong tep -> ha ve USER, khong nem ngoai le luc khoi dong. */
     @Test
-    void vaiTroLaHaVeUser(@TempDir Path dir) throws IOException {
+    void unknownRoleFallsBackToUser(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("users.json");
         Files.writeString(file, """
                 [
@@ -142,7 +142,7 @@ class JsonUserStoreTest {
 
     /** Khong de lai tep tam sau khi ghi xong. */
     @Test
-    void khongDeLaiTepTam(@TempDir Path dir) throws IOException {
+    void leavesNoTemporaryFileBehind(@TempDir Path dir) throws IOException {
         Path file = dir.resolve("users.json");
         new JsonUserStore(file.toString()).save(user("nguoidung", Role.USER));
 

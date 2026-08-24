@@ -1,5 +1,5 @@
 import { useEffect, useState, type JSX } from 'react'
-import { useBrowsingStore, nhomTheoNgay, gioPhut, type Khoang } from '../store/browsingStore'
+import { useBrowsingStore, groupByDay, timeOfDay, type Khoang } from '../store/browsingStore'
 import { useOverlayStore } from '../store/overlayStore'
 import { usePagesStore } from '../store/pagesStore'
 import { useTabStore } from '../store/tabStore'
@@ -31,7 +31,7 @@ function HistoryPage(): JSX.Element | null {
   const loi = useBrowsingStore((s) => s.loi)
   const chuaDangNhap = useBrowsingStore((s) => s.chuaDangNhap)
   const nap = useBrowsingStore((s) => s.nap)
-  const xoaMuc = useBrowsingStore((s) => s.xoaMuc)
+  const deleteVisit = useBrowsingStore((s) => s.deleteVisit)
 
   const navigate = useTabStore((s) => s.navigate)
   const acquire = useOverlayStore((s) => s.acquire)
@@ -66,7 +66,7 @@ function HistoryPage(): JSX.Element | null {
     return null
   }
 
-  const nhom = nhomTheoNgay(items)
+  const nhom = groupByDay(items)
 
   return (
     <div className="absolute inset-0 z-30 flex flex-col bg-surface">
@@ -92,7 +92,7 @@ function HistoryPage(): JSX.Element | null {
           {tong.toLocaleString('vi-VN')} mục
         </span>
 
-        <NutXoaDuLieu />
+        <ClearDataButton />
 
         <button
           onClick={dong}
@@ -106,7 +106,7 @@ function HistoryPage(): JSX.Element | null {
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
         {chuaDangNhap && (
-          <TrangThaiRong
+          <EmptyState
             tieuDe="Đăng nhập để xem nhật ký"
             moTa="Lịch sử duyệt web được lưu theo tài khoản và đồng bộ giữa các máy.
                   Bấm avatar trên thanh công cụ để đăng nhập."
@@ -121,7 +121,7 @@ function HistoryPage(): JSX.Element | null {
           <p className="py-10 text-center text-[13px] text-faint">Đang tải…</p>
         )}
         {!chuaDangNhap && !loi && !dangTai && items.length === 0 && (
-          <TrangThaiRong
+          <EmptyState
             tieuDe={tuKhoa ? 'Không tìm thấy gì' : 'Nhật ký còn trống'}
             moTa={
               tuKhoa
@@ -131,7 +131,7 @@ function HistoryPage(): JSX.Element | null {
           />
         )}
 
-        {nhom.map(([nhan, danhSach]) => (
+        {nhom.map(([nhan, list]) => (
           <section key={nhan} className="mb-6">
             <h2
               className="sticky top-0 z-10 bg-surface py-2 text-[12px] font-semibold
@@ -140,13 +140,13 @@ function HistoryPage(): JSX.Element | null {
               {nhan}
             </h2>
             <ul>
-              {danhSach.map((item) => (
+              {list.map((item) => (
                 <li
                   key={item.id}
                   className="group flex items-center gap-3 rounded-lg pr-2 hover:bg-raised"
                 >
                   <span className="w-14 shrink-0 pl-2 text-[12px] tabular-nums text-faint">
-                    {gioPhut(item.visitedAt)}
+                    {timeOfDay(item.visitedAt)}
                   </span>
                   <button
                     onClick={() => {
@@ -171,14 +171,14 @@ function HistoryPage(): JSX.Element | null {
                       <span className="block truncate text-[11px] text-faint">
                         {hostOf(item.url)}
                         {/* Ghé nhiều lần thì gộp thành một dòng — xem
-                            HistoryService.ghiLuotGhe. Hiện số lần để người
+                            HistoryService.recordVisit. Hiện số lần để người
                             dùng hiểu vì sao chỉ có một dòng. */}
                         {item.visitCount > 1 && ` — ${item.visitCount} lần`}
                       </span>
                     </span>
                   </button>
                   <button
-                    onClick={() => void xoaMuc(item.id)}
+                    onClick={() => void deleteVisit(item.id)}
                     className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-full
                                text-faint transition hover:bg-danger/15 hover:text-danger
                                focus-visible:outline-none group-hover:flex"
@@ -206,17 +206,17 @@ function HistoryPage(): JSX.Element | null {
  * xác nhận nói rõ CON SỐ sẽ bị xoá — "Xoá 1.247 mục?" là một câu hỏi trả lời
  * được, còn "Bạn có chắc không?" thì không.
  */
-function NutXoaDuLieu(): JSX.Element {
+function ClearDataButton(): JSX.Element {
   const [moHop, setMoHop] = useState(false)
   const [khoang, setKhoang] = useState<Khoang>('gio-qua')
   const [dangXoa, setDangXoa] = useState(false)
   const tong = useBrowsingStore((s) => s.tong)
-  const xoaTheoKhoang = useBrowsingStore((s) => s.xoaTheoKhoang)
+  const deleteVisitRange = useBrowsingStore((s) => s.deleteVisitRange)
 
-  async function xacNhan(): Promise<void> {
+  async function confirmDelete(): Promise<void> {
     setDangXoa(true)
     try {
-      await xoaTheoKhoang(khoang)
+      await deleteVisitRange(khoang)
       setMoHop(false)
     } finally {
       setDangXoa(false)
@@ -267,7 +267,7 @@ function NutXoaDuLieu(): JSX.Element {
                 >
                   <input
                     type="radio"
-                    name="khoang-xoa"
+                    name="khoang-remove"
                     checked={khoang === value}
                     onChange={() => setKhoang(value)}
                     className="accent-brand"
@@ -287,7 +287,7 @@ function NutXoaDuLieu(): JSX.Element {
                 Huỷ
               </button>
               <button
-                onClick={() => void xacNhan()}
+                onClick={() => void confirmDelete()}
                 disabled={dangXoa}
                 className="rounded-lg bg-danger px-4 py-2 text-[13px] font-medium text-white
                            transition hover:brightness-110 disabled:opacity-60
@@ -303,7 +303,7 @@ function NutXoaDuLieu(): JSX.Element {
   )
 }
 
-function TrangThaiRong({ tieuDe, moTa }: { tieuDe: string; moTa: string }): JSX.Element {
+function EmptyState({ tieuDe, moTa }: { tieuDe: string; moTa: string }): JSX.Element {
   return (
     <div className="flex flex-col items-center px-8 py-20 text-center">
       <span className="flex h-14 w-14 items-center justify-center rounded-full bg-raised text-faint">

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { settingsApi, ChuaDangNhap } from '../lib/userDataApi'
+import { settingsApi, NotAuthenticated } from '../lib/userDataApi'
 
 /**
  * Tuỳ chọn người dùng — đồng bộ giữa các máy qua settings-service.
@@ -65,10 +65,10 @@ interface SettingsState {
 
   nap: () => Promise<void>
   dat: <K extends keyof TuyChon>(khoa: K, giaTri: TuyChon[K]) => Promise<void>
-  khoiPhucMacDinh: () => Promise<void>
+  resetToDefaults: () => Promise<void>
 }
 
-function docCucBo(): TuyChon {
+function readLocal(): TuyChon {
   try {
     const raw = window.localStorage.getItem(KHOA_CUC_BO)
     if (!raw) {
@@ -83,7 +83,7 @@ function docCucBo(): TuyChon {
   }
 }
 
-function ghiCucBo(tuyChon: TuyChon): void {
+function writeLocal(tuyChon: TuyChon): void {
   try {
     window.localStorage.setItem(KHOA_CUC_BO, JSON.stringify(tuyChon))
   } catch {
@@ -92,7 +92,7 @@ function ghiCucBo(tuyChon: TuyChon): void {
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  tuyChon: docCucBo(),
+  tuyChon: readLocal(),
   version: 0,
   dangDongBo: false,
   chiCucBo: false,
@@ -101,14 +101,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   nap: async () => {
     set({ dangDongBo: true, loi: null })
     try {
-      const khoi = await settingsApi.doc()
+      const khoi = await settingsApi.read()
       // Máy chủ là nguồn sự thật, nhưng vẫn gộp lên MẶC ĐỊNH: khối trên máy
       // chủ có thể thiếu những khoá mới thêm ở phiên bản ứng dụng này.
       const tuyChon = { ...MAC_DINH, ...(khoi.settings as Partial<TuyChon>) }
-      ghiCucBo(tuyChon)
+      writeLocal(tuyChon)
       set({ tuyChon, version: khoi.version, dangDongBo: false, chiCucBo: false })
     } catch (error) {
-      if (error instanceof ChuaDangNhap) {
+      if (error instanceof NotAuthenticated) {
         set({ dangDongBo: false, chiCucBo: true, loi: null })
         return
       }
@@ -124,14 +124,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // Áp NGAY, không chờ máy chủ. Một ô chuyển chủ đề mà phải đợi một lượt gọi
     // mạng mới đổi màu là một ô chuyển trông như bị hỏng.
     const tuyChon = { ...get().tuyChon, [khoa]: giaTri }
-    ghiCucBo(tuyChon)
+    writeLocal(tuyChon)
     set({ tuyChon })
 
     try {
-      const khoi = await settingsApi.gop({ [khoa]: giaTri }, get().version)
+      const khoi = await settingsApi.merge({ [khoa]: giaTri }, get().version)
       set({ version: khoi.version, chiCucBo: false })
     } catch (error) {
-      if (error instanceof ChuaDangNhap) {
+      if (error instanceof NotAuthenticated) {
         set({ chiCucBo: true })
         return
       }
@@ -141,7 +141,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       // đang cùng sửa sẽ chạy mãi không dừng.
       try {
         await get().nap()
-        const khoi = await settingsApi.gop({ [khoa]: giaTri }, get().version)
+        const khoi = await settingsApi.merge({ [khoa]: giaTri }, get().version)
         set({ version: khoi.version })
       } catch {
         set({ chiCucBo: true })
@@ -149,11 +149,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  khoiPhucMacDinh: async () => {
-    ghiCucBo(MAC_DINH)
+  resetToDefaults: async () => {
+    writeLocal(MAC_DINH)
     set({ tuyChon: MAC_DINH, version: 0 })
     try {
-      await settingsApi.khoiPhucMacDinh()
+      await settingsApi.resetToDefaults()
     } catch {
       set({ chiCucBo: true })
     }

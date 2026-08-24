@@ -23,3 +23,6 @@ backend/data/*.json
 *.iml
 .DS_Store
 Thumbs.db
+
+# Log cua cac service chay ngam qua run-backend.bat.
+backend/logs/

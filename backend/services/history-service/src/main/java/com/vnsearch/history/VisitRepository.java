@@ -46,7 +46,7 @@ public interface VisitRepository extends MongoRepository<VisitDocument, String> 
      */
     @Query("{ 'username': ?0, $or: [ { 'title': { $regex: ?1, $options: 'i' } }, "
             + "{ 'url': { $regex: ?1, $options: 'i' } } ] }")
-    Page<VisitDocument> timTheoTuKhoa(String username, String tuKhoa, Pageable pageable);
+    Page<VisitDocument> searchByKeyword(String username, String keyword, Pageable pageable);
 
     /** Tim ban ghi cua CUNG mot URL de gop luot ghe thay vi them dong moi. */
     Optional<VisitDocument> findByUsernameAndUrl(String username, String url);

@@ -37,43 +37,48 @@ alerting:
         - targets: [alertmanager:9093]
 
 scrape_configs:
-  # --- Backend: nguồn số liệu nghiệp vụ ------------------------------------
+  # --- Backend Java: nguồn số liệu nghiệp vụ -------------------------------
   #
   # metrics_path KHÔNG phải mặc định /metrics. Spring Boot Actuator đặt ở
   # /actuator/prometheus, và quên dòng này là cách phổ biến nhất để có một
   # mục tiêu mãi mãi ở trạng thái DOWN mà không hiểu vì sao.
+  #
+  # Tên job giữ nguyên `vnsearch-backend` vì alerts.yml đang neo vào nó. Mục
+  # tiêu là tên service trong mạng Compose, không phải Service của Kubernetes.
   - job_name: vnsearch-backend
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: [vnsearch-backend:8080]
+      - targets:
+          - api-gateway:8080
+          - auth-service:8081
+          - search-service:8082
+          - analytics-service:8084
+          - history-service:8085
+          - downloads-service:8086
+          - settings-service:8087
+          - football-service:8090
         labels:
           component: backend
 
-  # --- Crawler worker: cùng ảnh, khác vai ----------------------------------
+  # --- Crawler: tách thành job riêng ---------------------------------------
   #
-  # Tách thành job riêng chứ không gộp vào job trên: hai tiến trình có hồ sơ
-  # hoàn toàn khác nhau (một cái phục vụ truy vấn, một cái tiêu thụ Kafka), nên
-  # trộn chúng vào một job làm mọi phép tổng hợp trở nên vô nghĩa.
-  #
-  # `honor_labels` không bật: nhãn `component` ở đây phải thắng.
+  # Không gộp vào job trên: một cái phục vụ truy vấn, một cái chạy vòng lặp
+  # thu thập. Trộn chúng vào một job làm mọi phép tổng hợp trở nên vô nghĩa.
   - job_name: vnsearch-crawler-worker
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: [vnsearch-crawler-worker:8080]
+      - targets: [crawler-service:8083]
         labels:
           component: crawler-worker
 
   # --- Kafka: độ trễ tiêu thụ ----------------------------------------------
   #
-  # Vì sao cần một exporter riêng thay vì đọc thẳng từ broker: Kafka phơi số
-  # liệu qua JMX, không phải HTTP. kafka-exporter dịch JMX sang định dạng
-  # Prometheus.
+  # Chỉ có mục tiêu khi chạy `--profile kafka`. Không bật hồ sơ đó thì job này
+  # ở trạng thái DOWN, và đó là đúng: bus mặc định là `memory`, không có
+  # broker nào cả.
   #
-  # Thang đo quan trọng nhất ở đây là `kafka_consumergroup_lag` — số thông điệp
-  # một consumer group còn nợ. Nó vừa là tín hiệu cảnh báo, vừa là tín hiệu để
-  # CO GIÃN: xem KEDA ScaledObject trong deploy/k8s/base/crawler-worker.yaml.
-  # Đây là điểm khác biệt bản chất so với co giãn theo CPU: một worker chờ mạng
-  # có CPU thấp trong khi hàng đợi đang dài ra.
+  # Thang đo quan trọng nhất ở đây là `kafka_consumergroup_lag` — số thông
+  # điệp một consumer group còn nợ.
   - job_name: kafka
     static_configs:
       - targets: [kafka-exporter:9308]
@@ -82,8 +87,8 @@ scrape_configs:
 
   # --- Bản thân Prometheus -------------------------------------------------
   #
-  # Ai canh người canh gác. Nếu Prometheus quá tải hoặc hết bộ nhớ thì mọi cảnh
-  # báo khác im lặng — và im lặng thì trông y hệt "mọi thứ đều ổn".
+  # Ai canh người canh gác. Nếu Prometheus quá tải hoặc hết bộ nhớ thì mọi
+  # cảnh báo khác im lặng — và im lặng thì trông y hệt "mọi thứ đều ổn".
   - job_name: prometheus
     static_configs:
       - targets: [localhost:9090]

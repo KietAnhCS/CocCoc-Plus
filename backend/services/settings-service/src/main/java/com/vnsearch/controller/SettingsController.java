@@ -63,12 +63,12 @@ public class SettingsController {
      * {@code ck_user_settings_size} ở CSDL là lớp chặn thứ hai; hai lớp vì lớp
      * này bảo vệ tiến trình còn lớp kia bảo vệ dữ liệu.
      */
-    private static final int JSON_TOI_DA = 64 * 1024;
+    private static final int MAX_JSON_BYTES = 64 * 1024;
 
     private static final ObjectMapper JSON = new ObjectMapper();
 
     /** Khối rỗng trả về cho người chưa từng lưu tuỳ chọn nào. */
-    private static final String RONG = "{}";
+    private static final String EMPTY = "{}";
 
     private final SettingsRepository repository;
     private final AuditLogger audit;
@@ -86,75 +86,75 @@ public class SettingsController {
     }
 
     @GetMapping
-    public ResponseEntity<Map<String, Object>> doc() {
+    public ResponseEntity<Map<String, Object>> read() {
         String username = CallerIdentity.required();
-        return repository.doc(username)
-                .map(SettingsController::than)
+        return repository.read(username)
+                .map(SettingsController::okResponse)
                 .orElseGet(() -> ResponseEntity.ok(Map.of(
                         "settings", Map.of(),
                         "version", 0L)));
     }
 
     @PatchMapping
-    public ResponseEntity<Map<String, Object>> gop(
-            @RequestBody String than,
+    public ResponseEntity<Map<String, Object>> merge(
+            @RequestBody String body,
             @RequestHeader(value = "If-Match", required = false) Long expectedVersion) {
-        return ghi(than, expectedVersion, true);
+        return write(body, expectedVersion, true);
     }
 
     @PutMapping
-    public ResponseEntity<Map<String, Object>> thayThe(
-            @RequestBody String than,
+    public ResponseEntity<Map<String, Object>> replace(
+            @RequestBody String body,
             @RequestHeader(value = "If-Match", required = false) Long expectedVersion) {
-        return ghi(than, expectedVersion, false);
+        return write(body, expectedVersion, false);
     }
 
     @DeleteMapping("/{khoa}")
-    public ResponseEntity<Map<String, Object>> xoaKhoa(@PathVariable String khoa) {
+    public ResponseEntity<Map<String, Object>> deleteKey(@PathVariable String khoa) {
         String username = CallerIdentity.required();
-        return repository.xoaKhoa(username, khoa)
+        return repository.deleteKey(username, khoa)
                 .map(snapshot -> {
                     audit.record(username, "SETTINGS_DELETE_KEY", "user_settings:" + username,
                             "SUCCESS", "khoa=" + khoa);
-                    return than(snapshot);
+                    return okResponse(snapshot);
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     /** Khôi phục mặc định: xoá hẳn dòng, lần đọc sau trả về khối rỗng. */
     @DeleteMapping
-    public ResponseEntity<Void> khoiPhucMacDinh() {
+    public ResponseEntity<Void> resetToDefaults() {
         String username = CallerIdentity.required();
-        repository.xoaHet(username);
+        repository.deleteAll(username);
         audit.record(username, "SETTINGS_RESET", "user_settings:" + username, "SUCCESS", null);
         return ResponseEntity.noContent().build();
     }
 
-    private ResponseEntity<Map<String, Object>> ghi(String than, Long expectedVersion,
-                                                     boolean gop) {
+    private ResponseEntity<Map<String, Object>> write(String body, Long expectedVersion,
+                                                       boolean merge) {
         String username = CallerIdentity.required();
-        String json = kiemTra(than);
+        String json = validate(body);
 
-        Optional<SettingsRepository.Snapshot> ketQua = gop
-                ? repository.gop(username, json, expectedVersion)
-                : repository.thayThe(username, json, expectedVersion);
+        Optional<SettingsRepository.Snapshot> result = merge
+                ? repository.merge(username, json, expectedVersion)
+                : repository.replace(username, json, expectedVersion);
 
-        if (ketQua.isEmpty()) {
+        if (result.isEmpty()) {
             // Xung đột phiên bản. Trả kèm khối HIỆN TẠI để máy khách gộp lại
             // ngay mà không phải gọi thêm một lượt GET — với một thao tác chạy
             // nền như đồng bộ cài đặt, mỗi lượt gọi thừa là một lượt có thể
             // hỏng tiếp.
-            SettingsRepository.Snapshot hienTai = repository.doc(username)
-                    .orElse(new SettingsRepository.Snapshot(RONG, 0L, Instant.now()));
+            SettingsRepository.Snapshot current = repository.read(username)
+                    .orElse(new SettingsRepository.Snapshot(EMPTY, 0L, Instant.now()));
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                     "error", "conflict",
                     "message", "Thiết bị khác đã sửa tuỳ chọn. Hãy gộp rồi thử lại.",
-                    "settings", doc(hienTai.json()),
-                    "version", hienTai.version()));
+                    "settings", parseJson(current.json()),
+                    "version", current.version()));
         }
-        audit.record(username, gop ? "SETTINGS_MERGE" : "SETTINGS_REPLACE",
+        audit.record(username, merge ? "SETTINGS_MERGE" : "SETTINGS_REPLACE",
                 "user_settings:" + username, "SUCCESS", null);
-        return than(ketQua.get());
+        return okResponse(result.get());
     }
 
     /**
@@ -164,16 +164,16 @@ public class SettingsController {
      * ở đây nói được "phải là một đối tượng JSON", còn ràng buộc CHECK chỉ ném
      * một lỗi SQL mà người gọi API không hiểu nổi.
      */
-    private static String kiemTra(String than) {
-        if (than == null || than.isBlank()) {
+    private static String validate(String body) {
+        if (body == null || body.isBlank()) {
             throw new JsonKhongHopLe("Thân request rỗng.");
         }
-        if (than.length() > JSON_TOI_DA) {
+        if (body.length() > MAX_JSON_BYTES) {
             throw new JsonKhongHopLe("Khối tuỳ chọn quá lớn (tối đa "
-                    + (JSON_TOI_DA / 1024) + " KB).");
+                    + (MAX_JSON_BYTES / 1024) + " KB).");
         }
         try {
-            JsonNode node = JSON.readTree(than);
+            JsonNode node = JSON.readTree(body);
             if (!node.isObject()) {
                 throw new JsonKhongHopLe("Tuỳ chọn phải là một đối tượng JSON.");
             }
@@ -183,7 +183,7 @@ public class SettingsController {
         }
     }
 
-    private static ResponseEntity<Map<String, Object>> than(
+    private static ResponseEntity<Map<String, Object>> okResponse(
             SettingsRepository.Snapshot snapshot) {
         return ResponseEntity.ok()
                 // ETag để máy khách gửi lại trong If-Match ở lần ghi sau. Đây
@@ -191,14 +191,14 @@ public class SettingsController {
                 // tự nhớ số phiên bản từ đâu ra.
                 .eTag("\"" + snapshot.version() + "\"")
                 .body(Map.of(
-                        "settings", doc(snapshot.json()),
+                        "settings", parseJson(snapshot.json()),
                         "version", snapshot.version(),
                         "updatedAt", snapshot.updatedAt()));
     }
 
-    private static Object doc(String json) {
+    private static Object parseJson(String json) {
         try {
-            return JSON.readTree(json == null ? RONG : json);
+            return JSON.readTree(json == null ? EMPTY : json);
         } catch (JsonProcessingException e) {
             // Không thể xảy ra: chuỗi này vừa từ cột jsonb ra, và PostgreSQL
             // không lưu jsonb hỏng. Nếu xảy ra thì lược đồ đã bị sửa tay.
@@ -207,7 +207,7 @@ public class SettingsController {
     }
 
     @ExceptionHandler(JsonKhongHopLe.class)
-    public ResponseEntity<ProblemDetail> jsonHong(JsonKhongHopLe e) {
+    public ResponseEntity<ProblemDetail> invalidJson(JsonKhongHopLe e) {
         return GlobalExceptionHandler.errorResponse(HttpStatus.BAD_REQUEST, e.getMessage(), null);
     }
 }

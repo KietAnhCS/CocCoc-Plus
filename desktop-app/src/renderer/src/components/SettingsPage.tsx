@@ -21,7 +21,7 @@ function SettingsPage(): JSX.Element | null {
   const loi = useSettingsStore((s) => s.loi)
   const nap = useSettingsStore((s) => s.nap)
   const dat = useSettingsStore((s) => s.dat)
-  const khoiPhucMacDinh = useSettingsStore((s) => s.khoiPhucMacDinh)
+  const resetToDefaults = useSettingsStore((s) => s.resetToDefaults)
 
   const acquire = useOverlayStore((s) => s.acquire)
   const release = useOverlayStore((s) => s.release)
@@ -63,8 +63,8 @@ function SettingsPage(): JSX.Element | null {
             </p>
           )}
 
-          <Nhom tieuDe="Giao diện">
-            <ChonMot
+          <Section tieuDe="Giao diện">
+            <RadioGroup
               nhan="Chủ đề"
               moTa="Áp cho vỏ trình duyệt. Trang web tự quyết định giao diện của chúng."
               giaTri={tuyChon.theme}
@@ -75,31 +75,31 @@ function SettingsPage(): JSX.Element | null {
               ]}
               onChange={(value) => void dat('theme', value as TuyChon['theme'])}
             />
-            <CongTac
+            <ToggleRow
               nhan="Hiện thanh dấu trang"
               moTa="Dải dấu trang ngay dưới thanh địa chỉ."
               bat={tuyChon.hienThanhDauTrang}
               onChange={(value) => void dat('hienThanhDauTrang', value)}
             />
-          </Nhom>
+          </Section>
 
-          <Nhom tieuDe="Khởi động và tìm kiếm">
-            <OChu
+          <Section tieuDe="Khởi động và tìm kiếm">
+            <TextField
               nhan="Trang chủ"
               moTa="Mở khi bấm nút Trang chủ hoặc Alt+Home."
               giaTri={tuyChon.homePage}
               onChange={(value) => void dat('homePage', value)}
             />
-            <CongTac
+            <ToggleRow
               nhan="Gợi ý từ lịch sử tìm kiếm"
               moTa="Ô địa chỉ gợi ý những gì bạn đã tìm trước đó, bên cạnh gợi ý từ chỉ mục."
               bat={tuyChon.goiYTuLichSu}
               onChange={(value) => void dat('goiYTuLichSu', value)}
             />
-          </Nhom>
+          </Section>
 
-          <Nhom tieuDe="Quyền riêng tư">
-            <CongTac
+          <Section tieuDe="Quyền riêng tư">
+            <ToggleRow
               nhan="Lưu lịch sử duyệt web"
               moTa="Tắt thì trình duyệt không gửi lượt ghé thăm nào lên máy chủ — giống như
                     mọi thẻ đều ẩn danh. Lịch sử đã lưu trước đó không bị xoá."
@@ -110,10 +110,10 @@ function SettingsPage(): JSX.Element | null {
               Lịch sử tự xoá sau <b>90 ngày</b> và lịch sử tìm kiếm sau <b>30 ngày</b>, kể cả khi
               bạn không làm gì. Thẻ ẩn danh không bao giờ được ghi lại.
             </p>
-          </Nhom>
+          </Section>
 
-          <Nhom tieuDe="Tải xuống">
-            <CongTac
+          <Section tieuDe="Tải xuống">
+            <ToggleRow
               nhan="Hỏi vị trí lưu cho mỗi tệp"
               moTa="Tắt thì tệp tải thẳng vào thư mục mặc định."
               bat={tuyChon.hoiChoLuuTep}
@@ -125,11 +125,11 @@ function SettingsPage(): JSX.Element | null {
                 {thuMucTai || 'Đang xác định…'}
               </p>
             </div>
-          </Nhom>
+          </Section>
 
           <div className="mt-8 border-t border-line pt-5">
             <button
-              onClick={() => void khoiPhucMacDinh()}
+              onClick={() => void resetToDefaults()}
               className="rounded-lg border border-line px-4 py-2 text-[13px] text-muted
                          transition hover:border-danger/40 hover:text-danger
                          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
@@ -147,7 +147,7 @@ function SettingsPage(): JSX.Element | null {
   )
 }
 
-function Nhom({ tieuDe, children }: { tieuDe: string; children: React.ReactNode }): JSX.Element {
+function Section({ tieuDe, children }: { tieuDe: string; children: React.ReactNode }): JSX.Element {
   return (
     <section className="mb-7">
       <h2 className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-faint">
@@ -158,7 +158,7 @@ function Nhom({ tieuDe, children }: { tieuDe: string; children: React.ReactNode 
   )
 }
 
-function CongTac({
+function ToggleRow({
   nhan,
   moTa,
   bat,
@@ -188,7 +188,7 @@ function CongTac({
   )
 }
 
-function ChonMot({
+function RadioGroup({
   nhan,
   moTa,
   giaTri,
@@ -224,7 +224,7 @@ function ChonMot({
   )
 }
 
-function OChu({
+function TextField({
   nhan,
   moTa,
   giaTri,

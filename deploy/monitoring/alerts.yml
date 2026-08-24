@@ -135,7 +135,7 @@ groups:
       # ------------------------------------------------------------------
       # Độ trễ tiêu thụ: số thông điệp một consumer group còn nợ.
       #
-      # Đây vừa là cảnh báo, vừa là tín hiệu CO GIÃN (xem KEDA ScaledObject).
+      # Đây vừa là cảnh báo, vừa là dấu hiệu cần tăng số bản sao crawler-service.
       # Vì sao lag chứ không phải CPU: một worker chờ mạng có CPU gần bằng 0
       # trong khi hàng đợi dài ra — co giãn theo CPU sẽ không bao giờ kích hoạt
       # đúng lúc cần.
@@ -153,7 +153,7 @@ groups:
           description: >-
             Trên topic {{ $labels.topic }}. Consumer không theo kịp tốc độ sinh.
           runbook: >-
-            1) Tăng số bản sao crawler-worker (KEDA lẽ ra đã tự làm).
+            1) Tăng bản sao: docker compose up -d --scale crawler-service=N
             2) Nhớ trần: số bản sao hiệu dụng không vượt quá số phân hoạch (12).
             3) Nếu đã chạm trần thì phải tăng phân hoạch — NHƯNG đọc Javadoc
                của DiscoveredUrl trước: đổi số phân hoạch phá phép băm theo
@@ -177,6 +177,6 @@ groups:
             {{ $value }} thông điệp bị đẩy sang DLT trong 15 phút — chúng đã
             thử lại hết số lần cho phép mà vẫn hỏng.
           runbook: >-
-            1) Xem nội dung: dùng kafka-ui ở http://localhost:8081
+            1) Xem nội dung: dùng kafka-ui ở http://localhost:8090
             2) Header dead-letter chứa nguyên nhân gốc.
             3) Sửa xong thì phát lại từ DLT về topic gốc.

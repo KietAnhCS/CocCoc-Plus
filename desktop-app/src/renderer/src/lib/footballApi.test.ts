@@ -162,7 +162,7 @@ describe('fetchPlayers', () => {
 
     expect(players).toHaveLength(1)
     const url = vi.mocked(fetch).mock.calls[0][0] as URL
-    expect(url.pathname).toBe('/api/v1/players')
+    expect(url.pathname).toBe('/api/football/v1/players')
     expect(url.searchParams.get('search')).toBe('salah')
   })
 })
@@ -198,12 +198,12 @@ describe('fetchLeagueFixtures và fetchTeamFixtures', () => {
     mockFetchJson(envelope([]))
     await fetchLeagueFixtures('39')
     let url = vi.mocked(fetch).mock.calls[0][0] as URL
-    expect(url.pathname).toBe('/api/v1/leagues/39/fixtures')
+    expect(url.pathname).toBe('/api/football/v1/leagues/39/fixtures')
 
     mockFetchJson(envelope([]))
     await fetchTeamFixtures('42')
     url = vi.mocked(fetch).mock.calls[0][0] as URL
-    expect(url.pathname).toBe('/api/v1/teams/42/fixtures')
+    expect(url.pathname).toBe('/api/football/v1/teams/42/fixtures')
   })
 
   it('mã đội có ký tự lạ vẫn được mã hoá an toàn vào đường dẫn', async () => {
@@ -213,7 +213,7 @@ describe('fetchLeagueFixtures và fetchTeamFixtures', () => {
     await fetchTeamFixtures('Hà Nội FC')
 
     const url = vi.mocked(fetch).mock.calls[0][0] as URL
-    expect(url.pathname).toBe('/api/v1/teams/' + encodeURIComponent('Hà Nội FC') + '/fixtures')
+    expect(url.pathname).toBe('/api/football/v1/teams/' + encodeURIComponent('Hà Nội FC') + '/fixtures')
   })
 
   it('giữ nguyên meta để giao diện còn nói được dữ liệu đến từ đâu', async () => {

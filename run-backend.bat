@@ -7,6 +7,7 @@ set "ENV_FILE=%ROOT%.env"
 set "MODE=core"
 set "USE_DOCKER="
 set "FORCE_BUILD="
+set "SHOW_WINDOWS="
 
 for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
 set "OLD_CP=%OLD_CP: =%"
@@ -24,6 +25,8 @@ if /i "%~1"=="--full" (
     set "USE_DOCKER=1"
 ) else if /i "%~1"=="--build" (
     set "FORCE_BUILD=1"
+) else if /i "%~1"=="--windows" (
+    set "SHOW_WINDOWS=1"
 ) else (
     echo [LỖI] Tham số không hiểu: %~1
     echo.
@@ -45,7 +48,6 @@ if not exist "backend\pom.xml" (
     goto :fail
 )
 
-rem === Khoá quản trị ===
 if defined ADMIN_API_KEY goto :key_ok
 if not exist "%ENV_FILE%" goto :key_new
 for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
@@ -80,7 +82,6 @@ if not defined KEY_PROBE (
     goto :fail
 )
 
-rem === Mật khẩu quản trị mồi của auth-service ===
 if defined BOOTSTRAP_ADMIN_PASSWORD goto :pw_ok
 if not exist "%ENV_FILE%" goto :pw_new
 for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
@@ -110,9 +111,6 @@ if not defined BOOTSTRAP_ADMIN_USERNAME set "BOOTSTRAP_ADMIN_USERNAME=admin"
 
 if defined USE_DOCKER goto :docker_path
 
-rem ===========================================================================
-rem CHẠY TRỰC TIẾP BẰNG JAR - không cần Docker
-rem ===========================================================================
 where java >nul 2>nul
 if errorlevel 1 (
     echo [LỖI] Không tìm thấy Java.
@@ -131,6 +129,7 @@ if "%MODE%"=="full" (
     call :need_jar history-service
     call :need_jar downloads-service
     call :need_jar settings-service
+    call :need_jar football-service
 )
 
 if not defined NEED_BUILD goto :build_done
@@ -158,6 +157,7 @@ if "%MODE%"=="full" (
     call :check_port 8085
     call :check_port 8086
     call :check_port 8087
+    call :check_port 8090
 )
 if defined PORT_BUSY (
     echo.
@@ -165,8 +165,6 @@ if defined PORT_BUSY (
     goto :fail
 )
 
-rem Trong mạng Docker các service gọi nhau bằng tên container. Chạy trên máy
-rem thật thì mọi địa chỉ đó phải trỏ về localhost.
 set "AUTH_SERVICE_URL=http://localhost:8081"
 set "SEARCH_SERVICE_URL=http://localhost:8082"
 set "CRAWLER_SERVICE_URL=http://localhost:8083"
@@ -179,8 +177,34 @@ set "AUTH_ISSUER_URI=http://localhost:8081"
 set "AUTH_JWKS_URI=http://localhost:8081/oauth2/jwks"
 set "REDIS_HOST=localhost"
 
+if exist "%ENV_FILE%" (
+    for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
+        if not defined %%a set "%%a=%%b"
+    )
+)
+if not defined POSTGRES_PASSWORD set "POSTGRES_PASSWORD=vnsearch"
+
+if /i "%APP_CRAWLER_BUS%"=="kafka" (
+    set "KAFKA_UP="
+    for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":9092 .*LISTENING"') do set "KAFKA_UP=1"
+    if not defined KAFKA_UP (
+        echo Bus crawl          : .env ghi kafka nhưng cổng 9092 trống - tạm dùng memory
+        set "APP_CRAWLER_BUS=memory"
+    )
+)
+if not defined AUTH_DB_PASSWORD      set "AUTH_DB_PASSWORD=%POSTGRES_PASSWORD%"
+if not defined DOWNLOADS_DB_PASSWORD set "DOWNLOADS_DB_PASSWORD=%POSTGRES_PASSWORD%"
+if not defined SETTINGS_DB_PASSWORD  set "SETTINGS_DB_PASSWORD=%POSTGRES_PASSWORD%"
+
+set "AUTH_DB_URL=jdbc:postgresql://localhost:5432/vnsearch_auth"
+set "DOWNLOADS_DB_URL=jdbc:postgresql://localhost:5432/vnsearch_downloads"
+set "SETTINGS_DB_URL=jdbc:postgresql://localhost:5432/vnsearch_settings"
+set "APP_STORAGE_POSTGRES_URL=jdbc:postgresql://localhost:5432/vnsearch"
+set "FOOTBALL_DB_HOST=localhost"
+set "MONGO_URI=mongodb://localhost:27017/vnsearch_history"
+
 if "%MODE%"=="core" set "MODE_SHOW=RÚT GỌN - api-gateway + auth-service + search-service"
-if "%MODE%"=="full" set "MODE_SHOW=ĐẦY ĐỦ - 8 service Java"
+if "%MODE%"=="full" set "MODE_SHOW=ĐẦY ĐỦ - cả 9 service Java"
 
 echo.
 echo === VNSEARCH - CHẠY TRỰC TIẾP BẰNG JAR ===
@@ -190,6 +214,7 @@ echo Khoá quản trị      : %ADMIN_API_KEY:~0,8%...   ^(đầy đủ trong .e
 echo.
 
 cd /d "%ROOT%backend"
+if not exist "logs" mkdir "logs"
 
 set "LAUNCH_ERR="
 call :launch api-gateway 8080
@@ -201,6 +226,7 @@ if "%MODE%"=="full" (
     call :launch history-service 8085
     call :launch downloads-service 8086
     call :launch settings-service 8087
+    call :launch football-service 8090
 )
 if defined LAUNCH_ERR goto :fail
 
@@ -233,20 +259,23 @@ echo   Thử tìm kiếm    http://localhost:8080/api/search?q=ha+noi
 echo   Swagger UI      http://localhost:8080/swagger-ui.html
 echo.
 echo   Giao diện       chạy run-frontend.bat ở một cửa sổ khác
-echo   Bóng đá         viết bằng Go, bật riêng: docker compose up -d football-service
+echo   Bóng đá         qua Gateway: http://localhost:8080/api/football/v1/fixtures
 echo   Đo corpus       crawl-stats.bat
+echo   Log service     backend\logs\^<ten-service^>.log
 echo   TẮT HẾT         end-backend.bat
 echo.
-echo   Chưa có Redis ở cổng 6379 thì các tuyến có giới hạn tần suất của Gateway
-echo   sẽ báo lỗi. Bật riêng Redis: docker compose up -d redis
+echo   Chế độ jar KHÔNG dựng hạ tầng. Redis, PostgreSQL và MongoDB phải có sẵn,
+echo   nếu không thì các tuyến giới hạn tần suất báo lỗi và những service có
+echo   CSDL ^(auth, crawler, history, downloads, settings, football^) sẽ chết ngay
+echo   lúc khởi động. Bật riêng phần hạ tầng:
+echo       docker compose up -d postgres redis mongo
+echo.
+echo   Muốn cả giám sát Prometheus/Grafana thì dùng run-backend.bat --docker.
 echo.
 call :restore_cp
 endlocal
 exit /b 0
 
-rem ===========================================================================
-rem CHẠY BẰNG DOCKER COMPOSE
-rem ===========================================================================
 :docker_path
 where docker >nul 2>nul
 if errorlevel 1 (
@@ -260,32 +289,40 @@ if errorlevel 1 (
     goto :fail
 )
 
-set "PROFILES="
-if "%MODE%"=="full" set "PROFILES=--profile full"
+if "%MODE%"=="core" (
+    echo.
+    echo [GHI CHÚ] --docker luôn bật TOÀN BỘ hệ thống. Tham số --core/--full chỉ
+    echo           có tác dụng khi chạy jar trực tiếp.
+)
 
 echo.
 echo === VNSEARCH - DOCKER COMPOSE ===
-if "%MODE%"=="full" echo Chế độ             : ĐẦY ĐỦ - profile full, khoảng 5,4 GB RAM
-if "%MODE%"=="core" echo Chế độ             : RÚT GỌN - hồ sơ mặc định, khoảng 2,6 GB RAM
+echo Chế độ             : TOÀN BỘ - 9 service + Postgres/Redis/Mongo
+echo                      + Prometheus/Grafana/Alertmanager
+echo Bộ nhớ             : khoảng 4 GB lúc không tải
 echo.
-docker compose %PROFILES% up -d --build
+docker compose up -d --build
 if errorlevel 1 (
     echo.
     echo [LỖI] docker compose up thất bại. Cuộn lên xem dòng lỗi ĐẦU TIÊN.
     goto :fail
 )
 echo.
-docker compose %PROFILES% ps
+docker compose ps
 echo.
 echo   Cổng duy nhất   http://localhost:8080
+echo   Grafana         http://localhost:3000   ^(admin / admin^)
+echo   Prometheus      http://localhost:9090
+echo   Alertmanager    http://localhost:9093
 echo   Xem log         docker compose logs -f api-gateway
+echo   Thêm Kafka      docker compose --profile kafka up -d
+echo   Kafka UI        http://localhost:8091   ^(chỉ khi bật hồ sơ kafka^)
 echo   TẮT HẾT         end-backend.bat
 echo.
 call :restore_cp
 endlocal
 exit /b 0
 
-rem ===========================================================================
 :need_jar
 if not exist "%ROOT%backend\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" set "NEED_BUILD=1"
 goto :eof
@@ -305,20 +342,32 @@ if not exist "services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" (
     set "LAUNCH_ERR=1"
     goto :eof
 )
-start "VnSearch %~1 :%~2" cmd /k java -jar "services\%~1\target\%~1-0.0.1-SNAPSHOT.jar"
-echo   %~1 :%~2 - đã mở cửa sổ console riêng
+if defined SHOW_WINDOWS (
+    start "VnSearch %~1 :%~2" cmd /k java -jar "services\%~1\target\%~1-0.0.1-SNAPSHOT.jar"
+    echo   %~1 :%~2 - cửa sổ console riêng
+    goto :eof
+)
+powershell -NoProfile -Command "Start-Process -FilePath java -ArgumentList @('-jar', 'services\%~1\target\%~1-0.0.1-SNAPSHOT.jar') -WindowStyle Hidden -RedirectStandardOutput 'logs\%~1.log' -RedirectStandardError 'logs\%~1.err.log'"
+echo   %~1 :%~2 - chạy ngầm, log: backend\logs\%~1.log
 goto :eof
 
 :usage
 echo.
-echo   run-backend.bat            hồ sơ RÚT GỌN: api-gateway + auth-service + search-service
-echo   run-backend.bat --full     cả 8 service Java: thêm crawler, analytics, history,
-echo                              downloads, settings
+echo   run-backend.bat            jar, hồ sơ RÚT GỌN: api-gateway + auth-service
+echo                              + search-service
+echo   run-backend.bat --full     jar, cả 9 service Java: thêm crawler, analytics,
+echo                              history, downloads, settings, football
 echo   run-backend.bat --build    dựng lại jar trước khi chạy
-echo   run-backend.bat --docker   chạy bằng docker compose thay vì jar trực tiếp,
-echo                              ghép được với --full
+echo   run-backend.bat --windows  mở một cửa sổ console cho mỗi service thay vì
+echo                              chạy ngầm ^(9 cửa sổ^)
+echo   run-backend.bat --docker   chạy bằng docker compose - LUÔN bật toàn bộ hệ
+echo                              thống kèm Prometheus/Grafana/Alertmanager, nên
+echo                              --core/--full không đổi được gì ở đường này
 echo.
-echo   Mỗi service mở một cửa sổ console riêng để đọc log.
+echo   Chế độ jar chạy các service NGẦM, log đổ vào backend\logs\<ten>.log.
+echo   Nó KHÔNG dựng hạ tầng: cần sẵn PostgreSQL, Redis và MongoDB.
+echo       docker compose up -d postgres redis mongo
+echo.
 echo   Tắt hết: end-backend.bat
 echo.
 echo   Biến môi trường:
@@ -331,6 +380,9 @@ echo   Bảng cổng:
 echo     8080 api-gateway    8081 auth-service      8082 search-service
 echo     8083 crawler        8084 analytics         8085 history
 echo     8086 downloads      8087 settings          8090 football
+echo.
+echo   Chỉ khi chạy bằng --docker:
+echo     3000 Grafana        9090 Prometheus        9093 Alertmanager
 echo.
 call :restore_cp
 endlocal

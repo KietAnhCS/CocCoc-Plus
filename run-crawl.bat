@@ -3,23 +3,14 @@ setlocal
 
 set "RUNNER=com.vnsearch.crawler.MultiDomainCrawlRunner"
 
-rem Bảng mã console: thanh tiến trình vẽ bằng khối Unicode và chữ tiếng Việt có
-rem dấu. Ở bảng mã mặc định của Windows chúng ra dấu hỏi.
 for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
 set "OLD_CP=%OLD_CP: =%"
 chcp 65001 >nul
 
-rem Bảng mã của JVM phải đặt lúc khởi động, qua MAVEN_OPTS chứ không phải -D
-rem trên dòng lệnh mvnw: mvnw đặt property SAU khi System.out đã được tạo.
 set "MAVEN_OPTS=-Dstdout.encoding=UTF-8 -Dstderr.encoding=UTF-8 -Dfile.encoding=UTF-8 %MAVEN_OPTS%"
 
-rem ProgressBarCrawlListener tự dò bằng System.console(), thứ trả về null khi
-rem chạy qua Maven wrapper, khi đó nó rơi về in từng dòng mốc. Tệp này sinh ra
-rem để người ngồi nhìn nên ép thẳng "bar". Ghi ra tệp log thì đặt
-rem CRAWL_PROGRESS=lines, vì ký tự \r trong tệp log chỉ tạo ra rác.
 if not defined CRAWL_PROGRESS set "CRAWL_PROGRESS=bar"
 
-rem --- Tham số: [maxPages] [maxDepth] [outputPath] [--fresh] ---
 set "MAX_PAGES=%~1"
 set "MAX_DEPTH=%~2"
 set "OUTPUT=%~3"
@@ -42,14 +33,13 @@ if not exist "pom.xml" (
     goto :fail
 )
 
-if not exist "libs\core\pom.xml" (
-    echo [LỖI] Không thấy module "libs\core" - nơi chứa các runner dòng lệnh.
+if not exist "libs\core-crawler\pom.xml" (
+    echo [LỖI] Không thấy module "libs\core-crawler" - nơi chứa các runner crawl.
+    echo       Module này tách ra từ "libs\core" cũ; nếu kho của bạn vẫn còn
+    echo       "libs\core" thì hãy kéo bản mới nhất về.
     goto :fail
 )
 
-rem Gọi wrapper bằng đường dẫn tuyệt đối: nếu biến môi trường
-rem NoDefaultCurrentDirectoryInExePath được bật, cmd KHÔNG tìm lệnh trong thư
-rem mục hiện tại và "call mvnw.cmd" trần sẽ báo không tìm thấy lệnh.
 set "MVNW=%CD%\mvnw.cmd"
 if not exist "%MVNW%" (
     echo [LỖI] Không thấy Maven Wrapper ^(mvnw.cmd^) trong "%CD%".
@@ -111,11 +101,7 @@ echo Đang biên dịch và chạy crawler...
 echo   Ctrl+C để dừng. Điểm kiểm tra ghi mỗi max^(250 trang, 25%% corpus hiện có^),
 echo   nên ở corpus lớn có thể mất vài nghìn trang cuối.
 echo.
-rem `-pl libs/core`: các runner dòng lệnh nằm trong module vnsearch-core, không
-rem còn nằm ở gốc như thời backend là một ứng dụng duy nhất. exec:java KHÔNG
-rem tách tiến trình, nên thư mục làm việc vẫn là thư mục gọi Maven, tức
-rem "backend" - và đường dẫn "data/..." ở trên vẫn trỏ đúng backend\data.
-call "%MVNW%" -q -pl libs/core compile exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
+call "%MVNW%" -q -pl libs/core-crawler -am compile exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
 if errorlevel 1 (
     echo.
     echo [LỖI] Phiên crawl kết thúc bất thường.
@@ -127,7 +113,9 @@ if errorlevel 1 (
 echo.
 echo Xong. Corpus đã lưu tại "%CD%\%OUTPUT%".
 echo Muốn kết quả vào bộ tìm kiếm thì khởi động lại backend, hoặc gọi:
-echo     curl -X POST -H "X-API-Key: khoa-trong-.env" http://localhost:8080/api/admin/reindex
+echo     curl -X POST -H "X-API-Key: khoa-trong-.env" http://localhost:8083/api/admin/reindex
+echo   ^(gọi thẳng crawler-service :8083. Qua Gateway :8080 thì tuyến
+echo   /api/admin/** đòi token JWT có vai trò ADMIN, không nhận X-API-Key.^)
 echo.
 echo Nhấn phím bất kỳ để đóng...
 pause >nul

@@ -32,7 +32,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 @Tag("docker-it")
-@Import(SettingsApiIT.KhongCanJwksThat.class)
+@Import(SettingsApiIT.NoRealJwksNeeded.class)
 class SettingsApiIT {
 
     @Container
@@ -43,7 +43,7 @@ class SettingsApiIT {
                     .withPassword("kiem-thu");
 
     @DynamicPropertySource
-    static void csdl(DynamicPropertyRegistry registry) {
+    static void datasourceProps(DynamicPropertyRegistry registry) {
         registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
         registry.add("spring.datasource.username", POSTGRES::getUsername);
         registry.add("spring.datasource.password", POSTGRES::getPassword);
@@ -51,7 +51,7 @@ class SettingsApiIT {
     }
 
     @TestConfiguration
-    static class KhongCanJwksThat {
+    static class NoRealJwksNeeded {
         @Bean
         JwtDecoder jwtDecoder() {
             return token -> {
@@ -63,32 +63,32 @@ class SettingsApiIT {
     @Autowired
     private MockMvc mockMvc;
 
-    private static RequestPostProcessor nguoiDung(String ten) {
-        return jwt().jwt(builder -> builder.subject(ten).claim("roles", List.of("USER")));
+    private static RequestPostProcessor asUser(String name) {
+        return jwt().jwt(builder -> builder.subject(name).claim("roles", List.of("USER")));
     }
 
     @Test
-    void chuaDangNhapThiBiTuChoi() throws Exception {
+    void anonymousRequestIsRejected() throws Exception {
         mockMvc.perform(get("/api/settings")).andExpect(status().isUnauthorized());
     }
 
     @Test
-    void chuaLuoGiThiTraVeKhoiRong() throws Exception {
-        mockMvc.perform(get("/api/settings").with(nguoiDung("moi")))
+    void returnsAnEmptyBlockWhenNothingIsStored() throws Exception {
+        mockMvc.perform(get("/api/settings").with(asUser("moi")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(0))
                 .andExpect(jsonPath("$.settings").isEmpty());
     }
 
     @Test
-    void patchGopChuKhongThayThe() throws Exception {
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("gop"))
+    void patchMergesInsteadOfReplacing() throws Exception {
+        mockMvc.perform(patch("/api/settings").with(asUser("gop"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"toi\",\"homePage\":\"https://a.vn\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(1));
 
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("gop"))
+        mockMvc.perform(patch("/api/settings").with(asUser("gop"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"sang\"}"))
                 .andExpect(status().isOk())
@@ -98,13 +98,13 @@ class SettingsApiIT {
     }
 
     @Test
-    void putThayTheHanToanBoKhoi() throws Exception {
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("thay"))
+    void putReplacesTheWholeBlock() throws Exception {
+        mockMvc.perform(patch("/api/settings").with(asUser("thay"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"toi\",\"homePage\":\"https://a.vn\"}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(put("/api/settings").with(nguoiDung("thay"))
+        mockMvc.perform(put("/api/settings").with(asUser("thay"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"sang\"}"))
                 .andExpect(status().isOk())
@@ -113,20 +113,20 @@ class SettingsApiIT {
     }
 
     @Test
-    void phienBanCuBiTuChoiVoi409() throws Exception {
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("xungdot"))
+    void staleVersionIsRejectedWith409() throws Exception {
+        mockMvc.perform(patch("/api/settings").with(asUser("xungdot"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"toi\"}"))
                 .andExpect(jsonPath("$.version").value(1));
 
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("xungdot"))
+        mockMvc.perform(patch("/api/settings").with(asUser("xungdot"))
                         .header("If-Match", "1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"homePage\":\"https://may-a.vn\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.version").value(2));
 
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("xungdot"))
+        mockMvc.perform(patch("/api/settings").with(asUser("xungdot"))
                         .header("If-Match", "1")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"homePage\":\"https://may-b.vn\"}"))
@@ -137,79 +137,79 @@ class SettingsApiIT {
     }
 
     @Test
-    void khongDocDuocTuyChonCuaNguoiKhac() throws Exception {
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("chu"))
+    void cannotReadAnotherUsersSettings() throws Exception {
+        mockMvc.perform(patch("/api/settings").with(asUser("chu"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"toi\"}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/settings").with(nguoiDung("ke-la")))
+        mockMvc.perform(get("/api/settings").with(asUser("ke-la")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.settings").isEmpty());
     }
 
     @Test
-    void thanKhongPhaiDoiTuongJsonBiTuChoi() throws Exception {
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("sai"))
+    void nonObjectJsonBodyIsRejected() throws Exception {
+        mockMvc.perform(patch("/api/settings").with(asUser("sai"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("[1,2,3]"))
                 .andExpect(status().isBadRequest());
 
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("sai"))
+        mockMvc.perform(patch("/api/settings").with(asUser("sai"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{khong-phai-json"))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void khoiQuaLonBiTuChoi() throws Exception {
+    void oversizedBlockIsRejected() throws Exception {
         String qua = "{\"x\":\"" + "a".repeat(70_000) + "\"}";
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("to"))
+        mockMvc.perform(patch("/api/settings").with(asUser("to"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(qua))
                 .andExpect(status().isBadRequest());
     }
 
     @Test
-    void xoaMotKhoa() throws Exception {
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("xoakhoa"))
+    void deletesASingleKey() throws Exception {
+        mockMvc.perform(patch("/api/settings").with(asUser("xoakhoa"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"toi\",\"homePage\":\"https://a.vn\"}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/api/settings/theme").with(nguoiDung("xoakhoa")))
+        mockMvc.perform(delete("/api/settings/theme").with(asUser("xoakhoa")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.settings.theme").doesNotExist())
                 .andExpect(jsonPath("$.settings.homePage").value("https://a.vn"));
     }
 
     @Test
-    void khoiPhucMacDinhXoaHanDong() throws Exception {
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("macdinh"))
+    void resetToDefaultsDeletesTheRow() throws Exception {
+        mockMvc.perform(patch("/api/settings").with(asUser("macdinh"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"toi\"}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(delete("/api/settings").with(nguoiDung("macdinh")))
+        mockMvc.perform(delete("/api/settings").with(asUser("macdinh")))
                 .andExpect(status().isNoContent());
 
-        mockMvc.perform(get("/api/settings").with(nguoiDung("macdinh")))
+        mockMvc.perform(get("/api/settings").with(asUser("macdinh")))
                 .andExpect(jsonPath("$.version").value(0))
                 .andExpect(jsonPath("$.settings").isEmpty());
     }
 
     @Test
-    void tenKhoaChuaCuPhapSqlChiLaMotTenKhoa() throws Exception {
-        mockMvc.perform(patch("/api/settings").with(nguoiDung("injection"))
+    void keyNameContainingSqlSyntaxIsJustAKeyName() throws Exception {
+        mockMvc.perform(patch("/api/settings").with(asUser("injection"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"theme\":\"toi\"}"))
                 .andExpect(status().isOk());
 
         mockMvc.perform(delete("/api/settings/x'; DROP TABLE user_settings; --")
-                        .with(nguoiDung("injection")))
+                        .with(asUser("injection")))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(get("/api/settings").with(nguoiDung("injection")))
+        mockMvc.perform(get("/api/settings").with(asUser("injection")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.settings.theme").value("toi"));
     }

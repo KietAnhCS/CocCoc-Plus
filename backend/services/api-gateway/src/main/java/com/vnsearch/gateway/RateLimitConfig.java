@@ -42,12 +42,12 @@ public class RateLimitConfig {
 
     /**
      * Tên bean này được trích dẫn trong {@code application.yaml}
-     * ({@code key-resolver: "#{@nguoiDungHoacDiaChi}"}), nên <b>đổi tên hàm là
+     * ({@code key-resolver: "#{@userOrIpKeyResolver}"}), nên <b>đổi tên hàm là
      * làm hỏng cấu hình</b> — và hỏng lúc chạy, không phải lúc biên dịch:
      * Spring báo không tìm thấy bean khi tuyến đầu tiên được gọi tới.
      */
     @Bean
-    public KeyResolver nguoiDungHoacDiaChi() {
+    public KeyResolver userOrIpKeyResolver() {
         return exchange -> ReactiveSecurityContextHolder.getContext()
                 .map(context -> context.getAuthentication())
                 .filter(authentication -> authentication != null

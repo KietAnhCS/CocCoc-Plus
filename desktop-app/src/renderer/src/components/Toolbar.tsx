@@ -8,7 +8,7 @@ import { useSidePanelStore } from '../store/sidePanelStore'
 import { useTabStore } from '../store/tabStore'
 import { useSessionStore } from '../store/sessionStore'
 import { useAdminStore } from '../store/adminStore'
-import { NutTaiXuong } from './DownloadIndicator'
+import { DownloadButton } from './DownloadIndicator'
 import {
   DownloadIcon,
   IncognitoIcon,
@@ -123,16 +123,16 @@ function Toolbar(): JSX.Element {
           </Popover>
         </div>
 
-        <NutTaiXuong
-          lopNut="icon-btn"
-          nhan="Tải xuống"
-          moTa="Tải xuống (Ctrl+J)"
+        <DownloadButton
+          buttonClass="icon-btn"
+          label="Tải xuống"
+          description="Tải xuống (Ctrl+J)"
           active={panelOpen === 'downloads'}
           onClick={() => openPanel('downloads')}
-          thongBao
+          announce
         >
           <DownloadIcon className="h-[18px] w-[18px]" />
-        </NutTaiXuong>
+        </DownloadButton>
 
         <div className="relative">
           <button

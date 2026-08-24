@@ -52,9 +52,6 @@ set "RAM_BEFORE="
 for /f "delims=" %%m in ('powershell -NoProfile -Command "[math]::Round((Get-CimInstance Win32_OperatingSystem).FreePhysicalMemory/1MB,2)"') do set "RAM_BEFORE=%%m"
 if defined RAM_BEFORE echo RAM trống lúc bắt đầu: %RAM_BEFORE% GB
 
-rem ===========================================================================
-rem TIẾN TRÌNH JAR CHẠY TRÊN MÁY THẬT - cổng 8080 đến 8087
-rem ===========================================================================
 echo.
 echo Đang dừng các service chạy trực tiếp bằng jar...
 set "KILLED="
@@ -66,13 +63,11 @@ call :kill_port 8084 analytics-service
 call :kill_port 8085 history-service
 call :kill_port 8086 downloads-service
 call :kill_port 8087 settings-service
-if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-8087.
+call :kill_port 8090 football-service
+if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-8087 và 8090.
 
 if defined LOCAL_ONLY goto :report
 
-rem ===========================================================================
-rem CONTAINER DOCKER
-rem ===========================================================================
 where docker >nul 2>nul
 if errorlevel 1 (
     echo.
@@ -87,8 +82,6 @@ if errorlevel 1 (
     goto :shutdown_desktop
 )
 
-rem docker-compose.yml khai báo ADMIN_API_KEY với cú pháp ${...:?}, tức compose
-rem dừng ngay nếu biến này trống - kể cả với lệnh `down`.
 if defined ADMIN_API_KEY goto :key_ok
 if not exist "%ENV_FILE%" goto :key_placeholder
 for /f "usebackq eol=# tokens=1,* delims==" %%a in ("%ENV_FILE%") do (
@@ -99,9 +92,7 @@ if defined ADMIN_API_KEY goto :key_ok
 set "ADMIN_API_KEY=khoa-tam-chi-de-compose-doc-duoc-tep"
 :key_ok
 
-rem Truyền ĐỦ mọi profile: không truyền thì compose chỉ nhìn thấy hồ sơ rút gọn
-rem và các container của full/kafka/observability ở lại chạy tiếp.
-set "PROFILES=--profile full --profile kafka --profile observability"
+set "PROFILES=--profile kafka"
 
 if defined STOP_ONLY (
     echo.
@@ -209,8 +200,6 @@ call :restore_cp
 endlocal
 exit /b 0
 
-rem ===========================================================================
-rem Dừng tiến trình đang giữ cổng %1. %2 là tên service, chỉ để in ra.
 :kill_port
 set "PORT_PID="
 for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":%~1 .*LISTENING"') do set "PORT_PID=%%p"
@@ -232,13 +221,13 @@ echo           docker rm -f vnsearch-gateway vnsearch-auth vnsearch-search
 echo           docker rm -f vnsearch-crawler vnsearch-analytics vnsearch-history
 echo           docker rm -f vnsearch-downloads vnsearch-settings vnsearch-football
 echo           docker rm -f vnsearch-postgres vnsearch-redis vnsearch-mongo
-echo           docker rm -f vnsearch-kafka vnsearch-kafka-ui
+echo           docker rm -f vnsearch-kafka vnsearch-kafka-ui vnsearch-kafka-exporter
 echo           docker rm -f vnsearch-prometheus vnsearch-grafana vnsearch-alertmanager
 goto :fail
 
 :usage
 echo.
-echo   end-backend.bat                dừng tiến trình jar ^(cổng 8080-8087^), hạ
+echo   end-backend.bat                dừng tiến trình jar ^(cổng 8080-8087, 8090^), hạ
 echo                                  container rồi tắt Docker Desktop
 echo   end-backend.bat --local        chỉ dừng tiến trình jar, không đụng Docker
 echo   end-backend.bat --keep-docker  hạ container nhưng để Docker Desktop chạy

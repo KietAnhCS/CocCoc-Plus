@@ -1,5 +1,6 @@
 import { useEffect, type JSX } from 'react'
-import { useDownloadStore, doDoc, conLai, type MucTaiXuong } from '../store/downloadStore'
+import { useDownloadStore, formatBytes, timeRemaining, type MucTaiXuong } from '../store/downloadStore'
+import { useSessionStore } from '../store/sessionStore'
 import { hostOf } from '../lib/site'
 import { CloseIcon, DownloadIcon } from './icons'
 
@@ -15,11 +16,28 @@ function DownloadsPanel(): JSX.Element {
   const items = useDownloadStore((s) => s.items)
   const loi = useDownloadStore((s) => s.loi)
   const init = useDownloadStore((s) => s.init)
+  const dongBoLai = useDownloadStore((s) => s.dongBoLai)
   const xoaDaXong = useDownloadStore((s) => s.xoaDaXong)
+  const user = useSessionStore((s) => s.user)
 
   useEffect(() => {
     init()
   }, [init])
+
+  // HAI hiệu ứng chứ không phải một, và đó là điểm mấu chốt: `init` tự chốt
+  // bằng cờ `initialized` nên nó chỉ chạy ĐÚNG MỘT LẦN trong cả vòng đời ứng
+  // dụng. Lượt gọi `dongBoLai` nằm trong đó vì thế cũng chỉ chạy một lần —
+  // thường là lúc bảng mở lần đầu, khi người dùng CHƯA đăng nhập. Lúc đó
+  // `downloadsApi.list` ném `NotAuthenticated` ngay trước khi chạm mạng, và
+  // `dongBoLai` nuốt lỗi đó.
+  //
+  // Hậu quả nếu gộp lại: đăng nhập xong, bảng KHÔNG BAO GIỜ kéo lại sổ tải
+  // xuống từ máy chủ — nó trống cho tới khi khởi động lại ứng dụng, và không
+  // có thông báo lỗi nào để lần ra. Khoá theo `user` để mỗi lần đổi tài khoản
+  // (đăng nhập, đăng xuất) đều kéo lại đúng dữ liệu của người đang đăng nhập.
+  useEffect(() => {
+    void dongBoLai()
+  }, [user, dongBoLai])
 
   const coMucDaXong = items.some((item) => item.state !== 'IN_PROGRESS' && item.state !== 'PAUSED')
 
@@ -50,7 +68,7 @@ function DownloadsPanel(): JSX.Element {
 
       <ul>
         {items.map((item) => (
-          <DongTaiXuong key={item.id} item={item} />
+          <DownloadRow key={item.id} item={item} />
         ))}
       </ul>
 
@@ -68,13 +86,13 @@ function DownloadsPanel(): JSX.Element {
   )
 }
 
-function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
+function DownloadRow({ item }: { item: MucTaiXuong }): JSX.Element {
   const tamDung = useDownloadStore((s) => s.tamDung)
   const tiepTuc = useDownloadStore((s) => s.tiepTuc)
   const huy = useDownloadStore((s) => s.huy)
   const moTep = useDownloadStore((s) => s.moTep)
   const moThuMuc = useDownloadStore((s) => s.moThuMuc)
-  const xoaMuc = useDownloadStore((s) => s.xoaMuc)
+  const deleteVisit = useDownloadStore((s) => s.deleteVisit)
 
   const dangChay = item.state === 'IN_PROGRESS' || item.state === 'PAUSED'
   // `null` = chưa biết tổng số byte (máy chủ không gửi Content-Length). Phải
@@ -125,13 +143,13 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
                 />
               </div>
               <p className="mt-1 text-[11px] text-faint">
-                {doDoc(item.receivedBytes)}
-                {item.totalBytes !== null && ` / ${doDoc(item.totalBytes)}`}
+                {formatBytes(item.receivedBytes)}
+                {item.totalBytes !== null && ` / ${formatBytes(item.totalBytes)}`}
                 {item.state === 'PAUSED' && ' — đã tạm dừng'}
                 {item.speedBytesPerSecond !== null &&
                   item.state === 'IN_PROGRESS' &&
-                  ` — ${doDoc(item.speedBytesPerSecond)}/giây`}
-                {conLai(item) && ` — còn ${conLai(item)}`}
+                  ` — ${formatBytes(item.speedBytesPerSecond)}/giây`}
+                {timeRemaining(item) && ` — còn ${timeRemaining(item)}`}
               </p>
             </>
           )}
@@ -140,7 +158,7 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
             <p className="mt-1 text-[11px] text-faint">
               {item.state === 'COMPLETED' && (
                 <>
-                  {doDoc(item.receivedBytes)}
+                  {formatBytes(item.receivedBytes)}
                   {!item.onThisDevice && ' — đã tải trên máy khác'}
                 </>
               )}
@@ -151,27 +169,27 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
 
           <div className="mt-1.5 flex flex-wrap gap-2 text-[12px]">
             {item.state === 'IN_PROGRESS' && (
-              <NutNho onClick={() => tamDung(item.id)}>Tạm dừng</NutNho>
+              <SmallButton onClick={() => tamDung(item.id)}>Tạm dừng</SmallButton>
             )}
-            {item.state === 'PAUSED' && <NutNho onClick={() => tiepTuc(item.id)}>Tiếp tục</NutNho>}
-            {dangChay && <NutNho onClick={() => huy(item.id)}>Huỷ</NutNho>}
+            {item.state === 'PAUSED' && <SmallButton onClick={() => tiepTuc(item.id)}>Tiếp tục</SmallButton>}
+            {dangChay && <SmallButton onClick={() => huy(item.id)}>Huỷ</SmallButton>}
 
             {/* Chỉ hiện "Mở tệp" khi tệp THẬT SỰ nằm trên máy này. Một nút mở
                 một tệp không tồn tại là nút chỉ biết báo lỗi. */}
             {item.state === 'COMPLETED' && item.onThisDevice && (
               <>
-                <NutNho onClick={() => void moTep(item.id)}>Mở tệp</NutNho>
-                <NutNho onClick={() => moThuMuc(item.id)}>Mở thư mục</NutNho>
+                <SmallButton onClick={() => void moTep(item.id)}>Mở tệp</SmallButton>
+                <SmallButton onClick={() => moThuMuc(item.id)}>Mở thư mục</SmallButton>
               </>
             )}
             {item.state === 'INTERRUPTED' && (
-              <NutNho onClick={() => tiepTuc(item.id)}>Thử lại</NutNho>
+              <SmallButton onClick={() => tiepTuc(item.id)}>Thử lại</SmallButton>
             )}
           </div>
         </div>
 
         <button
-          onClick={() => xoaMuc(item.id)}
+          onClick={() => deleteVisit(item.id)}
           className="hidden h-6 w-6 shrink-0 items-center justify-center rounded-full text-faint
                      transition hover:bg-danger/15 hover:text-danger focus-visible:outline-none
                      group-hover:flex"
@@ -187,7 +205,7 @@ function DongTaiXuong({ item }: { item: MucTaiXuong }): JSX.Element {
   )
 }
 
-function NutNho({
+function SmallButton({
   onClick,
   children
 }: {

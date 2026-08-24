@@ -59,6 +59,19 @@ jobs:
   # có thể được đặt lên MỘT COMMIT BẤT KỲ, kể cả commit cũ chưa từng qua CI, kể
   # cả commit trên nhánh khác. Cách duy nhất chắc chắn là chạy lại ngay tại đây.
   # ---------------------------------------------------------------------------
+  #
+  # VÌ SAO TÁCH LÀM HAI JOB. Trước đây một job chạy `clean verify` (test + độ
+  # phủ + SpotBugs) rồi chạy tiếp `package -DskipTests`. Hai chỗ lãng phí:
+  #
+  #   - `verify` đã chạy qua cả pha `package` rồi, nên bước đóng gói phía sau
+  #     chỉ làm lại đúng một việc vừa xong — mất thời gian mà không sinh thêm gì.
+  #   - Test và SpotBugs không phụ thuộc nhau, nhưng nối tiếp trong cùng một job
+  #     thì tổng thời gian là TỔNG của hai, và matrix dựng ảnh phải chờ hết cả
+  #     hai.
+  #
+  # Tách thành hai job chạy SONG SONG: đường găng trước khi dựng ảnh rút xuống
+  # còn đúng nhánh chậm hơn, thay vì tổng của hai nhánh.
+  # ---------------------------------------------------------------------------
   kiem-tra:
     name: Kiểm tra trước khi phát hành
     runs-on: ubuntu-latest
@@ -71,19 +84,42 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Test, độ phủ, phân tích tĩnh
+      # Bỏ SpotBugs vì đã có job `phan-tich-tinh` lo phần đó. `verify` vẫn chạy
+      # trọn vòng đời gồm cả `package`, nên jar được sinh ra ngay tại bước này —
+      # đường dẫn `backend/services/*/target/*.jar` bên dưới vẫn đúng.
+      - name: Test và độ phủ
         working-directory: backend
-        run: ./mvnw -B clean verify
-
-      - name: Đóng gói jar
-        working-directory: backend
-        run: ./mvnw -B package -DskipTests
+        run: ./mvnw -B clean verify -Dspotbugs.skip=true
 
       - uses: actions/upload-artifact@v4
         with:
           name: jar
           path: backend/services/*/target/*.jar
           retention-days: 1
+
+  # ---------------------------------------------------------------------------
+  # PHÂN TÍCH TĨNH — chạy song song với job kiểm tra ở trên.
+  #
+  # Bỏ test (`-DskipTests`) và bỏ JaCoCo (`-Djacoco.skip=true`) vì cả hai đã
+  # thuộc trách nhiệm của job `kiem-tra`; ở đây chỉ cần biên dịch đủ để SpotBugs
+  # có bytecode mà đọc. `-T 1C` cho Maven dựng các module độc lập song song theo
+  # số lõi của máy chạy.
+  # ---------------------------------------------------------------------------
+  phan-tich-tinh:
+    name: Phân tích tĩnh (SpotBugs)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: SpotBugs
+        working-directory: backend
+        run: ./mvnw -B -T 1C clean verify -DskipTests -Djacoco.skip=true
 
   # ---------------------------------------------------------------------------
   # DỰNG VÀ ĐẨY ẢNH
@@ -103,13 +139,18 @@ jobs:
           - downloads-service
           - settings-service
           - football-service
-    needs: kiem-tra
+    # Chờ CẢ hai cổng chặn: một bản phát hành phải qua được test lẫn phân
+    # tích tĩnh, nên hai job song song đều là điều kiện tiên quyết.
+    needs: [kiem-tra, phan-tich-tinh]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write        # đẩy ảnh lên ghcr.io
       id-token: write        # cosign ký kiểu keyless qua OIDC
-      security-events: write
+      # KHÔNG khai `security-events: write`: job này không tải SARIF lên đâu
+      # cả — Trivy bên dưới in `format: table` rồi chặn tại chỗ. Một quyền
+      # không ai dùng tới là quyền thừa, trái đúng nguyên tắc đặc quyền tối
+      # thiểu mà đầu tệp này nêu ra.
 
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -120,6 +161,24 @@ jobs:
 
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
+
+      # Đường dẫn kho ảnh, ĐÃ HẠ VỀ CHỮ THƯỜNG. Tính một lần rồi dùng lại.
+      #
+      # `github.repository` là `KietAnhCS/search-engine` — giữ nguyên cách viết
+      # hoa của tài khoản GitHub, trong khi tên kho ảnh Docker BẮT BUỘC viết
+      # thường. docker/metadata-action tự hạ chữ thường phần `images:` nên bước
+      # dựng không sao, nhưng bước quét Trivy bên dưới thì nhận thẳng chuỗi và
+      # `name.ParseReference` từ chối nó:
+      #
+      #     could not parse reference: repository name must be lowercase
+      #
+      # Nghĩa là cổng chặn CVE — thứ đứng giữa một CVE mức CRITICAL và bản phát
+      # hành — hỏng vì một chữ hoa, chứ không phải vì tìm ra lỗ hổng nào.
+      - id: kho
+        name: Xác định đường dẫn kho ảnh chữ thường
+        run: |
+          echo "duong-dan=${REGISTRY}/$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')" \
+            >> "$GITHUB_OUTPUT"
 
       # GITHUB_TOKEN tự có sẵn, không cần tạo secret nào. Đây là lý do chọn
       # GHCR thay vì Docker Hub cho một đồ án: không phải quản lý thông tin
@@ -138,7 +197,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}
+          images: ${{ steps.kho.outputs.duong-dan }}/${{ matrix.service }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -150,7 +209,7 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.service == 'football-service' && './backend/services/football-service' || './backend' }}
+          context: ./backend
           push: true
           build-args: |
             MODULE=services/${{ matrix.service }}
@@ -191,7 +250,7 @@ jobs:
       - name: Quét lỗ hổng (chặn ở mức CRITICAL)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
+          image-ref: ${{ steps.kho.outputs.duong-dan }}/${{ matrix.service }}@${{ steps.build.outputs.digest }}
           format: table
           exit-code: '1'
           ignore-unfixed: true
@@ -218,6 +277,22 @@ jobs:
           name: jar
           path: dist
 
+      # `github.repository` GIỮ NGUYÊN cách viết hoa của tài khoản GitHub
+      # (`KietAnhCS/search-engine`). Job dựng ảnh không vấp phải điều đó vì
+      # docker/metadata-action tự hạ chữ thường phần `images:`, nhưng phần
+      # `body:` bên dưới thì in NGUYÊN VĂN — và lệnh dán ra từ ghi chú phát
+      # hành sẽ chết ngay trên máy người đọc:
+      #
+      #     invalid reference format: repository name must be lowercase
+      #
+      # Một hướng dẫn triển khai không chạy được thì tệ hơn là không có hướng
+      # dẫn: người đọc mất thời gian đi tìm lỗi ở phía họ.
+      - id: kho
+        name: Xác định đường dẫn kho ảnh chữ thường
+        run: |
+          echo "duong-dan=${REGISTRY}/$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')" \
+            >> "$GITHUB_OUTPUT"
+
       - name: Tạo bản phát hành
         uses: softprops/action-gh-release@v2
         with:
@@ -232,7 +307,7 @@ jobs:
             ## Ảnh Docker
 
             ```bash
-            docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-gateway:${{ github.ref_name }}
+            docker pull ${{ steps.kho.outputs.duong-dan }}/api-gateway:${{ github.ref_name }}
             ```
 
             Ảnh hỗ trợ `linux/amd64` và `linux/arm64`, kèm SBOM và chứng thực
@@ -241,15 +316,18 @@ jobs:
             Kiểm chứng chữ ký:
 
             ```bash
-            cosign verify ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/api-gateway:${{ github.ref_name }} \
+            cosign verify ${{ steps.kho.outputs.duong-dan }}/api-gateway:${{ github.ref_name }} \
               --certificate-identity-regexp 'https://github.com/${{ github.repository }}/.*' \
               --certificate-oidc-issuer https://token.actions.githubusercontent.com
             ```
 
-            ## Triển khai lên Kubernetes
+            ## Chạy toàn bộ hệ thống
 
             ```bash
-            kubectl apply -k deploy/k8s/overlays/dev
+            docker compose up -d
             ```
+
+            Một lệnh là lên đủ 9 service, PostgreSQL, Redis, MongoDB và cụm
+            giám sát Prometheus / Grafana / Alertmanager.
 
             Chi tiết: [`docs/DEVOPS.md`](docs/DEVOPS.md)

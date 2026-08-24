@@ -53,7 +53,7 @@ class CorsPreflightTest {
     private MockMvc mockMvc;
 
     @Test
-    void chapNhanHeaderAuthorization() throws Exception {
+    void allowsTheAuthorizationHeader() throws Exception {
         mockMvc.perform(options("/api/admin/analytics")
                         .header("Origin", ORIGIN)
                         .header("Access-Control-Request-Method", "GET")
@@ -64,7 +64,7 @@ class CorsPreflightTest {
     }
 
     @Test
-    void chapNhanHeaderXApiKey() throws Exception {
+    void allowsTheXApiKeyHeader() throws Exception {
         mockMvc.perform(options("/api/admin/analytics")
                         .header("Origin", ORIGIN)
                         .header("Access-Control-Request-Method", "GET")
@@ -82,7 +82,7 @@ class CorsPreflightTest {
      * bao gio thay.
      */
     @Test
-    void chapNhanPhuongThucDelete() throws Exception {
+    void allowsTheDeleteMethod() throws Exception {
         mockMvc.perform(options("/api/admin/users/ai-do")
                         .header("Origin", ORIGIN)
                         .header("Access-Control-Request-Method", "DELETE")
@@ -94,7 +94,7 @@ class CorsPreflightTest {
 
     /** Dang nhap: POST kem Content-Type, tu goc cua dev server Vite. */
     @Test
-    void chapNhanPostDangNhap() throws Exception {
+    void allowsThePostLoginPreflight() throws Exception {
         mockMvc.perform(options("/api/auth/login")
                         .header("Origin", ORIGIN)
                         .header("Access-Control-Request-Method", "POST")
@@ -111,7 +111,7 @@ class CorsPreflightTest {
      * mot lan sua sau khong vo tinh bat len.
      */
     @Test
-    void khongChoGuiCookieKemTheo() throws Exception {
+    void doesNotAllowCredentialsToBeSent() throws Exception {
         mockMvc.perform(options("/api/search")
                         .header("Origin", ORIGIN)
                         .header("Access-Control-Request-Method", "GET"))

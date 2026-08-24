@@ -51,15 +51,6 @@ export interface DownloadInfo {
  * {@link Session}, không phải ở tầng cửa sổ hay tab — nghĩa là phải đăng ký
  * cho MỌI session đang dùng, kể cả session ẩn danh. Quên một session thì
  * những lượt tải từ đó biến mất khỏi giao diện mà không có lỗi nào.
- *
- * <h2>Về `item.setSavePath` và hộp thoại lưu tệp</h2>
- *
- * KHÔNG gọi `setSavePath`. Gọi nó sẽ tắt hộp thoại "Lưu ở đâu" của hệ điều
- * hành và tải thẳng vào thư mục ta chọn — nghe tiện, nhưng nó lấy mất quyền
- * quyết định của người dùng và là hành vi mà không trình duyệt nào làm mặc
- * định. Để trống thì Electron tự hiện hộp thoại, và người dùng bấm Huỷ sẽ
- * sinh ra trạng thái `cancelled` — được xử lý như một kết quả bình thường, vì
- * nó đúng là bình thường.
  */
 export class DownloadManager {
   private readonly items = new Map<string, DownloadItem>()

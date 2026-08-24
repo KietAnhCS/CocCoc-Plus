@@ -44,7 +44,7 @@ function FindBar(): JSX.Element | null {
     return null
   }
 
-  function xuLyPhim(event: KeyboardEvent<HTMLInputElement>): void {
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
     if (event.key === 'Enter') {
       event.preventDefault()
       // Shift+Enter đi ngược — quy ước chung của mọi hộp tìm kiếm.
@@ -73,7 +73,7 @@ function FindBar(): JSX.Element | null {
         ref={inputRef}
         value={query}
         onChange={(event) => datTuKhoa(activeTabId, event.target.value)}
-        onKeyDown={xuLyPhim}
+        onKeyDown={handleKeyDown}
         className="h-7 w-52 bg-transparent px-1 text-[13px] text-ink outline-none
                    placeholder:text-faint"
         placeholder="Tìm trong trang…"
@@ -95,20 +95,20 @@ function FindBar(): JSX.Element | null {
         </span>
       )}
 
-      <NutDieuHuong
+      <NavButton
         onClick={() => ketQuaTruocDo(activeTabId)}
         disabled={matches === 0}
         label="Kết quả trước"
       >
         ↑
-      </NutDieuHuong>
-      <NutDieuHuong
+      </NavButton>
+      <NavButton
         onClick={() => ketQuaTiepTheo(activeTabId)}
         disabled={matches === 0}
         label="Kết quả tiếp theo"
       >
         ↓
-      </NutDieuHuong>
+      </NavButton>
 
       <button
         onClick={() => dongO(activeTabId)}
@@ -124,7 +124,7 @@ function FindBar(): JSX.Element | null {
   )
 }
 
-function NutDieuHuong({
+function NavButton({
   onClick,
   disabled,
   label,

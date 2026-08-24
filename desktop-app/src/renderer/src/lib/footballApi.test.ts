@@ -213,7 +213,9 @@ describe('fetchLeagueFixtures và fetchTeamFixtures', () => {
     await fetchTeamFixtures('Hà Nội FC')
 
     const url = vi.mocked(fetch).mock.calls[0][0] as URL
-    expect(url.pathname).toBe('/api/football/v1/teams/' + encodeURIComponent('Hà Nội FC') + '/fixtures')
+    expect(url.pathname).toBe(
+      '/api/football/v1/teams/' + encodeURIComponent('Hà Nội FC') + '/fixtures'
+    )
   })
 
   it('giữ nguyên meta để giao diện còn nói được dữ liệu đến từ đâu', async () => {

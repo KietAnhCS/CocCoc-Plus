@@ -1,5 +1,10 @@
 import { useEffect, type JSX } from 'react'
-import { useDownloadStore, formatBytes, timeRemaining, type MucTaiXuong } from '../store/downloadStore'
+import {
+  useDownloadStore,
+  formatBytes,
+  timeRemaining,
+  type MucTaiXuong
+} from '../store/downloadStore'
 import { useSessionStore } from '../store/sessionStore'
 import { hostOf } from '../lib/site'
 import { CloseIcon, DownloadIcon } from './icons'
@@ -171,7 +176,9 @@ function DownloadRow({ item }: { item: MucTaiXuong }): JSX.Element {
             {item.state === 'IN_PROGRESS' && (
               <SmallButton onClick={() => tamDung(item.id)}>Tạm dừng</SmallButton>
             )}
-            {item.state === 'PAUSED' && <SmallButton onClick={() => tiepTuc(item.id)}>Tiếp tục</SmallButton>}
+            {item.state === 'PAUSED' && (
+              <SmallButton onClick={() => tiepTuc(item.id)}>Tiếp tục</SmallButton>
+            )}
             {dangChay && <SmallButton onClick={() => huy(item.id)}>Huỷ</SmallButton>}
 
             {/* Chỉ hiện "Mở tệp" khi tệp THẬT SỰ nằm trên máy này. Một nút mở

@@ -22,8 +22,15 @@ HTTP request
 ├─ RateLimitFilter        order = Integer.MIN_VALUE, url pattern /api/*   → 429
 ├─ TokenAuthFilter        Authorization: Bearer …    → ROLE_USER | ROLE_ADMIN
 ├─ ApiKeyAuthFilter       X-API-Key                  → ROLE_ADMIN
+│                         ★ chuỗi lọc này là của TỪNG SERVICE (ServiceSecurityConfig).
+│                           Gateway KHÔNG có ApiKeyAuthFilter: /api/admin/** ở cổng 8080
+│                           đòi JWT mang vai trò ADMIN và TỪ CHỐI X-API-Key. Khoá chỉ
+│                           dùng được khi gọi thẳng service, ví dụ reindex ở :8083.
 ├─ authorizeHttpRequests  danh sách trắng, anyRequest().denyAll() → 401
-├─ CorsConfig             /api/** ; GET POST DELETE OPTIONS ; allowCredentials(false) ; maxAge 3600
+├─ CorsConfig             /api/** ; GET POST PUT PATCH DELETE OPTIONS ; allowCredentials(false) ; maxAge 3600
+│                         ↳ PATCH/PUT cho PATCH /api/settings và PATCH /api/downloads/{id}.
+│                           Danh sách này phải KHỚP danh sách của Gateway: Gateway cho
+│                           preflight qua mà service từ chối thì lỗi hiện ở tầng service.
 │                         allowedOriginPatterns: app.cors.allowed-origins + "file://*" + "null"
 │                         ↳ hai giá trị sau cho Electron mở tệp cục bộ, Origin lúc đó là "null"
 ├─ @Valid trên @RequestBody / @RequestParam

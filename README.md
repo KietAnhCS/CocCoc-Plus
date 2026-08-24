@@ -22,12 +22,15 @@ MinHeap, and a Vietnamese word segmenter.
                                                             └───────┬───────┘
                         ┌──────────────────┐                ┌───────▼───────┐
                         │ football-service │───────────────▶│  desktop-app  │
-                        │   (Go, :8090)    │  Sports panel  │  (Electron)   │
+                        │  (Java, :8090)   │  Sports panel  │  (Electron)   │
                         └──────────────────┘                └───────────────┘
 ```
 
-The algorithms above live in `backend/libs/core`; the services below are thin
-shells around them. **`api-gateway` is the only port exposed to the outside** —
+The algorithms above live in `backend/libs/` — `core-search` (index, query,
+ranking), `core-crawler` (fetching, frontier, event bus) and `core-common`
+(data structures, analytics); the services below are thin shells around them.
+That split is visible in the line counts: `crawler-service` is 393 lines of
+HTTP plumbing over 8,491 lines of crawler library. **`api-gateway` is the only port exposed to the outside** —
 the others are reachable only from inside the Compose network.
 
 | Service | Port | Language | Profile | What it owns |
@@ -35,12 +38,12 @@ the others are reachable only from inside the Compose network.
 | `api-gateway` | 8080 | Java | default | Routing table, JWT validation, rate limiting, CORS |
 | `auth-service` | 8081 | Java | default | Accounts, roles, JWT issuing, JWKS |
 | `search-service` | 8082 | Java | default | Index, query, ranking, suggestions, images |
-| `crawler-service` | 8083 | Java | `full` | Crawl jobs, reindex |
-| `analytics-service` | 8084 | Java | `full` | Usage events, admin analytics |
-| `history-service` | 8085 | Java | `full` | Browsing history |
-| `downloads-service` | 8086 | Java | `full` | Downloads |
-| `settings-service` | 8087 | Java | `full` | User settings |
-| `football-service` | 8090 | Go | default | Football data, its own 100-calls/day budget |
+| `crawler-service` | 8083 | Java | default | Crawl jobs, reindex |
+| `analytics-service` | 8084 | Java | default | Usage events, admin analytics |
+| `history-service` | 8085 | Java | default | Browsing history |
+| `downloads-service` | 8086 | Java | default | Downloads |
+| `settings-service` | 8087 | Java | default | User settings |
+| `football-service` | 8090 | Java | default | Football data, its own 100-calls/day budget |
 
 ---
 
@@ -73,33 +76,29 @@ curl "http://localhost:8080/api/search?q=máy+tính&size=3"
 > is deliberate, not a bug. Step 2 above has not been done.
 > See [Why the admin key is mandatory](#why-the-admin-key-is-mandatory).
 
-### Optional profiles
+### One command, one optional profile
 
-The default stack is deliberately the lightest thing that still works: Postgres,
-Redis, `api-gateway`, `auth-service`, `search-service`, `football-service`.
-Three opt-in profiles add the rest.
+There used to be three opt-in profiles (`full`, `observability`). They are gone:
+one `up` brings the whole system, monitoring included, so there is no flag to
+remember. Only Kafka stays behind a profile, because the default event bus is
+in-process `memory` — the crawl pipeline works end to end without a broker.
 
 ```bash
-# default: gateway + auth + search + football + postgres + redis   (~2.6 GB RAM)
-docker compose up -d --build
+# everything: 9 services + Postgres/Redis/Mongo + Prometheus/Grafana/Alertmanager
+docker compose up -d --build                    # ~7.3 GB of limits, ~4 GB in use
 
-# + crawler, analytics, history, downloads, settings, MongoDB      (~5.4 GB RAM)
-docker compose --profile full up -d --build
-
-# + Kafka and kafka-ui, for the distributed crawl pipeline
-docker compose --profile kafka up -d --build
-
-# + Prometheus, Grafana, Alertmanager
-docker compose --profile observability up -d --build
+# + Kafka, kafka-ui and kafka-exporter
+docker compose --profile kafka up -d --build    # ~+1.3 GB
 ```
 
-Profiles combine: `docker compose --profile full --profile observability up -d`.
+`mem_limit` is a ceiling, not a reservation — the totals above are what the
+Compose file allows, not what the machine hands out.
 
 | Address | What you get |
 |---|---|
 | <http://localhost:8080> | api-gateway — the only door into the backend |
 | <http://localhost:8080/swagger-ui.html> | OpenAPI, aggregated from every service |
-| <http://localhost:8090> | kafka-ui — topics, partitions, consumer lag, dead-letter messages |
+| <http://localhost:8091> | kafka-ui — topics, partitions, consumer lag, dead-letter messages (`--profile kafka`) |
 | <http://localhost:3000> | Grafana (`admin`/`admin`), dashboard pre-provisioned |
 | <http://localhost:9090/alerts> | Prometheus — the 7 alert rules and their state |
 | <http://localhost:9093> | Alertmanager |
@@ -115,9 +114,10 @@ Requires JDK 17+ and Node.js 22+.
 ### Backend
 
 ```bash
-run-backend.bat             # Windows — gateway + auth + search, one console each
-run-backend.bat --full      # all eight Java services
+run-backend.bat             # Windows — gateway + auth + search, in the background
+run-backend.bat --full      # all nine Java services
 run-backend.bat --build     # rebuild the jars first
+run-backend.bat --windows   # one console window per service instead of background
 run-backend.bat --docker    # hand over to docker compose instead
 
 # or, by hand:
@@ -138,15 +138,26 @@ point them at localhost: `AUTH_SERVICE_URL`, `SEARCH_SERVICE_URL`,
 those for you.
 
 `run-backend.bat` reads `ADMIN_API_KEY` and `BOOTSTRAP_ADMIN_PASSWORD` from
-`.env` (generating and saving them if absent), checks that ports 8080–8087 are
-free, builds any missing jar, opens one console window per service, and waits
-for the gateway to answer. `end-backend.bat` stops exactly what it started, then
-takes the Compose stack down as well.
+`.env` (generating and saving them if absent), checks that ports 8080–8087 and
+8090 are free, builds any missing jar, starts each service **in the background**
+with its log in `backend\logs\<service>.log`, and waits for the gateway to
+answer. Pass `--windows` for the old one-console-per-service behaviour.
 
-No database required: `auth-service` falls back to `data/users.json` and
-`search-service` to the sample corpus shipped with the repo
-(`data/seed-documents.json`), so a fresh clone runs as-is. The Gateway's
-rate-limited routes do need Redis — `docker compose up -d redis` is enough.
+> **The jar path does not build infrastructure.** It needs PostgreSQL, Redis and
+> MongoDB already running. Without them `auth`, `crawler`, `history`,
+> `downloads`, `settings` and `football` die at startup on `UnknownHostException`
+> — and because they run in the background, the only symptom you see is "nothing
+> answers on 8085–8090". Start them first:
+>
+> ```bash
+> docker compose up -d postgres redis mongo
+> ```
+>
+> Or use `run-backend.bat --docker`, which brings everything up itself.
+
+`end-backend.bat` stops the jars, takes the Compose stack down, **and quits
+Docker Desktop**. Use `--local` to touch only the jars, or `--keep-docker` to
+leave Docker Desktop running.
 
 ### Frontend
 
@@ -157,48 +168,64 @@ run-frontend.bat            # Windows
 
 ### Crawling your own corpus
 
+Four positional arguments: pages, depth, output file, then `--fresh`.
+
 ```bash
-run-crawl.bat 5000 3        # 5,000 pages, depth 3
+run-crawl.bat                                 # 10,000 pages, depth 4, default corpus
+run-crawl.bat 5000 3                          # 5,000 pages, depth 3
+run-crawl.bat 500 2 data/try.json --fresh     # wipe and restart; asks you to type XOA
+```
+
+Without `--fresh` a run **resumes** an existing corpus instead of refetching
+pages it already has.
+
+A new corpus does not reach the search engine on its own — restart the backend,
+or reindex. Call `crawler-service` **directly**: `/api/admin/**` through the
+Gateway requires a JWT with the `ADMIN` role and will not accept `X-API-Key`.
+
+```bash
+curl -X POST -H "X-API-Key: $ADMIN_API_KEY" http://localhost:8083/api/admin/reindex
+```
+
+`crawl-stats.bat` reports what a corpus contains — pages, links, images, size.
+Its flags are PowerShell-style (one dash):
+
+```bash
+crawl-stats.bat                     # every corpus in backend\data
+crawl-stats.bat data/try.json       # just one
+crawl-stats.bat -NoLinks -NoImages  # skip the slow counts
 ```
 
 ---
 
-## Kubernetes
+## Deploying a built image
 
-A three-node [kind](https://kind.sigs.k8s.io/) cluster, ingress, and the full
-stack in one command:
-
-```bash
-bash deploy/kind/up.sh
-# then add to your hosts file:  127.0.0.1 vnsearch.local
-curl http://vnsearch.local/api/health
-```
-
-Manifests use Kustomize with a shared base and two overlays:
-
-| | `overlays/dev` | `overlays/prod` |
-|---|---|---|
-| Replicas | 1 | 3, spread across nodes |
-| Autoscaling | off (no metrics-server in kind) | HPA, 2–6 pods at 70% CPU |
-| Secrets | placeholder file in Git | created out-of-band, never committed |
-| Image | local build, `kind load` | pinned tag from GHCR |
-| Scorer | `tfidf` | `bm25` |
-
-The backend runs as non-root with a read-only root filesystem under a
-`restricted` Pod Security namespace, has startup/readiness/liveness probes, a
-PodDisruptionBudget, and a NetworkPolicy restricting Postgres to backend pods
-only.
+There is no Kubernetes manifest in this repository — the deployment target is
+Docker Compose, and `cd.yml` is built around that. After CI goes green on
+`main`, CD builds and signs one image per service, scans each for CRITICAL
+CVEs, and publishes `docker-compose.release.yml`: an overlay that pins every
+service to an image **digest** rather than a tag.
 
 ```bash
-kubectl apply -k deploy/k8s/overlays/dev     # or overlays/prod
-bash deploy/kind/down.sh                     # tear the cluster down
+# download the docker-compose-release artifact next to docker-compose.yml
+docker compose -f docker-compose.yml -f docker-compose.release.yml up -d
 ```
+
+A tag is a movable pointer; two machines pulling it at different times can run
+different code under the same name. A digest is the hash of the image content,
+so pinning it pins exactly what was scanned and signed.
 
 ---
 
 ## API
 
-23 endpoints. The middle column is the *role* required, not the mechanism.
+Around 60 mappings across the nine services. The table below covers search,
+accounts and administration; the middle column is the *role* required, not the
+mechanism. The personal-data services follow the same shape and are all
+sign-in-only — `/api/history/**`, `/api/downloads/**`, `/api/settings/**`, each
+scoped to the caller so one account can never read another's rows. Football is
+public and read-only under `/api/football/**`, which the Gateway rewrites onto
+the service's own `/api/v1/**`. The complete list is in Swagger UI.
 
 | Endpoint | Access | Description |
 |---|:---:|---|
@@ -210,7 +237,7 @@ bash deploy/kind/down.sh                     # tear the cluster down
 | `GET /actuator/prometheus` | — | Prometheus metrics |
 | `POST /api/events` | — | Write side of usage analytics — deliberately open |
 | `POST /api/auth/register` | — | Always creates a `USER`; there is no way to self-assign `ADMIN` |
-| `POST /api/auth/login` | — | Returns an opaque 256-bit token, valid 12 hours |
+| `POST /api/auth/login` | — | Returns an OAuth2 token pair — a short-lived access token plus a refresh token |
 | `POST /api/auth/logout` | — | Revokes the token immediately; open so an *expired* token can still log out |
 | `GET /api/auth/me` | 🔑 | Who am I |
 | `POST /api/auth/password` | 🔑 | Requires the current password even with a valid token |
@@ -229,14 +256,19 @@ bash deploy/kind/down.sh                     # tear the cluster down
 🔑 = signed in · 👑 = `ADMIN`
 
 **Two ways to authenticate, one authorisation table.** Tools use a static
-`X-API-Key` (no identity, never expires, always full `ADMIN`); people use an
-account and get `Authorization: Bearer` (identity, 12-hour expiry, revocable
-instantly). Both feed the *same* role check in `ServiceSecurityConfig` —
-adding OAuth later means adding a filter, not editing the table.
+`X-API-Key` (no identity, never expires, always full `ADMIN`); people sign in
+and get `Authorization: Bearer` (identity, short expiry, revocable instantly,
+renewable with a refresh token). Both feed the *same* role check in
+`ServiceSecurityConfig`.
+
+The two are **not** interchangeable at every door. The Gateway requires a JWT
+carrying the `ADMIN` role for `/api/admin/**` and does not accept `X-API-Key`
+there; the key works when you call a service directly, which is what the
+reindex example above does on port 8083.
 
 ```bash
-curl -H "X-API-Key: $ADMIN_API_KEY" http://localhost:8080/api/admin/stats
-curl -H "Authorization: Bearer $TOKEN"  http://localhost:8080/api/auth/me
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8080/api/admin/stats
+curl -H "X-API-Key: $ADMIN_API_KEY"    http://localhost:8083/api/admin/reindex
 ```
 
 The first admin account is created at boot from `BOOTSTRAP_ADMIN_PASSWORD` —
@@ -273,7 +305,7 @@ Four independent layers, each blocking something different:
 
 ```bash
 cd backend     && ./mvnw clean verify   # tests + coverage gate + static analysis
-cd desktop-app && npm run typecheck && npm run lint && npm test   # 128 tests
+cd desktop-app && npm run typecheck && npm run lint && npm test   # 155 tests
 ```
 
 `clean verify` runs the whole reactor. To work on one service only, add `-pl`:
@@ -288,30 +320,36 @@ Five workflows, all in [`.github/workflows/`](.github/workflows/):
 
 | Workflow | Trigger | What it does |
 |---|---|---|
-| `ci.yml` | push to `main`, every PR | Tests, JaCoCo coverage gate, SpotBugs, frontend typecheck/lint/**Vitest**, Docker build, Trivy image scan, **Kafka integration tests**, **infrastructure validation** |
-| `cd.yml` | after CI passes on `main`; manual | Build + sign image, deploy to staging automatically and to production behind an approval, `--dry-run=server` first, automatic rollback if the rollout fails |
+| `ci.yml` | push to `main`, every PR | Seven jobs in parallel: backend tests + JaCoCo gate, SpotBugs, frontend typecheck/lint/**Vitest**, Docker build + Trivy scan, **Kafka integration tests**, **database integration tests** (a matrix, one job per service), **infrastructure validation** |
+| `cd.yml` | after CI passes on `main`; manual | Build, cosign-sign and CVE-scan one image per service, then publish `docker-compose.release.yml` pinned to image digests |
 | `codeql.yml` | push, PR, weekly | CodeQL SAST for Java and TypeScript |
 | `release.yml` | tag `v*.*.*` | Multi-arch image to GHCR with SBOM + provenance, cosign keyless signature, blocking CRITICAL CVE scan, GitHub Release |
 | `pr-title.yml` | PR opened/edited | Enforces Conventional Commits in the PR title |
 
 The `infrastructure` job validates what YAML normally only reveals at deploy
-time: `kustomize build` across all four layers, `kubeconform -strict` against
-the real Kubernetes schema, `promtool check rules` (a bad PromQL expression
-makes Prometheus refuse to load the **entire** rule file — losing every alert,
-silently), `amtool check-config`, `docker compose config` at all three profile
-levels, and a diff that stops the Compose and Kubernetes alert rules from
-drifting apart.
+time: `promtool check config` (a bad PromQL expression makes Prometheus refuse
+to load the **entire** rule file — losing every alert, silently),
+`amtool check-config`, `docker compose config` with and without the Kafka
+profile, and a cross-check that the service matrices in `cd.yml` and
+`release.yml` still match the services that actually have a `build:` block in
+`docker-compose.yml`. Add a service to Compose and forget the matrices, and
+both workflows stay green while that service simply never gets an image.
 
 Four quality gates block a merge, each catching a different kind of breakage:
 
 ```
-640 tests           → per-unit logic errors
+661 tests           → per-unit logic errors
 JaCoCo coverage     → new code with no tests          (line ≥ 68%, branch ≥ 65%)
 SpotBugs            → bugs no test path reaches       (0 findings)
 Ranking quality     → search got worse, tests stayed green
 ```
 
-The frontend has three gates of its own — `typecheck`, `lint` and **128 Vitest
+The first three are split across two parallel jobs — `backend-test` runs the
+suite and the coverage gate, `backend-static` runs SpotBugs — so a pull request
+waits for the slower branch, not for the sum of both, and a red job name says
+which kind of breakage it is.
+
+The frontend has three gates of its own — `typecheck`, `lint` and **155 Vitest
 cases**. The last one is the only one that checks *behaviour*: it pins down the
 main-process navigation policy, which is a security boundary (`file://` and
 `javascript:` must be refused — see `src/main/urlPolicy.ts`).
@@ -338,11 +376,8 @@ APP_RANKING_SCORER=bm25
 
 ## Documentation
 
-Documentation is written in Vietnamese.
-
-| File | Contents |
-|---|---|
-Docs are organised by **the question they answer**, not by source folder:
+Documentation is written in Vietnamese, and organised by **the question it
+answers**, not by source folder.
 
 > **New here? Start with [`docs/README.md`](docs/README.md)** — a roadmap that
 > picks a reading order for you (run it / understand it / study the algorithms
@@ -351,7 +386,7 @@ Docs are organised by **the question they answer**, not by source folder:
 
 | Document | Answers |
 |---|---|
-| [**`docs/README.md`**](docs/README.md) | **Documentation roadmap — which of the 69 files to read, in what order** |
+| [**`docs/README.md`**](docs/README.md) | **Documentation roadmap — which of the 72 files to read, in what order** |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How do the pieces fit into one working system? |
 | [`docs/BACKEND.md`](docs/BACKEND.md) | How are the Spring Boot services assembled — beans, config, request lifecycle? |
 | [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Every config key, its default, and what breaks if you change it |
@@ -360,7 +395,7 @@ Docs are organised by **the question they answer**, not by source folder:
 | [`docs/SECURITY.md`](docs/SECURITY.md) | What is it defended against, and **what is still open**? |
 | [**`docs/ACCOUNTS-AND-DASHBOARD.md`**](docs/ACCOUNTS-AND-DASHBOARD.md) | **Accounts, roles and the admin dashboard — who may see what, and six real bugs the tests missed** |
 | [`docs/FRONTEND.md`](docs/FRONTEND.md) | The mini browser (Electron + React) |
-| [`backend/services/football-service/README.md`](backend/services/football-service/README.md) | The football microservice — why a 100-calls/day quota decides every design choice inside it |
+| [`docs2/*-PIPELINE.md`](docs2/) | One file per pipeline — crawler, index, query, ranking, storage, auth, analytics, event bus, frontier, eval, API, deploy |
 | [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Big-O and measured numbers |
 | [`docs/Math/`](docs/Math/README.md) | One page per class — formulas, worked examples, mind maps |
 | [`docs/Math/08-design-patterns/`](docs/Math/08-design-patterns/README.md) | One page per design pattern, and the bug each one fixed |
@@ -377,17 +412,19 @@ Docs are organised by **the question they answer**, not by source folder:
 ## Repository layout
 
 ```
-backend/                Maven reactor — one parent pom, eleven modules
-  libs/core/            The algorithms. A library, not a service:
-    src/main/java/com/vnsearch/
-      crawler/          Fetching, URL filtering, two-tier frontier
-      index/            Inverted index, VByte compression, VN segmenter
-      query/            Query parsing, posting-list merging
-      ranking/          TF-IDF, BM25, PageRank, snippet generation
+backend/                Maven reactor — one parent pom, fourteen modules
+  libs/core-common/     Shared foundations, used by the other libraries:
       datastructure/    Trie, BloomFilter, MinHeap, LRUCache, SparseMatrix
-      eval/             Search quality harness
-    The command-line runners (crawl, evaluation, Postgres import) live here
-    too, which is why the scripts call `./mvnw -pl libs/core exec:java`
+      analytics/        Corpus statistics, usage counters
+  libs/core-crawler/    Fetching, URL filtering, two-tier frontier, event bus.
+                        The command-line runners live here, which is why the
+                        scripts call `./mvnw -pl libs/core-crawler -am exec:java`
+                        (`-am` matters: without it Maven cannot resolve
+                        core-common and the run fails before it starts)
+  libs/core-search/     index/    Inverted index, VByte compression, VN segmenter
+                        query/    Query parsing, posting-list merging
+                        ranking/  TF-IDF, BM25, PageRank, snippet generation
+                        eval/     Search quality harness
   libs/platform/        Shared Spring plumbing: security chain, API-key filter,
                         rate limiting, common properties
   services/api-gateway/       :8080  routing, JWT validation, CORS
@@ -398,18 +435,18 @@ backend/                Maven reactor — one parent pom, eleven modules
   services/history-service/   :8085  browsing history
   services/downloads-service/ :8086  downloads
   services/settings-service/  :8087  user settings
-  services/football-service/  :8090  football data (Go + Postgres)
-    internal/apifootball/     API-Football client and normalisers
-    internal/service/         Cache-aside, daily call budget, fallback order
-    internal/sample/          Sample data, so every screen works with no API key
+  services/football-service/  :8090  football data (Java + Postgres)
+    football/provider/        API-Football client and normalisers
+    football/service/         Cache-aside, daily call budget, fallback order
+    football/store/           Postgres-backed cache and call log
   coverage/             Aggregates JaCoCo across every module — must build last
   data/                 Corpus, index, images, accounts (mounted into containers)
 desktop-app/            Mini browser (Electron + React + TypeScript)
   src/renderer/src/components/football/
                         Full-screen football page, ported from the iOS app
 deploy/
-  k8s/                  Kustomize base + dev/prod overlays
-  kind/                 Local three-node cluster
+  monitoring/           Prometheus config, alert rules, Alertmanager, Grafana
+  postgres/             init-db.sh — one database per service, created on first boot
 docs/                   Documentation
 .github/workflows/      CI, CodeQL, release, PR title checks
 ```

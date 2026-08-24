@@ -103,7 +103,7 @@ POST   /api/admin/users/{u}/disable     → setEnabled(false)
 POST   /api/admin/users/{u}/enable      → setEnabled(true)
 DELETE /api/admin/users/{u}             → delete + failures.remove
    ↳ mọi thao tác hạ quyền/vô hiệu/xoá đều kèm SessionStore huỷ phiên đang mở của
-     tài khoản đó — nếu không, token cũ vẫn sống tới 12 giờ với quyền CŨ
+     tài khoản đó — nếu không, access token cũ vẫn sống hết TTL của nó với quyền CŨ
 POST   /api/auth/password               → changePassword
    ├─ đang khoá tạm → từ chối
    ├─ sai mật khẩu hiện tại → recordFailure
@@ -119,6 +119,12 @@ X-API-Key            khoá TĨNH từ biến môi trường ADMIN_API_KEY
                      ├─ < 16 ký tự → IllegalStateException
                      └─ không có mật khẩu để đổi, không có phiên để huỷ
                         → dành cho script/CI, không dành cho người
-Bearer <token>       phiên 12 giờ của một tài khoản THẬT trong data/users.json
-                     → có vai trò, có thể bị vô hiệu hoá, có thể bị thu hồi
+Bearer <token>       cặp token OAuth2 của một tài khoản THẬT trong data/users.json
+                     ├─ access token  TTL 15 phút   (app.auth.access-token-ttl, PT15M)
+                     ├─ refresh token TTL 30 ngày   (app.auth.refresh-token-ttl, P30D)
+                     └─ có vai trò, có thể bị vô hiệu hoá, có thể bị thu hồi
+                        ↳ access ngắn để một token lọt ra ngoài chỉ dùng được 15 phút;
+                          refresh dài để người dùng không phải đăng nhập lại mỗi ngày.
+                          Thu hồi tác động lên refresh — access đang lưu hành vẫn sống
+                          hết 15 phút của nó, đó là cái giá của token tự xác thực.
 ```

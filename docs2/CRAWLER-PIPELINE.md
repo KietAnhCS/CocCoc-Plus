@@ -132,7 +132,7 @@ cuối, bạn sẽ đi đúng đường mà một URL đi.
 
 | Ký hiệu | Nghĩa |
 |---|---|
-| **File:** `abc/Xyz.java` | Đường dẫn tính từ `search-engine/src/main/java/com/vnsearch/` |
+| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/libs/core-crawler/src/main/java/com/vnsearch/` |
 | **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
 | ① ② ③ | Số thứ tự bước trong một chuỗi xử lý |
 | ★ | Điểm mấu chốt, dễ hiểu sai |
@@ -405,8 +405,8 @@ thật và vai trò.
 | File | Dòng | Vai trò |
 |---|---|---|
 | `run-crawl.bat` | ~130 | Chuẩn bị môi trường, gọi Maven |
-| `search-engine/mvnw.cmd` | — | Maven Wrapper, tải Maven nếu chưa có |
-| `search-engine/pom.xml` | — | Khai báo phụ thuộc: jsoup, jackson, micrometer, slf4j |
+| `backend/mvnw.cmd` | — | Maven Wrapper, tải Maven nếu chưa có |
+| `backend/pom.xml` | — | Khai báo phụ thuộc: jsoup, jackson, micrometer, slf4j |
 
 ### 3.2 Gói `crawler` — 20 file
 
@@ -858,7 +858,7 @@ flowchart TD
     CONFIRM -->|"không"| CANCEL["Da huy"] --> FAIL
     CONFIRM -->|"có"| RUN
 
-    RUN["call mvnw.cmd -q compile exec:java<br/>-Dexec.mainClass=...MultiDomainCrawlRunner<br/>-Dexec.args=&quot;8 3 data/crawled-documents.json&quot;<br/>-Dcrawl.progress=bar"]
+    RUN["call mvnw.cmd -q -pl libs/core-crawler -am compile exec:java<br/>-Dexec.mainClass=...MultiDomainCrawlRunner<br/>-Dexec.args=&quot;8 3 data/crawled-documents.json&quot;<br/>-Dcrawl.progress=bar"]
     RUN --> RC{"errorlevel?"}
     RC -->|"khác 0"| F5["[LOI] Phien crawl ket thuc bat thuong"] --> FAIL
     RC -->|"0"| OK["In Xong + đường dẫn 2 tệp<br/>+ gợi ý crawl-stats.bat<br/>+ gợi ý POST /api/admin/reindex"]
@@ -974,9 +974,9 @@ flowchart TD
     B --> C["cd /d %~dp0search-engine"]
     C --> D["CWD = C:\\...\\Search-Engine-Project\\search-engine"]
     D --> E["Mọi đường dẫn tương đối<br/>tính từ đây"]
-    E --> F["data/crawled-documents.json<br/>= search-engine/data/crawled-documents.json"]
-    E --> G["pom.xml = search-engine/pom.xml"]
-    E --> H["mvnw.cmd = search-engine/mvnw.cmd"]
+    E --> F["data/crawled-documents.json<br/>= backend/data/crawled-documents.json"]
+    E --> G["pom.xml = backend/pom.xml"]
+    E --> H["mvnw.cmd = backend/mvnw.cmd"]
 
     style F fill:#0b7a3b,color:#fff
 ```
@@ -1109,7 +1109,7 @@ flowchart TD
 ## 12. Lệnh Maven cuối cùng
 
 ```bat
-call "%MVNW%" -q compile exec:java ^
+call "%MVNW%" -q -pl libs/core-crawler -am compile exec:java ^
      -Dexec.mainClass=%RUNNER% ^
      -Dexec.args="%EXEC_ARGS%" ^
      -Dcrawl.progress=%CRAWL_PROGRESS%
@@ -1118,7 +1118,7 @@ call "%MVNW%" -q compile exec:java ^
 Sau khi thay biến:
 
 ```bat
-mvnw.cmd -q compile exec:java ^
+mvnw.cmd -q -pl libs/core-crawler -am compile exec:java ^
   -Dexec.mainClass=com.vnsearch.crawler.MultiDomainCrawlRunner ^
   -Dexec.args="8 3 data/crawled-documents.json" ^
   -Dcrawl.progress=bar
@@ -1129,6 +1129,8 @@ mvnw.cmd -q compile exec:java ^
 | Cờ | Tác dụng |
 |---|---|
 | `-q` | *quiet* — Maven chỉ in `[ERROR]`, không in `[INFO] Downloading…` |
+| `-pl libs/core-crawler` | Chỉ dựng module chứa các runner crawl, bỏ qua 13 module còn lại |
+| `-am` | *also make* — dựng luôn những module mà nó phụ thuộc vào. **Bắt buộc**: thiếu cờ này Maven không giải được `vnsearch-core-common` và phiên crawl chết ngay trước khi bắt đầu, với thông báo `Could not resolve dependencies` |
 | `compile` | Biên dịch `src/main/java` → `target/classes`; **incremental**, lần thứ hai gần như tức thì |
 | `exec:java` | Chạy `main()` **trong chính JVM của Maven**, không fork tiến trình mới |
 | `-Dexec.mainClass` | Lớp có `main()` |
@@ -11257,8 +11259,8 @@ flowchart TD
     A["MultiDomainCrawlRunner.main() cuối"] --> B["ContentStorage.saveToJson(docs, outputPath)"]
     A --> C["ImageStorage.saveToJson(images, imagePath)"]
 
-    B --> D["search-engine/data/crawled-documents.json<br/>8 tài liệu"]
-    C --> E["search-engine/data/crawled-documents.images.json<br/>≤ 8 ảnh (1 ảnh đại diện/trang)"]
+    B --> D["backend/data/crawled-documents.json<br/>8 tài liệu"]
+    C --> E["backend/data/crawled-documents.images.json<br/>≤ 8 ảnh (1 ảnh đại diện/trang)"]
 
     F["Cả hai đều dùng<br/>.tmp + ATOMIC_MOVE"]
 
@@ -12791,7 +12793,7 @@ flowchart TD
 | `'run-crawl.bat' is not recognized` | Sai tên tệp (không phải `run-crawler.bat`) | Dùng `run-crawl.bat` |
 | `[LOI] Khong tim thay thu muc search-engine` | Tệp bat không ở thư mục gốc repo | Đặt bat cạnh `docker-compose.yml` |
 | `[LOI] Khong thay pom.xml` | Thư mục `search-engine` thiếu | Kiểm tra checkout |
-| `[LOI] Khong thay Maven Wrapper` | Thiếu `mvnw.cmd` | `git checkout search-engine/mvnw.cmd` |
+| `[LOI] Khong thay Maven Wrapper` | Thiếu `mvnw.cmd` | `git checkout backend/mvnw.cmd` |
 | `[LOI] Khong tim thay Java` | Chưa cài JDK hoặc chưa vào PATH | Cài JDK 17+ từ adoptium.net |
 | `NumberFormatException: For input string: "abc"` | Tham số không phải số | `run-crawl.bat 8 3` |
 | `IllegalArgumentException: maxPages must be > 0` | `maxPages` ≤ 0 | Dùng số dương |
@@ -13031,7 +13033,8 @@ flowchart TD
 
 ```
 run-crawl.bat 8 3
-└─ mvnw exec:java -Dexec.args="8 3 data/crawled-documents.json"
+└─ mvnw.cmd -q -pl libs/core-crawler -am compile exec:java
+   -Dexec.args="8 3 data/crawled-documents.json"
    └─ MultiDomainCrawlRunner.main
       ├─ ContentStorage.loadFromJson       (nối tiếp corpus cũ)
       ├─ ImageStorage.pathFor + loadQuietly (nối tiếp kho ảnh)
@@ -13062,15 +13065,18 @@ run-crawl.bat 8 3
                ├─ urlFilter.isAllowedByRobots → RobotsTxtParser (cache theo domain)
                └─ processPage(task, config)
                   ├─ HtmlDownloader.download
-                  │  ├─ ensureTargetAllowed  → SeedUrlValidator (SSRF)
+                  │  ├─ assertTargetAllowed  → SeedUrlValidator (SSRF)
                   │  ├─ dnsResolver.resolveHostOf → LRUCache
                   │  └─ Jsoup.connect(...).get()   3 lần thử, 10 s timeout
                   ├─ ContentParser.parse    → WebDocument (docId 0, outlinks [])
                   ├─ LanguageFilter.accept  → detect() 3 tầng → setLanguage()
                   ├─ ContentSeenFilter.seenBefore → SHA-256(normalize(bodyText))
-                  ├─ claimPageSlot(8)       → vòng CAS
-                  ├─ ContentStorage.save    → putIfAbsent
-                  ├─ doc.setDocId(0 + docIdSeq.getAndIncrement())
+                  ├─ ContentStorage.save    → putIfAbsent   ★ LƯU TRƯỚC, ĐẾM SAU
+                  │  └─ trả false (URL đã có bản ghi) → return, KHÔNG đếm trùng
+                  ├─ pagesCrawled.incrementAndGet()  → count
+                  │  ↳ bộ đếm cấp SAU khi lưu thành công nên dãy docId đặc, không thủng lỗ
+                  ├─ doc.setDocId(restoredDocCount + count - 1)
+                  │  ↳ cộng mốc corpus cũ để phiên NỐI TIẾP không cấp lại docId đã dùng
                   ├─ bus.publishPage(PageEvent)
                   │  ├─ UrlExtractorService.onPage
                   │  │  ├─ Jsoup.parse(html, baseUri)

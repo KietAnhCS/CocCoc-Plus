@@ -18,11 +18,14 @@ POST /api/events   công khai, @Valid EventRequest{type, sessionId, query, resul
    ├─ type: "visit" | "search" | "click"  (trim + lowercase; @Size max 16)
    └─ UsageAnalyticsService
       ├─ recordVisit(sessionId, username)
-      │  └─ touchSession
-      │     ├─ trimTo(sessionId, MAX_SESSION_ID_CHARS 64)   ; null → BỎ sự kiện
-      │     ├─ recordSessionInHour → hourNow().sessions.add  (trần MAX_SESSIONS_PER_HOUR 5 000)
-      │     ├─ đã có → cập nhật lastSeenMillis
-      │     └─ sessions.size() ≥ MAX_TRACKED_SESSIONS 20 000 → dropped++ và TRẢ null
+      │  ├─ touchSession
+      │  │  ├─ trimTo(sessionId, MAX_SESSION_ID_CHARS 64)   ; null → BỎ sự kiện
+      │  │  ├─ recordSessionInHour → hourNow().sessions.add  (trần MAX_SESSIONS_PER_HOUR 5 000)
+      │  │  ├─ đã có → cập nhật lastSeenMillis
+      │  │  └─ sessions.size() ≥ MAX_TRACKED_SESSIONS 20 000 → dropped++ và TRẢ null
+      │  └─ attachUser(session, username) → gắn CHỈ MỘT LẦN, ở lần đầu biết được
+      │     ↳ ghi đè mỗi lần thì hai người dùng chung máy (đăng nhập rồi đăng
+      │       xuất) làm phiên đổi chủ liên tục
       ├─ recordSearch(sessionId, username, query, resultCount, tookMs)
       │  ├─ searches++ , session.searches++ , hourNow().searches++
       │  ├─ username khác rỗng → bump(userSearches, …, MAX_TRACKED_USERS 5 000)
@@ -63,14 +66,22 @@ hourlySeries(now)
      là thứ ngăn số liệu của hôm qua hiện thành số liệu hôm nay
 ```
 
-Đường đọc — GET /api/admin/analytics (ROLE_ADMIN):
+Đường đọc — GET /api/admin/analytics?top=N (ROLE_ADMIN, mặc định top=10, chặn 1..50):
 
 ```
-AdminAnalyticsController.dashboard(topN)
-└─ AdminDashboard(generatedAt, traffic, crawl, index, accounts)
-   ├─ traffic = UsageAnalyticsService.snapshot(topN)      limit = clamp(topN, 1, 100)
+AdminAnalyticsController.dashboard(top)
+└─ KHÔNG tự gom số liệu — chỉ chuyển tiếp NGUYÊN VẸN header Authorization của
+   người đang xem sang AdminDashboardAssembler.assemble(top, authHeader)
+   ↳ KHÔNG dùng tài khoản dịch vụ đặc quyền: mất quyền ADMIN là mất quyền đọc
+     ngay, không còn đọc được nhờ đặc quyền của service
+
+AdminDashboardAssembler.assemble — mẫu API COMPOSITION, gộp 3 nguồn:
+└─ AdminDashboard(generatedAt, traffic, corpus, index, accounts)
+   ├─ traffic = UsageAnalyticsService.snapshot(top)   TRONG TIẾN TRÌNH NÀY
    │  ├─ duyệt sessions MỘT lượt: active (lastSeen ≥ now − ACTIVE_WINDOW_MINUTES 5),
    │  │  signedIn (username ≠ null), tổng thời lượng phiên
+   │  ├─ (nội bộ snapshot() còn tự kẹp limit = clamp(top, 1, 100), nhưng
+   │  │   controller đã chặn top ≤ 50 từ trước nên nhánh 51..100 không tới được)
    │  ├─ clickThroughRate  = clicks / searches            (searches = 0 → 0.0)
    │  ├─ avgLatencyMs      = latencySumMs / latencySamples
    │  ├─ zeroResultRate    = zeroResultSearches / searches
@@ -81,12 +92,28 @@ AdminAnalyticsController.dashboard(topN)
    │  ├─ topLinks  → kèm host và vị trí trung bình được nhấp
    │  ├─ topHosts  → gộp linkStats theo host rồi lại topK
    │  └─ truncated = dropped > 0 HOẶC bất kỳ bảng nào đã chạm trần
-   ├─ crawl = SearchEngineFacade.getCorpusStats()         ← ĐÃ tính sẵn, chỉ đọc trường
-   ├─ index = IndexStats(documents, terms, sizeBytes, cacheHitRate, scorer, bloomFilterBits)
-   └─ accounts = AccountStats(total, admins, disabled, activeSessions)
+   ├─ corpus  = safeFetch("corpus", null,      GET crawler-service /api/admin/corpus-stats)
+   ├─ index   = safeFetch("chỉ mục", UNKNOWN,  GET crawler-service /api/admin/stats)
+   │            → IndexStats(documents, terms, sizeBytes, cacheHitRate, scorer, bloomFilterBits)
+   │            đọc từ Map<String,Object> theo TÊN KHOÁ — lệch tên khoá không lỗi,
+   │            chỉ ra 0 câm lặng trên bảng điều khiển
+   └─ accounts = safeFetch("tài khoản", UNKNOWN, GET auth-service /api/admin/users/stats)
+                → AccountStats(total, admins, disabled, activeSessions)
+
+   Mỗi lượt gọi HTTP kể trên:
+   ├─ timeout riêng: 2 giây kết nối, 3 giây đọc phản hồi — bảng điều khiển làm
+   │  mới theo chu kỳ, chờ lâu hơn không có giá trị
+   ├─ header Authorization của NGƯỜI ĐANG XEM được chuyển tiếp nguyên vẹn,
+   │  KHÔNG dùng tài khoản dịch vụ đặc quyền
+   └─ safeFetch bắt Exception (rộng, có chủ đích) → log cảnh báo, trả về giá
+      trị rỗng/UNKNOWN thay vì ném lỗi ra ngoài
+      ↳ suy giảm từng phần: một khối lấy hỏng thì hai khối kia vẫn hiện số,
+        không kéo sập cả bảng điều khiển
 
 POST /api/admin/analytics/reset
 └─ đặt lại mọi bộ đếm, xoá mọi bảng, reset cả 24 ô giờ về Long.MIN_VALUE
+   (chỉ xoá phần traffic — corpus/index/accounts là trạng thái dẫn xuất, không
+   thuộc quyền của endpoint này)
 ```
 
 CorpusStats — tính MỘT lượt duy nhất, trong refreshDerivedState:

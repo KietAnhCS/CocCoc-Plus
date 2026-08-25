@@ -52,7 +52,8 @@ Trie — gợi ý theo tiền tố:
 
 ```
 Trie.insert(key, display, frequency)
-├─ normalize(key) → chữ thường, gộp khoảng trắng
+├─ normalize(key) → chuẩn hoá Unicode NFC (chữ thường + trim đã làm ở tầng gọi,
+│  SuggestionService, TRƯỚC khi vào đây — Trie tự thân không hạ chữ thường)
 └─ mỗi ký tự một nút; nút cuối giữ isEndOfWord + display + frequency
    ↳ mỗi gợi ý được chèn HAI lần: khoá CÓ dấu và khoá KHÔNG dấu, cùng một `display`
      → gõ "ha noi" vẫn ra "hà nội"
@@ -119,9 +120,11 @@ freeze()
 └─ rowEntries = null                    ← nhường toàn bộ Entry cho bộ gom rác
 sau freeze()   : CSR                                  → set() ném IllegalStateException
                                                         multiply đi trên mảng liền kề
-dùng ở: PageRankService — dựng ma trận "liên kết VÀO", freeze, rồi nhân ~vài chục vòng lặp
-        ↳ ma trận n×n với n = 30 017 mà lưu dày sẽ là 900 triệu ô double ≈ 7,2 GB;
-          dạng thưa chỉ giữ đúng số cạnh có thật (log ghi ra nnz và độ thưa %)
+dùng ở: PageRankService — dựng ma trận "liên kết VÀO", freeze, rồi nhân tối đa
+        MAX_ITERATIONS 100 vòng (dừng sớm khi hội tụ, diff < EPSILON)
+        ↳ ví dụ với n = 5 011 trang: lưu dày là 5011² × 8 byte ≈ 191,5 MB, trong khi
+          thực tế chỉ có nnz ≈ 239 691 phần tử khác 0 (độ thưa ≈ 0,95%) — dạng thưa
+          chỉ giữ đúng số cạnh có thật, và độ thưa còn XẤU ĐI khi corpus lớn hơn
 ```
 
 Một mẫu lặp lại ở cả sáu:

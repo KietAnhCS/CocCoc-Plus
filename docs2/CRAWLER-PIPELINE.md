@@ -179,7 +179,7 @@ run-crawl.bat 8 3
 flowchart TD
     A["maxPages = 8"] --> B["CrawlConfig.maxPages"]
     B --> C["workerLoop: while pagesCrawled < 8"]
-    B --> D["claimPageSlot(8): vòng CAS cấp đúng 8 suất"]
+    B --> D["pagesCrawled.incrementAndGet() trong processPage:<br/>cấp đúng 8 suất, docId = restoredDocCount + count - 1"]
     B --> E["UrlSeenFilter.forMaxPages(8)<br/>→ max(200_000, 8×200) = 200_000<br/>→ BloomFilter 200k phần tử"]
     B --> F["CrawlEvent.maxPages → thanh tiến độ vẽ %"]
 
@@ -397,8 +397,8 @@ flowchart TB
 
 ## 3. Danh mục toàn bộ file tham gia
 
-Một lệnh `run-crawl.bat 8 3` chạm tới **38 file**. Bảng dưới liệt kê đủ, kèm số dòng
-thật và vai trò.
+Một lệnh `run-crawl.bat 8 3` chạm tới khoảng **47 file**. Bảng dưới liệt kê đủ, kèm số
+dòng thật và vai trò.
 
 ### 3.1 Tệp script
 
@@ -412,72 +412,72 @@ thật và vai trò.
 
 | File | Dòng | Vai trò trong sơ đồ |
 |---|---|---|
-| `MultiDomainCrawlRunner.java` | 276 | Điểm vào `main()`, seed list, báo cáo |
-| `CrawlerService.java` | 907 | Bộ điều phối, vòng lặp worker |
-| `CrawlConfig.java` | 126 | Cấu hình bất biến (Builder) |
-| `CrawlListener.java` | 22 | Giao diện Observer |
-| `ProgressBarCrawlListener.java` | 165 | Thanh tiến độ |
-| `ConsoleCrawlListener.java` | 43 | Log định kỳ |
-| `CheckpointCrawlListener.java` | 118 | Ghi tạm chống mất dữ liệu |
-| `HtmlDownloader.java` | 146 | **HTML Downloader** |
-| `DnsResolver.java` | 95 | **DNS Resolver** |
-| `SeedUrlValidator.java` | 116 | Chống SSRF |
-| `ContentParser.java` | 63 | **Content Parser** |
-| `LanguageFilter.java` | 253 | **Language Filter** |
-| `ContentSeenFilter.java` | 77 | **Content Seen?** |
-| `ContentStorage.java` | 72 | **Content Storage** + đọc/ghi JSON |
-| `LinkExtractor.java` | 39 | **Link Extractor** |
-| `UrlFilter.java` | 233 | **URL Filter** |
-| `UrlSeenFilter.java` | 88 | **URL Seen?** |
-| `UrlStorage.java` | 121 | **URL Storage** |
-| `UrlCanonicalizer.java` | 61 | Chuẩn hoá URL |
-| `RobotsTxtParser.java` | 176 | Tải & phân tích robots.txt |
+| `MultiDomainCrawlRunner.java` | 410 | Điểm vào `main()`, seed list, báo cáo |
+| `CrawlerService.java` | 863 | Bộ điều phối, vòng lặp worker |
+| `CrawlConfig.java` | 179 | Cấu hình bất biến (Builder) |
+| `CrawlListener.java` | 78 | Giao diện Observer |
+| `ProgressBarCrawlListener.java` | 245 | Thanh tiến độ |
+| `ConsoleCrawlListener.java` | 58 | Log định kỳ |
+| `CheckpointCrawlListener.java` | 239 | Ghi tạm chống mất dữ liệu |
+| `HtmlDownloader.java` | 257 | **HTML Downloader** |
+| `DnsResolver.java` | 151 | **DNS Resolver** |
+| `SeedUrlValidator.java` | 191 | Chống SSRF |
+| `ContentParser.java` | 85 | **Content Parser** |
+| `LanguageFilter.java` | 370 | **Language Filter** |
+| `ContentSeenFilter.java` | 148 | **Content Seen?** |
+| `ContentStorage.java` | 138 | **Content Storage** + đọc/ghi JSON |
+| `LinkExtractor.java` | 65 | **Link Extractor** |
+| `UrlFilter.java` | 326 | **URL Filter** |
+| `UrlSeenFilter.java` | 158 | **URL Seen?** |
+| `UrlStorage.java` | 156 | **URL Storage** |
+| `UrlCanonicalizer.java` | 95 | Chuẩn hoá URL |
+| `RobotsTxtParser.java` | 170 | Tải & phân tích robots.txt |
 
-### 3.3 Gói `crawler.frontier` — 8 file
+### 3.3 Gói `crawler.frontier` — 9 file
 
 | File | Dòng | Vai trò |
 |---|---|---|
-| `UrlFrontier.java` | 188 | **URL Frontier** — mặt tiền |
-| `FrontQueues.java` | 72 | 5 hàng đợi ưu tiên |
-| `BackQueues.java` | 165 | 128 hàng đợi lịch sự |
-| `CrawlTask.java` | 20 | Record `(url, host, depth)` |
-| `Prioritizer.java` | 5 | Giao diện tính mức ưu tiên |
-| `DefaultPrioritizer.java` | 47 | Cài đặt mặc định |
-| `FrontQueueSelector.java` | 5 | Giao diện chọn hàng đợi |
-| `WeightedRandomSelector.java` | 74 | Chọn ngẫu nhiên có trọng số |
-| `StrictPrioritySelector.java` | 13 | Chọn ưu tiên tuyệt đối (chỉ dùng trong demo/test) |
+| `UrlFrontier.java` | 321 | **URL Frontier** — mặt tiền |
+| `FrontQueues.java` | 113 | 5 hàng đợi ưu tiên |
+| `BackQueues.java` | 277 | 128 hàng đợi lịch sự |
+| `CrawlTask.java` | 39 | Record `(url, host, depth)` |
+| `Prioritizer.java` | 35 | Giao diện tính mức ưu tiên |
+| `DefaultPrioritizer.java` | 79 | Cài đặt mặc định |
+| `FrontQueueSelector.java` | 30 | Giao diện chọn hàng đợi |
+| `WeightedRandomSelector.java` | 122 | Chọn ngẫu nhiên có trọng số |
+| `StrictPrioritySelector.java` | 28 | Chọn ưu tiên tuyệt đối (chỉ dùng trong demo/test) |
 
 ### 3.4 Gói `crawler.bus` — 8 file
 
 | File | Dòng | Vai trò |
 |---|---|---|
-| `CrawlEventBus.java` | 19 | Giao diện bus |
-| `InProcessCrawlEventBus.java` | 130 | Cài đặt in-process (dùng lần này) |
-| `KafkaCrawlEventBus.java` | 104 | Cài đặt Kafka (không dùng lần này) |
-| `PageEvent.java` | 58 | Sự kiện "một trang đã crawl xong" |
-| `PageEventHandler.java` | 9 | Giao diện người nhận `PageEvent` |
-| `DiscoveredUrl.java` | 24 | Sự kiện "phát hiện URL mới" |
-| `OutlinksExtracted.java` | 19 | Sự kiện "đã bóc xong liên kết" |
-| `ImageFound.java` | 51 | Sự kiện "tìm thấy ảnh" |
+| `CrawlEventBus.java` | 113 | Giao diện bus |
+| `InProcessCrawlEventBus.java` | 177 | Cài đặt in-process (dùng lần này) |
+| `KafkaCrawlEventBus.java` | 156 | Cài đặt Kafka (không dùng lần này) |
+| `PageEvent.java` | 161 | Sự kiện "một trang đã crawl xong" |
+| `PageEventHandler.java` | 54 | Giao diện người nhận `PageEvent` |
+| `DiscoveredUrl.java` | 86 | Sự kiện "phát hiện URL mới" |
+| `OutlinksExtracted.java` | 70 | Sự kiện "đã bóc xong liên kết" |
+| `ImageFound.java` | 108 | Sự kiện "tìm thấy ảnh" |
 
 ### 3.5 Gói `crawler.modular` — 6 file
 
 | File | Dòng | Vai trò |
 |---|---|---|
-| `UrlExtractorService.java` | 134 | Bóc liên kết + khép vòng lặp về frontier |
-| `ImageDownloadService.java` | 312 | Bóc metadata ảnh (mặc định không tải nhị phân) |
-| `ImageQuality.java` | 104 | So sánh chất lượng ảnh (chọn ảnh đại diện) |
-| `ImageStore.java` | 132 | Kho ảnh trong bộ nhớ |
-| `ImageStorage.java` | 71 | Đọc/ghi `*.images.json` |
-| `CrawlAnalyticsService.java` | 182 | Số liệu Micrometer |
+| `UrlExtractorService.java` | 226 | Bóc liên kết + khép vòng lặp về frontier |
+| `ImageDownloadService.java` | 453 | Bóc metadata ảnh (mặc định không tải nhị phân) |
+| `ImageQuality.java` | 221 | So sánh chất lượng ảnh (chọn ảnh đại diện) |
+| `ImageStore.java` | 274 | Kho ảnh trong bộ nhớ |
+| `ImageStorage.java` | 168 | Đọc/ghi `*.images.json` |
+| `CrawlAnalyticsService.java` | 286 | Số liệu Micrometer |
 
-### 3.6 Gói `datastructure` — 3 file
+### 3.6 Gói `datastructure` (`core-common`) — 3 file
 
 | File | Dòng | Dùng ở đâu |
 |---|---|---|
-| `BloomFilter.java` | ~110 | `UrlSeenFilter` |
-| `LRUCache.java` | ~110 | `DnsResolver` |
-| `MinHeap.java` | ~150 | `BackQueues` |
+| `BloomFilter.java` | 163 | `UrlSeenFilter` |
+| `LRUCache.java` | 158 | `DnsResolver` |
+| `MinHeap.java` | 241 | `BackQueues` |
 
 ### 3.7 Gói `model` — 1 file
 
@@ -535,8 +535,8 @@ sequenceDiagram
         FR-->>W: CrawlTask(url, host, depth)
         W->>W: urlFilter.isAllowedByRobots(url)
         W->>DL: download(url)
-        DL->>DL: ensureTargetAllowed() chống SSRF
-        DL->>DL: dnsResolver.resolveHostOf()
+        DL->>DL: assertTargetAllowed() chống SSRF (từng chặng redirect, tối đa 5)
+        DL->>DL: dnsResolver.resolveHostOf() (có cache)
         DL-->>W: org.jsoup Document
         W->>PR: parse(url, html)
         PR-->>W: WebDocument
@@ -544,9 +544,8 @@ sequenceDiagram
         LF-->>W: true (vi/en/und)
         W->>CSF: seenBefore(bodyText)
         CSF-->>W: false (chưa gặp)
-        W->>W: claimPageSlot(8) → CAS
         W->>CST: save(doc)
-        W->>W: doc.setDocId(...)
+        W->>W: pagesCrawled.incrementAndGet() → doc.setDocId(...)
         W->>BUS: publishPage(PageEvent)
         BUS->>UES: onPage(event)
         UES->>UES: LinkExtractor.extract()
@@ -593,7 +592,7 @@ stateDiagram-v2
     QuaNgonNgu --> BiLoaiTrungNoiDung: ContentSeenFilter = true
     QuaNgonNgu --> QuaKhuTrung: vân tay mới
 
-    QuaKhuTrung --> HetHanNgach: claimPageSlot = -1
+    QuaKhuTrung --> HetHanNgach: contentStorage.save() = false<br/>(URL đã có bản ghi)
     QuaKhuTrung --> DuocLuu: giành được suất
 
     DuocLuu --> TrongCorpus: ContentStorage.save() + setDocId()
@@ -659,7 +658,7 @@ sequenceDiagram
 
     Note over CS: ③ GÁN docId
     CS->>CST: save(doc)
-    CS->>CS: doc.setDocId(restoredDocCount + docIdSeq++)
+    CS->>CS: count = pagesCrawled.incrementAndGet()<br/>doc.setDocId(restoredDocCount + count - 1)
     Note right of CS: chỉ gán SAU khi save thành công
 
     Note over UES: ④ GÁN outlinks
@@ -1220,7 +1219,7 @@ giữa chừng làm mất toàn bộ. Với `maxPages = 10000` thì mất nhiề
 
 ## 13. `MultiDomainCrawlRunner` — tổng quan
 
-**File:** `crawler/MultiDomainCrawlRunner.java` (276 dòng)
+**File:** `crawler/MultiDomainCrawlRunner.java` (410 dòng)
 
 Lớp này là **kịch bản dòng lệnh**, không phải một phần của kiến trúc crawler. Nó:
 
@@ -1298,7 +1297,7 @@ Gọi `run-crawl.bat abc 3` sẽ cho:
 ```
 Exception in thread "main" java.lang.NumberFormatException: For input string: "abc"
 	at java.base/java.lang.Integer.parseInt(Integer.java:652)
-	at com.vnsearch.crawler.MultiDomainCrawlRunner.main(MultiDomainCrawlRunner.java:52)
+	at com.vnsearch.crawler.MultiDomainCrawlRunner.main(MultiDomainCrawlRunner.java:121)
 ```
 
 Bat sẽ bắt `errorlevel != 0` và in `[LOI] Phien crawl ket thuc bat thuong.` Thông báo
@@ -1308,9 +1307,9 @@ không cụ thể lắm, nhưng stack trace ở ngay trên đó.
 
 | Lệnh | Điều gì xảy ra |
 |---|---|
-| `run-crawl.bat 0 3` | `CrawlConfig.build()` ném `IllegalArgumentException: maxPages must be > 0, 0` |
+| `run-crawl.bat 0 3` | `CrawlConfig.build()` ném `IllegalArgumentException: maxPages phai > 0, nhan duoc: 0` |
 | `run-crawl.bat -5 3` | Tương tự |
-| `run-crawl.bat 8 -1` | `maxDepth must be >= 0, -1` |
+| `run-crawl.bat 8 -1` | `maxDepth phai >= 0, nhan duoc: -1` |
 | `run-crawl.bat 8 0` | Hợp lệ — chỉ crawl seed, không đi sâu |
 | `run-crawl.bat 99999999 3` | Hợp lệ; `forMaxPages` bị chặn trần ở `MAX_EXPECTED_URLS = 50_000_000` |
 
@@ -1694,7 +1693,7 @@ và **cả hai** bản của VnExpress:
 
 ## 18. `CrawlConfig` — Builder pattern
 
-**File:** `crawler/CrawlConfig.java` (126 dòng)
+**File:** `crawler/CrawlConfig.java` (179 dòng)
 
 ### 18.1 Lời gọi thật
 
@@ -1714,7 +1713,7 @@ CrawlConfig config = CrawlConfig.builder()
 | Trường | Giá trị | Mặc định của Builder | Dùng ở đâu |
 |---|---|---|---|
 | `maxDepth` | `3` | `3` | `new UrlFilter(..., maxDepth, ...)` |
-| `maxPages` | `8` | `100` | `workerLoop`, `claimPageSlot`, `forMaxPages` |
+| `maxPages` | `8` | `100` | `workerLoop`, `processPage`, `forMaxPages` |
 | `threadCount` | `32` | `4` | `Executors.newFixedThreadPool` |
 | `allowedDomains` | 14 phần tử | `Set.of()` | `new UrlFilter(allowedDomains, ...)` |
 | `excludedHostPrefixes` | 15 phần tử | `Set.of()` | `new UrlFilter(..., prefixes)` |
@@ -1756,10 +1755,19 @@ tăng được thông lượng.
 
 ```java
 public CrawlConfig build() {
-    if (maxPages <= 0)            throw new IllegalArgumentException("maxPages must be > 0, " + maxPages);
-    if (maxDepth < 0)             throw new IllegalArgumentException("maxDepth must be >= 0, " + maxDepth);
-    if (threadCount <= 0)         throw new IllegalArgumentException("threadCount must be > 0," + threadCount);
-    if (maxDurationMinutes <= 0)  throw new IllegalArgumentException("maxDurationMinutes must be > 0," + maxDurationMinutes);
+    if (maxPages <= 0) {
+        throw new IllegalArgumentException("maxPages phai > 0, nhan duoc: " + maxPages);
+    }
+    if (maxDepth < 0) {
+        throw new IllegalArgumentException("maxDepth phai >= 0, nhan duoc: " + maxDepth);
+    }
+    if (threadCount <= 0) {
+        throw new IllegalArgumentException("threadCount phai > 0, nhan duoc: " + threadCount);
+    }
+    if (maxDurationMinutes <= 0) {
+        throw new IllegalArgumentException(
+                "maxDurationMinutes phai > 0, nhan duoc: " + maxDurationMinutes);
+    }
     return new CrawlConfig(this);
 }
 ```
@@ -1962,7 +1970,7 @@ trực tiếp thì có nguy cơ đọc trạng thái nửa vời.
 
 ## 20. Các khối bất biến của `CrawlerService`
 
-**File:** `crawler/CrawlerService.java` (907 dòng)
+**File:** `crawler/CrawlerService.java` (863 dòng)
 
 ### 20.1 Trường khởi tạo ngay tại chỗ khai báo
 
@@ -2066,17 +2074,21 @@ Chi tiết ở [mục 36](#36-bài-toán-phát-hiện-kết-thúc-phân-tán).
 
 ```java
 private final AtomicInteger pagesCrawled  = new AtomicInteger(0);
-private final AtomicInteger docIdSeq      = new AtomicInteger(0);
 private volatile int        restoredDocCount = 0;
 private final AtomicInteger activeWorkers = new AtomicInteger(0);
 private final AtomicLong    orphanOutlinks = new AtomicLong();
 private volatile String     jobId = UUID.randomUUID().toString();
 ```
 
+**★ Chỉ MỘT bộ đếm cho cả hai việc.** Trước đây `pagesCrawled` và nguồn cấp `docId`
+là hai `AtomicInteger` riêng biệt. Tách ra thì `docId` được cấp *trước* khi lưu, nên
+mỗi lần lưu thất bại lại đốt một id và dãy `docId` thủng lỗ. Bản hiện tại dùng chung
+một bộ đếm, cấp id *sau* khi lưu thành công (`doc.setDocId(restoredDocCount + count -
+1)` trong `processPage`), nên `docId` luôn đặc và bằng đúng `0..n-1`.
+
 | Biến | Kiểu | Có thể giảm? | Vai trò |
 |---|---|---|---|
-| `pagesCrawled` | `AtomicInteger` | **Có** | Điều kiện dừng + số suất đã cấp |
-| `docIdSeq` | `AtomicInteger` | Không | Nguồn cấp `docId` |
+| `pagesCrawled` | `AtomicInteger` | Không, chỉ tăng | Điều kiện dừng + nguồn cấp `docId` |
 | `restoredDocCount` | `volatile int` | — | Mốc `docId` của phiên này |
 | `activeWorkers` | `AtomicInteger` | Có | Số worker đang xử lý trang |
 | `orphanOutlinks` | `AtomicLong` | Không | Chẩn đoán: outlinks tới URL không có trong storage |
@@ -2754,7 +2766,7 @@ private void runWorkers(CrawlConfig config) {
             } catch (Exception e) {
                 log.error("Worker dừng bất thường", e);
             } finally {
-                latch.countDown();   // trong finally: thiếu nó thì await() chờ đủ 180 phút vô ích
+                latch.countDown();   // trong finally: thiếu nó thì await() chờ đủ 60 phút vô ích
             }
         });
     }
@@ -3750,7 +3762,10 @@ flowchart TD
 
 ## 31. `MinHeap`
 
-**File:** `datastructure/MinHeap.java`
+**File:** `datastructure/MinHeap.java` — nằm trong module `core-common`, tức
+`backend/libs/core-common/src/main/java/com/vnsearch/datastructure/MinHeap.java`
+(ngoại lệ so với quy ước đường dẫn ở mục 0: đây là cấu trúc dữ liệu dùng chung
+cho nhiều service, không riêng crawler).
 
 ### 31.1 Vai trò trong `BackQueues`
 
@@ -4419,35 +4434,41 @@ Giả sử 32 worker gọi gần như đồng thời. Vì mọi `availableAt` đ
 | 19 | W31 | 18 | `vir.com.vn` | 0 |
 
 **Lưu ý:** thứ tự worker là ngẫu nhiên (do bộ lập lịch của HĐH), và **cả 19 URL đều
-được lấy ra** — nhưng chỉ 8 trong số đó tải xong kịp giành suất trong `claimPageSlot(8)`.
+được lấy ra** vì điều kiện `pagesCrawled.get() < maxPages` chỉ được mỗi worker kiểm
+tra MỘT LẦN ở đầu vòng lặp của chính nó, trước khi gọi `frontier.nextUrl()` — tại
+thời điểm 19 worker cùng kiểm tra gần như đồng thời, `pagesCrawled` vẫn còn là `0`.
 
-### 34.5 ★ Vì sao 19 URL được lấy mà chỉ 8 vào corpus
+### 34.5 ★ Vì sao 19 URL được lấy mà corpus có thể vượt nhẹ 8 trang
+
+⚠ **Đã đổi so với bản trước.** Không còn `claimPageSlot()` cấp "suất" bằng CAS —
+xem [45](#45-claimpageslot--vòng-cas) và [47](#47-ba-bộ-đếm-và-docid). Cơ chế thật:
+mỗi worker chỉ kiểm tra `pagesCrawled.get() < maxPages` khi **bắt đầu một vòng lặp
+mới**; một khi đã lọt qua kiểm tra đó và bắt tay vào `processPage()`, worker cứ tải
+— lọc ngôn ngữ — lọc trùng nội dung — rồi `contentStorage.save()` và
+`pagesCrawled.incrementAndGet()` **vô điều kiện**, không có bước nào ở cuối kiểm
+tra lại xem hạn ngạch đã đầy chưa.
 
 ```mermaid
 flowchart TD
-    A["19 seed được lấy khỏi frontier"] --> B["19 worker bắt đầu tải song song"]
-    B --> C{"Mỗi trang: tải xong lúc nào?"}
+    A["19 seed được lấy khỏi frontier<br/>(19 worker đều thấy pagesCrawled=0 < 8)"] --> B["19 worker bắt đầu tải song song"]
+    B --> C{"Mỗi trang: tải xong, qua lọc, lưu lúc nào?"}
 
-    C --> D1["hcmiu.edu.vn xong lúc t=46ms"]
-    C --> D2["en.nhandan.vn xong lúc t=171ms"]
-    C --> D3["nhandan.vn xong lúc t=176ms"]
-    C --> D4["... 5 trang nữa ..."]
-    C --> D5["vietnamplus.vn xong lúc t=233ms"]
-    C --> D6["11 trang còn lại: chậm hơn<br/>hoặc lỗi tải"]
+    C --> D1["hcmiu.edu.vn lưu lúc t=46ms → pagesCrawled=1"]
+    C --> D2["en.nhandan.vn lưu lúc t=171ms → pagesCrawled=2"]
+    C --> D3["... 6 trang nữa lưu, không worker nào bị chặn ..."]
+    C --> D4["8 trang đã lưu → pagesCrawled=8 = maxPages"]
+    C --> D5["Các worker CÒN ĐANG TẢI (đã lọt qua kiểm tra từ trước)<br/>vẫn lưu nốt khi xong — KHÔNG bị huỷ giữa chừng"]
+    D4 --> E["Không worker MỚI nào bắt đầu vòng lặp tiếp theo nữa<br/>(pagesCrawled ≥ maxPages)"]
+    D5 --> F["corpus cuối phiên = 8 + số trang đang tải dở<br/>lúc cán mốc → CÓ THỂ VƯỢT NHẸ 8"]
 
-    D1 --> E["claimPageSlot(8) → 1 ✓"]
-    D2 --> F["claimPageSlot(8) → 2 ✓"]
-    D3 --> G["... → 3,4,5,6,7 ✓"]
-    D5 --> H["claimPageSlot(8) → 8 ✓ SUẤT CUỐI"]
-    D6 --> I["claimPageSlot(8) → −1<br/>❌ Tải xong rồi nhưng BỊ BỎ"]
-
-    style H fill:#0b7a3b,color:#fff
-    style I fill:#b3261e,color:#fff
+    style D4 fill:#0b7a3b,color:#fff
+    style F fill:#b3261e,color:#fff
 ```
 
-Đây là **cái giá đã biết** của việc chạy song song: với 32 worker, tối đa 32 trang có
-thể đang tải dở khi suất cuối cùng bị lấy. Những trang về muộn bị bỏ hoàn toàn — đã
-tốn băng thông mà không có kết quả.
+Đây là **cái giá đã biết** của việc bỏ CAS cứng để đổi lấy đường mã đơn giản hơn:
+`maxPages` không còn là trần tuyệt đối — với 32 worker, tối đa 32 trang có thể đang
+tải dở khi mốc `maxPages` bị cán, và tất cả đều được lưu trọn vẹn thay vì bị huỷ
+giữa chừng. Khác hẳn framing "suất — trúng/trượt" của cơ chế cũ.
 
 ### 34.6 Thứ tự thật trong output
 
@@ -4464,15 +4485,16 @@ tốn băng thông mà không có kết quả.
 
 ⚠ **`crawledAt` KHÔNG khớp với thứ tự `docId`.** Lý do: `crawledAt` được gán trong
 `ContentParser.parse()` (ngay sau khi tải xong), còn `docId` được gán sau khi qua
-`LanguageFilter` → `ContentSeenFilter` → `claimPageSlot` → `save`. Bốn bước đó tốn
-thời gian khác nhau cho mỗi trang (trang dài mất nhiều thời gian băm SHA-256 hơn).
+`LanguageFilter` → `ContentSeenFilter` → `ContentStorage.save()` →
+`pagesCrawled.incrementAndGet()`. Các bước đó tốn thời gian khác nhau cho mỗi trang
+(trang dài mất nhiều thời gian băm SHA-256 hơn).
 
 ```mermaid
 flowchart LR
     A["crawledAt gán ở đây<br/>ContentParser.parse()"] --> B["LanguageFilter<br/>~0.1–2 ms tuỳ độ dài"]
     B --> C["ContentSeenFilter<br/>SHA-256, ~0.05–1 ms"]
-    C --> D["claimPageSlot<br/>CAS, ~0.0001 ms"]
-    D --> E["ContentStorage.save"]
+    C --> D["ContentStorage.save<br/>ghi corpus, ~0.01 ms"]
+    D --> E["pagesCrawled.incrementAndGet()<br/>vô điều kiện, ~0.0001 ms"]
     E --> F["docId gán ở đây"]
 
     G["★ Khoảng cách A→F<br/>khác nhau cho mỗi trang<br/>→ thứ tự có thể đảo"]
@@ -4920,86 +4942,83 @@ sequenceDiagram
 `ConcurrentHashMap.computeIfAbsent` bảo đảm hàm tính chỉ chạy **một lần** cho mỗi
 khoá, kể cả khi nhiều thread cùng gọi.
 
-### 37.4 `parseInto()` — gom rule theo nhóm User-agent
+### 37.4 `parseInto()` — mỗi dòng `User-agent:` GHI ĐÈ, không cộng dồn
 
 ```java
-private void parseInto(String content, String userAgent, List<Rule> rules) {
-    String wanted = userAgent.toLowerCase(Locale.ROOT);
+private void parseInto(String content, String userAgent, List<Rule> out) {
+    String[] lines = content.split("\r?\n");
     List<Rule> wildcardRules = new ArrayList<>();
     List<Rule> specificRules = new ArrayList<>();
-    boolean inWildcard = false, inSpecific = false, previousLineWasAgent = false;
+    boolean inWildcardSection = false;
+    boolean inSpecificSection = false;
 
-    for (String rawLine : content.split("\\R")) {
-        String line = rawLine;
-        int hash = line.indexOf('#');
-        if (hash >= 0) line = line.substring(0, hash);      // bỏ chú thích
-        line = line.strip();
+    for (String rawLine : lines) {
+        String line = rawLine.split("#", 2)[0].trim();      // bỏ chú thích
         if (line.isEmpty()) continue;
 
         int colon = line.indexOf(':');
         if (colon < 0) continue;
-        String field = line.substring(0, colon).strip().toLowerCase(Locale.ROOT);
-        String value = line.substring(colon + 1).strip();
+        String key = line.substring(0, colon).trim().toLowerCase();
+        String value = line.substring(colon + 1).trim();
 
-        if ("user-agent".equals(field)) {
-            if (!previousLineWasAgent) { inWildcard = false; inSpecific = false; }
-            String agent = value.toLowerCase(Locale.ROOT);
-            if ("*".equals(agent))            inWildcard = true;
-            else if (agent.equals(wanted))    inSpecific = true;
-            previousLineWasAgent = true;
-            continue;
+        switch (key) {
+            case "user-agent" -> {
+                inWildcardSection = value.equals("*");
+                inSpecificSection = value.equalsIgnoreCase(userAgent);
+            }
+            case "disallow" -> {
+                if (!value.isEmpty()) {
+                    if (inSpecificSection)      specificRules.add(new Rule(value, false));
+                    else if (inWildcardSection) wildcardRules.add(new Rule(value, false));
+                }
+            }
+            case "allow" -> {
+                if (!value.isEmpty()) {
+                    if (inSpecificSection)      specificRules.add(new Rule(value, true));
+                    else if (inWildcardSection) wildcardRules.add(new Rule(value, true));
+                }
+            }
+            default -> {
+                // bỏ qua Crawl-delay, Sitemap, ...
+            }
         }
-        previousLineWasAgent = false;
-
-        boolean isAllow = "allow".equals(field);
-        if (!isAllow && !"disallow".equals(field)) continue;   // Sitemap, Crawl-delay...
-        if (value.isEmpty()) continue;                          // "Disallow:" rỗng = không chặn gì
-
-        Rule rule = new Rule(value, isAllow);
-        if (inSpecific) specificRules.add(rule);
-        if (inWildcard) wildcardRules.add(rule);
     }
-
-    rules.addAll(specificRules.isEmpty() ? wildcardRules : specificRules);
+    out.addAll(specificRules.isEmpty() ? wildcardRules : specificRules);
 }
 ```
 
-### 37.5 ★ `previousLineWasAgent` — gộp nhiều User-agent liên tiếp
+### 37.5 ⚠ Mỗi dòng `User-agent:` reset cả hai cờ — không gộp nhóm liên tiếp
+
+Khác với nhiều crawler thực tế (và khác với suy nghĩ trực quan về chuẩn REP), cài đặt
+này **không** giữ lại trạng thái của dòng `User-agent:` trước đó. Mỗi lần gặp
+`user-agent`, `inWildcardSection`/`inSpecificSection` bị **ghi đè hoàn toàn** theo giá
+trị của đúng dòng đó — không có cờ nào nhớ "vẫn đang trong cùng một nhóm".
 
 ```mermaid
 flowchart TD
     subgraph FILE["robots.txt"]
-        F1["User-agent: Googlebot"]
-        F2["User-agent: VnSearchBot"]
+        F1["User-agent: VnSearchBot"]
+        F2["User-agent: Googlebot"]
         F3["Disallow: /admin"]
-        F4[""]
-        F5["User-agent: *"]
-        F6["Disallow: /private"]
     end
 
-    subgraph PARSE["Diễn giải đúng theo chuẩn"]
-        P1["Nhóm 1: {Googlebot, VnSearchBot}<br/>→ Disallow: /admin"]
-        P2["Nhóm 2: {*}<br/>→ Disallow: /private"]
-    end
+    F1 --> S1["inSpecific = true<br/>(VnSearchBot == VnSearchBot)"]
+    F2 --> S2["inSpecific = GHI ĐÈ = false<br/>(Googlebot != VnSearchBot)<br/>inWildcard = false"]
+    F3 --> S3["Cả hai cờ đều false<br/>→ Disallow /admin bị BỎ HẲN,<br/>không vào wildcardRules lẫn specificRules"]
 
-    F1 --> P1
-    F2 --> P1
-    F3 --> P1
-    F5 --> P2
-    F6 --> P2
-
-    NOTE["★ previousLineWasAgent giữ nhóm mở<br/>khi hai dòng User-agent liền nhau"]
-
-    style NOTE fill:#c9720b,color:#fff
+    style S3 fill:#b3261e,color:#fff
 ```
 
-Nếu **không** có cờ này, dòng `User-agent: VnSearchBot` sẽ reset `inWildcard`/
-`inSpecific` và đóng nhóm của `Googlebot` — dẫn tới hiểu sai file.
+★ Hệ quả thực tế: nếu file khai **hai dòng `User-agent:` liên tiếp** trước một nhóm
+rule (ví dụ cùng áp dụng cho hai bot), chỉ dòng **cuối cùng** ngay trước rule mới còn
+tác dụng — dòng trước bị dòng sau ghi đè im lặng. Đây là một giới hạn thật của cài đặt
+(không phải lỗi cố ý), khác với hành vi chuẩn Robots Exclusion Protocol vốn coi nhiều
+dòng `User-agent:` liên tiếp là **cùng một nhóm**.
 
 ### 37.6 Nhóm cụ thể thắng nhóm `*`
 
 ```java
-rules.addAll(specificRules.isEmpty() ? wildcardRules : specificRules);
+out.addAll(specificRules.isEmpty() ? wildcardRules : specificRules);
 ```
 
 ```mermaid
@@ -5016,24 +5035,31 @@ flowchart TD
 ```
 
 Đây là hành vi đúng chuẩn: nếu file có nhóm riêng cho bot của bạn, nhóm đó **thay thế
-hoàn toàn** nhóm `*`, không cộng dồn.
+hoàn toàn** nhóm `*`, không cộng dồn. Điều này vẫn đúng dù nhóm riêng chỉ có được nhờ
+đúng MỘT dòng `User-agent:` cuối cùng (mục 37.5).
 
-### 37.7 `isPathAllowed()` — luật khớp dài nhất thắng
+### 37.7 `isPathAllowed()` — luật khớp dài nhất thắng, KHÔNG có luật hoà
 
 ```java
 boolean isPathAllowed(List<Rule> rules, String path) {
     Rule best = null;
     for (Rule rule : rules) {
-        if (!path.startsWith(rule.path())) continue;
-        if (best == null
-                || rule.path().length() > best.path().length()
-                || (rule.path().length() == best.path().length() && rule.isAllow())) {
-            best = rule;
+        if (path.startsWith(rule.path())) {
+            if (best == null || rule.path().length() > best.path().length()) {
+                best = rule;
+            }
         }
     }
     return best == null || best.isAllow();
 }
 ```
+
+★ Điều kiện chỉ có `>` (chặt), không có nhánh xử lý khi hai rule khớp **cùng độ dài**.
+Khi hoà, rule nào xuất hiện **trước** trong danh sách (tức đứng trước trong file
+robots.txt, theo đúng thứ tự được `parseInto` thêm vào) tiếp tục là `best` — rule đến
+sau không thắng được vì `length() > best.length()` là `false` khi bằng nhau. Đây
+**không phải** "Allow luôn thắng khi hoà" — đó là hiểu nhầm dễ mắc phải khi đọc nhanh
+đoạn mã.
 
 ```mermaid
 flowchart TD
@@ -5053,11 +5079,7 @@ flowchart TD
     style J fill:#b3261e,color:#fff
 ```
 
-### 37.8 Hoà thì `Allow` thắng
-
-```java
-|| (rule.path().length() == best.path().length() && rule.isAllow())
-```
+### 37.8 Khi hoà độ dài, rule đứng TRƯỚC trong file thắng
 
 ```
 User-agent: *
@@ -5065,8 +5087,14 @@ Disallow: /search
 Allow: /search
 ```
 
-Hai rule cùng độ dài 7. Điều kiện thứ ba khiến `Allow` ghi đè `Disallow` → URL được
-phép. Đây là quy tắc của Google: **khi mơ hồ, nghiêng về cho phép**.
+Hai rule cùng độ dài 7 (`/search`). Vì `parseInto` thêm `Disallow: /search` vào danh
+sách trước `Allow: /search`, và điều kiện so sánh trong `isPathAllowed` chỉ nhận
+`length() > best.length()` (không nhận `==`), `best` giữ nguyên là rule **Disallow**
+xuất hiện trước — `/search` bị **chặn**, dù `Allow` đứng sau trong file. Nếu đảo thứ tự
+hai dòng (`Allow` trước, `Disallow` sau), kết quả đảo lại: `Allow` thắng. Đây khác hẳn
+quy ước phổ biến "khi mơ hồ, Allow luôn thắng" mà nhiều tài liệu về robots.txt mô tả —
+cài đặt ở đây đơn giản hơn: **thứ tự khai báo trong file quyết định**, không có ưu tiên
+riêng cho `Allow`.
 
 ### 37.9 Bảng ví dụ đầy đủ
 
@@ -5090,8 +5118,10 @@ Allow: /private/blog
 | `/private/blog/x` | `/private` (D, 8), `/private/blog` (A, 13) | 13 | ✅ **Cho phép** |
 | `/public/a` | *(nhóm `*` bị bỏ qua)* | `null` | ✅ **Cho phép** |
 
-Hàng cuối minh hoạ điểm 37.6: vì có nhóm `VnSearchBot` riêng, toàn bộ nhóm `*` (kể
-cả `Disallow: /`) bị bỏ qua.
+Hàng cuối minh hoạ điểm 37.6: vì có nhóm `VnSearchBot` riêng (nhờ đúng một dòng
+`User-agent: VnSearchBot`), toàn bộ nhóm `*` (kể cả `Disallow: /` và `Allow: /public`)
+bị bỏ qua — `/public/a` được phép không phải vì `Allow: /public` khớp, mà vì nhóm `*`
+không được xét tới.
 
 ### 37.10 Mọi ngoại lệ → cho phép
 
@@ -5159,22 +5189,23 @@ không đọc từ robots.txt. Nếu một site khai `Crawl-delay: 10`, crawler 
 
 ## 38. `HtmlDownloader.download()`
 
-**File:** `crawler/HtmlDownloader.java` (146 dòng)
+**File:** `crawler/HtmlDownloader.java` (257 dòng)
 
 ### 38.1 Hằng số
 
 ```java
-public static final String USER_AGENT       = "VnSearchBot";
-public static final int    DEFAULT_TIMEOUT_MS  = 10000;
+public static final String USER_AGENT       = "VnSearchBot/1.0 (+do an DSA; hoc thuat)";
+public static final int    DEFAULT_TIMEOUT_MS  = 10_000;
 public static final int    DEFAULT_MAX_RETRIES = 2;
+public static final int    MAX_REDIRECTS       = 5;
 ```
 
 `USER_AGENT` được dùng ở **ba** nơi:
 
 ```mermaid
 flowchart LR
-    UA["HtmlDownloader.USER_AGENT<br/>= &quot;VnSearchBot&quot;"]
-    UA --> A["Jsoup.connect().userAgent()<br/>khi tải trang"]
+    UA["HtmlDownloader.USER_AGENT<br/>= &quot;VnSearchBot/1.0 (+do an DSA; hoc thuat)&quot;"]
+    UA --> A["Jsoup.connect().userAgent()<br/>khi tải trang, từng chặng chuyển hướng"]
     UA --> B["UrlFilter constructor<br/>→ RobotsTxtParser.isAllowed(userAgent, url)"]
     UA --> C["ImageDownloadService.fetchImage()<br/>khi tải ảnh"]
 
@@ -5184,24 +5215,24 @@ flowchart LR
 Một hằng số duy nhất bảo đảm robots.txt được đọc cho **đúng** tên bot mà crawler khai
 báo khi tải.
 
-### 38.2 Mã `download()`
+### 38.2 Mã `download()` và `fetchFollowingRedirects()`
 
 ```java
 public Document download(String url) throws IOException {
-    ensureTargetAllowed(url);              // ① chống SSRF
-    dnsResolver.resolveHostOf(url);        // ② DNS Resolver (+ cache)
-
     IOException lastError = null;
-    for (int attempt = 0; attempt <= maxRetries; attempt++) {   // ③ 3 lần: 0, 1, 2
+    for (int attempt = 0; attempt <= maxRetries; attempt++) {   // 3 lần: 0, 1, 2
         if (attempt > 0) retries.incrementAndGet();
         try {
-            Document document = Jsoup.connect(url)
-                    .userAgent(USER_AGENT)
-                    .timeout(timeoutMs)
-                    .followRedirects(true)
-                    .get();
+            Document document = fetchFollowingRedirects(url);
             downloaded.incrementAndGet();
             return document;
+        } catch (BlockedTargetException e) {
+            // URL nội bộ: thử lại vô nghĩa, bỏ NGAY, không đếm vào lastError
+            failed.incrementAndGet();
+            throw e;
+        } catch (UnknownHostException e) {
+            // Host chết: cũng không thử lại — khỏi tốn 30 giây cho một tên miền rác
+            throw e;
         } catch (IOException e) {
             lastError = e;
         } catch (Exception e) {
@@ -5211,43 +5242,61 @@ public Document download(String url) throws IOException {
     failed.incrementAndGet();
     throw lastError;
 }
+
+private Document fetchFollowingRedirects(String url) throws IOException {
+    String current = url;
+    for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+        assertTargetAllowed(current);                 // ★ kiểm tra SSRF ở TỪNG chặng
+
+        Connection.Response response = Jsoup.connect(current)
+                .userAgent(USER_AGENT)
+                .timeout(timeoutMs)
+                .followRedirects(false)                // ★ tự đi, không để Jsoup đi hộ
+                .execute();
+
+        int status = response.statusCode();
+        if (status < 300 || status >= 400) return response.parse();
+
+        String location = response.header("Location");
+        if (location == null || location.isBlank())
+            throw new IOException("Chuyen huong " + status + " nhung khong co Location: " + current);
+        current = URI.create(current).resolve(location.trim()).toString();
+    }
+    throw new IOException("Vuot qua " + MAX_REDIRECTS + " lan chuyen huong, bat dau tu: " + url);
+}
 ```
+
+★ **Vì sao không dùng `followRedirects(true)` của Jsoup.** Nếu Jsoup tự đi theo chuyển
+hướng, `assertTargetAllowed` chỉ kiểm tra được **chặng đầu tiên** — một chuyển hướng
+302 từ trang công khai sang `169.254.169.254/latest/meta-data/` sẽ lọt qua hoàn toàn.
+Tắt tự động rồi tự đi từng chặng cho phép kiểm tra SSRF chạy lại **trước mỗi lần mở
+kết nối**, nên chặng thứ năm cũng bị soi kỹ như chặng đầu. `MAX_REDIRECTS = 5` chặn
+vòng lặp chuyển hướng vô hạn (hai trang trỏ vòng vào nhau).
 
 ### 38.3 Sơ đồ
 
 ```mermaid
 flowchart TD
-    A["download(url)"] --> B["① ensureTargetAllowed(url)"]
-    B --> B1{"scheme http/https?"}
-    B1 -->|"không"| BX["throw BlockedTargetException"]
-    B1 -->|"có"| B2{"SeedUrlValidator.isBlockedHostname?"}
-    B2 -->|"có"| BX
-    B2 -->|"không"| B3["InetAddress.getAllByName(host)"]
-    B3 --> B4{"BẤT KỲ địa chỉ nào<br/>isBlockedAddress?"}
-    B4 -->|"có"| BX2["log.warn + throw BlockedTargetException"]
-    B4 -->|"không"| C
+    A["download(url)"] --> D["Vòng thử lại: attempt = 0, 1, 2"]
+    D --> E1["fetchFollowingRedirects(current)"]
+    E1 --> B["assertTargetAllowed(current)<br/>— kiểm tra SSRF ở CHẶNG NÀY"]
+    B -->|"bị chặn"| BX["throw BlockedTargetException<br/>★ KHÔNG thử lại"]
+    B -->|"qua"| E["Jsoup.connect(current)<br/>.userAgent(...)<br/>.timeout(10000)<br/>.followRedirects(false)<br/>.execute()"]
+    E --> F{"status 3xx?"}
+    F -->|"không"| G["downloaded++<br/>return Document ✓"]
+    F -->|"có, còn dưới MAX_REDIRECTS"| E2["current = resolve(Location)"]
+    E2 --> B
+    F -->|"vượt quá 5 chặng"| K1["throw IOException"]
 
-    C["② dnsResolver.resolveHostOf(url)"] --> C1{"trong LRUCache?"}
-    C1 -->|"có"| C2["hits++ → trả về ngay"]
-    C1 -->|"không"| C3["misses++ → InetAddress.getByName()"]
-    C3 --> C4{"thành công?"}
-    C4 -->|"không"| C5["failures++<br/>throw UnknownHostException"]
-    C4 -->|"có"| C6["cache.put(host, addr)"]
-
-    C2 --> D
-    C6 --> D["③ Vòng thử lại: attempt = 0, 1, 2"]
-    D --> E["Jsoup.connect(url)<br/>.userAgent(&quot;VnSearchBot&quot;)<br/>.timeout(10000)<br/>.followRedirects(true)<br/>.get()"]
-    E --> F{"thành công?"}
-    F -->|"có"| G["downloaded++<br/>return Document ✓"]
-    F -->|"không"| H["lastError = e"]
+    G2["Kết quả download()"] 
+    K1 --> H["lastError = e"]
     H --> I{"attempt < 2?"}
     I -->|"có"| J["retries++ → thử lại NGAY"]
-    J --> E
+    J --> E1
     I -->|"không"| K["failed++<br/>throw lastError"]
 
     style G fill:#0b7a3b,color:#fff
     style BX fill:#b3261e,color:#fff
-    style BX2 fill:#b3261e,color:#fff
     style K fill:#b3261e,color:#fff
 ```
 
@@ -5319,26 +5368,32 @@ flowchart TD
     style J fill:#0b7a3b,color:#fff
 ```
 
-### 38.6 `followRedirects(true)` — hệ quả
+### 38.6 Tự đi chuyển hướng, kiểm tra lại từng chặng — hệ quả
 
 ```mermaid
 flowchart TD
-    A["download(&quot;https://vnexpress.net&quot;)"] --> B["Máy chủ trả 301<br/>Location: https://vnexpress.net/trang-chu"]
-    B --> C["Jsoup TỰ ĐỘNG theo"]
+    A["download(&quot;https://vnexpress.net&quot;)"] --> B["Chặng 0: assertTargetAllowed(url) qua<br/>Máy chủ trả 301<br/>Location: https://vnexpress.net/trang-chu"]
+    B --> B2["Chặng 1: assertTargetAllowed(.../trang-chu)<br/>★ kiểm tra LẠI, không chỉ chặng đầu"]
+    B2 --> C["Qua → response.parse()"]
     C --> D["Nội dung của /trang-chu"]
 
-    D --> E["⚠ Nhưng WebDocument.url<br/>vẫn là URL BAN ĐẦU"]
-    E --> F["ContentParser.parse(task.url(), html)<br/>← task.url() là URL trước redirect"]
+    D --> E["⚠ Nhưng WebDocument.url<br/>vẫn là URL BAN ĐẦU truyền vào download()"]
+    E --> F["ContentParser.parse(task.url(), html)<br/>← task.url() là URL trước chuyển hướng"]
 
     F --> G["Hệ quả 1: hai URL khác nhau<br/>cùng redirect về một đích<br/>→ hai bản ghi cùng nội dung"]
     G --> H["✓ Được ContentSeenFilter bắt<br/>ở tầng vân tay SHA-256"]
 
     F --> I["Hệ quả 2: liên kết tương đối<br/>được Jsoup giải theo &lt;base&gt;<br/>hoặc URL SAU redirect"]
-    I --> J["✓ Đúng — vì Document giữ<br/>baseUri thật của trang"]
+    I --> J["✓ Đúng — vì Document giữ<br/>baseUri thật của chặng cuối"]
 
+    style B2 fill:#c9720b,color:#fff
     style H fill:#0b7a3b,color:#fff
     style J fill:#0b7a3b,color:#fff
 ```
+
+★ Khác với bản `followRedirects(true)` cũ (Jsoup tự đi, chỉ chặng đầu được
+`assertTargetAllowed` soi), bản hiện tại lặp thủ công trong `fetchFollowingRedirects`
+và gọi lại `assertTargetAllowed` ở **mọi** chặng — xem mục 38.2.
 
 ### 38.7 Ba bộ đếm
 
@@ -5363,7 +5418,7 @@ System.out.printf("HTML Downloader: tai %d trang, %d lan thu lai, %d that bai%n"
 | `failed` | Cả 3 lần đều hỏng | Mỗi URL đóng góp 0 hoặc 1 |
 
 **Bất biến:** `downloaded + failed` = số URL đi vào `download()` mà qua được
-`ensureTargetAllowed` và DNS.
+`assertTargetAllowed` và DNS ở mọi chặng chuyển hướng.
 
 ### 38.8 Với lần chạy này
 
@@ -5383,7 +5438,7 @@ trống, hoặc nội dung được render bằng JavaScript.
 
 ## 39. `SeedUrlValidator` — chống SSRF
 
-**File:** `crawler/SeedUrlValidator.java` (116 dòng)
+**File:** `crawler/SeedUrlValidator.java` (191 dòng)
 
 ### 39.1 SSRF là gì
 
@@ -5509,54 +5564,67 @@ sẽ là `-56`. Phép `& 0xFF` chuyển về `int` không dấu `0..255`.
 Dải `100.64.0.0/10` = `100.64.0.0` đến `100.127.255.255` — được RFC 6598 dành cho
 CGNAT của nhà mạng. Không phải Internet công cộng.
 
-### 39.6 `ensureTargetAllowed` trong `HtmlDownloader`
+### 39.6 `assertTargetAllowed` trong `HtmlDownloader`
 
 ```java
-private void ensureTargetAllowed(String url) throws BlockedTargetException {
+private void assertTargetAllowed(String url) throws IOException {
     URI uri;
     try { uri = URI.create(url); }
-    catch (IllegalArgumentException e) { throw new BlockedTargetException(SeedUrlValidator.REJECTED); }
+    catch (IllegalArgumentException e) { throw new IOException("URL khong hop le: " + url); }
 
     String scheme = uri.getScheme();
     if (scheme == null || !(scheme.equalsIgnoreCase("http") || scheme.equalsIgnoreCase("https")))
-        throw new BlockedTargetException(SeedUrlValidator.REJECTED);
+        throw new BlockedTargetException("Chi chap nhan http/https: " + url);
 
     String host = uri.getHost();
-    if (SeedUrlValidator.isBlockedHostname(host))
-        throw new BlockedTargetException(SeedUrlValidator.REJECTED);
+    if (SeedUrlValidator.isBlockedHostname(host)) {
+        log.warn("Chan URL: ten may nam trong danh sach chan ({})", host);
+        throw new BlockedTargetException("Ten may bi chan");
+    }
 
-    InetAddress[] addresses;
-    try { addresses = InetAddress.getAllByName(host); }
-    catch (UnknownHostException e) { throw new BlockedTargetException(SeedUrlValidator.REJECTED); }
-
-    for (InetAddress address : addresses) {
-        if (SeedUrlValidator.isBlockedAddress(address)) {
-            log.warn("Chan URL tro toi dia chi noi bo: {}", host);
-            throw new BlockedTargetException(SeedUrlValidator.REJECTED);
-        }
+    // ★ MỘT địa chỉ, không phải getAllByName — xem 39.7
+    InetAddress address = dnsResolver.resolve(host);
+    if (SeedUrlValidator.isBlockedAddress(address)) {
+        log.warn("Chan URL tro toi dia chi noi bo: {} -> {}", host, address.getHostAddress());
+        throw new BlockedTargetException("Dia chi khong duoc phep crawl");
     }
 }
 ```
 
-### 39.7 ★ `getAllByName` chứ không `getByName`
+Tên hàm thật là `assertTargetAllowed` (không phải `ensureTargetAllowed`), và thông báo
+lỗi ở đây **khác nhau theo từng nhánh** — không dùng chung `SeedUrlValidator.REJECTED`
+như `SeedUrlValidator.validate()`. Điều đó chấp nhận được vì `BlockedTargetException`
+chỉ bay tới log phía máy chủ và bộ đếm `failed`, không bao giờ được trả thẳng ra HTTP
+response cho người gọi — khác với `SeedUrlValidator.validate()` ở mục 39.9, nơi thông
+báo đi thẳng vào JSON lỗi 400 của `POST /api/admin/crawl`.
+
+### 39.7 ★ Đường hạt giống dùng `getAllByName`, đường tải trang chỉ dùng MỘT địa chỉ
 
 ```mermaid
 flowchart TD
-    A["evil.example.com có 2 bản ghi DNS A:<br/>1.2.3.4 (công cộng)<br/>127.0.0.1 (loopback)"] --> B{"Dùng hàm nào?"}
+    A["evil.example.com có 2 bản ghi DNS A:<br/>1.2.3.4 (công cộng)<br/>127.0.0.1 (loopback)"] --> B{"Đường nào kiểm tra?"}
 
-    B -->|"getByName()"| C["Trả về CHỈ địa chỉ đầu tiên"]
-    C --> D{"Địa chỉ đầu là gì?"}
-    D -->|"1.2.3.4"| E["Kiểm tra qua ✓"]
-    E --> F["Nhưng Jsoup có thể kết nối<br/>tới 127.0.0.1 (round-robin DNS)"]
-    F --> G["❌ SSRF LỌT"]
-
-    B -->|"getAllByName() (thật)"| H["Trả về CẢ HAI"]
+    B -->|"SeedUrlValidator.validate()<br/>(POST /api/admin/crawl)"| H["InetAddress.getAllByName(host)<br/>→ CẢ HAI địa chỉ"]
     H --> I["Vòng lặp kiểm tra từng cái"]
     I --> J["127.0.0.1 → isLoopback → CHẶN ✓"]
 
-    style G fill:#b3261e,color:#fff
+    B -->|"HtmlDownloader.assertTargetAllowed()<br/>(mỗi chặng tải/chuyển hướng)"| C["dnsResolver.resolve(host)<br/>→ CHỈ MỘT địa chỉ (DnsResolver.getByName + cache)"]
+    C --> D{"Địa chỉ đó bị chặn?"}
+    D -->|"1.2.3.4, không chặn"| E["⚠ Qua — nhưng chưa xét 127.0.0.1<br/>nếu round-robin DNS trả địa chỉ khác lần sau"]
+    D -->|"127.0.0.1, chặn"| F2["CHẶN ✓"]
+
     style J fill:#0b7a3b,color:#fff
+    style F2 fill:#0b7a3b,color:#fff
+    style E fill:#c9720b,color:#fff
 ```
+
+⚠ Đây là một điểm khác chưa được ghi nhận trước đó: hạt giống nộp qua API admin được
+soi **toàn bộ** địa chỉ của tên miền (`getAllByName` + vòng lặp), nhưng mỗi lần
+`HtmlDownloader` tải trang hoặc đi theo một chặng chuyển hướng thì chỉ có **một** địa
+chỉ (qua `DnsResolver`, có cache) được kiểm tra. Rủi ro thực tế thấp vì `allowedDomains`
+chỉ gồm 14 tờ báo Việt Nam đã qua kiểm duyệt tại bước nộp hạt giống — nhưng nếu một
+domain trong danh sách đó dùng round-robin DNS trỏ về nhiều địa chỉ, chỉ địa chỉ được
+cache mới được xét lại ở các lần tải sau.
 
 ### 39.8 ⚠ Vẫn còn khe hở: DNS rebinding
 
@@ -5605,7 +5673,7 @@ log.warn("Chan URL tro toi dia chi noi bo: {}", host);
 
 ## 40. `DnsResolver`
 
-**File:** `crawler/DnsResolver.java` (95 dòng)
+**File:** `crawler/DnsResolver.java` (151 dòng)
 
 ### 40.1 Cấu trúc
 
@@ -5692,9 +5760,11 @@ flowchart LR
     style G fill:#0b7a3b,color:#fff
 ```
 
-Thực tế `resolve()` chỉ được gọi từ `HtmlDownloader.download()` (8–19 lượt) và
-`ImageDownloadService.assertTargetAllowed()` (chỉ khi bật tải ảnh). Nhưng ở cấu hình
-`maxPages` lớn, con số lên tới hàng chục nghìn.
+Thực tế `resolve()` được gọi từ `HtmlDownloader.assertTargetAllowed()` — **một lần cho
+mỗi chặng chuyển hướng**, không chỉ một lần cho mỗi URL gốc (8–19 URL gốc nhưng có thể
+nhiều lượt gọi hơn nếu trang có redirect) — và từ đường tương tự trong
+`ImageDownloadService` khi bật tải ảnh. Ở cấu hình `maxPages` lớn, con số lên tới hàng
+chục nghìn.
 
 ### 40.5 `hitRate()`
 
@@ -5734,30 +5804,36 @@ cache.put(key, resolved);      // giữ MÃI MÃI (cho tới khi bị LRU đẩy
 Cache 1000 mục + LRU đẩy ra tự nhiên đóng vai trò "TTL ngầm" khi crawl trên nhiều
 domain. Với 14 domain, không mục nào bị đẩy ra bao giờ.
 
-### 40.7 ★ `resolve()` được gọi nhưng **kết quả bị bỏ**
+### 40.7 ★ `resolve()` — kết quả được dùng để chặn SSRF, nhưng Jsoup vẫn tra DNS lần nữa
 
 ```java
-// crawler/HtmlDownloader.java
-dnsResolver.resolveHostOf(url);      // ← không gán vào biến nào
-
-Document document = Jsoup.connect(url)...get();    // ← Jsoup TỰ tra DNS lại
+// crawler/HtmlDownloader.assertTargetAllowed(String)
+InetAddress address = dnsResolver.resolve(host);   // ★ kết quả ĐƯỢC DÙNG ngay dưới
+if (SeedUrlValidator.isBlockedAddress(address)) {
+    throw new BlockedTargetException("Dia chi khong duoc phep crawl");
+}
+// ... sau đó fetchFollowingRedirects mới gọi Jsoup.connect(current)...execute()
 ```
+
+`DnsResolver.resolveHostOf(String)` tồn tại trong lớp nhưng **không được gọi ở đâu
+trong luồng tải trang** — đường thật đi qua `resolve(host)` bên trong
+`assertTargetAllowed`, với `host` đã tách sẵn từ `URI.getHost()`.
 
 ```mermaid
 flowchart TD
-    A["Vì sao gọi resolve() nếu bỏ kết quả?"] --> B["① Loại sớm host chết"]
-    B --> B1["Host không tồn tại → UnknownHostException<br/>ném NGAY, ~20 ms"]
-    B1 --> B2["Nếu để Jsoup phát hiện:<br/>tốn timeout 10 GIÂY × 3 lần = 30 giây"]
+    A["assertTargetAllowed gọi resolve() để làm gì?"] --> B["① Kiểm tra SSRF<br/>địa chỉ trả về ĐƯỢC ĐEM XÉT isBlockedAddress"]
+    B --> B1["Đây là nơi duy nhất chặn được<br/>tên miền công khai trỏ DNS về mạng nội bộ"]
 
-    A --> C["② Thu thập số liệu"]
-    C --> C1["hits / misses / failures<br/>cho báo cáo cuối phiên"]
+    A --> C["② Loại sớm host chết + thu thập số liệu"]
+    C --> C1["Host không tồn tại → UnknownHostException<br/>ném NGAY, không thử lại (~20 ms)"]
+    C1 --> C2["hits / misses / failures<br/>cho báo cáo cuối phiên"]
 
-    A --> D["⚠ Chi phí: tra DNS HAI LẦN"]
-    D --> D1["Lần 1: DnsResolver (có cache)"]
-    D --> D2["Lần 2: Jsoup (dùng cache của JVM)"]
-    D2 --> D3["JVM cũng cache DNS<br/>(networkaddress.cache.ttl)<br/>→ lần 2 gần như miễn phí"]
+    A --> D["⚠ Chi phí còn lại: Jsoup tra DNS LẦN NỮA<br/>khi execute() mở socket"]
+    D --> D1["DnsResolver chỉ cấp địa chỉ để KIỂM TRA,<br/>không có cách truyền InetAddress đã có<br/>thẳng vào Jsoup/HttpURLConnection"]
+    D1 --> D2["JVM cũng cache DNS<br/>(networkaddress.cache.ttl)<br/>→ lần tra thứ hai gần như miễn phí"]
+    D2 --> D3["⚠ Đây cũng là khe hở DNS rebinding — mục 39.8:<br/>địa chỉ Jsoup thực sự kết nối tới<br/>có thể khác địa chỉ vừa kiểm tra"]
 
-    style B2 fill:#0b7a3b,color:#fff
+    style B1 fill:#0b7a3b,color:#fff
     style D3 fill:#c9720b,color:#fff
 ```
 
@@ -6036,7 +6112,7 @@ sequenceDiagram
 
 ## 42. `ContentParser.parse()`
 
-**File:** `crawler/ContentParser.java` (63 dòng)
+**File:** `crawler/ContentParser.java` (85 dòng)
 
 ### 42.1 Mã đầy đủ
 
@@ -6307,7 +6383,7 @@ gọi `Instant.now()` trong cùng một tick của đồng hồ Windows.
 
 ## 43. `LanguageFilter` — thuật toán ba tầng
 
-**File:** `crawler/LanguageFilter.java` (253 dòng)
+**File:** `crawler/LanguageFilter.java` (370 dòng)
 
 ### 43.1 Hằng số
 
@@ -6319,19 +6395,19 @@ public static final String OTHER_LATIN  = "other";
 
 private static final int    SAMPLE_LIMIT = 20_000;
 private static final double FOREIGN_SCRIPT_THRESHOLD          = 0.10;
-private static final double VIETNAMESE_DIACRITIC_STRONG       = 0.05;    // ★ chốt ngay
-private static final double VIETNAMESE_DIACRITIC_THRESHOLD    = 0.005;   // ★ chốt cuối
+private static final double VIETNAMESE_DIACRITIC_THRESHOLD    = 0.005;   // ★ chốt ngay ở tầng 2
 private static final double VIETNAMESE_WORD_THRESHOLD         = 0.05;
 private static final double ENGLISH_WORD_THRESHOLD            = 0.12;
 private static final double ENGLISH_WORD_THRESHOLD_WITH_HINT  = 0.05;
 private static final int    MIN_TOKENS_FOR_CONTENT_EVIDENCE   = 40;
 ```
 
-> **★ Hai ngưỡng dấu thanh, không phải một.** Bản đầu của lớp này chỉ có
-> `VIETNAMESE_DIACRITIC_THRESHOLD = 0.005` dùng làm chốt ngay ở tầng 2 — và nó gán
-> nhầm nhãn `vi` cho `vietnamnews.vn` (báo tiếng Anh, xem [mục 70](#70-phân-tích-trường-language)).
-> Bản hiện tại tách làm hai: dấu **dày** (≥ 5 %) chốt ngay, dấu **thưa** (≥ 0,5 %)
-> tụt xuống làm chốt cuối sau khi phép đếm từ chức năng đã thất bại cho cả hai ngôn ngữ.
+> **★ Chỉ MỘT ngưỡng dấu thanh.** Code hiện tại chỉ có `VIETNAMESE_DIACRITIC_THRESHOLD
+> = 0.005`, dùng để **chốt ngay** ở tầng 2: hễ tỷ lệ ký tự mang dấu thanh đặc trưng
+> tiếng Việt đạt 0,5 % là trả về `"vi"` luôn, không chờ tới tầng 3 (từ chức năng) —
+> đúng như sơ đồ ở mục 43.4. Không có ngưỡng "dày 5 %" nào tách riêng trong mã nguồn;
+> nếu tài liệu ở bản trước từng nhắc tới một hằng số như vậy thì đó là mô tả sai, đã
+> được sửa lại ở đây cho khớp code thật.
 
 ### 43.2 `accept()` — cổng vào
 
@@ -6934,7 +7010,7 @@ nhất đứng đầu:
 
 ## 44. `ContentSeenFilter` — vân tay SHA-256
 
-**File:** `crawler/ContentSeenFilter.java` (77 dòng)
+**File:** `crawler/ContentSeenFilter.java` (148 dòng)
 
 ### 44.1 Mã
 
@@ -7254,203 +7330,123 @@ Một ký tự khác → SHA-256 khác hoàn toàn (hiệu ứng thác đổ). �
 
 ---
 
-## 45. `claimPageSlot()` — vòng CAS
+## 45. Cấp suất trang — một `AtomicInteger` dùng cho hai việc
 
-### 45.1 Mã
+> ⚠ **Đã đổi so với bản trước.** Từng có một hàm `claimPageSlot()` cấp phát
+> bằng vòng CAS thủ công và một bộ đếm `docIdSeq` tách riêng khỏi
+> `pagesCrawled`. Code hiện tại **không còn hai thứ đó** — javadoc ngay tại
+> khai báo trường giải thích lý do:
+>
+> > *"Trước đây đây là hai `AtomicInteger` riêng. Tách ra thì `docId` được
+> > cấp trước khi lưu, nên mỗi lần lưu thất bại lại đốt một id và dãy docId
+> > thủng lỗ. Dùng chung một bộ đếm, cấp id sau khi lưu thành công, thì docId
+> > luôn đặc và bằng đúng 0..n-1."*
+
+### 45.1 Mã thật — `processPage()`, đoạn cấp suất
 
 ```java
-private int claimPageSlot(int maxPages) {
-    while (true) {
-        int current = pagesCrawled.get();
-        if (current >= maxPages) return -1;                    // hết hạn ngạch
-        if (pagesCrawled.compareAndSet(current, current + 1))
-            return current + 1;                                 // số thứ tự, đếm từ 1
-    }
+if (!contentStorage.save(doc)) {
+    return; // URL này đã có bản ghi, không đếm trùng
 }
-```
 
-### 45.2 Vì sao chốt ở `workerLoop` **không đủ**
-
-```mermaid
-sequenceDiagram
-    participant W1 as worker-1
-    participant W8 as worker-8
-    participant W9 as worker-9
-    participant W32 as worker-32
-    participant P as pagesCrawled
-
-    Note over W1,W32: 32 worker đều qua chốt<br/>while (pagesCrawled < 8) khi P = 0
-
-    W1->>W1: đang tải trang...
-    W8->>W8: đang tải trang...
-    W9->>W9: đang tải trang...
-    W32->>W32: đang tải trang...
-
-    Note over W1,W32: ★ 32 trang đang tải dở, tất cả<br/>đã "được phép" theo chốt ở đầu vòng lặp
-
-    W1->>P: claimPageSlot → 1
-    W8->>P: claimPageSlot → 2
-    Note over P: ... 6 worker nữa ...
-    W9->>P: claimPageSlot → 8 ← SUẤT CUỐI
-    W32->>P: claimPageSlot → -1 ❌ BỊ BỎ
-
-    Note over W32: Trang đã tải xong, đã parse,<br/>đã qua LanguageFilter và ContentSeenFilter<br/>nhưng KHÔNG được lưu
-```
-
-### 45.3 Sơ đồ vòng CAS
-
-```mermaid
-flowchart TD
-    A["claimPageSlot(8)"] --> B["while(true)"]
-    B --> C["current = pagesCrawled.get()"]
-    C --> D{"current >= 8?"}
-    D -->|"có"| E["return -1<br/>❌ hết hạn ngạch"]
-    D -->|"không"| F["compareAndSet(current, current+1)"]
-    F --> G{"CAS thành công?"}
-    G -->|"có"| H["return current + 1 ✓"]
-    G -->|"không — thread khác vừa đổi"| B
-
-    style E fill:#b3261e,color:#fff
-    style H fill:#0b7a3b,color:#fff
-```
-
-### 45.4 CAS là gì
-
-**Compare-And-Swap** là một lệnh CPU nguyên tử:
-
-```
-CAS(địa_chỉ, giá_trị_kỳ_vọng, giá_trị_mới):
-    nếu *địa_chỉ == giá_trị_kỳ_vọng:
-        *địa_chỉ = giá_trị_mới
-        trả về TRUE
-    ngược lại:
-        trả về FALSE
-```
-
-Toàn bộ thao tác trên xảy ra **không thể bị ngắt**. Trên x86 đó là lệnh `LOCK CMPXCHG`.
-
-### 45.5 ★ Vì sao không dùng `incrementAndGet()` rồi so sánh
-
-```java
-// ❌ Cách sai
 int count = pagesCrawled.incrementAndGet();
-if (count > maxPages) {
-    pagesCrawled.decrementAndGet();
-    return -1;
-}
-return count;
+// Đặc, không thủng lỗ vì cấp SAU khi lưu thành công; cộng mốc corpus cũ
+// để phiên nối tiếp không cấp lại docId đã dùng.
+doc.setDocId(restoredDocCount + count - 1);
 ```
+
+Không có hàm `claimPageSlot()`, không có vòng CAS thủ công, không có
+`decrementAndGet()` ở bất kỳ đâu trong `processPage()`. `incrementAndGet()`
+**chỉ chạy sau khi `save()` đã thành công** — vì vậy không có suất nào cần
+"trả lại": nếu lưu thất bại, hàm `return` trước khi chạm tới bộ đếm.
+
+### 45.2 Hạn ngạch được gác ở **`workerLoop`**, không phải trong `processPage`
+
+```java
+while (pagesCrawled.get() < config.maxPages()) {
+    CrawlTask task = frontier.nextUrl();
+    ...
+    processPage(task, config);   // KHÔNG kiểm tra lại maxPages ở đây
+}
+```
+
+`processPage()` **không** biết `maxPages`, không hề đọc lại nó, và
+`incrementAndGet()` là **vô điều kiện**. Cơ chế bảo vệ duy nhất là điều kiện
+`while` — kiểm tra **trước khi lấy task mới**, không phải trước khi hoàn tất
+task đang xử lý.
+
+### 45.3 ⚠ Hệ quả: `pagesCrawled` cuối phiên có thể **vượt** `maxPages`
 
 ```mermaid
 sequenceDiagram
     participant W1 as worker-1
     participant W2 as worker-2
     participant W3 as worker-3
-    participant P as pagesCrawled (đang = 8)
+    participant P as pagesCrawled
 
-    W1->>P: incrementAndGet() → 9
-    W2->>P: incrementAndGet() → 10
-    W3->>P: incrementAndGet() → 11
+    Note over P: = 7 998, maxPages = 8 000
 
-    Note over P: ★ Bộ đếm VỌT lên 11<br/>dù maxPages = 8
+    W1->>P: get() = 7998 < 8000 ✓ → lấy task, bắt đầu tải
+    W2->>P: get() = 7999 < 8000 ✓ → lấy task, bắt đầu tải
+    W3->>P: get() = 7999 < 8000 ✓ → lấy task, bắt đầu tải
 
-    W1->>P: 9 > 8 → decrementAndGet() → 10
-    W2->>P: 10 > 8 → decrementAndGet() → 9
-    W3->>P: 11 > 8 → decrementAndGet() → 8
+    Note over W1,W3: ★ Cả ba đều "được phép" — điều kiện while<br/>chỉ chặn việc LẤY TASK MỚI, không chặn<br/>các task ĐANG XỬ LÝ hoàn tất
 
-    Note over P: Cuối cùng về 8, nhưng...
+    W1->>P: save() thành công → incrementAndGet() → 8000
+    W2->>P: save() thành công → incrementAndGet() → 8001
+    W3->>P: save() thành công → incrementAndGet() → 8002
 
     rect rgba(179,38,30,0.15)
-    Note over W1,W3: ⚠ Trong lúc đó, ProgressBarCrawlListener<br/>có thể đọc pagesCrawled = 11<br/>→ thanh tiến độ nhảy 137%
+    Note over W1,W3: ⚠ Corpus cuối phiên có 8 002 trang, không phải 8 000.<br/>Không có cơ chế nào cắt về đúng maxPages.
     end
 ```
 
-Vòng CAS **không bao giờ** để bộ đếm vượt `maxPages`, dù chỉ trong một khoảnh khắc.
+Đây **không phải lỗi** theo nghĩa crash hay hỏng dữ liệu — `docId` vẫn đặc,
+không trùng, không thủng lỗ (mục 45.1 vẫn đúng cho phần đó). Nhưng
+`maxPages` là **hạn ngạch xấp xỉ**, không phải một trần cứng: số trang thật
+sự lưu ra có thể nhỉnh hơn tham số truyền vào một lượng bằng số worker đang
+tải dở khi bộ đếm chạm ngưỡng. Với 32 worker, mức vượt lý thuyết tối đa là
+31 trang.
 
-### 45.6 Trace ba worker tranh nhau suất cuối
+### 45.4 So với bản CAS cũ (đã bỏ)
 
-```mermaid
-sequenceDiagram
-    participant A as worker-A
-    participant B as worker-B
-    participant C as worker-C
-    participant P as AtomicInteger (=7)
+| | Bản cũ (`claimPageSlot`, đã bỏ) | Code hiện tại |
+|---|---|---|
+| Cơ chế | Vòng CAS, chặn ngay tại điểm cấp số | `incrementAndGet()` vô điều kiện sau `save()` |
+| Trần `maxPages` | Cứng — không vượt quá dù một trang | Mềm — có thể vượt vài chục trang do đua worker |
+| Trang thừa khi hết hạn ngạch | Bị bỏ (`return -1`), tải phí công | Vẫn được lưu, không bị bỏ |
+| Số bộ đếm cho `docId` | 2 (`pagesCrawled` + `docIdSeq`) | 1 (`pagesCrawled` kiêm luôn) |
+| Rủi ro docId thủng lỗ | Có (nếu cấp docId trước khi lưu thất bại) | Không (cấp docId sau khi lưu chắc chắn thành công) |
 
-    A->>P: get() = 7
-    B->>P: get() = 7
-    C->>P: get() = 7
+Đánh đổi: bản mới đơn giản hơn hẳn và loại bỏ hoàn toàn nguy cơ docId thủng
+lỗ, đổi lấy việc `maxPages` không còn là giới hạn tuyệt đối.
 
-    Note over A,C: Cả ba thấy 7 < 8 → đều muốn giành
-
-    A->>P: CAS(7, 8) → TRUE ✓
-    Note over P: pagesCrawled = 8
-    A-->>A: return 8 (suất thứ 8)
-
-    B->>P: CAS(7, 8) → FALSE ❌ (giá trị đã là 8)
-    Note over B: quay lại đầu vòng while
-    B->>P: get() = 8
-    B->>B: 8 >= 8 → return -1
-
-    C->>P: CAS(7, 8) → FALSE ❌
-    C->>P: get() = 8
-    C->>C: 8 >= 8 → return -1
-```
-
-### 45.7 Số trả về đếm từ 1
+### 45.5 Số trả về đếm từ 1
 
 ```java
-return current + 1;
+int count = pagesCrawled.incrementAndGet();   // 1, 2, 3, ...
 ```
 
-| `pagesCrawled` trước | Giá trị trả về | Ý nghĩa |
+| `pagesCrawled` trước | Giá trị `count` | Ý nghĩa |
 |---|---|---|
 | `0` | `1` | Trang thứ nhất |
-| `7` | `8` | Trang thứ tám (cuối) |
-| `8` | `-1` | Hết hạn ngạch |
+| `7` | `8` | Trang thứ tám |
 
-Con số này đi thẳng vào `CrawlEvent.pageNumber`, dùng cho:
-* Thanh tiến độ: `8/8 → 100%`
+`count` đi thẳng vào `CrawlEvent.pageNumber`, dùng cho:
+* Thanh tiến độ
 * `ConsoleCrawlListener`: `if (pageNumber % 200 != 0 && pageNumber != maxPages) return;`
 * `CheckpointCrawlListener`: `if (pageNumber % 250 != 0) return;`
 
-Nếu đếm từ 0, `pageNumber == maxPages` không bao giờ đúng và log cuối phiên bị mất.
-
-### 45.8 Trả lại suất khi `save` thất bại
-
-```java
-int count = claimPageSlot(config.maxPages());
-if (count < 0) return;
-
-if (!contentStorage.save(doc)) {
-    pagesCrawled.decrementAndGet();      // ★ TRẢ LẠI suất vừa giành
-    return;
-}
-```
-
-```mermaid
-flowchart TD
-    A["claimPageSlot → 5<br/>pagesCrawled = 5"] --> B["contentStorage.save(doc)"]
-    B --> C{"putIfAbsent trả null?"}
-    C -->|"có — URL mới"| D["Lưu thành công<br/>pagesCrawled giữ ở 5 ✓"]
-    C -->|"không — URL đã có"| E["pagesCrawled.decrementAndGet()<br/>→ về 4"]
-    E --> F["★ Suất được TRẢ LẠI<br/>worker khác dùng được"]
-
-    G["Khi nào save thất bại?"] --> H["Hai worker cùng tải MỘT URL<br/>qua hai đường liên kết khác nhau"]
-    H --> I["UrlSeenFilter lẽ ra đã chặn,<br/>nhưng có 1% dương tính giả<br/>hoặc URL vào frontier trước khi<br/>bản kia được đánh dấu"]
-
-    style D fill:#0b7a3b,color:#fff
-    style F fill:#c9720b,color:#fff
-```
-
-### 45.9 ⚠ `pagesCrawled` có thể **lùi**, `docIdSeq` thì không
-
-Đây là lý do phải tách hai bộ đếm — xem [mục 47](#47-ba-bộ-đếm-và-docid).
+Vì `pagesCrawled` có thể vượt `maxPages` (mục 45.3), điều kiện
+`pageNumber != maxPages` ở trên đôi khi **không bao giờ đúng** trong một
+phiên cụ thể — log cuối phiên của `ConsoleCrawlListener` dựa vào mốc
+`% 200 == 0` để không bị bỏ lỡ hoàn toàn.
 
 ---
 
 ## 46. `ContentStorage`
 
-**File:** `crawler/ContentStorage.java` (72 dòng)
+**File:** `crawler/ContentStorage.java` (138 dòng, gồm Javadoc)
 
 ### 46.1 Cấu trúc
 
@@ -7601,29 +7597,27 @@ Chi phí: O(n log n) một lần ở cuối phiên. Với 1 triệu tài liệu 
 
 ---
 
-## 47. Ba bộ đếm và docId
+## 47. Hai biến cho `docId` — `pagesCrawled` kiêm nhiệm
 
-### 47.1 Ba biến, ba vai trò
+> ⚠ **Đã đổi so với bản trước.** Từng có **ba** biến (`pagesCrawled`,
+> `docIdSeq`, `restoredDocCount`). Code hiện tại chỉ còn **hai**:
+> `pagesCrawled` giờ vừa là hạn ngạch phiên vừa là nguồn cấp `docId` — xem
+> javadoc trích ở đầu [mục 45](#45-cấp-suất-trang--một-atomicinteger-dùng-cho-hai-việc).
+
+### 47.1 Hai biến, hai vai trò
 
 ```java
 private final AtomicInteger pagesCrawled = new AtomicInteger(0);
-private final AtomicInteger docIdSeq     = new AtomicInteger(0);
 private volatile int restoredDocCount    = 0;
 ```
 
 ```mermaid
 flowchart TD
-    subgraph P["pagesCrawled — HẠN NGẠCH"]
-        P1["Tăng: claimPageSlot() CAS"]
-        P2["Giảm: khi save() thất bại"]
-        P3["Đọc: while (pagesCrawled < maxPages)"]
-        P4["★ CÓ THỂ LÙI"]
-    end
-
-    subgraph D["docIdSeq — ĐỊNH DANH"]
-        D1["Tăng: getAndIncrement() sau save thành công"]
-        D2["KHÔNG BAO GIỜ giảm"]
-        D3["★ Dãy docId phải ĐẶC, không thủng lỗ"]
+    subgraph P["pagesCrawled — HẠN NGẠCH kiêm ĐỊNH DANH"]
+        P1["Tăng: incrementAndGet() sau save() thành công"]
+        P2["KHÔNG bao giờ giảm — không còn decrementAndGet nào"]
+        P3["Đọc làm điều kiện dừng: while (pagesCrawled < maxPages)"]
+        P4["Đọc làm nguồn docId: restoredDocCount + count - 1"]
     end
 
     subgraph R["restoredDocCount — MỐC"]
@@ -7632,48 +7626,31 @@ flowchart TD
         R3["★ Phiên mới bắt đầu từ mốc này"]
     end
 
-    P4 -.->|"vì thế phải tách"| D3
-
-    style P4 fill:#c9720b,color:#fff
-    style D3 fill:#c9720b,color:#fff
+    style P2 fill:#0b7a3b,color:#fff
 ```
 
-### 47.2 ★ Vì sao không dùng chung một bộ đếm
+### 47.2 Vì sao gộp được mà không thủng lỗ `docId`
 
-```mermaid
-sequenceDiagram
-    participant W1 as worker-1
-    participant W2 as worker-2
-    participant C as Bộ đếm chung (nếu gộp)
-
-    Note over C: = 4
-
-    W1->>C: claimPageSlot → 5
-    W1->>W1: save() THẤT BẠI (URL trùng)
-    W1->>C: decrementAndGet → 4
-    Note over W1: ⚠ Nhưng nếu docId đã cấp = 5<br/>thì docId 5 bị ĐỐT
-
-    W2->>C: claimPageSlot → 5
-    W2->>W2: save() thành công
-    W2->>W2: docId = 5
-
-    rect rgba(179,38,30,0.15)
-    Note over W1,W2: ❌ Nếu W1 đã cấp docId=5 trước khi save<br/>thì HAI tài liệu cùng docId 5
-    end
-```
-
-**Giải pháp:** cấp `docId` **sau** khi `save()` thành công, từ một bộ đếm riêng không
-bao giờ lùi.
+Điểm mấu chốt: **`docId` chỉ được cấp sau khi `save()` đã chắc chắn thành
+công** — không phải trước.
 
 ```java
 if (!contentStorage.save(doc)) {
-    pagesCrawled.decrementAndGet();     // chỉ pagesCrawled lùi
-    return;                             // docIdSeq KHÔNG bị chạm tới
+    return; // URL này đã có bản ghi — thoát trước khi chạm bộ đếm
 }
-doc.setDocId(restoredDocCount + docIdSeq.getAndIncrement());   // chỉ tăng khi CHẮC CHẮN lưu được
+int count = pagesCrawled.incrementAndGet();
+doc.setDocId(restoredDocCount + count - 1);
 ```
 
-### 47.3 `restoredDocCount` — vì sao cần biến thứ ba
+Vì incrementAndGet() chỉ chạy trên nhánh "lưu thành công", không có tình
+huống nào cấp một `docId` rồi phải "đốt" nó — nên không cần một bộ đếm rời
+để bảo vệ tính đặc của `docId` như bản cũ (mục 47 phiên bản trước từng lập
+luận ngược lại: giả định `docId` bị cấp *trước* khi biết `save()` có thành
+công hay không). Đánh đổi duy nhất là điều đã nêu ở
+[mục 45.3](#45-cấp-suất-trang--một-atomicinteger-dùng-cho-hai-việc): hạn
+ngạch `maxPages` không còn là trần cứng.
+
+### 47.3 `restoredDocCount` — vẫn cần tách riêng
 
 ```mermaid
 flowchart TD
@@ -7683,7 +7660,7 @@ flowchart TD
     D --> E["❌ SAI NGAY — vòng lặp không chạy"]
     E --> F["Phiên crawl dừng mà KHÔNG tải trang nào"]
 
-    G["✓ Tách riêng"] --> H["pagesCrawled = 0 (hạn ngạch phiên MỚI)"]
+    G["✓ Tách riêng (code thật)"] --> H["pagesCrawled = 0 (hạn ngạch phiên MỚI)"]
     G --> I["restoredDocCount = 5000 (mốc docId)"]
     H --> J["while (0 < 5000) ✓ chạy bình thường"]
     I --> K["docId phiên mới: 5000, 5001, ..."]
@@ -7692,20 +7669,24 @@ flowchart TD
     style J fill:#0b7a3b,color:#fff
 ```
 
+Lý do này không đổi so với bản trước — chỉ có `docIdSeq` là biến bị bỏ,
+`restoredDocCount` vẫn còn nguyên như trong code (dòng 224 của
+`CrawlerService.java`).
+
 ### 47.4 Bảng trace docId cho lần chạy này
 
 Vì `previous` rỗng, `restoredDocCount = 0`:
 
-| Thứ tự `save()` thành công | `docIdSeq` trước | `getAndIncrement()` | `docId` gán | URL |
+| Thứ tự `save()` thành công | `pagesCrawled` trước | `incrementAndGet()` → `count` | `docId = restoredDocCount + count - 1` | URL |
 |---|---|---|---|---|
-| 1 | 0 | trả 0, thành 1 | **0** | `hcmiu.edu.vn` |
-| 2 | 1 | trả 1, thành 2 | **1** | `vnexpress.net` |
-| 3 | 2 | trả 2, thành 3 | **2** | `tuyensinhso.vn` |
-| 4 | 3 | trả 3, thành 4 | **3** | `vietnamnews.vn` |
-| 5 | 4 | trả 4, thành 5 | **4** | `nhandan.vn` |
-| 6 | 5 | trả 5, thành 6 | **5** | `en.nhandan.vn` |
-| 7 | 6 | trả 6, thành 7 | **6** | `e.vnexpress.net` |
-| 8 | 7 | trả 7, thành 8 | **7** | `www.vietnamplus.vn` |
+| 1 | 0 | 1 | **0** | `hcmiu.edu.vn` |
+| 2 | 1 | 2 | **1** | `vnexpress.net` |
+| 3 | 2 | 3 | **2** | `tuyensinhso.vn` |
+| 4 | 3 | 4 | **3** | `vietnamnews.vn` |
+| 5 | 4 | 5 | **4** | `nhandan.vn` |
+| 6 | 5 | 6 | **5** | `en.nhandan.vn` |
+| 7 | 6 | 7 | **6** | `e.vnexpress.net` |
+| 8 | 7 | 8 | **7** | `www.vietnamplus.vn` |
 
 ⚠ Bảng trên là **suy đoán** thứ tự từ `docId` — không phải thứ tự `crawledAt`.
 Xem [mục 69](#69-phân-tích-dấu-thời-gian).
@@ -7725,14 +7706,14 @@ flowchart LR
     end
 
     subgraph MARK["restoredDocCount = 5"]
-        M["docIdSeq vẫn = 0"]
+        M["pagesCrawled vẫn = 0"]
     end
 
     subgraph NEW["Phiên mới, 8 trang"]
-        N0["docId = 5 + 0 = 5"]
-        N1["docId = 5 + 1 = 6"]
-        N2["docId = 5 + 2 = 7"]
-        N3["... tới 5 + 7 = 12"]
+        N0["count=1 → docId = 5 + 1 - 1 = 5"]
+        N1["count=2 → docId = 5 + 2 - 1 = 6"]
+        N2["count=3 → docId = 5 + 3 - 1 = 7"]
+        N3["... tới count=8 → docId = 12"]
     end
 
     OLD --> MARK --> NEW
@@ -7741,7 +7722,8 @@ flowchart LR
 ```
 
 Corpus tổng có 13 tài liệu, `docId` từ `0` đến `12` — **đặc, không trùng, không
-thủng lỗ**.
+thủng lỗ** (trừ trường hợp vượt hạn ngạch mô tả ở mục 45.3, khi đó dãy vẫn
+đặc nhưng dài hơn `maxPages` dự kiến).
 
 ---
 ---
@@ -7752,7 +7734,7 @@ thủng lỗ**.
 
 ## 48. `PageEvent` và ranh giới kiến trúc
 
-**File:** `crawler/bus/PageEvent.java` (58 dòng)
+**File:** `crawler/bus/PageEvent.java` (162 dòng, gồm Javadoc)
 
 ### 48.1 Định nghĩa
 
@@ -7770,9 +7752,9 @@ public record PageEvent(
         String  jobId) {
 
     public PageEvent {
-        if (url == null || url.isBlank())   throw new IllegalArgumentException("PageEvent.url must not be empty");
-        if (host == null || host.isBlank()) throw new IllegalArgumentException("PageEvent.host must not be empty, url=" + url);
-        if (depth < 0)                      throw new IllegalArgumentException("PageEvent.depth must be >= 0, got: " + depth);
+        if (url == null || url.isBlank())   throw new IllegalArgumentException("PageEvent.url không được rỗng");
+        if (host == null || host.isBlank()) throw new IllegalArgumentException("PageEvent.host không được rỗng, url=" + url);
+        if (depth < 0)                      throw new IllegalArgumentException("PageEvent.depth phải >= 0, nhận được: " + depth);
     }
 
     @JsonIgnore
@@ -7784,8 +7766,22 @@ public record PageEvent(
         return new PageEvent(url, host, depth, title, bodyText, language, null,
                              contentHash, crawledAt, jobId);
     }
+
+    @Override
+    public String toString() {
+        return "PageEvent{url='" + url + "', host='" + host + "', depth=" + depth
+                + ", htmlBytes=" + htmlSizeBytes() + ", lang='" + language + "'}";
+    }
 }
 ```
+
+Ba lựa chọn thiết kế được cân nhắc cho việc "đưa gì vào thông điệp" (theo
+Javadoc thật): chỉ gửi URL để service tự tải lại (bị bác — ba lần tải thêm,
+phá chính sách lịch sự); crawler tự bóc sẵn link/ảnh (bị bác — Modular
+Service không còn là service nữa); gửi HTML thô (đang dùng — thông điệp
+trung bình 80 KB, nén `lz4` xuống còn ~11 KB, `max.request.size` nâng lên
+4 MB, trang vượt trần bị `KafkaCrawlEventBus` bỏ kèm cảnh báo thay vì làm
+chết cả phiên).
 
 ### 48.2 Lời gọi thật trong `processPage`
 
@@ -7955,7 +7951,7 @@ flowchart LR
 
 ## 49. `InProcessCrawlEventBus`
 
-**File:** `crawler/bus/InProcessCrawlEventBus.java` (130 dòng)
+**File:** `crawler/bus/InProcessCrawlEventBus.java` (177 dòng, gồm Javadoc)
 
 ### 49.1 Cấu trúc
 
@@ -8010,8 +8006,8 @@ public void publishPage(PageEvent event) {
             handler.onPage(event);
         } catch (Exception e) {
             publishFailures.incrementAndGet();
-            log.warn("Modular service {} threw an exception while handling {} — skipping this page, "
-                     + "other services keep running", handler.handlerName(), event.url(), e);
+            log.warn("Modular Service {} ném ngoại lệ khi xử lý {} — bỏ qua trang này, "
+                     + "các service khác vẫn chạy tiếp", handler.handlerName(), event.url(), e);
         }
     }
 }
@@ -8146,7 +8142,7 @@ Comment trong mã:
 
 ## 50. `UrlExtractorService`
 
-**File:** `crawler/modular/UrlExtractorService.java` (134 dòng)
+**File:** `crawler/modular/UrlExtractorService.java` (226 dòng, gồm Javadoc)
 
 ### 50.1 `onPage()`
 
@@ -8337,7 +8333,7 @@ flowchart LR
 
 ## 51. `LinkExtractor`
 
-**File:** `crawler/LinkExtractor.java` (39 dòng)
+**File:** `crawler/LinkExtractor.java` (65 dòng, gồm Javadoc)
 
 ### 51.1 Mã
 
@@ -8492,7 +8488,7 @@ thì ít ảnh hưởng, nhưng khi mở rộng sang diễn đàn/blog thì nên
 
 ## 52. `UrlCanonicalizer`
 
-**File:** `crawler/UrlCanonicalizer.java` (61 dòng)
+**File:** `crawler/UrlCanonicalizer.java` (95 dòng, gồm Javadoc)
 
 ### 52.1 Mã
 
@@ -8718,7 +8714,7 @@ flowchart TD
 
 ## 53. `UrlFilter`
 
-**File:** `crawler/UrlFilter.java` (233 dòng)
+**File:** `crawler/UrlFilter.java` (326 dòng, gồm Javadoc)
 
 ### 53.1 `accept()` — chuỗi bảy phép kiểm tra
 
@@ -9019,7 +9015,7 @@ flowchart TD
 
 ## 54. `UrlSeenFilter`
 
-**File:** `crawler/UrlSeenFilter.java` (88 dòng)
+**File:** `crawler/UrlSeenFilter.java` (158 dòng, gồm Javadoc)
 
 ### 54.1 Hằng số và factory
 
@@ -9549,7 +9545,7 @@ Nếu cần xoá, phải dùng **Counting Bloom Filter** (mỗi ô là bộ đ�
 
 ## 56. `UrlStorage`
 
-**File:** `crawler/UrlStorage.java` (121 dòng)
+**File:** `crawler/UrlStorage.java` (156 dòng, gồm Javadoc)
 
 ### 56.1 Hai chế độ
 
@@ -9722,7 +9718,7 @@ flowchart TD
 
 ## 57. `ImageDownloadService`
 
-**File:** `crawler/modular/ImageDownloadService.java` (312 dòng)
+**File:** `crawler/modular/ImageDownloadService.java` (453 dòng, gồm Javadoc)
 
 ### 57.1 Cấu hình mặc định
 
@@ -9972,7 +9968,7 @@ flowchart TD
 
 ### 58.1 `ImageQuality` — bốn bậc
 
-**File:** `crawler/modular/ImageQuality.java` (104 dòng)
+**File:** `crawler/modular/ImageQuality.java` (221 dòng, gồm Javadoc)
 
 ```java
 private static final int TIER_SIZED_CONTENT = 3;   // rộng >= 200px
@@ -10082,7 +10078,7 @@ flowchart TD
 
 ### 58.5 `ImageStore.add()`
 
-**File:** `crawler/modular/ImageStore.java` (132 dòng)
+**File:** `crawler/modular/ImageStore.java` (274 dòng, gồm Javadoc)
 
 ```java
 public boolean add(ImageFound image) {
@@ -10137,7 +10133,7 @@ sequenceDiagram
 
 ### 58.7 `ImageStorage` — đọc/ghi JSON
 
-**File:** `crawler/modular/ImageStorage.java` (71 dòng)
+**File:** `crawler/modular/ImageStorage.java` (168 dòng, gồm Javadoc)
 
 ```java
 public static void saveToJson(Collection<ImageFound> images, String path) throws IOException {
@@ -10178,7 +10174,7 @@ public record ImageFound(
 
 ## 59. `CrawlAnalyticsService`
 
-**File:** `crawler/modular/CrawlAnalyticsService.java` (182 dòng)
+**File:** `crawler/modular/CrawlAnalyticsService.java` (286 dòng, gồm Javadoc)
 
 ### 59.1 Các thước đo Micrometer
 
@@ -10377,7 +10373,7 @@ public CrawlAnalyticsService getAnalyticsService() { return analyticsService; }
 
 ## 60. `CrawlListener` — Observer pattern
 
-**File:** `crawler/CrawlListener.java` (22 dòng)
+**File:** `crawler/CrawlListener.java` (79 dòng)
 
 ### 60.1 Giao diện
 
@@ -10436,7 +10432,7 @@ flowchart TD
 
 | Trường | Nguồn | Ví dụ |
 |---|---|---|
-| `pageNumber` | `claimPageSlot()` trả về | `5` |
+| `pageNumber` | `pagesCrawled.incrementAndGet()` trả về (biến `count`) | `5` |
 | `maxPages` | `config.maxPages()` | `8` |
 | `url` | `task.url()` | `https://en.nhandan.vn` |
 | `depth` | `task.depth()` | `0` |
@@ -10479,7 +10475,7 @@ flowchart TD
 
 ## 61. `ProgressBarCrawlListener`
 
-**File:** `crawler/ProgressBarCrawlListener.java` (165 dòng)
+**File:** `crawler/ProgressBarCrawlListener.java` (246 dòng)
 
 ### 61.1 Ba cờ tự phát hiện
 
@@ -10745,7 +10741,7 @@ không hiện trên thanh. Chỉ thấy ở báo cáo `printBlockStatistics()`.
 
 ## 62. `ConsoleCrawlListener`
 
-**File:** `crawler/ConsoleCrawlListener.java` (43 dòng)
+**File:** `crawler/ConsoleCrawlListener.java` (59 dòng)
 
 ### 62.1 Mã
 
@@ -10856,7 +10852,7 @@ INFO  c.v.crawler.ConsoleCrawlListener - Ket thuc crawl: 8 trang trong 0.6 giay 
 
 ## 63. `CheckpointCrawlListener`
 
-**File:** `crawler/CheckpointCrawlListener.java` (118 dòng)
+**File:** `crawler/CheckpointCrawlListener.java` (240 dòng)
 
 ### 63.1 Cấu trúc
 
@@ -11286,6 +11282,9 @@ private static void printBlockStatistics(CrawlerService crawler) {
 
     LanguageFilter language = crawler.getLanguageFilter();
     System.out.printf("Language Filter: GIU %d tieng Viet + %d tieng Anh + %d chua ro, VUT %d ngoai ngu%n", ...);
+    // Nếu có ngôn ngữ bị loại, in thêm một dòng phân rã theo mã ngôn ngữ:
+    //   (zh 12 | ja 3 | ko 1)
+    if (!rejectedByLanguage.isEmpty()) { ... }
 
     ContentSeenFilter contentSeen = crawler.getContentSeenFilter();
     System.out.printf("Content Seen?  : %d noi dung phan biet, VUT %d ban trung, %d trang than bai rong%n", ...);
@@ -11315,6 +11314,11 @@ URL Filter     : nhan 1001, loai 0
 URL Seen?      : 1020 URL phan biet, bo loc 1917012 bit (234.0 KB), 7 ham bam
 URL Storage    : tat (dung CrawlConfig.urlStoragePath de bat)
 ```
+
+Nếu `LanguageFilter` có loại ít nhất một trang vì ngôn ngữ khác, ngay dưới dòng
+`Language Filter` sẽ có thêm dòng phân rã theo mã ngôn ngữ bị loại, ví dụ
+`                 (zh 12 | ja 3 | ko 1)`. Với lần chạy 8 trang ở trên không có
+trang nào bị loại vì ngôn ngữ nên dòng này không xuất hiện.
 
 ### 65.3 Sơ đồ: mỗi dòng đến từ đâu
 
@@ -11406,7 +11410,9 @@ long crossDomainLinks = 0, internalLinks = 0;
 for (WebDocument doc : docs) {
     String from = hostOf(doc.getUrl());
     for (String outlink : doc.getOutlinks()) {
-        if (!crawledUrls.contains(outlink)) { }        // ⚠ khối rỗng
+        if (!crawledUrls.contains(outlink)) {
+            continue;   // chi tinh lien ket noi bo corpus (canh cua do thi PageRank)
+        }
         if (hostOf(outlink).equals(from)) internalLinks++;
         else                              crossDomainLinks++;
     }
@@ -11418,24 +11424,31 @@ if (!docs.isEmpty()) {
     double density = (double) edges / ((double) docs.size() * docs.size());
     System.out.printf("Ty le thua       : %.4f%% (nnz/n^2)%n", density * 100);
 }
+System.out.println("Da luu vao " + outputPath);
 ```
+
+★ Đây **không phải** khối `if` rỗng — `continue` lọc bỏ mọi outlink trỏ RA NGOÀI
+tập tài liệu đã crawl trước khi đếm. Nếu thiếu bước lọc này, `edges` sẽ đếm luôn
+những liên kết trỏ tới trang chưa từng crawl — những cạnh đó không tồn tại trong
+đồ thị PageRank thật (PageRank chỉ chạy trên tập tài liệu đã có trong corpus), nên
+`nnz` sẽ bị thổi phồng bằng đúng tổng số outlink thay vì số cạnh nội bộ.
 
 ```mermaid
 flowchart TD
-    A["Với mỗi outlink"] --> B{"hostOf(outlink) == hostOf(doc.url)?"}
+    A["Với mỗi outlink"] --> Z{"outlink có nằm trong<br/>crawledUrls không?"}
+    Z -->|"không — trỏ ra ngoài corpus"| SKIP["continue — KHÔNG tính vào edges"]
+    Z -->|"có — trỏ tới trang đã crawl"| B{"hostOf(outlink) == hostOf(doc.url)?"}
     B -->|"có"| C["internalLinks++<br/>vd: nhandan.vn → nhandan.vn/kinhte"]
     B -->|"không"| D["crossDomainLinks++<br/>vd: nhandan.vn → vietnamplus.vn"]
 
-    E["edges = internal + crossDomain"] --> F["Với 8 trang, 1001 outlink"]
-    F --> G["density = 1001 / 8² = 15.64"]
-    G --> H["→ &quot;Ty le thua : 1564.0625%&quot;"]
-    H --> I["⚠ Số vô nghĩa vì n quá nhỏ<br/>Chỉ có ý nghĩa khi<br/>phần lớn outlink trỏ tới<br/>trang ĐÃ crawl"]
+    E["edges = internal + crossDomain"] --> F["Với 8 trang và 1001 outlink,<br/>tuyệt đại đa số outlink trỏ RA<br/>NGOÀI 8 trang đã crawl"]
+    F --> G["edges thực tế rất nhỏ<br/>(chỉ đếm cạnh giữa 8 trang đó)"]
+    G --> H["density = edges / 8² —<br/>luôn ≤ 100%, có ý nghĩa toán học"]
+    H --> I["⚠ Vẫn cần cảnh giác: mẫu 8 trang<br/>quá nhỏ để rút ra kết luận gì về<br/>độ thưa thật của cả corpus"]
 
+    style SKIP fill:#0b7a3b,color:#fff
     style I fill:#c9720b,color:#fff
 ```
-
-⚠ **Khối `if` rỗng** ở dòng `if (!crawledUrls.contains(outlink)) { }` là mã sót lại —
-có lẽ từng đếm "liên kết ra ngoài corpus" rồi bị bỏ. Nó không gây lỗi, chỉ là mã chết.
 
 ### 65.8 Cảnh báo domain không crawl được
 
@@ -11584,9 +11597,9 @@ flowchart TD
     J5 --> K["ContentSeenFilter.seenBefore(&quot;&quot;)"]
     K --> K1["isBlank() → blankSkipped++<br/>return FALSE (không trùng) ✓"]
 
-    K1 --> L["claimPageSlot(8) → 1"]
-    L --> M["contentStorage.save() ✓"]
-    M --> N["doc.setDocId(0 + 0) = 0"]
+    K1 --> L["contentStorage.save() ✓"]
+    L --> M["pagesCrawled.incrementAndGet() → 1"]
+    M --> N["doc.setDocId(0 + 1 - 1) = 0"]
     N --> O["publishPage(PageEvent)"]
     O --> P["UrlExtractorService:<br/>Jsoup.parse(html)<br/>select(&quot;a[href]&quot;) → RỖNG"]
     P --> Q["outlinks = []"]
@@ -11999,8 +12012,8 @@ flowchart TD
     B --> E["Khoảng cách A→C khác nhau<br/>cho mỗi trang:"]
     E --> E1["LanguageFilter.detect()<br/>duyệt tới 20 000 ký tự<br/>+ tách token<br/>→ 0.1–2 ms tuỳ độ dài"]
     E --> E2["ContentSeenFilter.fingerprint()<br/>SHA-256 trên toàn bộ bodyText<br/>→ 0.05–1 ms tuỳ độ dài"]
-    E --> E3["claimPageSlot() CAS<br/>→ ~0.0001 ms"]
-    E --> E4["ContentStorage.save()<br/>→ ~0.001 ms"]
+    E --> E3["ContentStorage.save()<br/>→ ~0.001 ms"]
+    E --> E4["pagesCrawled.incrementAndGet()<br/>→ ~0.0001 ms<br/>chỉ chạy SAU khi save() thành công"]
 
     E1 --> F["★ Trang DÀI mất nhiều thời gian hơn<br/>ở bước LanguageFilter và SHA-256"]
     F --> G["→ Trang tải xong TRƯỚC<br/>có thể được lưu SAU"]
@@ -12327,83 +12340,113 @@ flowchart LR
 ### 72.1 Cùng một lớp, hai chế độ
 
 `CrawlerService` chạy được ở hai chế độ mà **không đổi một dòng mã nào** trong
-`processPage()`:
+`processPage()`. Khoá chọn chế độ là **`app.crawler.bus`** (`memory` mặc định,
+hoặc `kafka`) chứ không phải một tham số Java lộ ra ngoài:
 
 ```mermaid
 flowchart TD
     A["new CrawlerService(bus, imageStore)"] --> B{"bus == null?"}
-    B -->|"có"| C["IN-PROCESS<br/>bus = new InProcessCrawlEventBus()<br/>ownsBus = true"]
-    B -->|"không"| D["KAFKA<br/>this.bus = bus (tiêm từ ngoài)<br/>ownsBus = false"]
+    B -->|"có — app.crawler.bus=memory"| C["IN-PROCESS<br/>bus = new InProcessCrawlEventBus()<br/>ownsBus = true"]
+    B -->|"không — app.crawler.bus=kafka<br/>Spring tiêm KafkaCrawlEventBus"| D["KAFKA<br/>this.bus = bus (tiêm từ ngoài)<br/>ownsBus = false"]
 
     C --> C1["wireInProcessServices()<br/>đăng ký 3 service tại chỗ"]
     C --> C2["IDLE: 3 × 200 ms"]
-    C --> C3["MultiDomainCrawlRunner dùng"]
+    C --> C3["MultiDomainCrawlRunner dùng<br/>(run-crawl.bat)"]
 
-    D --> D1["KHÔNG đăng ký gì<br/>service ở tiến trình khác"]
+    D --> D1["KHÔNG tự đăng ký gì<br/>3 Modular Service được Spring<br/>gắn qua CrawlKafkaListeners"]
     D --> D2["IDLE: 15 × 1000 ms"]
-    D --> D3["CrawlJobManager + Spring Boot dùng"]
+    D --> D3["CrawlJobManager (core-search)<br/>+ crawler-service dùng"]
 
     style C3 fill:#0b7a3b,color:#fff
     style D3 fill:#6b21a8,color:#fff
 ```
 
-### 72.2 Kiến trúc phân tán
+★ `CrawlJobManager` không nằm trong `core-crawler` — nó ở
+`backend/libs/core-search/src/main/java/com/vnsearch/service/CrawlJobManager.java`,
+vì nó cũng cần biết về `SearchEngineFacade`/chỉ mục để dựng lại chỉ mục sau khi
+một job chạy bằng dòng lệnh admin xong.
+
+### 72.2 Kiến trúc thật: KHÔNG có 4 tiến trình riêng
+
+Tài liệu bản cũ mô tả bốn tiến trình tách biệt (Crawler / URL Extractor /
+Image Service / Analytics). **Thực tế không phải vậy.** Ba Modular Service vẫn
+là ba lớp Java riêng, nhưng cả ba cùng sống trong **một** tiến trình
+`crawler-service` — chỉ khác là ở chế độ Kafka chúng được Spring gắn vào ba
+`@KafkaListener` riêng (`CrawlKafkaListeners`, module `crawler-service`) thay vì
+được `CrawlerService.wireInProcessServices()` gọi thẳng. Việc "co giãn ngang"
+không phải bằng cách tách service ra tiến trình khác, mà bằng cách chạy
+**nhiều bản sao của cùng `crawler-service`** (mỗi bản một consumer trong cùng
+consumer group) và bằng vai trò tiến trình `app.crawler.role`:
 
 ```mermaid
 flowchart TB
-    subgraph P1["Tiến trình 1 — Crawler"]
-        A1["UrlFrontier"]
-        A2["HtmlDownloader"]
-        A3["ContentParser"]
-        A4["LanguageFilter"]
-        A5["ContentSeenFilter"]
-        A6["ContentStorage"]
-        A1 --> A2 --> A3 --> A4 --> A5 --> A6
+    subgraph CW["crawler-service — app.crawler.role=worker (mặc định)"]
+        A1["CrawlerService.crawl()<br/>tải trang, publishPage"]
     end
 
     subgraph KAFKA["Kafka Broker"]
-        T1[("topic: crawl.pages")]
-        T2[("topic: crawl.urls")]
-        T3[("topic: crawl.outlinks")]
-        T4[("topic: crawl.images")]
+        T1[("vnsearch.pages<br/>12 partition")]
+        T2[("vnsearch.urls.discovered")]
+        T3[("vnsearch.outlinks")]
+        T4[("vnsearch.images")]
     end
 
-    subgraph P2["Tiến trình 2 — URL Extractor"]
-        B1["UrlExtractorService"]
+    subgraph CA["Mọi crawler-service — 3 @KafkaListener luôn bật<br/>(CrawlKafkaListeners, không gate role)"]
+        B1["group vnsearch-url-extractor<br/>→ UrlExtractorService.onPage"]
+        B2["group vnsearch-image-download<br/>→ ImageDownloadService.onPage"]
+        B3["group vnsearch-analytics<br/>→ CrawlAnalyticsService.onPage"]
     end
 
-    subgraph P3["Tiến trình 3 — Image Service"]
-        C1["ImageDownloadService"]
+    subgraph API["crawler-service với app.crawler.role.is-api=true<br/>(CrawlKafkaListeners, autoStartup gate)"]
+        F1["group vnsearch-frontier-feeder<br/>→ CrawlJobManager.feedDiscoveredUrl"]
+        F2["group vnsearch-frontier-feeder<br/>→ CrawlJobManager.feedOutlinks"]
     end
 
-    subgraph P4["Tiến trình 4 — Analytics"]
-        D1["CrawlAnalyticsService"]
+    subgraph SS["search-service (service KHÁC, ImageStoreListener)"]
+        C1["group vnsearch-image-store<br/>→ ImageStore.add<br/>(autoStartup theo role.is-api)"]
     end
 
-    A6 -->|"publishPage"| T1
+    A1 -->|"publishPage"| T1
     T1 --> B1
-    T1 --> C1
-    T1 --> D1
+    T1 --> B2
+    T1 --> B3
 
     B1 -->|"publishDiscoveredUrl"| T2
     B1 -->|"publishOutlinks"| T3
-    C1 -->|"publishImage"| T4
+    B2 -->|"publishImage"| T4
 
-    T2 -->|"@KafkaListener"| A1
-    T3 -->|"@KafkaListener"| A6
+    T2 --> F1
+    T3 --> F2
+    T4 --> C1
+
+    F1 -.->|"jobManager.feedDiscoveredUrl<br/>→ crawler.frontier.addUrl ↺"| A1
+    F2 -.->|"jobManager.feedOutlinks<br/>→ crawler.contentStorage.applyOutlinks"| A1
 
     style KAFKA fill:#6b21a8,color:#fff
+    style SS fill:#0b3d6b,color:#fff
 ```
+
+★ Ba listener trên `vnsearch.pages` dùng **ba `groupId` khác nhau** nên mỗi
+trang tới được **cả ba** — đây là cơ chế phát tán một-tới-nhiều thật sự, không
+phải load-balancing. `frontier-feeder` và `image-store` thì ngược lại: chỉ
+được chạy ở **đúng một** vai trò tiến trình, vì chúng ghi vào trạng thái
+trong bộ nhớ (`UrlFrontier`/`ContentStorage` của một job, hoặc `ImageStore` để
+phục vụ `GET /api/images`) — chạy ở nhiều nơi cùng lúc với cùng `groupId` sẽ
+khiến Kafka **chia đôi** luồng giữa các bản sao, không phải nhân đôi. Xem
+`app.crawler.role.is-api` ở mục 73.1 và Javadoc thật của `CrawlKafkaListeners`
+— lỗi này **đã từng xảy ra thật** trong quá trình phát triển (frontier không
+bao giờ được nạp đủ, job báo DONE với 1 trang).
 
 ### 72.3 Các file liên quan
 
-| File | Vai trò |
-|---|---|
-| `crawler/bus/KafkaCrawlEventBus.java` | Cài đặt `CrawlEventBus` bằng `KafkaTemplate` |
-| `config/KafkaCrawlConfig.java` | Khai báo topic, producer, consumer |
-| `config/CrawlKafkaListener.java` | `@KafkaListener` khép vòng lặp về `CrawlerService` |
-| `config/ImageStoreListener.java` | Nhận `ImageFound` → `ImageStore` |
-| `config/ImageStorePreloader.java` | Nạp `*.images.json` khi Spring khởi động |
+| File | Module | Vai trò |
+|---|---|---|
+| `crawler/bus/KafkaCrawlEventBus.java` | `core-crawler` | Cài đặt `CrawlEventBus` bằng `KafkaTemplate` |
+| `crawler/config/KafkaCrawlConfig.java` | `core-crawler` | Khai báo `ProducerFactory`, `KafkaTemplate`, `crawlListenerContainerFactory` |
+| `config/CrawlKafkaListeners.java` | `crawler-service` (KHÔNG phải core-crawler) | 6 `@KafkaListener`: 3 cho trang, 2 khép vòng frontier, 1 cho analytics-ảnh |
+| `config/ImageStoreListener.java` | `search-service` | Nhận `ImageFound` (group `vnsearch-image-store`) → `ImageStore` |
+| `config/ImageStorePreloader.java` | `search-service` | `@PostConstruct` nạp `*.images.json` từ đĩa lúc Spring khởi động, gộp chứ không đè |
+| `service/CrawlJobManager.java` | `core-search` | `start()` dựng `CrawlerService` mới cho mỗi job; `feedDiscoveredUrl`/`feedOutlinks` nhận sự kiện Kafka đổ về |
 
 ### 72.4 Bốn khác biệt quan sát được
 
@@ -12419,8 +12462,8 @@ flowchart TD
     C["③ Cửa sổ phát hiện hết việc"] --> C1["in-process: 600 ms"]
     C --> C2["Kafka: 15 GIÂY"]
 
-    D["④ orphanOutlinks"] --> D1["in-process: PHẢI = 0"]
-    D --> D2["Kafka: lượng nhỏ là bình thường<br/>(sự kiện sót từ phiên trước)"]
+    D["④ orphanOutlinks / getUnroutableEventCount()"] --> D1["in-process: PHẢI = 0"]
+    D --> D2["Kafka: lượng nhỏ là bình thường<br/>(sự kiện của job đã kết thúc,<br/>CrawlJobManager.resolve trả null)"]
 
     style B3 fill:#c9720b,color:#fff
 ```
@@ -12448,21 +12491,23 @@ sequenceDiagram
     participant CS as CrawlerService
     participant K as Kafka
     participant UES as UrlExtractorService
-    participant KL as CrawlKafkaListener
+    participant KL as CrawlKafkaListeners
 
-    JM->>CS: setJobId("job-abc-123")
-    JM->>CS: crawl(seeds, config)
+    Note over JM,CS: JM.start() dựng CrawlerService MỚI cho mỗi job
+    JM->>CS: new CrawlerService(sharedBus, imageStore)
+    JM->>CS: crawler.setJobId("job-abc-123")
+    JM->>CS: crawler.crawl(seeds, config)   (chạy trong executor riêng)
 
     CS->>K: PageEvent{jobId: "job-abc-123", ...}
-    K->>UES: nhận
+    K->>UES: nhận (group vnsearch-url-extractor)
     UES->>K: DiscoveredUrl{jobId: "job-abc-123", ...}
-    K->>KL: nhận
-    KL->>JM: tìm CrawlerService của job-abc-123
-    JM-->>KL: crawlerService
-    KL->>CS: acceptDiscoveredUrl(...)
+    K->>KL: onDiscoveredUrl (group vnsearch-frontier-feeder,<br/>chỉ chạy khi role.is-api=true)
+    KL->>JM: jobManager.feedDiscoveredUrl(url)
+    JM->>JM: resolve(jobId) → tìm CrawlJob trong map
+    JM->>CS: crawler.acceptDiscoveredUrl(url)
     CS->>CS: frontier.addUrl() ↺
 
-    Note over KL: ★ Nếu jobId không khớp job nào<br/>(sự kiện của phiên đã kết thúc)<br/>→ BỎ QUA
+    Note over JM: ★ resolve(jobId) trả null là BÌNH THƯỜNG<br/>(job đã kết thúc, crawler đã releaseCrawler())<br/>→ đếm vào unroutableEvents, KHÔNG log lỗi
 ```
 
 ### 72.7 Vì sao dự án giữ **cả hai** chế độ
@@ -12474,7 +12519,7 @@ flowchart TD
     A --> A3["✓ Đủ cho corpus vài trăm nghìn trang"]
     A --> A4["✗ Giới hạn bởi 1 JVM"]
 
-    B["Chế độ Kafka"] --> B1["✓ Co giãn ngang<br/>thêm tiến trình extractor khi cần"]
+    B["Chế độ Kafka"] --> B1["✓ Co giãn ngang<br/>thêm bản sao crawler-service<br/>(cùng groupId, chia partition)"]
     B --> B2["✓ Chịu lỗi: service chết<br/>→ Kafka giữ sự kiện"]
     B --> B3["✗ Cần hạ tầng"]
     B --> B4["✗ Cửa sổ idle 15 giây"]
@@ -12516,6 +12561,24 @@ flowchart TD
 | `IDLE_SLEEP_MS_LOCAL` | `200` | |
 | `IDLE_CONFIRMATIONS_BUS` | `15` | Xác nhận hết việc (Kafka) |
 | `IDLE_SLEEP_MS_BUS` | `1000` | |
+
+### 73.3a Cấu hình Kafka (`crawler-service/application.properties`)
+
+| Khoá | Giá trị mặc định | Ghi chú |
+|---|---|---|
+| `app.crawler.bus` | `memory` | `kafka` để bật chế độ phân tán |
+| `app.crawler.kafka.topic.pages` | `vnsearch.pages` | KHÔNG phải `crawl.pages` |
+| `app.crawler.kafka.topic.urls` | `vnsearch.urls.discovered` | |
+| `app.crawler.kafka.topic.outlinks` | `vnsearch.outlinks` | |
+| `app.crawler.kafka.topic.images` | `vnsearch.images` | |
+| `app.crawler.kafka.partitions` | `12` | |
+| `app.crawler.kafka.group.url-extractor` | `vnsearch-url-extractor` | |
+| `app.crawler.kafka.group.image-download` | `vnsearch-image-download` | |
+| `app.crawler.kafka.group.analytics` | `vnsearch-analytics` | dùng chung cho cả trang lẫn ảnh |
+| `app.crawler.kafka.group.frontier` | `vnsearch-frontier-feeder` | |
+| `app.crawler.kafka.group.image-store` | `vnsearch-image-store` | dùng ở `search-service` |
+| `app.crawler.role` | `worker` | nhãn hiển thị, không tự chặn gì |
+| `app.crawler.role.is-api` | `false` | gate `autoStartup` của 3 listener ghi trạng thái trong bộ nhớ |
 
 ### 73.4 `UrlFrontier` và frontier
 
@@ -12614,47 +12677,47 @@ flowchart TD
 | # | Khối | File | Hàm chính | Dòng |
 |---|---|---|---|---|
 | — | Script | `run-crawl.bat` | — | ~130 |
-| — | Điểm vào | `crawler/MultiDomainCrawlRunner.java` | `main()` | 276 |
-| — | Cấu hình | `crawler/CrawlConfig.java` | `builder()…build()` | 126 |
-| — | Điều phối | `crawler/CrawlerService.java` | `crawl()`, `workerLoop()`, `processPage()` | 907 |
-| 1 | **URL Frontier** | `crawler/frontier/UrlFrontier.java` | `addUrl()`, `nextUrl()` | 188 |
-| 1a | Ưu tiên | `crawler/frontier/DefaultPrioritizer.java` | `levelOf()` | 47 |
-| 1b | Front queues | `crawler/frontier/FrontQueues.java` | `add()`, `poll()` | 72 |
-| 1c | Chọn hàng đợi | `crawler/frontier/WeightedRandomSelector.java` | `select()` | 74 |
-| 1d | Back queues | `crawler/frontier/BackQueues.java` | `refillFrom()`, `poll()`, `bind()` | 165 |
-| 1e | Heap | `datastructure/MinHeap.java` | `insert()`, `extractMin()`, `siftUp()`, `siftDown()` | ~150 |
-| 1f | Task | `crawler/frontier/CrawlTask.java` | record | 20 |
-| 2 | **DNS Resolver** | `crawler/DnsResolver.java` | `resolve()`, `hitRate()` | 95 |
-| 2a | Cache | `datastructure/LRUCache.java` | `get()`, `put()`, `moveToFront()` | ~110 |
-| 3 | **HTML Downloader** | `crawler/HtmlDownloader.java` | `download()`, `ensureTargetAllowed()` | 146 |
-| 3a | Chống SSRF | `crawler/SeedUrlValidator.java` | `isBlockedHostname()`, `isBlockedAddress()` | 116 |
-| 4 | **Content Parser** | `crawler/ContentParser.java` | `parse()`, `extractBodyText()` | 63 |
-| 5 | **Language Filter** | `crawler/LanguageFilter.java` | `accept()`, `detect()`, `normalizeLanguageTag()` | 253 |
-| 6 | **Content Seen?** | `crawler/ContentSeenFilter.java` | `seenBefore()`, `fingerprint()`, `normalize()` | 77 |
-| 7 | **Content Storage** | `crawler/ContentStorage.java` | `save()`, `applyOutlinks()`, `all()`, `saveToJson()` | 72 |
-| 8 | Bus | `crawler/bus/InProcessCrawlEventBus.java` | `publishPage()`, `dispatch()` | 130 |
-| 8a | Giao diện bus | `crawler/bus/CrawlEventBus.java` | — | 19 |
-| 8b | Bus Kafka | `crawler/bus/KafkaCrawlEventBus.java` | — | 104 |
-| 8c | Sự kiện trang | `crawler/bus/PageEvent.java` | record, `withoutHtml()` | 58 |
-| 9 | **Link Extractor** | `crawler/LinkExtractor.java` | `extract()` | 39 |
-| 9a | Service bóc URL | `crawler/modular/UrlExtractorService.java` | `onPage()` | 134 |
-| 10 | **URL Filter** | `crawler/UrlFilter.java` | `accept()`, `isAllowedByRobots()`, `isAllowedDomain()` | 233 |
-| 10a | robots.txt | `crawler/RobotsTxtParser.java` | `isAllowed()`, `parseInto()`, `isPathAllowed()` | 176 |
-| 11 | **URL Seen?** | `crawler/UrlSeenFilter.java` | `markSeenIfNew()`, `forMaxPages()` | 88 |
-| 11a | Bloom filter | `datastructure/BloomFilter.java` | `add()`, `mightContain()`, `indexFor()` | ~110 |
-| 12 | **URL Storage** | `crawler/UrlStorage.java` | `append()`, `replay()`, `close()` | 121 |
-| 13 | Chuẩn hoá URL | `crawler/UrlCanonicalizer.java` | `canonicalize()`, `stripFragment()` | 61 |
-| 14 | Ảnh | `crawler/modular/ImageDownloadService.java` | `onPage()`, `resolveSource()`, `describe()` | 312 |
-| 14a | Chất lượng ảnh | `crawler/modular/ImageQuality.java` | `compare()`, `tier()`, `estimatedWidth()` | 104 |
-| 14b | Kho ảnh | `crawler/modular/ImageStore.java` | `add()`, `all()` | 132 |
-| 14c | Ghi ảnh | `crawler/modular/ImageStorage.java` | `pathFor()`, `saveToJson()`, `loadQuietly()` | 71 |
-| 14d | Sự kiện ảnh | `crawler/bus/ImageFound.java` | record, `metadataOnly()` | 51 |
-| 15 | Thống kê | `crawler/modular/CrawlAnalyticsService.java` | `onPage()`, `onImage()`, `trackHost()` | 182 |
-| 16 | Observer | `crawler/CrawlListener.java` | 5 method + `CrawlEvent` | 22 |
-| 16a | Thanh tiến độ | `crawler/ProgressBarCrawlListener.java` | `onPageCrawled()`, `paint()`, `bar()` | 165 |
-| 16b | Log | `crawler/ConsoleCrawlListener.java` | `onPageCrawled()` | 43 |
-| 16c | Checkpoint | `crawler/CheckpointCrawlListener.java` | `onPageCrawled()`, `write()`, `isDueForCheckpoint()` | 118 |
-| 17 | Mô hình | `model/WebDocument.java` | getter/setter | ~120 |
+| — | Điểm vào | `crawler/MultiDomainCrawlRunner.java` | `main()` | 410 |
+| — | Cấu hình | `crawler/CrawlConfig.java` | `builder()…build()` | 179 |
+| — | Điều phối | `crawler/CrawlerService.java` | `crawl()`, `workerLoop()`, `processPage()` | 863 |
+| 1 | **URL Frontier** | `crawler/frontier/UrlFrontier.java` | `addUrl()`, `nextUrl()` | 321 |
+| 1a | Ưu tiên | `crawler/frontier/DefaultPrioritizer.java` | `levelOf()` | 79 |
+| 1b | Front queues | `crawler/frontier/FrontQueues.java` | `add()`, `poll()` | 113 |
+| 1c | Chọn hàng đợi | `crawler/frontier/WeightedRandomSelector.java` | `select()` | 122 |
+| 1d | Back queues | `crawler/frontier/BackQueues.java` | `refillFrom()`, `poll()`, `bind()` | 277 |
+| 1e | Heap | `datastructure/MinHeap.java` (module `core-common`) | `insert()`, `extractMin()`, `siftUp()`, `siftDown()` | 241 |
+| 1f | Task | `crawler/frontier/CrawlTask.java` | record | 39 |
+| 2 | **DNS Resolver** | `crawler/DnsResolver.java` | `resolve()`, `hitRate()` | 151 |
+| 2a | Cache | `datastructure/LRUCache.java` (module `core-common`) | `get()`, `put()`, `moveToFront()` | 158 |
+| 3 | **HTML Downloader** | `crawler/HtmlDownloader.java` | `download()`, `fetchFollowingRedirects()`, `assertTargetAllowed()` | 257 |
+| 3a | Chống SSRF (seed) | `crawler/SeedUrlValidator.java` | `validate()`, `isBlockedHostname()`, `isBlockedAddress()` | 191 |
+| 4 | **Content Parser** | `crawler/ContentParser.java` | `parse()`, `extractBodyText()` | 85 |
+| 5 | **Language Filter** | `crawler/LanguageFilter.java` | `accept()`, `detect()`, `normalizeLanguageTag()` | 370 |
+| 6 | **Content Seen?** | `crawler/ContentSeenFilter.java` | `seenBefore()`, `fingerprint()`, `normalize()` | 148 |
+| 7 | **Content Storage** | `crawler/ContentStorage.java` | `save()`, `applyOutlinks()`, `all()`, `saveToJson()` | 138 |
+| 8 | Bus | `crawler/bus/InProcessCrawlEventBus.java` | `publishPage()`, `dispatch()` | 177 |
+| 8a | Giao diện bus | `crawler/bus/CrawlEventBus.java` | — | 113 |
+| 8b | Bus Kafka | `crawler/bus/KafkaCrawlEventBus.java` | — | 156 |
+| 8c | Sự kiện trang | `crawler/bus/PageEvent.java` | record, `withoutHtml()`, `toString()` | 161 |
+| 9 | **Link Extractor** | `crawler/LinkExtractor.java` | `extract()` | 65 |
+| 9a | Service bóc URL | `crawler/modular/UrlExtractorService.java` | `onPage()` | 226 |
+| 10 | **URL Filter** | `crawler/UrlFilter.java` | `accept()`, `isAllowedByRobots()`, `isAllowedDomain()` | 326 |
+| 10a | robots.txt | `crawler/RobotsTxtParser.java` | `isAllowed()`, `parseInto()`, `isPathAllowed()` | 170 |
+| 11 | **URL Seen?** | `crawler/UrlSeenFilter.java` | `markSeenIfNew()`, `forMaxPages()` | 158 |
+| 11a | Bloom filter | `datastructure/BloomFilter.java` (module `core-common`) | `add()`, `mightContain()`, `indexFor()` | 163 |
+| 12 | **URL Storage** | `crawler/UrlStorage.java` | `append()`, `replay()`, `close()` | 156 |
+| 13 | Chuẩn hoá URL | `crawler/UrlCanonicalizer.java` | `canonicalize()`, `stripFragment()` | 95 |
+| 14 | Ảnh | `crawler/modular/ImageDownloadService.java` | `onPage()`, `resolveSource()`, `describe()` | 453 |
+| 14a | Chất lượng ảnh | `crawler/modular/ImageQuality.java` | `compare()`, `tier()`, `estimatedWidth()` | 221 |
+| 14b | Kho ảnh | `crawler/modular/ImageStore.java` | `add()`, `all()` | 274 |
+| 14c | Ghi ảnh | `crawler/modular/ImageStorage.java` | `pathFor()`, `saveToJson()`, `loadQuietly()` | 168 |
+| 14d | Sự kiện ảnh | `crawler/bus/ImageFound.java` | record, `metadataOnly()` | 108 |
+| 15 | Thống kê | `crawler/modular/CrawlAnalyticsService.java` | `onPage()`, `onImage()`, `trackHost()` | 286 |
+| 16 | Observer | `crawler/CrawlListener.java` | 5 method + `CrawlEvent` | 79 |
+| 16a | Thanh tiến độ | `crawler/ProgressBarCrawlListener.java` | `onPageCrawled()`, `paint()`, `bar()` | 246 |
+| 16b | Log | `crawler/ConsoleCrawlListener.java` | `onPageCrawled()` | 59 |
+| 16c | Checkpoint | `crawler/CheckpointCrawlListener.java` | `onPageCrawled()`, `write()`, `isDueForCheckpoint()` | 240 |
+| 17 | Mô hình | `model/WebDocument.java` (module `core-common`) | getter/setter | 139 |
 
 ---
 
@@ -12762,11 +12825,14 @@ run-crawl.bat 8 3
 
 Bất kỳ giá trị nào khác `"bar"` sẽ chuyển sang chế độ in từng dòng.
 
-### 75.15 Vì sao 32 thread mà chỉ crawl được 8 trang?
+### 75.15 Vì sao 32 thread mà chỉ crawl được ~8 trang?
 
-`maxPages = 8` là hạn ngạch cứng. 32 thread giúp **tải song song** nhưng
-`claimPageSlot(8)` chỉ cấp đúng 8 suất. Những trang tải xong sau khi suất cạn bị bỏ.
-Xem [mục 45](#45-claimpageslot--vòng-cas).
+`maxPages = 8` là hạn ngạch **mềm**: mỗi worker chỉ kiểm tra
+`pagesCrawled.get() < maxPages` khi bắt đầu một vòng lặp mới, không có bước nào
+kiểm tra lại lúc lưu. 32 thread giúp **tải song song**, nên các trang đã lọt qua
+kiểm tra và đang tải dở lúc mốc `maxPages` bị cán vẫn được lưu trọn vẹn — corpus
+cuối phiên có thể **nhỉnh hơn** 8 một chút chứ không bị cắt cứng ở đúng 8.
+Xem [mục 45](#45-claimpageslot--vòng-cas) và [mục 47](#47-ba-bộ-đếm-và-docid).
 
 ---
 
@@ -12982,17 +13048,15 @@ flowchart TD
 
     LOOP --> W1["frontier.nextUrl()<br/>FrontQueues → WeightedRandomSelector<br/>→ BackQueues (1 host/slot, 1000ms)<br/>→ MinHeap theo availableAt"]
     W1 --> W2["urlFilter.isAllowedByRobots()<br/>→ RobotsTxtParser (cache/domain)"]
-    W2 --> W3["HtmlDownloader.download()<br/>├─ ensureTargetAllowed (SSRF)<br/>├─ DnsResolver (LRUCache 1000)<br/>└─ Jsoup 10s timeout, 3 lần thử"]
+    W2 --> W3["HtmlDownloader.download()<br/>├─ assertTargetAllowed mỗi chặng redirect (SSRF, tối đa 5)<br/>├─ DnsResolver (LRUCache 1000)<br/>└─ Jsoup 10s timeout, 3 lần thử"]
     W3 --> W4["ContentParser.parse()<br/>clone → remove script/style/nav/footer<br/>→ title, metaDescription, bodyText<br/>language, crawledAt"]
     W4 --> W5{"LanguageFilter.accept()<br/>T1 script → T2 dấu → T3 từ"}
     W5 -->|"zh/ja/ko/other"| X1(["VỨT — không bóc liên kết"])
     W5 -->|"vi/en/und"| W6{"ContentSeenFilter.seenBefore()<br/>SHA-256 chuẩn hoá"}
     W6 -->|"trùng"| X2(["VỨT — không bóc liên kết"])
-    W6 -->|"mới"| W7{"claimPageSlot(8) — CAS"}
-    W7 -->|"−1 hết quota"| X3(["VỨT"])
-    W7 -->|"1..8"| W8{"ContentStorage.save()<br/>putIfAbsent"}
-    W8 -->|"false"| X4(["trả lại suất, VỨT"])
-    W8 -->|"true"| W9["doc.setDocId(0 + docIdSeq++)"]
+    W6 -->|"mới"| W7{"ContentStorage.save()<br/>putIfAbsent"}
+    W7 -->|"false, đã có bản ghi"| X3(["VỨT"])
+    W7 -->|"true"| W9["pagesCrawled.incrementAndGet()<br/>vô điều kiện → doc.setDocId(...)"]
 
     W9 --> BUS{{"bus.publishPage(PageEvent)<br/>ĐỒNG BỘ"}}
 
@@ -13104,7 +13168,7 @@ thể truy nguyên:
 | Đặc điểm quan sát được trong output | Khối chịu trách nhiệm | Mục |
 |---|---|---|
 | URL không có `/` ở cuối | `UrlCanonicalizer` | [52.6](#526--cắt--cuối-nhưng-giữ-khi-path-chỉ-là-) |
-| Đúng 8 tài liệu, `docId` 0–7 | `claimPageSlot` + `docIdSeq` | [45](#45-claimpageslot--vòng-cas), [47](#47-ba-bộ-đếm-và-docid) |
+| Đúng 8 tài liệu, `docId` 0–7 | `pagesCrawled` (kiêm hạn ngạch lẫn cấp `docId`) | [45](#45-claimpageslot--vòng-cas), [47](#47-ba-bộ-đếm-và-docid) |
 | Thứ tự trong tệp lộn xộn | `ConcurrentHashMap.values()` | [68](#68-vì-sao-thứ-tự-trong-tệp-lộn-xộn) |
 | 8 host khác nhau | `BackQueues` politeness | [30](#30-backqueues) |
 | `crawledAt` chênh 186 ms | 32 worker song song | [69](#69-phân-tích-dấu-thời-gian) |

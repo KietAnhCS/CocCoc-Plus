@@ -40,6 +40,17 @@ ImageStorage.saveToJson(images, ImageStorage.pathFor(corpusPath))
 
 ```
 SearchEngineFacade.loadCorpus()
+├─ [0] ĐƯỜNG NHANH: Files.exists(data/index.json) → IndexPersistence.load
+│      ├─ getTotalDocs() > 0 → dùng luôn, RETURN — không chạm buildStoreChain()
+│      ├─ getTotalDocs() == 0 → log.warn, BỎ QUA, đi tiếp xuống buildStoreChain()
+│      │  ↳ index.json rỗng (159 byte do phiên crawl hỏng để lại) từng khiến
+│      │    app nạp thẳng cache rỗng rồi RETURN, che mất corpus mẫu — xem mục kho thứ ba
+│      └─ IOException/RuntimeException (sai version, sai tokenizer, file hỏng)
+│         → log.warn, BỎ QUA, đi tiếp xuống buildStoreChain()
+│      ↳ ĐƯỜNG NHANH này chỉ chạy khi index.json ĐÃ tồn tại từ trước — với hệ thống
+│        chỉ crawl bằng dòng lệnh (run-crawl.bat), file này KHÔNG BAO GIỜ được ghi
+│        (chỉ reindex()/startCrawl() mới ghi), nên trên đường chạy thực tế nhánh
+│        này không kích hoạt, và mỗi lần khởi động lại phải dựng chỉ mục từ đầu
 └─ buildStoreChain() : List<DocumentStore>                (Chain of Responsibility)
    ├─ [1] PostgresDocumentStore      chỉ thêm khi app.storage.postgres.enabled = true
    │      ├─ isAvailable() → DocumentRepository.countDocuments() > 0
@@ -85,7 +96,10 @@ IndexPersistence.load(path, tokenizer)
 Kho thứ tư — PostgreSQL, nạp và đối chứng:
 
 ```
-PostgresImportRunner.main [corpusPath]
+PostgresImportRunner.main [corpusPath]           mặc định "data/crawled-multi.json"
+   ↳ KHÁC với "data/crawled-documents.json" mà ContentStorage.saveToJson ghi ra —
+     phải truyền rõ đường dẫn (-Dexec.args="data/crawled-documents.json") nếu muốn
+     nạp đúng corpus mà run-crawl.bat vừa tạo, không dùng đối số mặc định
 ├─ ContentStorage.loadFromJson(corpusPath)
 └─ DocumentRepository.connectDefault()      jdbc:postgresql://localhost:5432/vnsearch
    ├─ deleteAll()   → TRUNCATE TABLE documents CASCADE

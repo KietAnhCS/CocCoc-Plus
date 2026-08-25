@@ -28,11 +28,11 @@ EvaluationRunner.main
 │  └─ truy vấn trùng chuỗi → BỎ    ← hai tài liệu cùng sinh một truy vấn thì chân lý nhập nhằng
 │     → KnownItemQuery(queryText, targetUrl, targetDocId, terms)
 │       ↳ "known-item": mỗi truy vấn có ĐÚNG MỘT tài liệu đúng, không cần người gán nhãn
-├─ buildConfigs(pageRankScores)              → 12 cấu hình, chia 4 nhóm có chủ đích:
-│  ├─ nhóm 1  TF-IDF thuần / BM25 thuần                    ← so MÔ HÌNH, tắt hết tín hiệu phụ
-│  ├─ nhóm 2  TF-IDF + title / + PageRank / + cả hai       ← tách ĐÓNG GÓP của từng tín hiệu
-│  ├─ nhóm 3  TF-IDF beta ∈ {0.05, 0.10, 0.20, 0.50, 0.80} ← quét trọng số PageRank
-│  └─ nhóm 4  BM25 + PR + title                            ← xem hai thứ có cộng hưởng không
+├─ buildConfigs(pageRankScores)              → 11 cấu hình, chia 4 nhóm có chủ đích:
+│  ├─ nhóm 1 (2)  TF-IDF thuần / BM25 thuần                  ← so MÔ HÌNH, tắt hết tín hiệu phụ
+│  ├─ nhóm 2 (3)  TF-IDF + title / + PageRank / + cả hai     ← tách ĐÓNG GÓP của từng tín hiệu
+│  ├─ nhóm 3 (5)  TF-IDF beta ∈ {0.05, 0.10, 0.20, 0.50, 0.80} ← quét trọng số PageRank, gamma cố định 0.1
+│  └─ nhóm 4 (1)  BM25 + PR + title                          ← xem hai thứ có cộng hưởng không
 ├─ ∀ cấu hình: evaluate(harness, config, queries)
 │  └─ ∀ truy vấn:
 │     ├─ EvaluationHarness.search  → QueryParser → CandidateResolver → ResultRanker
@@ -42,8 +42,9 @@ EvaluationRunner.main
 │     └─ đo System.nanoTime cho từng truy vấn
 │     → ConfigResult(label, MRR, S@1, S@5, S@10, avgQueryMs, avgCandidates, mảng RR từng truy vấn)
 │       ↳ giữ MẢNG RR từng truy vấn chứ không chỉ trung bình — kiểm định theo cặp cần nó
-├─ analyseScoreScales  → đo độ lớn TB và lớn nhất của TF-IDF so với PageRank
-│  ↳ trả lời câu "vì sao NHÂN chứ không CỘNG": hai đại lượng khác thang đo hàng bậc
+├─ analyseScoreScales  → đo độ lớn TB và lớn nhất của TF-IDF trần so với PageRank trần
+│  ↳ điểm cuối = alpha·tfidf + beta·pageRank + gamma·titleBonus (CỘNG có trọng số); trọng số
+│    chỉ phản ánh đúng mức đóng góp khi ba đại lượng cùng thang đo — mục này kiểm tra giả định đó
 └─ ghi báo cáo Markdown + in bảng ra màn hình
 ```
 

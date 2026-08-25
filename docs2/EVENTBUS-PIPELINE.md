@@ -66,15 +66,29 @@ KafkaCrawlConfig  (@ConditionalOnProperty app.crawler.bus = kafka)
    ↳ bản ghi hỏng lặp lại mãi sẽ CHẶN cả phân vùng; đẩy sang thư chết để phân vùng chạy tiếp
    ↳ cảnh báo VnSearchDeadLetterGrowing theo dõi chính topic đó
 
-CrawlKafkaListeners — mỗi khối là một GROUP RIÊNG trên cùng topic pages
+CrawlKafkaListeners (crawler-service) — mỗi khối là một GROUP RIÊNG trên cùng topic pages
 ├─ group url-extractor   → UrlExtractorService.onPage
 ├─ group image-download  → ImageDownloadService.onPage
 ├─ group analytics       → CrawlAnalyticsService.onPage
 ├─ group frontier-feeder ← topic urls     → CrawlJobManager.feedDiscoveredUrl
-├─                       ← topic outlinks → ContentStorage.applyOutlinks
-└─ group image-store     ← topic images   → ImageStore.add
+├─ group frontier-feeder ← topic outlinks → CrawlJobManager.feedOutlinks
+└─ group analytics       ← topic images   → CrawlAnalyticsService.onImage
    ↳ ba group cùng đọc topic pages = mỗi khối nhận BẢN SAO của mọi trang, và một khối
      chậm không kéo hai khối kia chậm theo
+   ↳ hai listener frontier-feeder ghi vào CrawlerService của một JOB — trạng thái đó
+     chỉ tồn tại ở tiến trình nhận POST /api/admin/crawl, nên bị khoá bằng
+     autoStartup = app.crawler.role.is-api (mặc định false ở crawler-service, worker
+     KHÔNG chạy hai listener này). Từng bị lỗi thật: thiếu autoStartup thì cả backend
+     lẫn worker cùng chạy, chung group nên Kafka CHIA ĐÔI luồng URL giữa hai tiến
+     trình — frontier không bao giờ nạp đủ, crawl dừng sớm
+
+ImageStoreListener (search-service, KHÔNG cùng lớp với CrawlKafkaListeners)
+└─ group image-store ← topic images → ImageStore.add   ← autoStartup = role.is-api
+   ↳ phải là GROUP RIÊNG, khác group analytics ở trên: nếu dùng chung group thì hai
+     bên CHIA NHAU thông điệp ảnh thay vì mỗi bên nhận đủ luồng
+   ↳ ImageStore sống trong RAM của tiến trình, nên listener này chỉ bật ở vai trò
+     api (search-service, role=api mặc định) — worker (crawler-service, role=worker
+     mặc định) không giữ kho ảnh
 ```
 
 ImageStore — kho ảnh trong RAM, một ảnh ĐẠI DIỆN cho mỗi trang:

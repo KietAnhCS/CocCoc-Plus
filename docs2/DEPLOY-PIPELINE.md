@@ -4,7 +4,7 @@ Ba đường đưa mã tới chỗ chạy, ba mức tin cậy khác nhau. **Khô
 đích triển khai là Docker Compose, và mọi thứ dưới đây được dựng quanh điều đó:
 
 ```
-run-backend.bat          → jar chạy thẳng trên máy thật   ← nhanh nhất khi đang sửa mã
+run-backend.bat          → jar + tự bật hạ tầng thiếu + tự mở giao diện  ← mặc định giờ ĐẦY ĐỦ
 run-backend.bat --docker → Docker Compose, toàn hệ thống  ← ĐƯỜNG DEMO
 .github/workflows/ci     → không triển khai, chỉ CHẶN     ← 7 job song song, mọi PR
 .github/workflows/cd     → ghcr.io + docker-compose.release.yml
@@ -23,7 +23,9 @@ flowchart LR
 Đường 1 — máy thật:
 
 ```
-run-backend.bat  [--core | --full | --build | --windows | --docker]
+run-backend.bat  [--core | --full | --build | --windows | --docker | --no-frontend]
+├─ MẶC ĐỊNH MODE=full                            ← cả 9 service Java, --core mới rút gọn
+│  ↳ đảo ngược so với bản cũ (mặc định từng là core); --core giờ mới là RÚT GỌN
 ├─ chcp 65001                                    ← log backend là tiếng Việt có dấu
 │  ↳ CHÍNH tệp .bat phải là CRLF: với LF, cmd.exe cắt mất ký tự đầu mỗi dòng
 │    ("REM" thành "M") — đã gặp thật, nay ghim bằng *.bat eol=crlf trong .gitattributes
@@ -42,11 +44,23 @@ run-backend.bat  [--core | --full | --build | --windows | --docker]
 │    đè này thì history/downloads/settings/football chết ngay vì UnknownHostException
 ├─ APP_CRAWLER_BUS: .env ghi `kafka` nhưng cổng 9092 trống → tự hạ về `memory`
 │  ↳ trỏ vào hư không làm KafkaCrawlConfig ném lỗi lúc nạp bean, giết cả search lẫn crawler
-└─ chạy NGẦM bằng Start-Process, log ra backend\logs\<service>.log
-   ↳ `start /b` dùng chung console nên tiến trình con chết theo khi đóng cửa sổ;
-     --windows để mở lại 9 cửa sổ như cũ
+├─ === HẠ TẦNG ===  tự dò cổng 5432/6379/27017, thiếu cái nào thì TỰ BẬT bằng Docker
+│  ├─ chưa có lệnh `docker` → dừng, hướng dẫn cài Docker Desktop hoặc tự dựng 3 dịch vụ
+│  ├─ có `docker` nhưng engine chưa chạy → dò đường cài Docker Desktop.exe, tự `start`
+│  │  rồi vòng lặp `docker info` tới khi sẵn sàng, tối đa 180 giây
+│  ├─ `docker compose up -d <danh sách còn thiếu>` rồi đợi healthcheck từng container
+│  │  (`docker inspect .State.Health.Status`) tối đa 150 giây mỗi cái
+│  │  ↳ KHÔNG dựng lại 9 service Java, chỉ 3 CSDL — 9 service vẫn chạy bằng jar
+│  └─ khác bản cũ: trước đây bat KHÔNG tự bật hạ tầng, người dùng phải tự
+│     `docker compose up -d postgres redis mongo` trước khi chạy
+├─ chạy NGẦM bằng Start-Process, log ra backend\logs\<service>.log
+│  ↳ `start /b` dùng chung console nên tiến trình con chết theo khi đóng cửa sổ;
+│    --windows để mở lại 9 cửa sổ như cũ
+└─ mặc định TỰ MỞ giao diện (`start ... run-frontend.bat` ở cửa sổ riêng) sau khi
+   api-gateway trả lời khoẻ; `--no-frontend` tắt bước này
 
-★ Đường jar KHÔNG dựng hạ tầng. Cần sẵn: docker compose up -d postgres redis mongo
+★ Đường jar giờ TỰ dựng hạ tầng (postgres/redis/mongo qua Docker, kể cả mở hộ Docker
+  Desktop) — khác hẳn bản cũ vốn yêu cầu người dùng tự bật trước bằng tay.
 ```
 
 Đồ hình Compose — 9 service Java, 3 CSDL, 3 thứ giám sát, 1 hồ sơ tuỳ chọn:

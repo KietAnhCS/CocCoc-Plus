@@ -85,14 +85,25 @@ Bảy tầng chặn, xếp theo thứ tự "rẻ và loại nhiều trước":
 3. UrlFilter.isAllowedByRobots(url)                RobotsTxtParser, cache theo domain
    └─ tải robots.txt một lần cho mỗi tên miền, khớp User-agent + Allow/Disallow
 
-4. SeedUrlValidator.validate(url)                  chặn SSRF, gọi trước MỖI lần tải
-   ├─ chỉ http/https, phải có host
-   ├─ isBlockedHostname: localhost, metadata nội bộ…
-   ├─ InetAddress.getAllByName → ∀ địa chỉ: isBlockedAddress (loopback, private, link-local…)
-   └─ MỌI ca từ chối trả về CÙNG MỘT thông điệp REJECTED
-      ↳ kể cả ca "không phân giải được tên máy". Nếu hai ca trả lời khác nhau thì kẻ gọi
-        phân biệt được "host không tồn tại" với "host tồn tại và nằm trong mạng nội bộ" —
-        tức biến chính lớp chặn SSRF thành công cụ quét mạng nội bộ
+4. Chặn SSRF — HAI điểm gọi khác nhau, dùng chung phép kiểm tra tĩnh
+   ├─ SeedUrlValidator.validate(url)     CHỈ gọi MỘT lần, khi nhận seed từ admin API
+   │  ├─ chỉ http/https, phải có host ; isBlockedHostname: localhost, metadata nội bộ…
+   │  ├─ InetAddress.getAllByName → ∀ địa chỉ: isBlockedAddress (loopback, private, link-local…)
+   │  └─ MỌI ca từ chối trả về CÙNG MỘT thông điệp REJECTED
+   │     ↳ kể cả ca "không phân giải được tên máy" — nếu hai ca trả lời khác nhau thì kẻ gọi
+   │       phân biệt được "host không tồn tại" với "host tồn tại và nằm trong mạng nội bộ",
+   │       tức biến chính lớp chặn SSRF thành công cụ quét mạng nội bộ
+   │     ↳ KHÔNG áp dụng cho hạt giống viết sẵn trong mã nguồn (MultiDomainCrawlRunner)
+   └─ HtmlDownloader.assertTargetAllowed(url)   gọi TRƯỚC MỖI hop, kể cả từng chặng redirect
+      ├─ dùng lại NGUYÊN hai hàm tĩnh isBlockedHostname/isBlockedAddress ở trên — không viết
+      │  lại luật, chỉ đổi cách lấy địa chỉ
+      ├─ lấy địa chỉ qua DnsResolver.resolve (MỘT địa chỉ, có cache) — KHÔNG phải
+      │  InetAddress.getAllByName như validate(); khác ∀-địa-chỉ ở trên
+      └─ chặn thì ném BlockedTargetException với thông điệp RIÊNG từng ca
+         ("Ten may bi chan" / "Dia chi khong duoc phep crawl"), KHÔNG dùng chung REJECTED
+         ↳ lý do tách: liên kết do LinkExtractor moi ra không đi qua AdminController nên
+           trước đây chưa từng được kiểm tra; nay mọi URL — kể cả từng chặng chuyển hướng —
+           đều phải qua đây mới tải được, bất kể đến từ đâu
 
 5. HtmlDownloader.download(url)                    DEFAULT_TIMEOUT_MS 10 000
    ├─ DEFAULT_MAX_RETRIES 2 , MAX_REDIRECTS 5

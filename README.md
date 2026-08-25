@@ -7,23 +7,36 @@ Every core data structure and algorithm is **hand-written**, with no off-the-she
 search library: inverted index, VByte compression, PageRank, Trie, Bloom filter,
 MinHeap, and a Vietnamese word segmenter.
 
-```
-┌──────────────┐    ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
-│   Crawler    │───▶│    Index     │───▶│   Ranking    │───▶│   REST API   │
-│              │    │              │    │              │    │              │
-│ UrlFrontier  │    │ InvertedIndex│    │ TF-IDF/BM25  │    │ /api/search  │
-│ BloomFilter  │    │ VByte + delta│    │ PageRank     │    │ /api/suggest │
-│ robots.txt   │    │ VN segmenter │    │ MinHeap top-K│    │ /api/admin   │
-└──────────────┘    └──────────────┘    └──────────────┘    └──────┬───────┘
-                                                                    │
-                                                            ┌───────▼───────┐
-                                                            │  api-gateway  │
-                                                            │     :8080     │
-                                                            └───────┬───────┘
-                        ┌──────────────────┐                ┌───────▼───────┐
-                        │ football-service │───────────────▶│  desktop-app  │
-                        │  (Java, :8090)   │  Sports panel  │  (Electron)   │
-                        └──────────────────┘                └───────────────┘
+```mermaid
+flowchart TB
+    BROWSER["desktop-app<br/>(Electron)"]
+    GW["api-gateway :8080<br/>routing · JWT validation<br/>rate limiting · CORS<br/><i>only port exposed to the outside</i>"]
+
+    BROWSER -->|HTTP, the only door in| GW
+
+    GW --> AUTH["auth-service :8081<br/>accounts, roles, JWT, JWKS"]
+    GW --> SEARCH["search-service :8082<br/>index, query, ranking,<br/>suggestions, images"]
+    GW --> CRAWLER["crawler-service :8083<br/>crawl jobs, reindex"]
+    GW --> ANALYTICS["analytics-service :8084<br/>usage events, admin analytics"]
+    GW --> HISTORY["history-service :8085<br/>browsing history"]
+    GW --> DOWNLOADS["downloads-service :8086<br/>downloads"]
+    GW --> SETTINGS["settings-service :8087<br/>user settings"]
+    GW --> FOOTBALL["football-service :8090<br/>football data"]
+
+    CRAWLER -.->|crawled corpus,<br/>in-process or Kafka| SEARCH
+
+    subgraph CORESEARCH["core-search lib"]
+        IDX["InvertedIndex<br/>VByte + delta"]
+        VN["VN word segmenter"]
+        RANK["TF-IDF / BM25 · PageRank<br/>MinHeap top-K"]
+    end
+    subgraph CORECRAWL["core-crawler lib"]
+        FRONT["UrlFrontier · BloomFilter"]
+        ROBOTS["robots.txt parser"]
+    end
+
+    SEARCH -.-> CORESEARCH
+    CRAWLER -.-> CORECRAWL
 ```
 
 The algorithms above live in `backend/libs/` — `core-search` (index, query,
@@ -374,81 +387,48 @@ APP_RANKING_SCORER=bm25
 
 ---
 
-## Documentation
-
-Documentation is written in Vietnamese, and organised by **the question it
-answers**, not by source folder.
-
-> **New here? Start with [`docs/README.md`](docs/README.md)** — a roadmap that
-> picks a reading order for you (run it / understand it / study the algorithms
-> / operate it), plus a "want to change X, read Y" lookup table. The docs are
-> written in Vietnamese; this README is the English entry point.
-
-| Document | Answers |
-|---|---|
-| [**`docs/README.md`**](docs/README.md) | **Documentation roadmap — which of the 72 files to read, in what order** |
-| [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How do the pieces fit into one working system? |
-| [`docs/BACKEND.md`](docs/BACKEND.md) | How are the Spring Boot services assembled — beans, config, request lifecycle? |
-| [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) | Every config key, its default, and what breaks if you change it |
-| [`docs/INFRASTRUCTURE.md`](docs/INFRASTRUCTURE.md) | Where does it run, and who watches it? Docker, Kubernetes, monitoring |
-| [`docs/DEVOPS.md`](docs/DEVOPS.md) | How does code get from a laptop to a cluster? CI/CD, the seven gates |
-| [`docs/SECURITY.md`](docs/SECURITY.md) | What is it defended against, and **what is still open**? |
-| [**`docs/ACCOUNTS-AND-DASHBOARD.md`**](docs/ACCOUNTS-AND-DASHBOARD.md) | **Accounts, roles and the admin dashboard — who may see what, and six real bugs the tests missed** |
-| [`docs/FRONTEND.md`](docs/FRONTEND.md) | The mini browser (Electron + React) |
-| [`docs2/*-PIPELINE.md`](docs2/) | One file per pipeline — crawler, index, query, ranking, storage, auth, analytics, event bus, frontier, eval, API, deploy |
-| [`docs/DSA-REPORT.md`](docs/DSA-REPORT.md) | Big-O and measured numbers |
-| [`docs/Math/`](docs/Math/README.md) | One page per class — formulas, worked examples, mind maps |
-| [`docs/Math/08-design-patterns/`](docs/Math/08-design-patterns/README.md) | One page per design pattern, and the bug each one fixed |
-| [`docs/Math/09-kafka/`](docs/Math/09-kafka/00-SO-DO-TU-DUY.md) | Kafka and the Modular Services — where the pipeline is cut, and why the URL Frontier is **not** replaced |
-| [`docs/Math/10-images/`](docs/Math/10-images/00-SO-DO-TU-DUY.md) | Image crawling and search — why filtering happens at crawl time |
-| [`docs/Math/11-devops/`](docs/Math/11-devops/00-SO-DO-TU-DUY.md) | CI/CD in detail — every workflow, every gate, file by file |
-| [`docs/Math/12-security/`](docs/Math/12-security/00-SO-DO-TU-DUY.md) | Every defence layer, and what breaks if you remove it |
-| [`docs/EVALUATION.md`](docs/EVALUATION.md) | Search quality measurement (MRR, P@k, nDCG) |
-| [`docs/SO-SANH-PHUONG-AN.md`](docs/SO-SANH-PHUONG-AN.md) | 13 problems, the alternatives rejected, and why |
-| [`docs/GIN-BASELINE.md`](docs/GIN-BASELINE.md) | Head-to-head against PostgreSQL GIN |
-
----
 
 ## Repository layout
 
 ```
-backend/                Maven reactor — one parent pom, fourteen modules
-  libs/core-common/     Shared foundations, used by the other libraries:
-      datastructure/    Trie, BloomFilter, MinHeap, LRUCache, SparseMatrix
-      analytics/        Corpus statistics, usage counters
-  libs/core-crawler/    Fetching, URL filtering, two-tier frontier, event bus.
-                        The command-line runners live here, which is why the
-                        scripts call `./mvnw -pl libs/core-crawler -am exec:java`
-                        (`-am` matters: without it Maven cannot resolve
-                        core-common and the run fails before it starts)
-  libs/core-search/     index/    Inverted index, VByte compression, VN segmenter
-                        query/    Query parsing, posting-list merging
-                        ranking/  TF-IDF, BM25, PageRank, snippet generation
-                        eval/     Search quality harness
-  libs/platform/        Shared Spring plumbing: security chain, API-key filter,
-                        rate limiting, common properties
-  services/api-gateway/       :8080  routing, JWT validation, CORS
-  services/auth-service/      :8081  accounts, roles, JWT issuing
-  services/search-service/    :8082  index, query, ranking, images
-  services/crawler-service/   :8083  crawl jobs, reindex
-  services/analytics-service/ :8084  usage events
-  services/history-service/   :8085  browsing history
-  services/downloads-service/ :8086  downloads
-  services/settings-service/  :8087  user settings
-  services/football-service/  :8090  football data (Java + Postgres)
-    football/provider/        API-Football client and normalisers
-    football/service/         Cache-aside, daily call budget, fallback order
-    football/store/           Postgres-backed cache and call log
-  coverage/             Aggregates JaCoCo across every module — must build last
-  data/                 Corpus, index, images, accounts (mounted into containers)
-desktop-app/            Mini browser (Electron + React + TypeScript)
+backend/                       Maven reactor — one parent pom, fourteen modules
+  libs/core-common/            Shared foundations, used by the other libraries:
+    datastructure/             Trie, BloomFilter, MinHeap, LRUCache, SparseMatrix
+    analytics/                 Corpus statistics, usage counters
+  libs/core-crawler/           Fetching, URL filtering, two-tier frontier, event bus.
+                               The command-line runners live here, which is why the
+                               scripts call `./mvnw -pl libs/core-crawler -am exec:java`
+                               (`-am` matters: without it Maven cannot resolve
+                               core-common and the run fails before it starts)
+  libs/core-search/
+    index/                     Inverted index, VByte compression, VN segmenter
+    query/                     Query parsing, posting-list merging
+    ranking/                   TF-IDF, BM25, PageRank, snippet generation
+    eval/                      Search quality harness
+  libs/platform/               Shared Spring plumbing: security chain, API-key filter,
+                               rate limiting, common properties
+  services/api-gateway/        :8080  routing, JWT validation, CORS
+  services/auth-service/       :8081  accounts, roles, JWT issuing
+  services/search-service/     :8082  index, query, ranking, images
+  services/crawler-service/    :8083  crawl jobs, reindex
+  services/analytics-service/  :8084  usage events
+  services/history-service/    :8085  browsing history
+  services/downloads-service/  :8086  downloads
+  services/settings-service/   :8087  user settings
+  services/football-service/   :8090  football data (Java + Postgres)
+    football/provider/         API-Football client and normalisers
+    football/service/          Cache-aside, daily call budget, fallback order
+    football/store/            Postgres-backed cache and call log
+  coverage/                    Aggregates JaCoCo across every module — must build last
+  data/                        Corpus, index, images, accounts (mounted into containers)
+desktop-app/                   Mini browser (Electron + React + TypeScript)
   src/renderer/src/components/football/
-                        Full-screen football page, ported from the iOS app
+                               Full-screen football page, ported from the iOS app
 deploy/
-  monitoring/           Prometheus config, alert rules, Alertmanager, Grafana
-  postgres/             init-db.sh — one database per service, created on first boot
-docs/                   Documentation
-.github/workflows/      CI, CodeQL, release, PR title checks
+  monitoring/                  Prometheus config, alert rules, Alertmanager, Grafana
+  postgres/                    init-db.sh — one database per service, created on first boot
+docs/                          Documentation
+.github/workflows/             CI, CodeQL, release, PR title checks
 ```
 
 The Vietnamese dictionary is generated from

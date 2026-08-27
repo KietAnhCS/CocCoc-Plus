@@ -4,10 +4,11 @@ setlocal
 set "ROOT=%~dp0"
 set "ENV_FILE=%ROOT%.env"
 
-set "MODE=core"
+set "MODE=full"
 set "USE_DOCKER="
 set "FORCE_BUILD="
 set "SHOW_WINDOWS="
+set "NO_FRONTEND="
 
 for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
 set "OLD_CP=%OLD_CP: =%"
@@ -27,6 +28,8 @@ if /i "%~1"=="--full" (
     set "FORCE_BUILD=1"
 ) else if /i "%~1"=="--windows" (
     set "SHOW_WINDOWS=1"
+) else if /i "%~1"=="--no-frontend" (
+    set "NO_FRONTEND=1"
 ) else (
     echo [LỖI] Tham số không hiểu: %~1
     echo.
@@ -213,6 +216,74 @@ echo Chế độ             : %MODE_SHOW%
 echo Khoá quản trị      : %ADMIN_API_KEY:~0,8%...   ^(đầy đủ trong .env^)
 echo.
 
+echo === HẠ TẦNG ===
+set "INFRA_LIST="
+call :need_infra 5432 PostgreSQL postgres
+call :need_infra 6379 Redis redis
+call :need_infra 27017 MongoDB mongo
+if not defined INFRA_LIST goto :infra_ok
+
+echo.
+echo Đang bật phần hạ tầng còn thiếu bằng Docker...
+where docker >nul 2>nul
+if errorlevel 1 (
+    echo [LỖI] Thiếu PostgreSQL/Redis/MongoDB mà máy lại không có lệnh docker.
+    echo       Cài Docker Desktop tại https://docker.com, hoặc tự dựng ba dịch vụ
+    echo       đó ở cổng 5432/6379/27017 rồi chạy lại tệp này.
+    goto :fail
+)
+
+docker info >nul 2>nul
+if not errorlevel 1 goto :infra_up
+
+set "DOCKER_DESKTOP=%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
+if not exist "%DOCKER_DESKTOP%" set "DOCKER_DESKTOP=%ProgramW6432%\Docker\Docker\Docker Desktop.exe"
+if not exist "%DOCKER_DESKTOP%" set "DOCKER_DESKTOP=%LocalAppData%\Docker\Docker Desktop.exe"
+if not exist "%DOCKER_DESKTOP%" (
+    echo [LỖI] Docker engine chưa chạy và không tìm thấy Docker Desktop.exe để mở.
+    echo       Mở Docker Desktop bằng tay rồi chạy lại tệp này.
+    goto :fail
+)
+
+echo   Docker engine chưa chạy - đang mở Docker Desktop...
+start "" "%DOCKER_DESKTOP%"
+set /a DD_WAIT=0
+:wait_docker
+ping -n 4 127.0.0.1 >nul
+docker info >nul 2>nul
+if not errorlevel 1 goto :docker_ready
+set /a DD_WAIT+=3
+if %DD_WAIT% GEQ 180 (
+    echo [LỖI] Đợi 3 phút mà Docker engine vẫn chưa sẵn sàng.
+    echo       Mở Docker Desktop và xem nó báo gì, rồi chạy lại tệp này.
+    goto :fail
+)
+echo    ... %DD_WAIT%s
+goto :wait_docker
+:docker_ready
+echo   Docker engine sẵn sàng sau %DD_WAIT%s.
+
+:infra_up
+docker compose up -d%INFRA_LIST%
+if errorlevel 1 (
+    echo.
+    echo [LỖI] Không bật được%INFRA_LIST%. Cuộn lên xem dòng lỗi ĐẦU TIÊN.
+    goto :fail
+)
+
+echo   Đang đợi container báo healthy...
+set "INFRA_ERR="
+call :wait_health postgres PostgreSQL
+call :wait_health redis Redis
+call :wait_health mongo MongoDB
+if defined INFRA_ERR (
+    echo       Xem log: docker compose logs%INFRA_LIST%
+    goto :fail
+)
+echo   Hạ tầng đã sẵn sàng.
+:infra_ok
+echo.
+
 cd /d "%ROOT%backend"
 if not exist "logs" mkdir "logs"
 
@@ -258,20 +329,21 @@ echo   Kiểm tra sống   http://localhost:8080/actuator/health
 echo   Thử tìm kiếm    http://localhost:8080/api/search?q=ha+noi
 echo   Swagger UI      http://localhost:8080/swagger-ui.html
 echo.
-echo   Giao diện       chạy run-frontend.bat ở một cửa sổ khác
+echo   Giao diện       mở tự động ở cửa sổ riêng ^(tắt bằng --no-frontend^)
 echo   Bóng đá         qua Gateway: http://localhost:8080/api/football/v1/fixtures
 echo   Đo corpus       crawl-stats.bat
 echo   Log service     backend\logs\^<ten-service^>.log
 echo   TẮT HẾT         end-backend.bat
 echo.
-echo   Chế độ jar KHÔNG dựng hạ tầng. Redis, PostgreSQL và MongoDB phải có sẵn,
-echo   nếu không thì các tuyến giới hạn tần suất báo lỗi và những service có
-echo   CSDL ^(auth, crawler, history, downloads, settings, football^) sẽ chết ngay
-echo   lúc khởi động. Bật riêng phần hạ tầng:
-echo       docker compose up -d postgres redis mongo
+echo   PostgreSQL, Redis và MongoDB được tệp này tự bật bằng Docker nếu cổng
+echo   5432/6379/27017 còn trống, và Docker Desktop cũng được mở giúp.
 echo.
 echo   Muốn cả giám sát Prometheus/Grafana thì dùng run-backend.bat --docker.
 echo.
+if defined NO_FRONTEND goto :fe_done
+echo Đang mở giao diện ở cửa sổ riêng...
+start "VnSearch giao dien" cmd /k "%ROOT%run-frontend.bat"
+:fe_done
 call :restore_cp
 endlocal
 exit /b 0
@@ -319,9 +391,40 @@ echo   Thêm Kafka      docker compose --profile kafka up -d
 echo   Kafka UI        http://localhost:8091   ^(chỉ khi bật hồ sơ kafka^)
 echo   TẮT HẾT         end-backend.bat
 echo.
+if defined NO_FRONTEND goto :fe_done_docker
+echo Đang mở giao diện ở cửa sổ riêng...
+start "VnSearch giao dien" cmd /k "%ROOT%run-frontend.bat"
+:fe_done_docker
 call :restore_cp
 endlocal
 exit /b 0
+
+:need_infra
+set "INFRA_PID="
+for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":%~1 .*LISTENING"') do set "INFRA_PID=%%p"
+if defined INFRA_PID (
+    echo   %~2 :%~1 - đã chạy
+    goto :eof
+)
+echo   %~2 :%~1 - chưa chạy
+set "INFRA_LIST=%INFRA_LIST% %~3"
+goto :eof
+
+:wait_health
+set /a WH_WAIT=0
+:wait_health_loop
+set "WH_STATE="
+for /f "delims=" %%h in ('docker inspect -f "{{.State.Health.Status}}" vnsearch-%~1 2^>nul') do set "WH_STATE=%%h"
+if not defined WH_STATE goto :eof
+if "%WH_STATE%"=="healthy" goto :eof
+ping -n 3 127.0.0.1 >nul
+set /a WH_WAIT+=2
+if %WH_WAIT% GEQ 150 (
+    echo   [LỖI] %~2 vẫn ở trạng thái "%WH_STATE%" sau 150 giây.
+    set "INFRA_ERR=1"
+    goto :eof
+)
+goto :wait_health_loop
 
 :need_jar
 if not exist "%ROOT%backend\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" set "NEED_BUILD=1"
@@ -353,10 +456,11 @@ goto :eof
 
 :usage
 echo.
-echo   run-backend.bat            jar, hồ sơ RÚT GỌN: api-gateway + auth-service
-echo                              + search-service
-echo   run-backend.bat --full     jar, cả 9 service Java: thêm crawler, analytics,
-echo                              history, downloads, settings, football
+echo   run-backend.bat            jar, cả 9 service Java + mở luôn giao diện
+echo   run-backend.bat --core     chỉ api-gateway + auth-service + search-service
+echo                              ^(tab Bóng đá sẽ trống vì thiếu football-service^)
+echo   run-backend.bat --no-frontend
+echo                              chỉ chạy backend, không mở giao diện
 echo   run-backend.bat --build    dựng lại jar trước khi chạy
 echo   run-backend.bat --windows  mở một cửa sổ console cho mỗi service thay vì
 echo                              chạy ngầm ^(9 cửa sổ^)
@@ -364,9 +468,9 @@ echo   run-backend.bat --docker   chạy bằng docker compose - LUÔN bật to�
 echo                              thống kèm Prometheus/Grafana/Alertmanager, nên
 echo                              --core/--full không đổi được gì ở đường này
 echo.
-echo   Chế độ jar chạy các service NGẦM, log đổ vào backend\logs\<ten>.log.
-echo   Nó KHÔNG dựng hạ tầng: cần sẵn PostgreSQL, Redis và MongoDB.
-echo       docker compose up -d postgres redis mongo
+echo   Chế độ jar chạy các service NGẦM, log đổ vào backend\logs\^<ten^>.log.
+echo   PostgreSQL, Redis và MongoDB tự bật bằng Docker khi cổng còn trống,
+echo   kể cả việc mở Docker Desktop hộ. Giao diện cũng tự mở ở cửa sổ riêng.
 echo.
 echo   Tắt hết: end-backend.bat
 echo.

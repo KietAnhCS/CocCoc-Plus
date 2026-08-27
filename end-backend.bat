@@ -176,9 +176,21 @@ goto :wait_dd
 :dd_done
 echo Docker Desktop đã đóng sau %DD_WAIT%s.
 
+taskkill /F /IM "Docker Desktop.exe" /T >nul 2>nul
+taskkill /F /IM "com.docker.backend.exe" /T >nul 2>nul
+taskkill /F /IM "com.docker.build.exe" /T >nul 2>nul
+taskkill /F /IM "com.docker.dev-envs.exe" /T >nul 2>nul
+
+where wsl >nul 2>nul
+if not errorlevel 1 (
+    echo Đang tắt máy ảo con của Docker trong WSL2 ^(distro docker-desktop^)...
+    wsl --terminate docker-desktop >nul 2>nul
+    echo Đã tắt. VmmemWSL vẫn còn nhưng chỉ giữ mức nền, không còn RAM của Docker.
+)
+
 if defined KILL_WSL (
     echo.
-    echo Đang tắt máy ảo WSL2...
+    echo Đang tắt toàn bộ máy ảo WSL2...
     wsl --shutdown
     echo Đã tắt WSL2. Lưu ý: lệnh này tắt MỌI distro WSL, không riêng của Docker.
 )
@@ -228,12 +240,14 @@ goto :fail
 :usage
 echo.
 echo   end-backend.bat                dừng tiến trình jar ^(cổng 8080-8087, 8090^), hạ
-echo                                  container rồi tắt Docker Desktop
+echo                                  container, tắt Docker Desktop và tắt luôn
+echo                                  distro WSL2 của Docker để RAM về mức nền
 echo   end-backend.bat --local        chỉ dừng tiến trình jar, không đụng Docker
 echo   end-backend.bat --keep-docker  hạ container nhưng để Docker Desktop chạy
 echo   end-backend.bat --stop         chỉ dừng container, KHÔNG xoá - bật lại nhanh
 echo   end-backend.bat --wipe         hạ container VÀ XOÁ volume - MẤT DỮ LIỆU
-echo   end-backend.bat --wsl          tắt luôn máy ảo WSL2 sau khi tắt Docker
+echo   end-backend.bat --wsl          tắt CẢ máy ảo WSL2 ^(mọi distro, không riêng
+echo                                  Docker^) sau khi tắt Docker
 echo.
 echo   Bật lại: run-backend.bat
 echo.

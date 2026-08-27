@@ -101,7 +101,16 @@ echo Đang biên dịch và chạy crawler...
 echo   Ctrl+C để dừng. Điểm kiểm tra ghi mỗi max^(250 trang, 25%% corpus hiện có^),
 echo   nên ở corpus lớn có thể mất vài nghìn trang cuối.
 echo.
-call "%MVNW%" -q -pl libs/core-crawler -am compile exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
+
+REM Build va chay TACH LAM HAI: "exec:java" gop voi "-am" se chay tren ca
+REM module gop "vnsearch-parent" (khong co lop) va chet vi ClassNotFoundException.
+call "%MVNW%" -q -pl libs/core-crawler -am install -DskipTests
+if errorlevel 1 (
+    echo.
+    echo [LỖI] Biên dịch thất bại. Cuộn lên xem thông báo lỗi của Maven ở trên.
+    goto :fail
+)
+call "%MVNW%" -q -pl libs/core-crawler exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
 if errorlevel 1 (
     echo.
     echo [LỖI] Phiên crawl kết thúc bất thường.

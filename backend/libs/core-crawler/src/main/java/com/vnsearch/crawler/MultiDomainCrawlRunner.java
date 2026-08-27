@@ -61,35 +61,19 @@ public class MultiDomainCrawlRunner {
 
     /** Các báo điện tử lớn của Việt Nam, đủ độc lập để có liên kết chéo thật. */
     private static final List<String> VIETNAMESE_SEEDS = List.of(
-            "https://vnexpress.net/",
-            "https://tuoitre.vn/",
-            "https://dantri.com.vn/",
-            "https://thanhnien.vn/",
+            "https://vnexpress.net/khoa-hoc-cong-nghe",
+            "https://dantri.com.vn/the-thao.htm",
+            "https://thanhnien.vn/the-thao.htm",
+            "https://thanhnien.vn/cong-nghe.htm",
             "https://vietnamnet.vn/",
             "https://nhandan.vn/",
             "https://hanoimoi.vn/",
             "https://baochinhphu.vn/",
             "https://www.vietnamplus.vn/",
             "https://tuyensinhso.vn/",
-            "https://hcmiu.edu.vn/");
+            "https://tuoitre.vn/cong-nghe.htm",
+            "https://vietnamnet.vn/kinh-doanh");
 
-    /**
-     * Bản <b>tiếng Anh</b> của chính các toà soạn trên, cộng ba tờ tiếng Anh
-     * độc lập.
-     *
-     * <p><b>Vì sao phải có hạt giống riêng cho tiếng Anh.</b> Chính sách corpus
-     * là "tiếng Việt và tiếng Anh", nhưng {@link LanguageFilter} chỉ <i>lọc</i>
-     * chứ không <i>tạo ra</i> trang tiếng Anh: nếu mọi hạt giống đều là báo
-     * tiếng Việt thì crawler gần như không bao giờ chạm tới một trang tiếng
-     * Anh nào, và phần "tiếng Anh" của chính sách thành vô nghĩa.
-     *
-     * <p><b>Vì sao là bản tiếng Anh của báo Việt chứ không phải BBC/Reuters.</b>
-     * Cụm site này <b>trỏ liên kết qua lại thật</b> với phần tiếng Việt (cùng
-     * toà soạn, cùng hệ thống bài liên quan), nên chúng đóng góp cạnh CHÉO cho
-     * đồ thị PageRank. Một tờ báo quốc tế thì gần như không có liên kết nào trỏ
-     * về cụm Việt Nam, nên nó chỉ tạo ra một thành phần liên thông rời — thứ
-     * làm PageRank phân mảnh chứ không làm nó giàu thêm.
-     */
     private static final List<String> ENGLISH_SEEDS = List.of(
             "https://e.vnexpress.net/",
             "https://en.vietnamnet.vn/",
@@ -97,11 +81,6 @@ public class MultiDomainCrawlRunner {
             "https://en.baochinhphu.vn/",
             "https://en.vietnamplus.vn/",
             "https://vietnamnews.vn/",
-            // KHONG dung tuoitrenews.vn: chung chi TLS cua site het han, moi
-            // lan tai deu nem CertPathValidatorException (do duoc o phien crawl
-            // 10.017 trang — 0 trang thu duoc tu domain nay). Bo qua loi chung
-            // chi thi phai tat xac thuc TLS cho TOAN BO crawler, cai gia qua
-            // dat cho mot hat giong.
             "https://english.vov.vn/",
             "https://vir.com.vn/");
 

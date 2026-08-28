@@ -468,14 +468,18 @@ jobs:
 
       # --- Docker Compose -------------------------------------------------
 
-      # Cấu hình mặc định đã gồm toàn bộ hệ thống và cả ba service giám sát,
-      # nên chỉ còn hai mức phải kiểm: có Kafka và không có Kafka.
+      # Giám sát và Kafka đều nằm sau hồ sơ riêng, nên phải kiểm cả bốn tổ hợp:
+      # không hồ sơ nào, từng hồ sơ một, và cả hai cùng lúc. Một hồ sơ chỉ được
+      # hợp lệ khi bật RIÊNG nó vẫn hợp lệ — service trong hồ sơ có thể tham
+      # chiếu một service mặc định, nhưng không được tham chiếu hồ sơ kia.
       - name: Kiểm định docker-compose
         env:
           ADMIN_API_KEY: chi-de-kiem-dinh-0123456789abcdef
         run: |
           docker compose config --quiet
           docker compose --profile kafka config --quiet
+          docker compose --profile monitoring config --quiet
+          docker compose --profile kafka --profile monitoring config --quiet
 
       # Ma trận service trong cd.yml và release.yml là hai bản chép tay của
       # cùng một danh sách đã nằm sẵn trong docker-compose.yml. Chúng lệch nhau
@@ -495,21 +499,36 @@ jobs:
               compose = json.load(f)
           expected = sorted(n for n, s in compose['services'].items() if 'build' in s)
 
+          # Anh Java va anh Go duoc dung boi HAI job khac nhau trong cung mot
+          # workflow, va hai job do khai bao ma tran theo hai kieu khac nhau:
+          # job Java dung `matrix.service` (danh sach ten), job Go dung
+          # `matrix.include` (moi phan tu co `compose` va `dir`). Doi chieu
+          # phai gop CA HAI, khong thi bon service Go luon bi bao la thieu.
           targets = {
-              '.github/workflows/cd.yml': 'dung-anh',
-              '.github/workflows/release.yml': 'anh-docker',
+              '.github/workflows/cd.yml': [('dung-anh', 'service'),
+                                           ('dung-anh-go', 'compose')],
+              '.github/workflows/release.yml': [('anh-docker', 'service'),
+                                                ('anh-docker-go', 'compose')],
           }
           bad = False
-          for path, job in targets.items():
+          for path, jobs in targets.items():
               with open(path, encoding='utf-8') as f:
                   wf = yaml.safe_load(f)
-              actual = sorted(wf['jobs'][job]['strategy']['matrix']['service'])
+              actual = []
+              for job, key in jobs:
+                  matrix = wf['jobs'][job]['strategy']['matrix']
+                  if 'include' in matrix:
+                      actual += [muc[key] for muc in matrix['include']]
+                  else:
+                      actual += matrix[key]
+              actual = sorted(actual)
+              ten_job = ' + '.join(job for job, _ in jobs)
               if actual != expected:
                   bad = True
-                  print(f'{path} (job {job}) lech voi docker-compose.yml')
+                  print(f'{path} (job {ten_job}) lech voi docker-compose.yml')
                   print('  thieu : ', sorted(set(expected) - set(actual)))
                   print('  thua  : ', sorted(set(actual) - set(expected)))
               else:
-                  print(f'{path} (job {job}) khop: {len(actual)} service')
+                  print(f'{path} (job {ten_job}) khop: {len(actual)} service')
           sys.exit(1 if bad else 0)
           PY

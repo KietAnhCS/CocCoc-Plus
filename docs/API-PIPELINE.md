@@ -103,12 +103,13 @@ GET /api/images?q=…&page&size          (size trần MAX_SIZE, page trần MAX_
 ├─ sort theo missingAlt                          ← ảnh có alt lên trước (chất lượng + trợ năng)
 └─ cắt trang → {results[], page, pageSize, totalResults, hasMore, pagesScanned, timeTakenMs}
 
-GET /api/feed?seed=…&page&size
-├─ order = [0..totalDocs), Collections.shuffle(order, new Random(seed))
-│  ↳ seed đi theo client: cùng seed = cùng thứ tự, nên trang 2 không lặp lại trang 1
+GET /api/feed?page&size
+├─ order = [0..totalDocs), sort theo crawledAt GIẢM DẦN (null xuống cuối)
+│  ↳ tất định: cùng chỉ mục = cùng thứ tự, nên trang 2 không lặp lại trang 1
+│    (tham số seed cũ đã bỏ — thứ tự không còn ngẫu nhiên)
 ├─ bỏ tài liệu không có URL, bỏ tài liệu KHÔNG có ảnh   (thẻ feed cần ảnh bìa)
 ├─ dừng ở MAX_FEED_ITEMS 200                     ← trần công việc mỗi request
-└─ toCard: url, title (rỗng thì lấy url), snippet SNIPPET_LENGTH 160, imageUrl, altText
+└─ toCard: url, title (rỗng thì lấy url), snippet SNIPPET_LENGTH 160, imageUrl, altText, crawledAt
 
 POST /api/events         công khai, @Valid
 └─ EventController → UsageAnalyticsService.recordVisit / recordSearch / recordClick

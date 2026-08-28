@@ -2402,7 +2402,9 @@ private void refreshDerivedState() {
     pageRankScores = index.getTotalDocs() > 0
             ? pageRankService.computePageRank(index.getAllDocuments()).scores()
             : Map.of();
-    scorer = scorerFactory.create(pageRankScores);          // Factory + Decorator
+    // crawledAtEpochMillis(): duyệt index.getAllDocuments() MỘT lần, gom
+    // Map<docId, crawledAt.toEpochMilli()>, bỏ tài liệu không có mốc.
+    scorer = scorerFactory.create(pageRankScores, crawledAtEpochMillis());   // Factory + Decorator
     suggestionService.rebuild(index);
     searchCache = new LRUCache<>(cacheSize);                // chỉ mục đổi thì cache CŨ phải bỏ
     SearchIndex current = index;
@@ -2420,8 +2422,11 @@ nhất cho mọi thứ phụ thuộc vào chỉ mục:
 ```
    PageRankService.computePageRank    — dùng outlinks của WebDocument, KHÔNG
                                          dùng posting list; DAMPING=0.85, EPSILON=1e-6
-   ScorerFactory.create(pageRankScores) — Factory dựng scorer cơ sở (TF-IDF/BM25),
-                                         Decorator cộng TitleBoost + PageRankBoost
+   crawledAtEpochMillis()             — duyệt corpus MỘT lần, Map<docId, epochMillis>
+   ScorerFactory.create(pageRankScores, crawledAt)
+                                       — Factory dựng scorer cơ sở (TF-IDF/BM25), rồi
+                                         Decorator bọc PageRankBoost → TitleBoost → RecencyBoost
+                                         (δ = app.ranking.delta 0.20; bỏ qua nếu crawledAt rỗng)
    SuggestionService.rebuild(index)     — dựng lại Trie tiền tố từ TERM của chỉ mục
    searchCache = new LRUCache<>(...)    — cache CŨ phải bỏ, vì key giống nhau
                                          có thể trỏ tới kết quả tính trên chỉ mục CŨ
@@ -3055,10 +3060,12 @@ run-backend.bat  (Docker: backend container)
          │  ├─ DAMPING 0.85, EPSILON 1e-6, MAX_ITERATIONS 100
          │  ├─ dựng ma trận kề từ outlinks (URL → chỉ số)
          │  └─ lặp luỹ thừa đến khi ‖Δ‖ < ε → scores{docId → điểm}
-         ├─ ScorerFactory.create(pageRankScores)                   (Factory + Decorator)
+         ├─ crawledAtEpochMillis()   duyệt corpus MỘT lần → Map<docId, epochMillis>
+         ├─ ScorerFactory.create(pageRankScores, crawledAt)         (Factory + Decorator)
          │  ├─ createBase: app.ranking.scorer = tfidf | bm25
+         │  ├─ PageRankBoostScorer β = app.ranking.beta  0.30
          │  ├─ TitleBoostScorer   γ = app.ranking.gamma 0.10
-         │  └─ PageRankBoostScorer β = app.ranking.beta  0.30
+         │  └─ RecencyBoostScorer δ = app.ranking.delta 0.20  (bỏ qua nếu crawledAt rỗng)
          ├─ SuggestionService.rebuild(index)      → Trie tiền tố từ term của chỉ mục
          ├─ searchCache = new LRUCache(200)       ← chỉ mục đổi thì cache CŨ phải bỏ
          └─ CorpusStats.from(documents, docId → index.getDocLength(docId))

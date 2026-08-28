@@ -36,6 +36,7 @@
 - [14. Decorator pattern — vì sao không thêm tham số vào công thức](#14-decorator-pattern--vì-sao-không-thêm-tham-số-vào-công-thức)
 - [15. `PageRankBoostScorer`](#15-pagerankboostscorer)
 - [16. `TitleBoostScorer`](#16-titleboostscorer)
+  - [16.4 `RecencyBoostScorer` — tín hiệu độ mới](#164-recencyboostscorer--tín-hiệu-độ-mới)
 - [17. `QuerySyllables` — khớp chặt và khớp lỏng dấu](#17-querysyllables--khớp-chặt-và-khớp-lỏng-dấu)
 
 ### PHẦN V — PAGERANK
@@ -184,12 +185,14 @@ flowchart TD
         direction LR
         BASE["TfIdfScorer<br/>hoặc BM25Scorer"] --> PR["PageRankBoostScorer<br/>β = 0.30"]
         PR --> TITLE["TitleBoostScorer<br/>γ = 0.10"]
+        TITLE --> REC["RecencyBoostScorer<br/>δ = 0.20"]
     end
 
     SCORER -.->|"tham số scorer"| G0
 
     PRSVC["PageRankService.computePageRank<br/>chạy MỘT lần khi refreshDerivedState()<br/>KHÔNG nằm trên đường truy vấn"] -.->|"pageRankScores"| PR
     PRSVC -.->|"pageRankScores"| G1
+    CRAWLED["crawledAtEpochMillis()<br/>Map&lt;docId, epochMillis&gt;<br/>dựng MỘT lần khi refreshDerivedState()"] -.->|"crawledAt"| REC
 
     G3 --> OUT(["List&lt;RankedResult&gt;<br/>đã sắp giảm dần theo finalScore"])
 
@@ -228,15 +231,18 @@ candidateDocIds (từ CandidateResolver, không thứ tự)
 
 scorer (tham số truyền vào, dựng sẵn trong ScorerFactory.create, KHÔNG dựng lại mỗi truy vấn):
 
-  TfIdfScorer|BM25Scorer  →  PageRankBoostScorer(β=0.30)  →  TitleBoostScorer(γ=0.10)
-  [lớp trong cùng]           [lớp bọc 1]                      [lớp bọc 2]
+  TfIdfScorer|BM25Scorer  →  PageRankBoostScorer(β=0.30)  →  TitleBoostScorer(γ=0.10)  →  RecencyBoostScorer(δ=0.20)
+  [lớp trong cùng]           [lớp bọc 1]                      [lớp bọc 2]                    [lớp bọc 3, ngoài cùng]
 
-  điểm cuối = base(q,d) · (1 + β·PR̂(d)) · (1 + γ·title(q,d))
+  điểm cuối = base(q,d) · (1 + β·PR̂(d)) · (1 + γ·title(q,d)) · (1 + δ·recency(d))
 
 
 PageRankService.computePageRank(...) chạy MỘT lần trong refreshDerivedState() —
 KHÔNG nằm trên đường mỗi truy vấn — kết quả nạp vào cả PageRankBoostScorer lẫn
 GIAI ĐOẠN 1 (để trả pageRankScore ra API, mục đích BÁO CÁO).
+
+crawledAtEpochMillis() (bản đồ docId → mốc crawl) cũng dựng MỘT lần trong
+refreshDerivedState() và nạp vào RecencyBoostScorer — xem [mục 16.4].
 ```
 
 </details>
@@ -264,6 +270,7 @@ tên chấm ("tham số truyền vào").
 | 4 | `ranking/ScorerFactory.java` | Factory chọn base scorer + lắp Decorator | [13](#13-scorerfactory--factory-pattern-chọn-và-lắp-ráp) |
 | 5 | `ranking/decorator/PageRankBoostScorer.java` | Decorator — nhân thêm tín hiệu uy tín | [15](#15-pagerankboostscorer) |
 | 6 | `ranking/decorator/TitleBoostScorer.java` | Decorator — nhân thêm tín hiệu khớp tiêu đề | [16](#16-titleboostscorer) |
+| 6b | `ranking/decorator/RecencyBoostScorer.java` | Decorator — nhân thêm tín hiệu độ mới (`crawledAt`) | [16.4](#164-recencyboostscorer--tín-hiệu-độ-mới) |
 | 7 | `ranking/QuerySyllables.java` | Tập tiếng của truy vấn — dùng cho title boost VÀ snippet | [17](#17-querysyllables--khớp-chặt-và-khớp-lỏng-dấu) |
 | 8 | `ranking/PageRankService.java` | Thuật toán PageRank — power iteration | [19](#19-pagerankservice--power-iteration-đầy-đủ) |
 | 9 | `ranking/SnippetBuilder.java` | Sinh đoạn trích, cửa sổ trượt, chống XSS | [22](#22-snippetbuilder--cửa-sổ-trượt-và-chống-xss) |
@@ -405,15 +412,25 @@ Không giống ba giai đoạn trên (chạy trên MỖI truy vấn), PageRank �
 pageRankScores = index.getTotalDocs() > 0
         ? pageRankService.computePageRank(index.getAllDocuments()).scores()
         : Map.of();
-scorer = scorerFactory.create(pageRankScores);   // Factory + Decorator, cũng dựng lại ở đây
+// crawledAtEpochMillis(): duyệt index.getAllDocuments() MỘT lần, gom
+// Map<docId, Instant#toEpochMilli()>, bỏ tài liệu không có crawledAt.
+scorer = scorerFactory.create(pageRankScores, crawledAtEpochMillis());   // Factory + Decorator, cũng dựng lại ở đây
 ```
+
+Cả `pageRankScores` lẫn bản đồ `crawledAt` đều là **trạng thái dẫn xuất từ
+chỉ mục**: dựng một lần ở đây, không tính lại trên đường truy vấn. Bản đồ
+`crawledAt` chỉ đổi khi có tài liệu mới (một phiên crawl), đúng như PageRank
+chỉ đổi khi đồ thị liên kết đổi.
 
 ```mermaid
 flowchart LR
     A["Crawl xong /<br/>reindex"] --> B["refreshDerivedState()"]
     B --> C["PageRankService.computePageRank<br/>toàn bộ corpus"]
+    B --> C2["crawledAtEpochMillis()<br/>duyệt corpus MỘT lần"]
     C --> D["pageRankScores<br/>Map&lt;docId, Double&gt;"]
+    C2 --> D2["crawledAt<br/>Map&lt;docId, epochMillis&gt;"]
     D --> E["ScorerFactory.create<br/>dựng lại chuỗi Decorator"]
+    D2 --> E
     D --> F["ResultRanker.rank<br/>đọc Map này ở MỌI truy vấn sau,<br/>KHÔNG tính lại"]
 
     style A fill:#c9720b,color:#fff
@@ -433,11 +450,12 @@ refreshDerivedState()
 PageRankService.computePageRank(toàn bộ corpus)   ← tốn, nhưng chạy HIẾM
         │
         ▼
-pageRankScores : Map<docId, Double>
+pageRankScores : Map<docId, Double>          crawledAt : Map<docId, epochMillis>
+        │                                            │
+        ├──> ScorerFactory.create(pageRankScores, crawledAt)
+        │        dựng lại chuỗi Decorator (PageRankBoostScorer + RecencyBoostScorer mới)
         │
-        ├──> ScorerFactory.create(...)   dựng lại chuỗi Decorator (PageRankBoostScorer mới)
-        │
-        └──> ResultRanker.rank(...)      MỌI truy vấn sau chỉ ĐỌC Map này, không tính lại
+        └──> ResultRanker.rank(...)      MỌI truy vấn sau chỉ ĐỌC các Map này, không tính lại
 ```
 
 </details>
@@ -882,6 +900,7 @@ app.ranking.bm25.k1=1.2
 app.ranking.bm25.b=0.75
 app.ranking.beta=0.30     # trọng số PageRank
 app.ranking.gamma=0.10    # trọng số khớp tiêu đề
+app.ranking.delta=0.20    # trọng số độ mới (crawledAt)
 ```
 
 ### 13.2 Hai bước: chọn CƠ SỞ, rồi BỌC tín hiệu
@@ -897,7 +916,14 @@ public RelevanceScorer createBase() {
     };
 }
 
+// Bản một tham số giữ nguyên cho test / runner cũ — nó gọi lại bản đầy đủ
+// với bản đồ crawledAt RỖNG, nên RecencyBoostScorer không được bọc.
 public RelevanceScorer create(Map<Integer, Double> pageRankScores) {
+    return create(pageRankScores, Map.of());
+}
+
+public RelevanceScorer create(Map<Integer, Double> pageRankScores,
+                               Map<Integer, Long> crawledAtEpochMillis) {
     RelevanceScorer scorer = createBase();
     if (pageRankWeight > 0 && pageRankScores != null && !pageRankScores.isEmpty()) {
         scorer = new PageRankBoostScorer(scorer, pageRankScores, pageRankWeight);
@@ -905,19 +931,25 @@ public RelevanceScorer create(Map<Integer, Double> pageRankScores) {
     if (titleWeight > 0) {
         scorer = new TitleBoostScorer(scorer, titleWeight);
     }
+    if (recencyWeight > 0 && crawledAtEpochMillis != null && !crawledAtEpochMillis.isEmpty()) {
+        scorer = new RecencyBoostScorer(scorer, crawledAtEpochMillis, recencyWeight);
+    }
     return scorer;
 }
 ```
 
 ★ **Thứ tự bọc CÓ ý nghĩa.** Scorer cơ sở nằm trong cùng, các tín hiệu bổ
-sung bọc dần ra ngoài — `PageRankBoostScorer` bọc trước, `TitleBoostScorer`
-bọc sau (bọc ngoài cùng). Tên của kết quả tự ghép thành mô tả đầy đủ, ví dụ
-`"BM25(k1=1.2,b=0.75) + PR x0.30 + title x0.10"` — mỗi lớp `name()` chỉ cần
-biết TÊN của lớp trong nó bọc, không cần biết toàn bộ chuỗi.
+sung bọc dần ra ngoài — `PageRankBoostScorer` bọc trước, rồi `TitleBoostScorer`,
+rồi `RecencyBoostScorer` (bọc ngoài cùng). Tên của kết quả tự ghép thành mô
+tả đầy đủ, ví dụ
+`"BM25(k1=1.2,b=0.75) + PR x0.30 + title x0.10 + recency x0.20"` — mỗi lớp
+`name()` chỉ cần biết TÊN của lớp trong nó bọc, không cần biết toàn bộ chuỗi.
 
-★ **Trọng số 0 → không bọc, không trả chi phí.** `if (pageRankWeight > 0 ...)`
-và `if (titleWeight > 0)` là hai lần kiểm tra TẠI THỜI ĐIỂM LẮP RÁP (một lần
-mỗi khi `refreshDerivedState()` chạy), không phải tại thời điểm chấm điểm.
+★ **Trọng số 0 → không bọc, không trả chi phí.** `if (pageRankWeight > 0 ...)`,
+`if (titleWeight > 0)` và `if (recencyWeight > 0 ...)` là các lần kiểm tra TẠI
+THỜI ĐIỂM LẮP RÁP (một lần mỗi khi `refreshDerivedState()` chạy), không phải
+tại thời điểm chấm điểm. `RecencyBoostScorer` còn bị bỏ qua khi bản đồ
+`crawledAt` rỗng — ví dụ khi gọi từ bản `create` một tham số.
 Tắt một tín hiệu bằng cách đặt trọng số 0 trong cấu hình nghĩa là lớp
 Decorator tương ứng KHÔNG BAO GIỜ được tạo ra — không một phép nhân thừa nào
 chạy trên đường nóng vì một tín hiệu đang tắt.
@@ -927,14 +959,19 @@ chạy trên đường nóng vì một tín hiệu đang tắt.
 ```java
 public ScorerFactory() { }   // @Component — Spring tiêm giá trị qua @Value
 
+// dùng cho test, runner ngoài Spring — gọi lại bản 6 tham số với δ = 0.20
 public ScorerFactory(String scorerType, double k1, double b,
-                      double pageRankWeight, double titleWeight) { ... }   // dùng cho test, runner ngoài Spring
+                      double pageRankWeight, double titleWeight) { ... }
+
+public ScorerFactory(String scorerType, double k1, double b,
+                      double pageRankWeight, double titleWeight, double recencyWeight) { ... }
 ```
 
-Constructor thứ hai tồn tại vì các bài đo (`EvaluationRunner` và tương tự)
-cần quét qua nhiều tổ hợp `(scorerType, β, γ)` trong CÙNG một lần chạy —
-không thể mỗi tổ hợp lại khởi động một ngữ cảnh Spring riêng chỉ để đổi giá
-trị `@Value`.
+Hai constructor tường minh tồn tại vì các bài đo (`EvaluationRunner` và tương
+tự) cần quét qua nhiều tổ hợp `(scorerType, β, γ, δ)` trong CÙNG một lần chạy
+— không thể mỗi tổ hợp lại khởi động một ngữ cảnh Spring riêng chỉ để đổi giá
+trị `@Value`. Bản 5 tham số giữ lại để test cũ không phải sửa; nó chọn
+`δ = 0.20` mặc định.
 
 ---
 
@@ -962,8 +999,11 @@ số. Xem con số cụ thể ở [mục 15](#15-pagerankboostscorer).
 ### 14.2 Cách Decorator sửa nó
 
 ```
-final = base(q,d) · (1 + β·PR̂(d)) · (1 + γ·title(q,d))
+final = base(q,d) · (1 + β·PR̂(d)) · (1 + γ·title(q,d)) · (1 + δ·recency(d))
 ```
+
+Mỗi thừa số `(1 + w·tín_hiệu)` là một lớp bọc độc lập; thêm `RecencyBoostScorer`
+chỉ là thêm một thừa số nữa vào cuối, không đụng tới ba thừa số đã có.
 
 Mỗi tín hiệu bổ sung là một LỚP BỌC quanh scorer nó nhận vào, cùng cài đúng
 giao diện `RelevanceScorer` — nên bọc thêm bao nhiêu lớp cũng được, và thứ tự
@@ -989,13 +1029,20 @@ classDiagram
         -RelevanceScorer inner
         -double weight
     }
+    class RecencyBoostScorer {
+        -RelevanceScorer inner
+        -Map~Integer,Long~ crawledAtEpochMillis
+        -double weight
+    }
 
     RelevanceScorer <|.. TfIdfScorer
     RelevanceScorer <|.. BM25Scorer
     RelevanceScorer <|.. PageRankBoostScorer
     RelevanceScorer <|.. TitleBoostScorer
+    RelevanceScorer <|.. RecencyBoostScorer
     PageRankBoostScorer o--> RelevanceScorer : inner
     TitleBoostScorer o--> RelevanceScorer : inner
+    RecencyBoostScorer o--> RelevanceScorer : inner
 ```
 
 <details>
@@ -1003,21 +1050,22 @@ classDiagram
 
 ```
 RelevanceScorer (interface): score(), name(), prepare()
-        ▲                          ▲                      ▲                      ▲
-        │ implements               │ implements            │ implements            │ implements
-   TfIdfScorer                 BM25Scorer          PageRankBoostScorer       TitleBoostScorer
-                                                     │ có trường "inner"        │ có trường "inner"
-                                                     │ kiểu RelevanceScorer     │ kiểu RelevanceScorer
-                                                     └──> bọc BẤT KỲ scorer nào, kể cả một Decorator khác
+        ▲             ▲              ▲                    ▲                   ▲
+        │ impl        │ impl         │ impl               │ impl              │ impl
+   TfIdfScorer    BM25Scorer   PageRankBoostScorer   TitleBoostScorer   RecencyBoostScorer
+                                    │ trường "inner"      │ trường "inner"     │ trường "inner"
+                                    │ kiểu RelevanceScorer  ... (như bên trái) ...
+                                    └──> bọc BẤT KỲ scorer nào, kể cả một Decorator khác
 ```
 
 </details>
 
-★ Vì `PageRankBoostScorer` và `TitleBoostScorer` đều nhận `inner` kiểu
-`RelevanceScorer` (không phải `TfIdfScorer` hay `BM25Scorer` cụ thể), chúng
-BỌC ĐƯỢC LẪN NHAU: `ScorerFactory.create` bọc `PageRankBoostScorer` trước rồi
-`TitleBoostScorer` sau, nhưng đảo thứ tự cũng biên dịch được — chỉ là tên mô
-tả (`name()`) sẽ ghép theo thứ tự khác. Đây là điểm khác biệt cốt lõi với
+★ Vì cả ba Decorator (`PageRankBoostScorer`, `TitleBoostScorer`,
+`RecencyBoostScorer`) đều nhận `inner` kiểu `RelevanceScorer` (không phải
+`TfIdfScorer` hay `BM25Scorer` cụ thể), chúng BỌC ĐƯỢC LẪN NHAU:
+`ScorerFactory.create` bọc `PageRankBoostScorer` trước, rồi `TitleBoostScorer`,
+rồi `RecencyBoostScorer`, nhưng đảo thứ tự cũng biên dịch được — chỉ là tên
+mô tả (`name()`) sẽ ghép theo thứ tự khác. Đây là điểm khác biệt cốt lõi với
 kế thừa: nếu `TitleBoostScorer` PHẢI kế thừa `BM25Scorer` để thêm tín hiệu,
 nó không thể bọc thêm `PageRankBoostScorer` mà không nhân bản mã.
 
@@ -1161,6 +1209,81 @@ của bất biến vòng lặp bị kẹt bên trong vòng lặp".
 ★ Cùng công thức NHÂN và cùng lý do bất biến thang như `PageRankBoostScorer`:
 `titleBonus` đã nằm sẵn trong `[0,1]` nên không cần chuẩn hoá log, nhưng vẫn
 nhân chứ không cộng để bất biến khi đổi scorer cơ sở.
+
+### 16.4 `RecencyBoostScorer` — tín hiệu độ mới
+
+**File:** `ranking/decorator/RecencyBoostScorer.java`
+
+Lớp bọc thứ ba, **ngoài cùng** trong chuỗi mà `ScorerFactory.create` lắp.
+Nó thưởng thêm cho tài liệu được crawl gần đây — mốc lấy từ
+`WebDocument.getCrawledAt()`, tức theo LẦN CRAWLER chạy, **không** phải ngày
+xuất bản ghi trong bài (nhiều trang không khai báo, hoặc khai báo sai).
+
+#### 16.4.1 Chuẩn hoá tuyến tính về `[0, 1]`
+
+Khác `PageRankBoostScorer` (phải nén log vì PageRank trải trên nhiều bậc độ
+lớn), mốc thời gian phân bố tương đối đều nên chuẩn hoá tuyến tính là đủ:
+
+```
+recency(d) = (crawledAt(d) − minCrawledAt) / (maxCrawledAt − minCrawledAt)   ∈ [0, 1]
+```
+
+`minCrawledAt` / `maxCrawledAt` tính MỘT lần trong constructor từ toàn bộ bản
+đồ `crawledAt`. Tài liệu mới nhất trong corpus được `recency = 1`, cũ nhất
+được `0`. Mẫu số được kẹp `≥ 1` ms để corpus chỉ có một mốc (hoặc mọi tài
+liệu cùng mốc) không chia cho 0.
+
+#### 16.4.2 Công thức — vẫn NHÂN, cùng lý do bất biến thang
+
+```
+final = base(q,d) · (1 + δ · recency(d))
+```
+
+với `δ = app.ranking.delta` (mặc định `0.20`). Nhân chứ không cộng, y hệt hai
+Decorator trước: đổi scorer cơ sở từ TF-IDF (~0,18) sang BM25 (~12) KHÔNG cần
+chỉnh lại `δ`.
+
+#### 16.4.3 Ba lối thoát sớm
+
+```java
+@Override
+public DocumentScorer prepare(Map<String, Integer> queryTermFrequency, SearchIndex index) {
+    DocumentScorer base = inner.prepare(queryTermFrequency, index);
+    if (weight == 0.0 || crawledAtEpochMillis.isEmpty()) {
+        return base;                       // (1) tín hiệu tắt / không có mốc nào → không bọc
+    }
+    return docId -> {
+        double baseScore = base.score(docId);
+        if (baseScore == 0.0) {
+            return baseScore;              // (2) độ mới không cứu được tài liệu không liên quan
+        }
+        Long millis = crawledAtEpochMillis.get(docId);
+        if (millis == null) {
+            return baseScore;              // (3) tài liệu thiếu crawledAt → giữ nguyên điểm gốc
+        }
+        double normalized = (double) (millis - minEpochMillis) / rangeMillis;
+        if (normalized < 0.0) {
+            normalized = 0.0;
+        } else if (normalized > 1.0) {
+            normalized = 1.0;
+        }
+        return baseScore * (1 + weight * normalized);
+    };
+}
+```
+
+Lưu ý (3) khác `FeedController`: ở đây tài liệu thiếu mốc **giữ nguyên điểm**
+(không bị phạt), còn ở dòng tin thì bị đẩy **xuống cuối** — vì dòng tin sắp
+thuần theo thời gian nên "không có thời gian" chỉ có thể xếp chót.
+
+#### 16.4.4 `name()`
+
+```
+<tên lớp trong> + recency x0.20
+```
+
+ghép sau cùng, ví dụ đầy đủ:
+`"TF-IDF cosine + PR x0.30 + title x0.10 + recency x0.20"`.
 
 ---
 
@@ -1894,6 +2017,13 @@ mà `ScorerFactory.create` sẽ lắp trong sản phẩm thật. PageRank ở
 [mục 20.2](#202-đồ-thị-5-trang-máy-tính-xách-tay-dựng-cho-tài-liệu-này-chạy-thật)
 được tính trên ĐÚNG đồ thị liên kết của năm trang này.
 
+> **Trace này CỐ Ý dừng ở lớp `TitleBoostScorer`, không bọc `RecencyBoostScorer`.**
+> Năm tài liệu mẫu được nạp trong cùng một lần chạy nên `crawledAt` của chúng
+> chênh nhau vài mili-giây — `recency(d)` gần như bằng nhau và thừa số
+> `(1 + δ·recency)` chỉ nhân đều mọi điểm, không đổi thứ hạng. Mục đích của
+> PHẦN này là trace số học của `base · (1 + β·PR̂) · (1 + γ·title)`; tín hiệu
+> độ mới đã tách riêng ở [mục 16.4](#164-recencyboostscorer--tín-hiệu-độ-mới).
+
 | docId | Tiêu đề | outlinks |
 |---|---|---|
 | 0 | Đánh giá máy tính xách tay 2026: mẫu nào đáng mua | → doc1, doc2 |
@@ -2040,12 +2170,14 @@ và [mục 12](#12-tf-idf-đấu-bm25--hai-đường-cong-bão-hoà).
 | `BM25Scorer.DEFAULT_B` | `0,75` | `BM25Scorer.java` | Có — `app.ranking.bm25.b` |
 | Trọng số PageRank `β` | `0,30` | `ScorerFactory.java` | Có — `app.ranking.beta` |
 | Trọng số tiêu đề `γ` | `0,10` | `ScorerFactory.java` | Có — `app.ranking.gamma` |
+| Trọng số độ mới `δ` | `0,20` | `ScorerFactory.java` | Có — `app.ranking.delta` |
 | `scorerType` mặc định | `tfidf` | `ScorerFactory.java` / `application.properties` | Có — `app.ranking.scorer` |
 | `PageRankService.DAMPING` | `0,85` | `PageRankService.java` | Không — hằng số cứng |
 | `PageRankService.EPSILON` | `1e-6` | `PageRankService.java` | Không — hằng số cứng |
 | `PageRankService.MAX_ITERATIONS` | `100` | `PageRankService.java` | Không — hằng số cứng |
 | `SnippetBuilder.DEFAULT_WINDOW_SIZE` | `25` từ | `SnippetBuilder.java` | Không qua cấu hình — có constructor `SnippetBuilder(int)` |
 | `PageRankBoostScorer.minPageRank` mặc định | `1e-9` | `PageRankBoostScorer.java` | Không — tự tính, chỉ dùng khi không có PR dương nào |
+| `RecencyBoostScorer.rangeMillis` tối thiểu | `1` ms | `RecencyBoostScorer.java` | Không — kẹp cứng để không chia cho 0 |
 | Cache truy vấn LRU | `200` mục | `application.properties` | Có — `app.search.cache-size` |
 
 ⚠ **Lưu ý quan trọng: `app.ranking.scorer` mặc định là `tfidf`, KHÔNG phải
@@ -2068,6 +2200,7 @@ dùng BM25 trong triển khai thật phải đặt biến môi trường
 | Chọn + lắp scorer | `ranking/ScorerFactory.java` | `createBase`, `create` |
 | Boost PageRank | `ranking/decorator/PageRankBoostScorer.java` | constructor (tính `minPageRank`/`logRange`), `prepare` |
 | Boost tiêu đề | `ranking/decorator/TitleBoostScorer.java` | `prepare` |
+| Boost độ mới | `ranking/decorator/RecencyBoostScorer.java` | constructor (tính `minEpochMillis`/`rangeMillis`), `prepare` |
 | Tập tiếng truy vấn | `ranking/QuerySyllables.java` | `from`, `matches`, `titleMatchRatio` |
 | PageRank | `ranking/PageRankService.java` | `computePageRank` |
 | Ma trận thưa | `datastructure/SparseMatrix.java` *(core-common)* | `set`, `freeze`, `multiply` |
@@ -2284,8 +2417,17 @@ SearchEngineFacade.search  →  ResultRanker.rank(candidates, qtf, index, scorer
                bonus = titleMatchRatio(title) = min(1, số từ tiêu đề khớp / |exact|) ∈ [0, 1]
                base · (1 + γ · bonus)
 
-   ⇒ điểm cuối = base(q, d) · (1 + β·PR̂(d)) · (1 + γ·title(q, d))
-      tên scorer hiện hành in ra log:  "TF-IDF cosine + PR x0.30 + title x0.10"  (hoặc "BM25(k1=1.2,b=0.75) + ...")
+   └─ [lớp bọc 3] RecencyBoostScorer                   δ = app.ranking.delta = 0.20
+      ├─ weight == 0 hoặc bản đồ crawledAt rỗng → trả thẳng base
+      └─ trả docId →
+            base == 0 → thoát sớm
+            crawledAt(docId) == null → trả thẳng base (không phạt)
+            recency = kẹp01((crawledAt − minCrawledAt) / (maxCrawledAt − minCrawledAt)) ∈ [0, 1]
+            base · (1 + δ · recency)
+
+   ⇒ điểm cuối = base(q, d) · (1 + β·PR̂(d)) · (1 + γ·title(q, d)) · (1 + δ·recency(d))
+      tên scorer hiện hành in ra log:  "TF-IDF cosine + PR x0.30 + title x0.10 + recency x0.20"
+                                       (hoặc "BM25(k1=1.2,b=0.75) + ...")
 
 ├─ GIAI ĐOẠN 1 — CHỈ chấm điểm, chưa sinh snippet
 │  ∀ docId ∈ candidates:

@@ -4,6 +4,9 @@ backend/sarif/
 backend/.mvn/wrapper/maven-wrapper.jar
 *.class
 
+# Backend (Go) — binary do run-backend.bat dựng ra
+backend/go/bin/
+
 # Frontend (Electron / Node)
 desktop-app/node_modules/
 desktop-app/out/

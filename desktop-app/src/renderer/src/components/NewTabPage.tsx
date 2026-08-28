@@ -15,6 +15,7 @@ import { useSearchViewStore } from '../store/searchViewStore'
 import { useTabStore } from '../store/tabStore'
 import { useShortcutStore } from '../store/shortcutStore'
 import { hostOf, siteGradient, siteInitial } from '../lib/site'
+import { relativeTime } from '../lib/format'
 import {
   AlertIcon,
   CloseIcon,
@@ -873,9 +874,14 @@ function HotNews(): JSX.Element {
                 <span className="flex min-w-0 flex-1 flex-col gap-2 p-3">
                   <span className="flex items-center gap-1.5">
                     <GlobeIcon className="h-3 w-3 shrink-0 text-faint transition-colors group-hover:text-brand" />
-                    <span className="truncate text-[11px] text-faint">
+                    <span className="min-w-0 flex-1 truncate text-[11px] text-faint">
                       {card.host || hostOf(card.url)}
                     </span>
+                    {relativeTime(card.crawledAt) && (
+                      <span className="shrink-0 text-[11px] text-faint">
+                        {relativeTime(card.crawledAt)}
+                      </span>
+                    )}
                   </span>
                   <span className="line-clamp-2 text-[13px] font-medium leading-snug text-ink transition-colors group-hover:text-brand">
                     {card.title}

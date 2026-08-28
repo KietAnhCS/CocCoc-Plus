@@ -27,6 +27,8 @@ export interface FeedCard {
   imageUrl: string
   altText: string
   host: string
+  /** Lần CRAWLER thu thập trang này (ISO). Rỗng khi tài liệu không có mốc. */
+  crawledAt: string
 }
 
 export interface FeedResponse {
@@ -52,22 +54,12 @@ export interface FeedResponse {
 }
 
 /**
- * Hạt giống xáo trộn, sinh MỘT LẦN cho mỗi lần nạp cửa sổ.
- *
- * Đây là thứ giữ cho dòng tin vừa ngẫu nhiên vừa phân trang được: máy chủ xáo
- * danh sách bằng đúng hạt giống này, nên mọi lô nhìn cùng một hoán vị và lô 2
- * nối khít vào sau lô 1. Không có nó thì mỗi lô xáo lại từ đầu, và bài vừa lặp
- * vừa thiếu khi cuộn — đúng lỗi mà tab Hình ảnh đã vấp một lần.
- *
- * Đặt ở tầng module chứ không phải trong component: mở thêm tab mới trong cùng
- * cửa sổ vẫn giữ nguyên dòng tin. Quay lại một tab cũ mà thấy nội dung nhảy
- * sang bài khác thì rất khó chịu.
+ * Máy chủ sắp dòng tin theo `crawledAt` giảm dần — bài crawl gần đây nhất lên
+ * đầu. Thứ tự tất định nên không cần hạt giống: mọi lô nhìn cùng một dãy và lô
+ * 2 nối khít vào sau lô 1 khi cuộn.
  */
-const FEED_SEED = Math.floor(Math.random() * 1_000_000)
-
 export async function fetchFeed(page = 1, size = 12): Promise<FeedResponse> {
   const raw = await getJson<Partial<FeedResponse>>('/api/feed', {
-    seed: FEED_SEED,
     page,
     size
   })
@@ -75,9 +67,9 @@ export async function fetchFeed(page = 1, size = 12): Promise<FeedResponse> {
   // Lọc phòng thủ: máy chủ đã chỉ trả bài có ảnh, nhưng một thẻ thiếu `url`
   // hay `imageUrl` sẽ tạo ra một ô vỡ không bấm được. Rẻ hơn nhiều là bỏ nó ở
   // đây so với việc dò một ô hỏng lẻ trong lưới.
-  const results = (raw.results ?? []).filter(
-    (card): card is FeedCard => Boolean(card?.url) && Boolean(card?.imageUrl)
-  )
+  const results = (raw.results ?? [])
+    .filter((card): card is FeedCard => Boolean(card?.url) && Boolean(card?.imageUrl))
+    .map((card) => ({ ...card, crawledAt: card.crawledAt ?? '' }))
 
   return {
     results,

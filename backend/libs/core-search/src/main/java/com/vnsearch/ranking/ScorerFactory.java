@@ -1,6 +1,7 @@
 package com.vnsearch.ranking;
 
 import com.vnsearch.ranking.decorator.PageRankBoostScorer;
+import com.vnsearch.ranking.decorator.RecencyBoostScorer;
 import com.vnsearch.ranking.decorator.TitleBoostScorer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -27,6 +28,7 @@ import java.util.Map;
  *   app.ranking.bm25.b=0.75
  *   app.ranking.beta=0.30     # trong so PageRank
  *   app.ranking.gamma=0.10    # trong so khop tieu de
+ *   app.ranking.delta=0.20    # trong so do moi (crawledAt)
  * </pre>
  *
  * <p><b>Thu tu boc Decorator</b> co y nghia: scorer co so nam trong cung, cac
@@ -51,17 +53,26 @@ public class ScorerFactory {
     @Value("${app.ranking.gamma:0.10}")
     private double titleWeight = 0.10;
 
+    @Value("${app.ranking.delta:0.20}")
+    private double recencyWeight = 0.20;
+
     public ScorerFactory() {
     }
 
     /** Constructor tuong minh cho test va cho cac runner chay ngoai Spring. */
     public ScorerFactory(String scorerType, double k1, double b,
                           double pageRankWeight, double titleWeight) {
+        this(scorerType, k1, b, pageRankWeight, titleWeight, 0.20);
+    }
+
+    public ScorerFactory(String scorerType, double k1, double b,
+                          double pageRankWeight, double titleWeight, double recencyWeight) {
         this.scorerType = scorerType;
         this.k1 = k1;
         this.b = b;
         this.pageRankWeight = pageRankWeight;
         this.titleWeight = titleWeight;
+        this.recencyWeight = recencyWeight;
     }
 
     /** Tao scorer CO SO (chua boc tin hieu bo sung). */
@@ -82,12 +93,20 @@ public class ScorerFactory {
      * cho mot tin hieu bi tat.
      */
     public RelevanceScorer create(Map<Integer, Double> pageRankScores) {
+        return create(pageRankScores, Map.of());
+    }
+
+    public RelevanceScorer create(Map<Integer, Double> pageRankScores,
+                                   Map<Integer, Long> crawledAtEpochMillis) {
         RelevanceScorer scorer = createBase();
         if (pageRankWeight > 0 && pageRankScores != null && !pageRankScores.isEmpty()) {
             scorer = new PageRankBoostScorer(scorer, pageRankScores, pageRankWeight);
         }
         if (titleWeight > 0) {
             scorer = new TitleBoostScorer(scorer, titleWeight);
+        }
+        if (recencyWeight > 0 && crawledAtEpochMillis != null && !crawledAtEpochMillis.isEmpty()) {
+            scorer = new RecencyBoostScorer(scorer, crawledAtEpochMillis, recencyWeight);
         }
         return scorer;
     }

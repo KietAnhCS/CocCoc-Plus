@@ -36,7 +36,7 @@
 # lập trình viên thì hoàn toàn bình thường, và thông báo lỗi không hề nhắc tới
 # Git hay quyền tệp trong kho. Sửa một lần bằng:
 #
-#     git update-index --chmod=+x backend/mvnw
+#     git update-index --chmod=+x backend/java/mvnw
 
 #
 # ═══════════════════════════════════════════════════════════════════════════
@@ -103,7 +103,7 @@ jobs:
       # `verify` chứ không phải `test`: pha verify mới chạy jacoco:check và
       # sinh báo cáo gộp. Chạy `test` là bỏ qua cổng độ phủ.
       - name: Test và đo độ phủ
-        working-directory: backend
+        working-directory: backend/java
         # -B (batch) tắt thanh tiến độ động, thứ chỉ có nghĩa trên terminal
         # thật và chỉ làm bẩn log của CI.
         run: ./mvnw -B clean verify -Dspotbugs.skip=true
@@ -112,13 +112,13 @@ jobs:
       # trang Actions mà không phải tải tệp về rồi mở ra.
       #
       # Đường dẫn phải là báo cáo GỘP của module `coverage`. Trong reactor đa
-      # module, `backend/target/site/jacoco/` KHÔNG BAO GIỜ tồn tại: mỗi module
+      # module, `backend/java/target/site/jacoco/` KHÔNG BAO GIỜ tồn tại: mỗi module
       # sinh báo cáo trong target của chính nó, còn thư mục gốc không chứa mã
       # nguồn nào. Trỏ sai chỗ thì bước này im lặng in "không có báo cáo" ở mọi
       # lần chạy, và phần tóm tắt trông như thể độ phủ chưa từng được đo.
       - name: Tóm tắt độ phủ
         if: always()
-        working-directory: backend
+        working-directory: backend/java
         run: |
           CSV=coverage/target/site/jacoco-aggregate/jacoco.csv
           if [ ! -f "$CSV" ]; then
@@ -144,7 +144,7 @@ jobs:
           name: bao-cao-backend
           path: |
             backend/**/target/surefire-reports/
-            backend/coverage/target/site/jacoco-aggregate/
+            backend/java/coverage/target/site/jacoco-aggregate/
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════════════
@@ -175,7 +175,7 @@ jobs:
           cache: maven
 
       - name: Phân tích tĩnh
-        working-directory: backend
+        working-directory: backend/java
         run: ./mvnw -B -T 1C clean verify -DskipTests -Djacoco.skip=true
 
       # Cảnh báo phân tích tĩnh hiện thẳng trong tab Security và trong diff của
@@ -189,7 +189,7 @@ jobs:
         run: |
           mkdir -p backend/sarif
           find backend -name spotbugsSarif.json -print0 | while IFS= read -r -d '' f; do
-            module=$(echo "$f" | sed -E 's|backend/(.*)/target/.*|\1|; s|/|-|g')
+            module=$(echo "$f" | sed -E 's|backend/java/(.*)/target/.*|\1|; s|/|-|g')
             cp "$f" "backend/sarif/${module}.sarif"
           done
           ls -la backend/sarif || true
@@ -204,6 +204,56 @@ jobs:
           sarif_file: backend/sarif/
           category: spotbugs
         continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════
+  # Backend Go — football-service và tầng platform dùng chung
+  # ═══════════════════════════════════════════════════════════════════════
+  #
+  # Job RIÊNG với chuỗi công cụ riêng: `go build` / `go vet` / `go test`.
+  # football/settings/downloads/history viết lại từ Java sang Go (chi + pgx /
+  # mongo-driver) để cắt ~300 MB RAM JVM mỗi service; tất cả dùng chung một
+  # module `backend/go`.
+  #
+  # gofmt là cổng chặn: mã lệch định dạng làm diff nhiễu và không có công cụ
+  # nào khác bắt được.
+  #
+  # Bước "tích hợp CSDL" thay cho job `data-integration` (Testcontainers) đã bỏ:
+  # nó dựng Postgres/Mongo THẬT bằng dockertest và kiểm những thứ chỉ CSDL thật
+  # bắt được — ràng buộc CHECK, phép gộp jsonb `||`, chỉ mục TTL của Mongo.
+  # Chạy được vì runner ubuntu-latest có sẵn Docker; thiếu Docker thì test tự
+  # `t.Skip`.
+  backend-go:
+    name: 'Backend Go: build + vet + test'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: backend/go/go.sum
+
+      - name: gofmt
+        working-directory: backend/go
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Các tệp chưa gofmt:"; echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        working-directory: backend/go
+        run: go vet ./...
+
+      - name: go test
+        working-directory: backend/go
+        run: go test -race ./...
+
+      - name: go test (tích hợp CSDL — Postgres/Mongo thật qua dockertest)
+        working-directory: backend/go
+        run: go test -tags=integration -timeout 10m ./...
 
   frontend:
     name: Frontend (Electron + TypeScript)
@@ -275,6 +325,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./backend
+          file: ./backend/java/Dockerfile
           push: false
           load: true
           tags: vnsearch-backend:ci
@@ -317,64 +368,10 @@ jobs:
           category: trivy
         continue-on-error: true
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # Test tích hợp CSDL — PostgreSQL và MongoDB THẬT qua Testcontainers
-  # ═══════════════════════════════════════════════════════════════════════
-  #
-  # Job riêng vì cùng lý do với kafka-integration: nó chậm, và nó hỏng vì
-  # những nguyên nhân hạ tầng khác hẳn lỗi mã nguồn.
-  #
-  # Ba thứ chỉ job này bắt được: ràng buộc CHECK của PostgreSQL có chặn đúng
-  # không, TTL index của MongoDB có được tạo từ annotation không, và phép gộp
-  # jsonb `||` có giữ đúng ngữ nghĩa PATCH không.
-  #
-  # Ma trận theo service thay vì một lần `verify` trên cả reactor: bốn service
-  # này kéo bốn bộ container độc lập, chạy nối tiếp thì thời gian cộng dồn mà
-  # không đổi lại được gì. `fail-fast: false` để một service đỏ không huỷ ba
-  # nhánh còn lại — lúc sửa cần biết ĐỦ danh sách chỗ hỏng, không phải chỗ
-  # hỏng đầu tiên.
-  data-integration:
-    name: 'Tích hợp CSDL: ${{ matrix.service }}'
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        # Đúng bốn module có bài test gắn @Tag("docker-it"). Thêm tên vào đây
-        # khi (và chỉ khi) một service mới có test gắn nhãn đó.
-        service:
-          - downloads-service
-          - football-service
-          - history-service
-          - settings-service
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cài đặt JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: temurin
-          cache: maven
-
-      # `-am` (also-make) là bắt buộc: module service phụ thuộc các thư viện
-      # dùng chung trong libs/, và chúng chưa có sẵn trong kho cục bộ của
-      # runner. Thiếu `-am` thì reactor đỏ ngay ở bước phân giải phụ thuộc.
-      - name: Chạy test tích hợp CSDL
-        working-directory: backend
-        run: ./mvnw -B verify -Pdocker-it -pl services/${{ matrix.service }} -am
-
-      # Tên artifact phải KHÁC NHAU giữa các nhánh ma trận: upload-artifact@v4
-      # từ chối hai lần tải lên trùng tên trong cùng một lần chạy, nên nhánh
-      # thứ hai sẽ đỏ vì xung đột tên chứ không phải vì test.
-      - name: Lưu báo cáo
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bao-cao-data-it-${{ matrix.service }}
-          path: backend/**/target/surefire-reports/
-          retention-days: 7
+  # Job "Tích hợp CSDL" (Testcontainers cho downloads/history/settings) đã bỏ:
+  # ba service đó viết lại bằng Go (backend/go), phần logic được phủ bởi job
+  # `backend-go`. Test tích hợp Postgres/Mongo thật cho bản Go (qua dockertest)
+  # là việc còn nợ — xem backend/go.
 
   # ═══════════════════════════════════════════════════════════════════════
   # Test tích hợp Kafka — chạy với một broker THẬT
@@ -413,7 +410,7 @@ jobs:
       # libs/core-crawler là module DUY NHẤT có test gắn nhãn ấy, nên `-pl` cắt
       # reactor xuống đúng nó, còn `-am` dựng trước các thư viện nó phụ thuộc.
       - name: Chạy test tích hợp
-        working-directory: backend
+        working-directory: backend/java
         run: ./mvnw -B verify -Pkafka-it -pl libs/core-crawler -am
 
       - name: Lưu báo cáo test tích hợp
@@ -471,14 +468,18 @@ jobs:
 
       # --- Docker Compose -------------------------------------------------
 
-      # Cấu hình mặc định đã gồm toàn bộ hệ thống và cả ba service giám sát,
-      # nên chỉ còn hai mức phải kiểm: có Kafka và không có Kafka.
+      # Giám sát và Kafka đều nằm sau hồ sơ riêng, nên phải kiểm cả bốn tổ hợp:
+      # không hồ sơ nào, từng hồ sơ một, và cả hai cùng lúc. Một hồ sơ chỉ được
+      # hợp lệ khi bật RIÊNG nó vẫn hợp lệ — service trong hồ sơ có thể tham
+      # chiếu một service mặc định, nhưng không được tham chiếu hồ sơ kia.
       - name: Kiểm định docker-compose
         env:
           ADMIN_API_KEY: chi-de-kiem-dinh-0123456789abcdef
         run: |
           docker compose config --quiet
           docker compose --profile kafka config --quiet
+          docker compose --profile monitoring config --quiet
+          docker compose --profile kafka --profile monitoring config --quiet
 
       # Ma trận service trong cd.yml và release.yml là hai bản chép tay của
       # cùng một danh sách đã nằm sẵn trong docker-compose.yml. Chúng lệch nhau
@@ -498,21 +499,36 @@ jobs:
               compose = json.load(f)
           expected = sorted(n for n, s in compose['services'].items() if 'build' in s)
 
+          # Anh Java va anh Go duoc dung boi HAI job khac nhau trong cung mot
+          # workflow, va hai job do khai bao ma tran theo hai kieu khac nhau:
+          # job Java dung `matrix.service` (danh sach ten), job Go dung
+          # `matrix.include` (moi phan tu co `compose` va `dir`). Doi chieu
+          # phai gop CA HAI, khong thi bon service Go luon bi bao la thieu.
           targets = {
-              '.github/workflows/cd.yml': 'dung-anh',
-              '.github/workflows/release.yml': 'anh-docker',
+              '.github/workflows/cd.yml': [('dung-anh', 'service'),
+                                           ('dung-anh-go', 'compose')],
+              '.github/workflows/release.yml': [('anh-docker', 'service'),
+                                                ('anh-docker-go', 'compose')],
           }
           bad = False
-          for path, job in targets.items():
+          for path, jobs in targets.items():
               with open(path, encoding='utf-8') as f:
                   wf = yaml.safe_load(f)
-              actual = sorted(wf['jobs'][job]['strategy']['matrix']['service'])
+              actual = []
+              for job, key in jobs:
+                  matrix = wf['jobs'][job]['strategy']['matrix']
+                  if 'include' in matrix:
+                      actual += [muc[key] for muc in matrix['include']]
+                  else:
+                      actual += matrix[key]
+              actual = sorted(actual)
+              ten_job = ' + '.join(job for job, _ in jobs)
               if actual != expected:
                   bad = True
-                  print(f'{path} (job {job}) lech voi docker-compose.yml')
+                  print(f'{path} (job {ten_job}) lech voi docker-compose.yml')
                   print('  thieu : ', sorted(set(expected) - set(actual)))
                   print('  thua  : ', sorted(set(actual) - set(expected)))
               else:
-                  print(f'{path} (job {job}) khop: {len(actual)} service')
+                  print(f'{path} (job {ten_job}) khop: {len(actual)} service')
           sys.exit(1 if bad else 0)
           PY

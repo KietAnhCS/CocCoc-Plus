@@ -2,52 +2,61 @@
 # VnSearch — toàn hệ thống, chạy được trên một máy 8 GB.
 # ===========================================================================
 #
-#   docker compose up -d                     TOÀN BỘ hệ thống  ≈ 7,3 GB
-#                                            9 service + Postgres/Redis/Mongo
-#                                            + Prometheus/Grafana/Alertmanager
-#   docker compose --profile kafka up -d     thêm Kafka        ≈ +1,3 GB
+#   docker compose up -d                          Hệ thống      trần 6,6 GB
+#                                                 9 service + Postgres/Redis/Mongo
+#   docker compose --profile monitoring up -d     thêm giám sát  trần +544 MB
+#                                                 Prometheus/Grafana/Alertmanager
+#   docker compose --profile kafka up -d          thêm Kafka     trần +1,3 GB
 #
-# Không còn hồ sơ `full` hay `observability`: một lệnh là lên hết, không phải
-# nhớ cờ nào cả. Kafka vẫn nằm sau hồ sơ riêng vì bus mặc định là `memory` —
-# hệ thống chạy đủ chức năng mà không cần broker.
+# Giám sát nằm sau hồ sơ `monitoring` chứ không còn chạy mặc định: trên máy
+# phát triển 15 GB, ba container ấy ăn RAM cả ngày trong khi chín mươi phần
+# trăm thời gian không ai mở Grafana. Chạy được hệ thống là điều kiện cần;
+# nhìn biểu đồ của nó là việc thỉnh thoảng. Môi trường thật thì bật hồ sơ này
+# lên — cấu hình scrape và bộ quy tắc cảnh báo vẫn nguyên vẹn.
+#
+# Kafka cũng nằm sau hồ sơ riêng vì bus mặc định là `memory` — hệ thống chạy
+# đủ chức năng mà không cần broker.
 #
 # ---------------------------------------------------------------------------
 # NGÂN SÁCH BỘ NHỚ — vì sao mỗi con số là con số đó
 # ---------------------------------------------------------------------------
 #
-#   search-service      3072 MB   ƯU TIÊN. Chỉ mục đảo, Trie gợi ý và vector
+#   search-service      2048 MB   ƯU TIÊN. Chỉ mục đảo, Trie gợi ý và vector
 #                                 PageRank đều nằm trong heap, và chúng lớn
 #                                 theo kích thước corpus chứ không theo số
-#                                 người dùng.
+#                                 người dùng. Hạ từ 3072 vì máy phát triển
+#                                 15 GB chạy WSL trần 7 GB — xem .wslconfig.
 #   crawler-service     2048 MB   frontier + bộ lọc Bloom, CỘNG corpus trong
 #                                 thư mục data/ mà nó mount chung với
 #                                 search-service — xem chú thích tại chỗ.
-#   postgres             512 MB   shared_buffers=128MB.
+#                                 KHÔNG hạ được: 768 MB đã đo là OOM.
 #   auth-service         512 MB   BCrypt tốn CPU, không tốn heap.
 #   api-gateway          384 MB   chỉ định tuyến, không giữ trạng thái.
-#   analytics-service    384 MB   số liệu 24 giờ trong bộ nhớ.
-#   history-service      384 MB   mọi truy vấn đi thẳng xuống Mongo.
-#   downloads-service    384 MB   CRUD mỏng.
-#   settings-service     384 MB   một bảng, một cột JSONB.
-#   football-service     384 MB   đệm nằm trong Postgres, không nằm trong heap.
+#   postgres             384 MB   shared_buffers=128MB, work_mem=2MB.
 #   mongo                384 MB   wiredTigerCacheSizeGB=0.25.
-#   prometheus           384 MB   giữ số liệu 7 ngày.
-#   grafana              256 MB   chỉ vẽ, không tính.
+#   analytics-service    320 MB   số liệu 24 giờ trong bộ nhớ.
+#   prometheus           256 MB   giữ số liệu 7 ngày.
+#   grafana              192 MB   chỉ vẽ, không tính.
 #   redis                128 MB   maxmemory-policy allkeys-lru.
-#   alertmanager         128 MB   định tuyến cảnh báo, không giữ chuỗi số liệu.
+#   alertmanager          96 MB   định tuyến cảnh báo, không giữ chuỗi số liệu.
+#   football-service      96 MB   nhị phân Go tĩnh, đệm nằm trong Postgres.
+#   history-service       96 MB   nhị phân Go tĩnh, truy vấn đi thẳng xuống Mongo.
+#   downloads-service     96 MB   nhị phân Go tĩnh, CRUD mỏng.
+#   settings-service      96 MB   nhị phân Go tĩnh, một bảng, một cột JSONB.
 #
-# Ba service phụ (history/downloads/settings) để 384 MB chứ không 512: chúng
-# thật sự chỉ làm CRUD, và 128 MB tiết kiệm được ở mỗi cái đủ để chạy thêm
-# một service nữa trên cùng cái máy.
+# Bốn service Go (football/history/downloads/settings) để 96 MB chứ không 384
+# như hồi còn là Spring Boot: một nhị phân Go tĩnh không có JVM để khởi động,
+# và 288 MB tiết kiệm được ở mỗi cái là gần 1,2 GB trên toàn hệ thống.
 #
-# football-service để 384 MB chứ không phải 64 MB như thời còn viết bằng Go:
-# một JVM cần chừng đó chỉ để khởi động, và đây chính là cái giá đã trả để cả
-# hệ thống chỉ còn một chuỗi công cụ.
+# TỔNG mem_limit mặc định = 6592 MB ≈ 6,4 GB; bật thêm hồ sơ `monitoring` là
+# 7136 MB ≈ 7,0 GB, vừa khớp trần `memory=7GB` trong C:\Users\<user>\.wslconfig.
+# Đó KHÔNG phải lượng RAM thật sự dùng: `mem_limit` là trần, không phải chỗ
+# đặt trước — đo lúc chạy không tải là khoảng 4 GB. Trần cộng dồn chỉ cần
+# không vượt trần WSL, để kịch bản xấu nhất (mọi container chạm trần cùng
+# lúc) vẫn không đẩy máy vào swap.
 #
-# TỔNG mem_limit vượt 8 GB. Đó KHÔNG phải lượng RAM thật sự dùng: `mem_limit`
-# là trần, không phải chỗ đặt trước. Đo được lúc chạy không tải là khoảng 4 GB.
-# Nếu máy chật, hạ search-service xuống 2048m — nó là con số lớn nhất và cũng
-# là con số duy nhất phụ thuộc vào kích thước corpus.
+# Thêm service mới thì phải cộng lại con số này và đối chiếu với .wslconfig.
+# Không có trần WSL, `vmmemWSL` lấy tới 50% RAM máy và không trả lại.
 #
 # ---------------------------------------------------------------------------
 # `mem_limit` CHỨ KHÔNG PHẢI `deploy.resources.limits`
@@ -65,7 +74,7 @@ name: vnsearch
 x-java-service: &java-service
   build:
     context: ./backend
-    dockerfile: Dockerfile
+    dockerfile: java/Dockerfile
   restart: unless-stopped
   networks: [vnsearch]
   # Chỉ ghi 3 tệp log, mỗi tệp 10 MB. Mặc định của Docker là KHÔNG GIỚI HẠN:
@@ -123,7 +132,7 @@ services:
       # xem chú thích dài trong chính tệp này về nguyên tắc "database per
       # service".
       - ./deploy/postgres/init-db.sh:/docker-entrypoint-initdb.d/10-init-db.sh:ro
-    mem_limit: 512m
+    mem_limit: 384m
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U vnsearch -d vnsearch"]
       interval: 10s
@@ -192,7 +201,7 @@ services:
     container_name: vnsearch-gateway
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/api-gateway
         ARTIFACT: api-gateway
@@ -229,7 +238,7 @@ services:
     container_name: vnsearch-auth
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/auth-service
         ARTIFACT: auth-service
@@ -268,7 +277,7 @@ services:
     container_name: vnsearch-search
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/search-service
         ARTIFACT: search-service
@@ -300,7 +309,7 @@ services:
         -Djava.security.egd=file:/dev/./urandom
     volumes:
       - ./backend/data:/app/data
-    mem_limit: 3072m
+    mem_limit: 2048m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
       interval: 15s
@@ -311,22 +320,35 @@ services:
       # của mình, và vòng lặp khởi động lại vô hạn bắt đầu.
       start_period: 90s
 
+  # Viết bằng Go (chi + pgx), nguồn ở backend/go/services/football. Trước đây
+  # là Java Spring Boot. Hợp đồng HTTP GIỮ NGUYÊN: `/api/v1/**` trên cổng
+  # 8090, nên tuyến `football-api` của Gateway và desktop-app không đổi.
+  #
+  # Không dùng neo *java-service / *java-env: service này không đọc JWT (mọi
+  # endpoint công khai, require-admin-api-key=false) nên không cần JWKS hay
+  # ADMIN_API_KEY.
   football-service:
-    <<: *java-service
     container_name: vnsearch-football
+    restart: unless-stopped
+    networks: [vnsearch]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
-      context: ./backend
+      context: ./backend/go
       dockerfile: Dockerfile
       args:
-        MODULE: services/football-service
-        ARTIFACT: football-service
+        SERVICE: football
     depends_on:
       postgres: {condition: service_healthy}
     environment:
-      <<: *java-env
       SERVER_PORT: "8090"
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      TZ: Asia/Ho_Chi_Minh
       # Dùng chung CSDL `vnsearch` với search-service nhưng trong một schema
-      # riêng tên `football` — Flyway tự tạo schema đó lúc khởi động.
+      # riêng tên `football` — service tự chạy migration nhúng lúc khởi động.
       #
       # Truyền TỪNG PHẦN thay vì một URL ghép sẵn: mật khẩu sinh ngẫu nhiên
       # rất hay chứa `@` hoặc `:`, đúng những ký tự phân tách của cú pháp URL.
@@ -342,13 +364,15 @@ services:
       FOOTBALL_API_KEY: ${FOOTBALL_API_KEY:-}
       FOOTBALL_API_BASE_URL: ${FOOTBALL_API_BASE_URL:-https://v3.football.api-sports.io}
       FOOTBALL_DAILY_BUDGET: "95"
-    mem_limit: 384m
+    # 96 MB, không phải 384: một tiến trình Go tĩnh cần rất ít. Gần với con số
+    # của thời service này còn viết bằng Go, cộng chút headroom.
+    mem_limit: 96m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8090/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 10s
 
   # =========================================================================
   # SERVICE ỨNG DỤNG (tiếp)
@@ -359,7 +383,7 @@ services:
     container_name: vnsearch-crawler
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/crawler-service
         ARTIFACT: crawler-service
@@ -406,7 +430,7 @@ services:
     container_name: vnsearch-analytics
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/analytics-service
         ARTIFACT: analytics-service
@@ -415,7 +439,7 @@ services:
       SERVER_PORT: "8084"
       CRAWLER_SERVICE_URL: http://crawler-service:8083
       AUTH_SERVICE_URL: http://auth-service:8081
-    mem_limit: 384m
+    mem_limit: 320m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8084/actuator/health | grep -q UP"]
       interval: 15s
@@ -423,78 +447,97 @@ services:
       retries: 5
       start_period: 40s
 
+  # history / downloads / settings: viết lại bằng Go (chi + pgx / mongo-driver),
+  # nguồn ở backend/go/services/. Vẫn đọc JWT nên GIỮ *java-env (AUTH_* + CORS);
+  # không có /api/admin/** nên ADMIN_API_KEY chỉ là biến thừa, service Go bỏ qua.
+  # Không dùng *java-service vì build chỉ sang Dockerfile của Go.
   history-service:
-    <<: *java-service
     container_name: vnsearch-history
+    restart: unless-stopped
+    networks: [vnsearch]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
-      context: ./backend
+      context: ./backend/go
       dockerfile: Dockerfile
       args:
-        MODULE: services/history-service
-        ARTIFACT: history-service
+        SERVICE: history
     depends_on:
       mongo: {condition: service_healthy}
     environment:
       <<: *java-env
       SERVER_PORT: "8085"
       MONGO_URI: mongodb://mongo:27017/vnsearch_history
-    mem_limit: 384m
+    mem_limit: 96m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8085/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 10s
 
   downloads-service:
-    <<: *java-service
     container_name: vnsearch-downloads
+    restart: unless-stopped
+    networks: [vnsearch]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
-      context: ./backend
+      context: ./backend/go
       dockerfile: Dockerfile
       args:
-        MODULE: services/downloads-service
-        ARTIFACT: downloads-service
+        SERVICE: downloads
     depends_on:
       postgres: {condition: service_healthy}
     environment:
       <<: *java-env
       SERVER_PORT: "8086"
-      DOWNLOADS_DB_URL: jdbc:postgresql://postgres:5432/vnsearch_downloads
+      DOWNLOADS_DB_URL: postgresql://postgres:5432/vnsearch_downloads
       DOWNLOADS_DB_USER: vnsearch_downloads
       DOWNLOADS_DB_PASSWORD: ${DOWNLOADS_DB_PASSWORD:-${POSTGRES_PASSWORD:-vnsearch}}
-    mem_limit: 384m
+    mem_limit: 96m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8086/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 10s
 
   settings-service:
-    <<: *java-service
     container_name: vnsearch-settings
+    restart: unless-stopped
+    networks: [vnsearch]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
-      context: ./backend
+      context: ./backend/go
       dockerfile: Dockerfile
       args:
-        MODULE: services/settings-service
-        ARTIFACT: settings-service
+        SERVICE: settings
     depends_on:
       postgres: {condition: service_healthy}
     environment:
       <<: *java-env
       SERVER_PORT: "8087"
-      SETTINGS_DB_URL: jdbc:postgresql://postgres:5432/vnsearch_settings
+      SETTINGS_DB_URL: postgresql://postgres:5432/vnsearch_settings
       SETTINGS_DB_USER: vnsearch_settings
       SETTINGS_DB_PASSWORD: ${SETTINGS_DB_PASSWORD:-${POSTGRES_PASSWORD:-vnsearch}}
-    mem_limit: 384m
+    mem_limit: 96m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8087/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 10s
 
   # =========================================================================
   # HỒ SƠ `kafka`
@@ -568,12 +611,14 @@ services:
     restart: unless-stopped
 
   # =========================================================================
-  # GIÁM SÁT — Prometheus, Grafana, Alertmanager. Luôn chạy.
+  # GIÁM SÁT — Prometheus, Grafana, Alertmanager. Hồ sơ `monitoring`, không
+  # chạy mặc định — `docker compose --profile monitoring up -d`.
   # =========================================================================
 
   prometheus:
     image: prom/prometheus:v2.55.1
     container_name: vnsearch-prometheus
+    profiles: [monitoring]
     networks: [vnsearch]
     volumes:
       - ./deploy/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -586,12 +631,13 @@ services:
       # hơn một tuần không ai xem, và mỗi ngày là vài trăm megabyte đĩa.
       - --storage.tsdb.retention.time=7d
     ports: ["9090:9090"]
-    mem_limit: 384m
+    mem_limit: 256m
     restart: unless-stopped
 
   grafana:
     image: grafana/grafana:11.3.0
     container_name: vnsearch-grafana
+    profiles: [monitoring]
     networks: [vnsearch]
     depends_on: [prometheus]
     environment:
@@ -604,12 +650,13 @@ services:
       - ./deploy/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     ports: ["3000:3000"]
-    mem_limit: 256m
+    mem_limit: 192m
     restart: unless-stopped
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: vnsearch-alertmanager
+    profiles: [monitoring]
     networks: [vnsearch]
     volumes:
       - ./deploy/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
@@ -618,7 +665,7 @@ services:
       - --config.file=/etc/alertmanager/alertmanager.yml
       - --storage.path=/alertmanager
     ports: ["9093:9093"]
-    mem_limit: 128m
+    mem_limit: 96m
     restart: unless-stopped
 
 # ---------------------------------------------------------------------------

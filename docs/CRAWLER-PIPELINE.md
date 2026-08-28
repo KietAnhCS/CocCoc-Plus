@@ -132,7 +132,7 @@ cuối, bạn sẽ đi đúng đường mà một URL đi.
 
 | Ký hiệu | Nghĩa |
 |---|---|
-| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/libs/core-crawler/src/main/java/com/vnsearch/` |
+| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/java/libs/core-crawler/src/main/java/com/vnsearch/` |
 | **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
 | ① ② ③ | Số thứ tự bước trong một chuỗi xử lý |
 | ★ | Điểm mấu chốt, dễ hiểu sai |
@@ -405,8 +405,8 @@ dòng thật và vai trò.
 | File | Dòng | Vai trò |
 |---|---|---|
 | `run-crawl.bat` | ~130 | Chuẩn bị môi trường, gọi Maven |
-| `backend/mvnw.cmd` | — | Maven Wrapper, tải Maven nếu chưa có |
-| `backend/pom.xml` | — | Khai báo phụ thuộc: jsoup, jackson, micrometer, slf4j |
+| `backend/java/mvnw.cmd` | — | Maven Wrapper, tải Maven nếu chưa có |
+| `backend/java/pom.xml` | — | Khai báo phụ thuộc: jsoup, jackson, micrometer, slf4j |
 
 ### 3.2 Gói `crawler` — 20 file
 
@@ -974,8 +974,8 @@ flowchart TD
     C --> D["CWD = C:\\...\\Search-Engine-Project\\search-engine"]
     D --> E["Mọi đường dẫn tương đối<br/>tính từ đây"]
     E --> F["data/crawled-documents.json<br/>= backend/data/crawled-documents.json"]
-    E --> G["pom.xml = backend/pom.xml"]
-    E --> H["mvnw.cmd = backend/mvnw.cmd"]
+    E --> G["pom.xml = backend/java/pom.xml"]
+    E --> H["mvnw.cmd = backend/java/mvnw.cmd"]
 
     style F fill:#0b7a3b,color:#fff
 ```
@@ -3763,7 +3763,7 @@ flowchart TD
 ## 31. `MinHeap`
 
 **File:** `datastructure/MinHeap.java` — nằm trong module `core-common`, tức
-`backend/libs/core-common/src/main/java/com/vnsearch/datastructure/MinHeap.java`
+`backend/java/libs/core-common/src/main/java/com/vnsearch/datastructure/MinHeap.java`
 (ngoại lệ so với quy ước đường dẫn ở mục 0: đây là cấu trúc dữ liệu dùng chung
 cho nhiều service, không riêng crawler).
 
@@ -12362,7 +12362,7 @@ flowchart TD
 ```
 
 ★ `CrawlJobManager` không nằm trong `core-crawler` — nó ở
-`backend/libs/core-search/src/main/java/com/vnsearch/service/CrawlJobManager.java`,
+`backend/java/libs/core-search/src/main/java/com/vnsearch/service/CrawlJobManager.java`,
 vì nó cũng cần biết về `SearchEngineFacade`/chỉ mục để dựng lại chỉ mục sau khi
 một job chạy bằng dòng lệnh admin xong.
 
@@ -12859,7 +12859,7 @@ flowchart TD
 | `'run-crawl.bat' is not recognized` | Sai tên tệp (không phải `run-crawler.bat`) | Dùng `run-crawl.bat` |
 | `[LOI] Khong tim thay thu muc search-engine` | Tệp bat không ở thư mục gốc repo | Đặt bat cạnh `docker-compose.yml` |
 | `[LOI] Khong thay pom.xml` | Thư mục `search-engine` thiếu | Kiểm tra checkout |
-| `[LOI] Khong thay Maven Wrapper` | Thiếu `mvnw.cmd` | `git checkout backend/mvnw.cmd` |
+| `[LOI] Khong thay Maven Wrapper` | Thiếu `mvnw.cmd` | `git checkout backend/java/mvnw.cmd` |
 | `[LOI] Khong tim thay Java` | Chưa cài JDK hoặc chưa vào PATH | Cài JDK 17+ từ adoptium.net |
 | `NumberFormatException: For input string: "abc"` | Tham số không phải số | `run-crawl.bat 8 3` |
 | `IllegalArgumentException: maxPages must be > 0` | `maxPages` ≤ 0 | Dùng số dương |

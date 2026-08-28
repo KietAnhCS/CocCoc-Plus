@@ -87,7 +87,7 @@ kiếm, tới JSON `SearchResponse` trả về trình duyệt.
 
 | Ký hiệu | Nghĩa |
 |---|---|
-| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/libs/core-search/src/main/java/com/vnsearch/` trừ khi ghi rõ module khác |
+| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/java/libs/core-search/src/main/java/com/vnsearch/` trừ khi ghi rõ module khác |
 | **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
 | ① ② ③ | Số thứ tự bước trong một chuỗi xử lý |
 | ★ | Điểm mấu chốt, dễ hiểu sai |

@@ -83,7 +83,7 @@ cùng rời khỏi tầng xếp hạng.
 
 | Ký hiệu | Nghĩa |
 |---|---|
-| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/libs/core-search/src/main/java/com/vnsearch/` (nêu rõ khi khác) |
+| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/java/libs/core-search/src/main/java/com/vnsearch/` (nêu rõ khi khác) |
 | **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
 | ① ② ③ | Số thứ tự bước trong một chuỗi xử lý |
 | ★ | Điểm mấu chốt, dễ hiểu sai |
@@ -99,9 +99,9 @@ cùng rời khỏi tầng xếp hạng.
 ### Nguồn của tài liệu này
 
 Mọi công thức, hằng số, tên biến trong tài liệu đọc trực tiếp từ mã nguồn tại
-`backend/libs/core-search/src/main/java/com/vnsearch/ranking/` (và
+`backend/java/libs/core-search/src/main/java/com/vnsearch/ranking/` (và
 `ranking/decorator/`), cộng với hai cấu trúc dữ liệu nền `MinHeap` và
-`SparseMatrix` tại `backend/libs/core-common/src/main/java/com/vnsearch/datastructure/`.
+`SparseMatrix` tại `backend/java/libs/core-common/src/main/java/com/vnsearch/datastructure/`.
 Mọi số liệu trong PHẦN VIII và trong các mục trace của PHẦN V là kết quả CHẠY
 THẬT các lớp này (biên dịch bằng `javac`, chạy bằng `java`, dùng đúng
 `target/classes` đã build của repo) — không phải số suy diễn bằng tay hay bịa
@@ -279,9 +279,9 @@ tên chấm ("tham số truyền vào").
 | 12 | `datastructure/SparseMatrix.java` *(core-common)* | Ma trận thưa CSR — nền của PageRank | [18](#18-sparsematrix--csr-nền-của-phép-nhân-ma-trận-nhanh) |
 | 13 | `service/SearchEngineFacade.java` *(core-search)* | Điểm gọi vào chặng 6 từ tầng REST | [1](#1-ranh-giới-trách-nhiệm-chặng-5-kết-thúc-ở-đâu-chặng-6-bắt-đầu-ở-đâu) |
 
-Đường dẫn đầy đủ của các file 1–10: `backend/libs/core-search/src/main/java/com/vnsearch/`.
-File 11–12: `backend/libs/core-common/src/main/java/com/vnsearch/`. File 13:
-`backend/libs/core-search/src/main/java/com/vnsearch/service/`.
+Đường dẫn đầy đủ của các file 1–10: `backend/java/libs/core-search/src/main/java/com/vnsearch/`.
+File 11–12: `backend/java/libs/core-common/src/main/java/com/vnsearch/`. File 13:
+`backend/java/libs/core-search/src/main/java/com/vnsearch/service/`.
 
 ---
 
@@ -2183,7 +2183,7 @@ và [mục 12](#12-tf-idf-đấu-bm25--hai-đường-cong-bão-hoà).
 ⚠ **Lưu ý quan trọng: `app.ranking.scorer` mặc định là `tfidf`, KHÔNG phải
 `bm25`.** Dù toàn bộ lập luận trong tài liệu này (và trong Javadoc mã nguồn)
 chỉ ra BM25 tốt hơn TF-IDF khoảng 5,3% MRR, giá trị mặc định thật trong
-`backend/services/search-service/src/main/resources/application.properties`
+`backend/java/services/search-service/src/main/resources/application.properties`
 (dòng `app.ranking.scorer=${APP_RANKING_SCORER:tfidf}`) vẫn là `tfidf`. Muốn
 dùng BM25 trong triển khai thật phải đặt biến môi trường
 `APP_RANKING_SCORER=bm25` hoặc sửa trực tiếp file cấu hình.

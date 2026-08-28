@@ -18,18 +18,18 @@ set "FRESH=%~4"
 
 if "%MAX_PAGES%"=="" set "MAX_PAGES=10000"
 if "%MAX_DEPTH%"=="" set "MAX_DEPTH=4"
-if "%OUTPUT%"==""    set "OUTPUT=data/crawled-documents.json"
+if "%OUTPUT%"==""    set "OUTPUT=%~dp0backend\data\crawled-documents.json"
 
-cd /d "%~dp0backend" 2>nul
+cd /d "%~dp0backend\java" 2>nul
 if errorlevel 1 (
-    echo [LỖI] Không tìm thấy thư mục "%~dp0backend".
+    echo [LỖI] Không tìm thấy thư mục "%~dp0backend\java".
     echo       Tệp .bat này phải nằm ở THƯ MỤC GỐC của kho, cạnh docker-compose.yml.
     goto :fail
 )
 
 if not exist "pom.xml" (
     echo [LỖI] Không thấy pom.xml trong "%CD%".
-    echo       Thư mục backend có vẻ không đầy đủ.
+    echo       Thư mục backend\java có vẻ không đầy đủ.
     goto :fail
 )
 
@@ -120,7 +120,7 @@ if errorlevel 1 (
 )
 
 echo.
-echo Xong. Corpus đã lưu tại "%CD%\%OUTPUT%".
+echo Xong. Corpus đã lưu tại "%OUTPUT%".
 echo Muốn kết quả vào bộ tìm kiếm thì khởi động lại backend, hoặc gọi:
 echo     curl -X POST -H "X-API-Key: khoa-trong-.env" http://localhost:8083/api/admin/reindex
 echo   ^(gọi thẳng crawler-service :8083. Qua Gateway :8080 thì tuyến

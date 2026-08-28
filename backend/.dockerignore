@@ -7,8 +7,13 @@
 data/*
 !data/seed-documents.json
 
-target/
-.mvn/wrapper/maven-wrapper.jar
+java/**/target/
+java/.mvn/wrapper/maven-wrapper.jar
 *.class
-Dockerfile
+java/Dockerfile
 .dockerignore
+
+# Cay Go co context rieng (./backend/go), khong can gui kem.
+go/
+logs/
+tools/

@@ -39,7 +39,7 @@ flowchart TB
     CRAWLER -.-> CORECRAWL
 ```
 
-The algorithms above live in `backend/libs/` — `core-search` (index, query,
+The algorithms above live in `backend/java/libs/` — `core-search` (index, query,
 ranking), `core-crawler` (fetching, frontier, event bus) and `core-common`
 (data structures, analytics); the services below are thin shells around them.
 That split is visible in the line counts: `crawler-service` is 393 lines of
@@ -53,10 +53,10 @@ the others are reachable only from inside the Compose network.
 | `search-service` | 8082 | Java | default | Index, query, ranking, suggestions, images |
 | `crawler-service` | 8083 | Java | default | Crawl jobs, reindex |
 | `analytics-service` | 8084 | Java | default | Usage events, admin analytics |
-| `history-service` | 8085 | Java | default | Browsing history |
-| `downloads-service` | 8086 | Java | default | Downloads |
-| `settings-service` | 8087 | Java | default | User settings |
-| `football-service` | 8090 | Java | default | Football data, its own 100-calls/day budget |
+| `history-service` | 8085 | Go | default | Browsing history (`backend/go`) |
+| `downloads-service` | 8086 | Go | default | Downloads (`backend/go`) |
+| `settings-service` | 8087 | Go | default | User settings (`backend/go`) |
+| `football-service` | 8090 | Go | default | Football data, its own 100-calls/day budget (`backend/go`) |
 
 ---
 
@@ -128,7 +128,7 @@ Requires JDK 17+ and Node.js 22+.
 
 ```bash
 run-backend.bat             # Windows — gateway + auth + search, in the background
-run-backend.bat --full      # all nine Java services
+run-backend.bat --full      # all services: 4 Java + 4 Go
 run-backend.bat --build     # rebuild the jars first
 run-backend.bat --windows   # one console window per service instead of background
 run-backend.bat --docker    # hand over to docker compose instead
@@ -136,11 +136,12 @@ run-backend.bat --docker    # hand over to docker compose instead
 # or, by hand:
 export ADMIN_API_KEY=$(openssl rand -hex 32)          # Linux/macOS
 $env:ADMIN_API_KEY = "..."                             # PowerShell
-cd backend
+cd backend/java
 ./mvnw -B clean package -DskipTests
-java -jar services/auth-service/target/auth-service-0.0.1-SNAPSHOT.jar
-java -jar services/search-service/target/search-service-0.0.1-SNAPSHOT.jar
-java -jar services/api-gateway/target/api-gateway-0.0.1-SNAPSHOT.jar
+cd ..
+java -jar java/services/auth-service/target/auth-service-0.0.1-SNAPSHOT.jar
+java -jar java/services/search-service/target/search-service-0.0.1-SNAPSHOT.jar
+java -jar java/services/api-gateway/target/api-gateway-0.0.1-SNAPSHOT.jar
 ```
 
 Run the jars **from the `backend` directory** — the data paths
@@ -168,9 +169,27 @@ answer. Pass `--windows` for the old one-console-per-service behaviour.
 >
 > Or use `run-backend.bat --docker`, which brings everything up itself.
 
-`end-backend.bat` stops the jars, takes the Compose stack down, **and quits
-Docker Desktop**. Use `--local` to touch only the jars, or `--keep-docker` to
-leave Docker Desktop running.
+`end-backend.bat` stops the jars, takes the Compose stack down, quits Docker
+Desktop, and terminates the `docker-desktop` WSL2 distro. Every phase prints a
+progress bar (`[########....] 40% - buoc 2/5`), and the run ends with a
+verification pass that checks the three things that actually hold resources:
+ports 8080–8087 and 8090 still `LISTENING`, containers still running, and the
+RAM held by the `vmmem`/`vmmemWSL` virtual machine. Free-RAM before/after is not
+proof on its own — WSL2 releases memory gradually through `autoMemoryReclaim`,
+so the number often looks *worse* right after a clean shutdown.
+
+If the WSL2 VM is still holding memory, the script asks whether to shut it down
+outright. The default is no, because `wsl --shutdown` kills **every** distro, not
+just Docker's — including an Ubuntu session open in another window.
+
+| Flag | Effect |
+| --- | --- |
+| `--local` | only the jars and Go binaries; never touches Docker |
+| `--keep-docker` | take containers down, leave Docker Desktop running |
+| `--stop` | stop containers without removing them — fastest restart |
+| `--wipe` | take containers down **and delete the volumes** (asks you to type `XOA`) |
+| `--wsl` | shut the WSL2 VM down immediately, no prompt |
+| `--no-wsl` | never touch the WSL2 VM and never ask |
 
 ### Frontend
 
@@ -317,7 +336,7 @@ Four independent layers, each blocking something different:
 ## Development
 
 ```bash
-cd backend     && ./mvnw clean verify   # tests + coverage gate + static analysis
+cd backend/java && ./mvnw clean verify   # tests + coverage gate + static analysis
 cd desktop-app && npm run typecheck && npm run lint && npm test   # 155 tests
 ```
 
@@ -412,14 +431,13 @@ backend/                       Maven reactor — one parent pom, fourteen module
   services/search-service/     :8082  index, query, ranking, images
   services/crawler-service/    :8083  crawl jobs, reindex
   services/analytics-service/  :8084  usage events
-  services/history-service/    :8085  browsing history
-  services/downloads-service/  :8086  downloads
-  services/settings-service/   :8087  user settings
-  services/football-service/   :8090  football data (Java + Postgres)
-    football/provider/         API-Football client and normalisers
-    football/service/          Cache-aside, daily call budget, fallback order
-    football/store/            Postgres-backed cache and call log
   coverage/                    Aggregates JaCoCo across every module — must build last
+  go/                          Go services (chi + pgx / mongo-driver). One module, shared platform/
+    platform/                  JWT (JWKS RS256), security headers, CORS, token-bucket rate limit, PG + migrate
+    services/history/          :8085  browsing + search history (MongoDB, TTL indexes)
+    services/downloads/        :8086  download ledger (Postgres, state machine)
+    services/settings/         :8087  user settings (Postgres + JSONB, If-Match)
+    services/football/         :8090  football data — cache-aside, daily call budget
   data/                        Corpus, index, images, accounts (mounted into containers)
 desktop-app/                   Mini browser (Electron + React + TypeScript)
   src/renderer/src/components/football/

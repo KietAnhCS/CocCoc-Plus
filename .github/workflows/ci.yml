@@ -205,6 +205,56 @@ jobs:
           category: spotbugs
         continue-on-error: true
 
+  # ═══════════════════════════════════════════════════════════════════════
+  # Backend Go — football-service và tầng platform dùng chung
+  # ═══════════════════════════════════════════════════════════════════════
+  #
+  # Job RIÊNG với chuỗi công cụ riêng: `go build` / `go vet` / `go test`.
+  # football/settings/downloads/history viết lại từ Java sang Go (chi + pgx /
+  # mongo-driver) để cắt ~300 MB RAM JVM mỗi service; tất cả dùng chung một
+  # module `backend/go`.
+  #
+  # gofmt là cổng chặn: mã lệch định dạng làm diff nhiễu và không có công cụ
+  # nào khác bắt được.
+  #
+  # Bước "tích hợp CSDL" thay cho job `data-integration` (Testcontainers) đã bỏ:
+  # nó dựng Postgres/Mongo THẬT bằng dockertest và kiểm những thứ chỉ CSDL thật
+  # bắt được — ràng buộc CHECK, phép gộp jsonb `||`, chỉ mục TTL của Mongo.
+  # Chạy được vì runner ubuntu-latest có sẵn Docker; thiếu Docker thì test tự
+  # `t.Skip`.
+  backend-go:
+    name: 'Backend Go: build + vet + test'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27'
+          cache-dependency-path: backend/go/go.sum
+
+      - name: gofmt
+        working-directory: backend/go
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "Các tệp chưa gofmt:"; echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        working-directory: backend/go
+        run: go vet ./...
+
+      - name: go test
+        working-directory: backend/go
+        run: go test -race ./...
+
+      - name: go test (tích hợp CSDL — Postgres/Mongo thật qua dockertest)
+        working-directory: backend/go
+        run: go test -tags=integration -timeout 10m ./...
+
   frontend:
     name: Frontend (Electron + TypeScript)
     runs-on: ubuntu-latest
@@ -317,64 +367,10 @@ jobs:
           category: trivy
         continue-on-error: true
 
-  # ═══════════════════════════════════════════════════════════════════════
-  # Test tích hợp CSDL — PostgreSQL và MongoDB THẬT qua Testcontainers
-  # ═══════════════════════════════════════════════════════════════════════
-  #
-  # Job riêng vì cùng lý do với kafka-integration: nó chậm, và nó hỏng vì
-  # những nguyên nhân hạ tầng khác hẳn lỗi mã nguồn.
-  #
-  # Ba thứ chỉ job này bắt được: ràng buộc CHECK của PostgreSQL có chặn đúng
-  # không, TTL index của MongoDB có được tạo từ annotation không, và phép gộp
-  # jsonb `||` có giữ đúng ngữ nghĩa PATCH không.
-  #
-  # Ma trận theo service thay vì một lần `verify` trên cả reactor: bốn service
-  # này kéo bốn bộ container độc lập, chạy nối tiếp thì thời gian cộng dồn mà
-  # không đổi lại được gì. `fail-fast: false` để một service đỏ không huỷ ba
-  # nhánh còn lại — lúc sửa cần biết ĐỦ danh sách chỗ hỏng, không phải chỗ
-  # hỏng đầu tiên.
-  data-integration:
-    name: 'Tích hợp CSDL: ${{ matrix.service }}'
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        # Đúng bốn module có bài test gắn @Tag("docker-it"). Thêm tên vào đây
-        # khi (và chỉ khi) một service mới có test gắn nhãn đó.
-        service:
-          - downloads-service
-          - football-service
-          - history-service
-          - settings-service
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cài đặt JDK 21
-        uses: actions/setup-java@v4
-        with:
-          java-version: '21'
-          distribution: temurin
-          cache: maven
-
-      # `-am` (also-make) là bắt buộc: module service phụ thuộc các thư viện
-      # dùng chung trong libs/, và chúng chưa có sẵn trong kho cục bộ của
-      # runner. Thiếu `-am` thì reactor đỏ ngay ở bước phân giải phụ thuộc.
-      - name: Chạy test tích hợp CSDL
-        working-directory: backend
-        run: ./mvnw -B verify -Pdocker-it -pl services/${{ matrix.service }} -am
-
-      # Tên artifact phải KHÁC NHAU giữa các nhánh ma trận: upload-artifact@v4
-      # từ chối hai lần tải lên trùng tên trong cùng một lần chạy, nên nhánh
-      # thứ hai sẽ đỏ vì xung đột tên chứ không phải vì test.
-      - name: Lưu báo cáo
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: bao-cao-data-it-${{ matrix.service }}
-          path: backend/**/target/surefire-reports/
-          retention-days: 7
+  # Job "Tích hợp CSDL" (Testcontainers cho downloads/history/settings) đã bỏ:
+  # ba service đó viết lại bằng Go (backend/go), phần logic được phủ bởi job
+  # `backend-go`. Test tích hợp Postgres/Mongo thật cho bản Go (qua dockertest)
+  # là việc còn nợ — xem backend/go.
 
   # ═══════════════════════════════════════════════════════════════════════
   # Test tích hợp Kafka — chạy với một broker THẬT

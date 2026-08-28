@@ -53,10 +53,10 @@ the others are reachable only from inside the Compose network.
 | `search-service` | 8082 | Java | default | Index, query, ranking, suggestions, images |
 | `crawler-service` | 8083 | Java | default | Crawl jobs, reindex |
 | `analytics-service` | 8084 | Java | default | Usage events, admin analytics |
-| `history-service` | 8085 | Java | default | Browsing history |
-| `downloads-service` | 8086 | Java | default | Downloads |
-| `settings-service` | 8087 | Java | default | User settings |
-| `football-service` | 8090 | Java | default | Football data, its own 100-calls/day budget |
+| `history-service` | 8085 | Go | default | Browsing history (`backend/go`) |
+| `downloads-service` | 8086 | Go | default | Downloads (`backend/go`) |
+| `settings-service` | 8087 | Go | default | User settings (`backend/go`) |
+| `football-service` | 8090 | Go | default | Football data, its own 100-calls/day budget (`backend/go`) |
 
 ---
 
@@ -412,14 +412,13 @@ backend/                       Maven reactor — one parent pom, fourteen module
   services/search-service/     :8082  index, query, ranking, images
   services/crawler-service/    :8083  crawl jobs, reindex
   services/analytics-service/  :8084  usage events
-  services/history-service/    :8085  browsing history
-  services/downloads-service/  :8086  downloads
-  services/settings-service/   :8087  user settings
-  services/football-service/   :8090  football data (Java + Postgres)
-    football/provider/         API-Football client and normalisers
-    football/service/          Cache-aside, daily call budget, fallback order
-    football/store/            Postgres-backed cache and call log
   coverage/                    Aggregates JaCoCo across every module — must build last
+  go/                          Go services (chi + pgx / mongo-driver). One module, shared platform/
+    platform/                  JWT (JWKS RS256), security headers, CORS, token-bucket rate limit, PG + migrate
+    services/history/          :8085  browsing + search history (MongoDB, TTL indexes)
+    services/downloads/        :8086  download ledger (Postgres, state machine)
+    services/settings/         :8087  user settings (Postgres + JSONB, If-Match)
+    services/football/         :8090  football data — cache-aside, daily call budget
   data/                        Corpus, index, images, accounts (mounted into containers)
 desktop-app/                   Mini browser (Electron + React + TypeScript)
   src/renderer/src/components/football/

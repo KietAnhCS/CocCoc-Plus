@@ -30,3 +30,7 @@ Thumbs.db
 
 # Log cua cac service chay ngam qua run-backend.bat.
 backend/logs/
+
+# Bao loi cua JVM khi may het RAM.
+backend/hs_err_pid*.log
+backend/replay_pid*.log

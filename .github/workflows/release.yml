@@ -135,10 +135,8 @@ jobs:
           - search-service
           - crawler-service
           - analytics-service
-          - history-service
-          - downloads-service
-          - settings-service
-          - football-service
+          # history / downloads / settings / football viết bằng Go — dựng ở
+          # job `anh-docker-go` bên dưới (backend/go/Dockerfile).
     # Chờ CẢ hai cổng chặn: một bản phát hành phải qua được test lẫn phân
     # tích tĩnh, nên hai job song song đều là điều kiện tiên quyết.
     needs: [kiem-tra, phan-tich-tinh]
@@ -257,11 +255,104 @@ jobs:
           severity: CRITICAL
 
   # ---------------------------------------------------------------------------
+  # DỰNG VÀ ĐẨY ẢNH — service Go
+  #
+  # Giống `anh-docker` nhưng context là `./backend/go` và tham số hoá bằng
+  # build-arg `SERVICE` (tên thư mục). Tên ảnh giữ là `<dir>-service` cho
+  # khớp docker-compose.yml. Go build tĩnh (CGO_ENABLED=0) nên đa nền tảng
+  # amd64+arm64 không cần QEMU cho phần biên dịch.
+  # ---------------------------------------------------------------------------
+  anh-docker-go:
+    name: Dựng ${{ matrix.compose }} (Go)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {compose: football-service, dir: football}
+          - {compose: settings-service, dir: settings}
+          - {compose: downloads-service, dir: downloads}
+          - {compose: history-service, dir: history}
+    needs: [kiem-tra, phan-tich-tinh]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - id: kho
+        name: Xác định đường dẫn kho ảnh chữ thường
+        run: |
+          echo "duong-dan=${REGISTRY}/$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')" \
+            >> "$GITHUB_OUTPUT"
+
+      - name: Đăng nhập GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sinh nhãn và metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.kho.outputs.duong-dan }}/${{ matrix.compose }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/') }}
+            type=sha,format=long
+
+      - name: Dựng và đẩy
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend/go
+          push: true
+          build-args: |
+            SERVICE=${{ matrix.dir }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha,scope=${{ matrix.compose }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.compose }}
+          sbom: true
+          provenance: mode=max
+
+      - name: Cài cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Ký ảnh
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          for tag in $TAGS; do
+            cosign sign --yes "${tag%%:*}@${DIGEST}"
+          done
+
+      - name: Quét lỗ hổng (chặn ở mức CRITICAL)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.kho.outputs.duong-dan }}/${{ matrix.compose }}@${{ steps.build.outputs.digest }}
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: CRITICAL
+
+  # ---------------------------------------------------------------------------
   # TẠO BẢN PHÁT HÀNH TRÊN GITHUB
   # ---------------------------------------------------------------------------
   ban-phat-hanh:
     name: Tạo GitHub Release
-    needs: anh-docker
+    needs: [anh-docker, anh-docker-go]
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:

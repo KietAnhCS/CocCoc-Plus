@@ -8,12 +8,22 @@
 > Mermaid, bảng đối chiếu và trace dữ liệu THẬT (chạy bằng mã nguồn thật trong
 > repo, không phải số bịa).
 
+**Quy ước ký hiệu**
+
+| Ký hiệu | Nghĩa |
+|---|---|
+| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/java/libs/core-search/src/main/java/com/vnsearch/` (nêu rõ khi khác) |
+| **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
+| ① ② ③ | Số thứ tự bước trong một chuỗi xử lý |
+| ★ | Điểm mấu chốt, dễ hiểu sai |
+| ⚠ | Cạm bẫy đã từng gây lỗi thật, hoặc giới hạn đã biết |
+| ↺ | Vòng lặp khép kín (feedback loop) |
+
 ---
 
 ## MỤC LỤC
 
 ### PHẦN I — TỔNG QUAN
-- [0. Cách đọc tài liệu này](#0-cách-đọc-tài-liệu-này)
 - [1. Ranh giới trách nhiệm: chặng 5 kết thúc ở đâu, chặng 6 bắt đầu ở đâu](#1-ranh-giới-trách-nhiệm-chặng-5-kết-thúc-ở-đâu-chặng-6-bắt-đầu-ở-đâu)
 - [2. Bản đồ toàn hệ thống](#2-bản-đồ-toàn-hệ-thống)
 - [3. Danh mục toàn bộ file tham gia](#3-danh-mục-toàn-bộ-file-tham-gia)
@@ -25,87 +35,93 @@
 ### PHẦN II — GIAO DIỆN CHẤM ĐIỂM
 - [8. `RelevanceScorer` — Strategy pattern](#8-relevancescorer--strategy-pattern)
 - [9. `prepare()` đấu với `score()` — vì sao phải tách](#9-prepare-đấu-với-score--vì-sao-phải-tách)
+- [10. Cách `TfIdfScorer.prepare` làm điều đó (mã thật)](#10-cách-tfidfscorerprepare-làm-điều-đó-mã-thật)
+- [11. Cài đặt mặc định vẫn tồn tại — vì sao không xoá](#11-cài-đặt-mặc-định-vẫn-tồn-tại--vì-sao-không-xoá)
 
-### PHẦN III — HAI CÔNG THỨC CƠ BẢN
-- [10. `TfIdfScorer` — cosine similarity](#10-tfidfscorer--cosine-similarity)
-- [11. `BM25Scorer` — mô hình xác suất Robertson–Sparck Jones](#11-bm25scorer--mô-hình-xác-suất-robertsonsparck-jones)
-- [12. TF-IDF đấu BM25 — hai đường cong bão hoà](#12-tf-idf-đấu-bm25--hai-đường-cong-bão-hoà)
-- [13. `ScorerFactory` — Factory pattern chọn và lắp ráp](#13-scorerfactory--factory-pattern-chọn-và-lắp-ráp)
+### PHẦN III — CÔNG THỨC CƠ SỞ 1: TF-IDF COSINE
+- [12. `TfIdfScorer` — cosine similarity](#12-tfidfscorer--cosine-similarity)
+- [13. Vì sao chỉ duyệt qua term của TRUY VẤN, không phải toàn bộ từ vựng](#13-vì-sao-chỉ-duyệt-qua-term-của-truy-vấn-không-phải-toàn-bộ-từ-vựng)
+- [14. Chuẩn hoá độ dài — xấp xỉ và cái giá của nó](#14-chuẩn-hoá-độ-dài--xấp-xỉ-và-cái-giá-của-nó)
+- [15. TF-IDF — trace bằng số thật](#15-tf-idf--trace-bằng-số-thật)
 
-### PHẦN IV — DECORATOR: TÍN HIỆU BỔ SUNG
-- [14. Decorator pattern — vì sao không thêm tham số vào công thức](#14-decorator-pattern--vì-sao-không-thêm-tham-số-vào-công-thức)
-- [15. `PageRankBoostScorer`](#15-pagerankboostscorer)
-- [16. `TitleBoostScorer`](#16-titleboostscorer)
-  - [16.4 `RecencyBoostScorer` — tín hiệu độ mới](#164-recencyboostscorer--tín-hiệu-độ-mới)
-- [17. `QuerySyllables` — khớp chặt và khớp lỏng dấu](#17-querysyllables--khớp-chặt-và-khớp-lỏng-dấu)
+### PHẦN IV — CÔNG THỨC CƠ SỞ 2: BM25
+- [16. `BM25Scorer` — mô hình xác suất Robertson–Sparck Jones](#16-bm25scorer--mô-hình-xác-suất-robertsonsparck-jones)
+- [17. BM25 hơn TF-IDF cosine ở ba điểm — trích nguyên văn lập luận trong mã nguồn](#17-bm25-hơn-tf-idf-cosine-ở-ba-điểm--trích-nguyên-văn-lập-luận-trong-mã-nguồn)
+- [18. Validate tham số ngay ở constructor](#18-validate-tham-số-ngay-ở-constructor)
+- [19. `BM25Scorer.prepare` — cùng kỹ thuật với TF-IDF, khác chi tiết bão hoà](#19-bm25scorerprepare--cùng-kỹ-thuật-với-tf-idf-khác-chi-tiết-bão-hoà)
+- [20. BM25 — trace bằng số thật](#20-bm25--trace-bằng-số-thật)
+- [21. TF-IDF đấu BM25 — hai đường cong bão hoà](#21-tf-idf-đấu-bm25--hai-đường-cong-bão-hoà)
 
-### PHẦN V — PAGERANK
-- [18. `SparseMatrix` — CSR, nền của phép nhân ma trận nhanh](#18-sparsematrix--csr-nền-của-phép-nhân-ma-trận-nhanh)
-- [19. `PageRankService` — power iteration đầy đủ](#19-pagerankservice--power-iteration-đầy-đủ)
-- [20. Trace hai đồ thị thật](#20-trace-hai-đồ-thị-thật)
+### PHẦN V — NHÀ MÁY VÀ DECORATOR
+- [22. `ScorerFactory` — Factory pattern chọn và lắp ráp](#22-scorerfactory--factory-pattern-chọn-và-lắp-ráp)
+- [23. Hai bước: chọn CƠ SỞ, rồi BỌC tín hiệu](#23-hai-bước-chọn-cơ-sở-rồi-bọc-tín-hiệu)
+- [24. Hai constructor — vì sao có bản tường minh](#24-hai-constructor--vì-sao-có-bản-tường-minh)
+- [25. Decorator pattern — vì sao không thêm tham số vào công thức](#25-decorator-pattern--vì-sao-không-thêm-tham-số-vào-công-thức)
+- [26. Cách Decorator sửa nó](#26-cách-decorator-sửa-nó)
 
-### PHẦN VI — TOP-K VÀ SNIPPET
-- [21. `MinHeap.topK` — O(c·log K) thay vì O(c·log c)](#21-minheaptopk--oclog-k-thay-vì-oclog-c)
-- [22. `SnippetBuilder` — cửa sổ trượt và chống XSS](#22-snippetbuilder--cửa-sổ-trượt-và-chống-xss)
+### PHẦN VI — BA LỚP BỌC TÍN HIỆU
+- [27. `PageRankBoostScorer`](#27-pagerankboostscorer)
+- [28. `PageRankBoostScorer` — cách nhân, có chuẩn hoá log](#28-pagerankboostscorer--cách-nhân-có-chuẩn-hoá-log)
+- [29. `TitleBoostScorer`](#29-titleboostscorer)
+- [30. `TitleBoostScorer` — cài đặt](#30-titleboostscorer--cài-đặt)
+- [31. `RecencyBoostScorer` — tín hiệu độ mới](#31-recencyboostscorer--tín-hiệu-độ-mới)
 
-### PHẦN VII — LẮP RÁP: `ResultRanker`
-- [23. Hai giai đoạn — vì sao nhanh hơn 50 lần](#23-hai-giai-đoạn--vì-sao-nhanh-hơn-50-lần)
-- [24. `RankedResult` — vì sao chỉ còn một trường điểm](#24-rankedresult--vì-sao-chỉ-còn-một-trường-điểm)
+### PHẦN VII — KHỚP TIẾNG CỦA TRUY VẤN
+- [32. `QuerySyllables` — khớp chặt và khớp lỏng dấu](#32-querysyllables--khớp-chặt-và-khớp-lỏng-dấu)
+- [33. Quy tắc mới của khớp chặt và khớp lỏng](#33-quy-tắc-mới-của-khớp-chặt-và-khớp-lỏng)
+- [34. `QuerySyllables` — cài đặt](#34-querysyllables--cài-đặt)
+- [35. `titleMatchRatio` — vì sao phải KẸP trong [0,1]](#35-titlematchratio--vì-sao-phải-kẹp-trong-01)
 
-### PHẦN VIII — ĐỐI CHIẾU OUTPUT THẬT
-- [25. Corpus dựng lại và truy vấn thật](#25-corpus-dựng-lại-và-truy-vấn-thật)
-- [26. Bảng điểm từng giai đoạn, từng docId](#26-bảng-điểm-từng-giai-đoạn-từng-docid)
-- [27. Vì sao thứ tự cuối cùng lại như vậy](#27-vì-sao-thứ-tự-cuối-cùng-lại-như-vậy)
+### PHẦN VIII — PAGERANK: MA TRẬN THƯA
+- [36. `SparseMatrix` — CSR, nền của phép nhân ma trận nhanh](#36-sparsematrix--csr-nền-của-phép-nhân-ma-trận-nhanh)
+- [37. Hai chế độ lưu trữ — dựng linh hoạt, đông cứng để chạy nhanh](#37-hai-chế-độ-lưu-trữ--dựng-linh-hoạt-đông-cứng-để-chạy-nhanh)
+- [38. `SparseMatrix` — trace bằng số thật](#38-sparsematrix--trace-bằng-số-thật)
 
-### PHẦN IX — PHỤ LỤC
-- [28. Bảng hằng số toàn hệ thống](#28-bảng-hằng-số-toàn-hệ-thống)
-- [29. Bảng tra nhanh khối ↔ file ↔ hàm](#29-bảng-tra-nhanh-khối--file--hàm)
-- [30. Câu hỏi thường gặp](#30-câu-hỏi-thường-gặp)
-- [31. Chẩn đoán sự cố](#31-chẩn-đoán-sự-cố)
-- [32. Thuật ngữ](#32-thuật-ngữ)
-- [33. Toàn cảnh một trang](#33-toàn-cảnh-một-trang)
+### PHẦN IX — PAGERANK: POWER ITERATION
+- [39. `PageRankService` — power iteration đầy đủ](#39-pagerankservice--power-iteration-đầy-đủ)
+- [40. Xây ma trận: "hàng j = ai trỏ TỚI j", không phải "hàng i = i trỏ tới ai"](#40-xây-ma-trận-hàng-j--ai-trỏ-tới-j-không-phải-hàng-i--i-trỏ-tới-ai)
+- [41. Dangling node — vì sao phải rải đều, không được bỏ qua](#41-dangling-node--vì-sao-phải-rải-đều-không-được-bỏ-qua)
+- [42. Vì sao `Logger` chứ không phải `System.out`](#42-vì-sao-logger-chứ-không-phải-systemout)
+- [43. Trace hai đồ thị thật](#43-trace-hai-đồ-thị-thật)
+
+### PHẦN X — TOP-K VÀ SNIPPET
+- [44. `MinHeap.topK` — O(c log K) thay vì O(c log c)](#44-minheaptopk--oc-log-k-thay-vì-oc-log-c)
+- [45. Hai tối ưu bên trong `MinHeap`](#45-hai-tối-ưu-bên-trong-minheap)
+- [46. MinHeap — trace bằng số thật](#46-minheap--trace-bằng-số-thật)
+- [47. `SnippetBuilder` — cửa sổ trượt và chống XSS](#47-snippetbuilder--cửa-sổ-trượt-và-chống-xss)
+- [48. Bài toán cửa sổ trượt](#48-bài-toán-cửa-sổ-trượt)
+- [49. Khớp CHÍNH XÁC hay LỎNG — quyết định nằm ở `QuerySyllables`](#49-khớp-chính-xác-hay-lỏng--quyết-định-nằm-ở-querysyllables)
+- [50. Chống XSS thật, không phải giả định lý thuyết](#50-chống-xss-thật-không-phải-giả-định-lý-thuyết)
+- [51. Vì sao chỉ thêm `"..."` khi cửa sổ THỰC SỰ không ở đầu/cuối](#51-vì-sao-chỉ-thêm--khi-cửa-sổ-thực-sự-không-ở-đầucuối)
+- [52. `SnippetBuilder` — trace bằng số thật](#52-snippetbuilder--trace-bằng-số-thật)
+
+### PHẦN XI — LẮP RÁP: `ResultRanker`
+- [53. Hai giai đoạn — vì sao nhanh hơn 50 lần](#53-hai-giai-đoạn--vì-sao-nhanh-hơn-50-lần)
+- [54. Trạng thái SAU: tách bạch bằng comment ngay trong mã](#54-trạng-thái-sau-tách-bạch-bằng-comment-ngay-trong-mã)
+- [55. `RankedResult` — vì sao chỉ còn một trường điểm](#55-rankedresult--vì-sao-chỉ-còn-một-trường-điểm)
+
+### PHẦN XII — ĐỐI CHIẾU OUTPUT THẬT
+- [56. Tổng quan output thật](#56-tổng-quan-output-thật)
+- [57. Corpus dựng lại và truy vấn thật](#57-corpus-dựng-lại-và-truy-vấn-thật)
+- [58. Bảng điểm từng giai đoạn, từng docId](#58-bảng-điểm-từng-giai-đoạn-từng-docid)
+- [59. `doc3` bị loại hoàn toàn — đúng thiết kế "thoát sớm"](#59-doc3-bị-loại-hoàn-toàn--đúng-thiết-kế-thoát-sớm)
+- [60. `doc4` bị đẩy ra khỏi top-3 — vì tiêu đề không khớp CHÚT NÀO](#60-doc4-bị-đẩy-ra-khỏi-top-3--vì-tiêu-đề-không-khớp-chút-nào)
+- [61. `doc1` vượt `doc0` dù PageRank THẤP HƠN](#61-doc1-vượt-doc0-dù-pagerank-thấp-hơn)
+- [62. Vì sao `TF-IDF cosine` xếp hạng SAI khác](#62-vì-sao-tf-idf-cosine-xếp-hạng-sai-khác)
+
+### PHẦN XIII — PHỤ LỤC
+- [63. Chế độ suy biến: khi một tín hiệu bị tắt hoặc thiếu dữ liệu](#63-chế-độ-suy-biến-khi-một-tín-hiệu-bị-tắt-hoặc-thiếu-dữ-liệu)
+- [64. Bảng hằng số toàn hệ thống](#64-bảng-hằng-số-toàn-hệ-thống)
+- [65. Bảng tra nhanh khối ↔ file ↔ hàm](#65-bảng-tra-nhanh-khối--file--hàm)
+- [66. Câu hỏi thường gặp](#66-câu-hỏi-thường-gặp)
+- [67. Chẩn đoán sự cố](#67-chẩn-đoán-sự-cố)
+- [68. Thuật ngữ](#68-thuật-ngữ)
+- [69. Toàn cảnh một trang](#69-toàn-cảnh-một-trang)
 
 ---
 ---
 
 # PHẦN I — TỔNG QUAN
-
----
-
-## 0. Cách đọc tài liệu này
-
-Tài liệu này viết theo cùng nguyên tắc với `CRAWLER-PIPELINE.md`: **một chiều,
-không nhảy cóc**. Đọc tuần tự từ đầu đến cuối là đi đúng đường mà một truy vấn
-thật đi, từ lúc `ResultRanker.rank(...)` được gọi tới lúc `SearchResult` cuối
-cùng rời khỏi tầng xếp hạng.
-
-### Quy ước ký hiệu (giống hệt tài liệu crawler, để đọc song song không phải học lại)
-
-| Ký hiệu | Nghĩa |
-|---|---|
-| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/java/libs/core-search/src/main/java/com/vnsearch/` (nêu rõ khi khác) |
-| **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
-| ① ② ③ | Số thứ tự bước trong một chuỗi xử lý |
-| ★ | Điểm mấu chốt, dễ hiểu sai |
-| ⚠ | Cạm bẫy đã từng gây lỗi thật, hoặc giới hạn đã biết |
-| ↺ | Vòng lặp khép kín (feedback loop) |
-
-### Ba mức chi tiết
-
-1. **Mức sơ đồ** — một hình Mermaid (kèm bản chữ ASCII trong `<details>`), hiểu trong 10 giây.
-2. **Mức mã** — trích đoạn mã thật, đã lược getter/log cho gọn nhưng KHÔNG lược Javadoc mang lập luận thiết kế.
-3. **Mức lập luận** — vì sao viết như vậy, và bằng chứng bằng số nếu có.
-
-### Nguồn của tài liệu này
-
-Mọi công thức, hằng số, tên biến trong tài liệu đọc trực tiếp từ mã nguồn tại
-`backend/java/libs/core-search/src/main/java/com/vnsearch/ranking/` (và
-`ranking/decorator/`), cộng với hai cấu trúc dữ liệu nền `MinHeap` và
-`SparseMatrix` tại `backend/java/libs/core-common/src/main/java/com/vnsearch/datastructure/`.
-Mọi số liệu trong PHẦN VIII và trong các mục trace của PHẦN V là kết quả CHẠY
-THẬT các lớp này (biên dịch bằng `javac`, chạy bằng `java`, dùng đúng
-`target/classes` đã build của repo) — không phải số suy diễn bằng tay hay bịa
-ra cho đẹp bảng.
 
 ---
 
@@ -159,7 +175,7 @@ int toIndex = Math.min(fromIndex + size, ranked.size());
 
 Điều này nghĩa là gọi `rank` cho trang 3 (`size=10`) vẫn phải chấm điểm và
 xếp hạng top-30, rồi vứt đi 20 phần tử đầu — không có cách nào né được chi
-phí đó với cấu trúc MinHeap top-K hiện tại (xem [mục 21](#21-minheaptopk--oclog-k-thay-vì-oclog-c)
+phí đó với cấu trúc MinHeap top-K hiện tại (xem [mục 44](#44-minheaptopk--oc-log-k-thay-vì-oc-log-c)
 để hiểu vì sao đây vẫn là lựa chọn đúng).
 
 ---
@@ -242,7 +258,7 @@ KHÔNG nằm trên đường mỗi truy vấn — kết quả nạp vào cả Pa
 GIAI ĐOẠN 1 (để trả pageRankScore ra API, mục đích BÁO CÁO).
 
 crawledAtEpochMillis() (bản đồ docId → mốc crawl) cũng dựng MỘT lần trong
-refreshDerivedState() và nạp vào RecencyBoostScorer — xem [mục 16.4].
+refreshDerivedState() và nạp vào RecencyBoostScorer — xem [mục 31].
 ```
 
 </details>
@@ -265,18 +281,18 @@ tên chấm ("tham số truyền vào").
 | # | File | Vai trò | Đọc kỹ ở mục |
 |---|---|---|---|
 | 1 | `ranking/RelevanceScorer.java` | Giao diện Strategy — trục của toàn bộ tầng | [8](#8-relevancescorer--strategy-pattern) |
-| 2 | `ranking/TfIdfScorer.java` | Công thức TF-IDF cosine | [10](#10-tfidfscorer--cosine-similarity) |
-| 3 | `ranking/BM25Scorer.java` | Công thức BM25 (mặc định của hệ thống) | [11](#11-bm25scorer--mô-hình-xác-suất-robertsonsparck-jones) |
-| 4 | `ranking/ScorerFactory.java` | Factory chọn base scorer + lắp Decorator | [13](#13-scorerfactory--factory-pattern-chọn-và-lắp-ráp) |
-| 5 | `ranking/decorator/PageRankBoostScorer.java` | Decorator — nhân thêm tín hiệu uy tín | [15](#15-pagerankboostscorer) |
-| 6 | `ranking/decorator/TitleBoostScorer.java` | Decorator — nhân thêm tín hiệu khớp tiêu đề | [16](#16-titleboostscorer) |
-| 6b | `ranking/decorator/RecencyBoostScorer.java` | Decorator — nhân thêm tín hiệu độ mới (`crawledAt`) | [16.4](#164-recencyboostscorer--tín-hiệu-độ-mới) |
-| 7 | `ranking/QuerySyllables.java` | Tập tiếng của truy vấn — dùng cho title boost VÀ snippet | [17](#17-querysyllables--khớp-chặt-và-khớp-lỏng-dấu) |
-| 8 | `ranking/PageRankService.java` | Thuật toán PageRank — power iteration | [19](#19-pagerankservice--power-iteration-đầy-đủ) |
-| 9 | `ranking/SnippetBuilder.java` | Sinh đoạn trích, cửa sổ trượt, chống XSS | [22](#22-snippetbuilder--cửa-sổ-trượt-và-chống-xss) |
-| 10 | `ranking/ResultRanker.java` | Lắp mọi thứ, lấy top-K | [23](#23-hai-giai-đoạn--vì-sao-nhanh-hơn-50-lần) |
-| 11 | `datastructure/MinHeap.java` *(core-common)* | Top-K tổng quát bằng min-heap | [21](#21-minheaptopk--oclog-k-thay-vì-oclog-c) |
-| 12 | `datastructure/SparseMatrix.java` *(core-common)* | Ma trận thưa CSR — nền của PageRank | [18](#18-sparsematrix--csr-nền-của-phép-nhân-ma-trận-nhanh) |
+| 2 | `ranking/TfIdfScorer.java` | Công thức TF-IDF cosine | [12](#12-tfidfscorer--cosine-similarity) |
+| 3 | `ranking/BM25Scorer.java` | Công thức BM25 (mặc định của hệ thống) | [16](#16-bm25scorer--mô-hình-xác-suất-robertsonsparck-jones) |
+| 4 | `ranking/ScorerFactory.java` | Factory chọn base scorer + lắp Decorator | [22](#22-scorerfactory--factory-pattern-chọn-và-lắp-ráp) |
+| 5 | `ranking/decorator/PageRankBoostScorer.java` | Decorator — nhân thêm tín hiệu uy tín | [27](#27-pagerankboostscorer) |
+| 6 | `ranking/decorator/TitleBoostScorer.java` | Decorator — nhân thêm tín hiệu khớp tiêu đề | [29](#29-titleboostscorer) |
+| 6b | `ranking/decorator/RecencyBoostScorer.java` | Decorator — nhân thêm tín hiệu độ mới (`crawledAt`) | [31](#31-recencyboostscorer--tín-hiệu-độ-mới) |
+| 7 | `ranking/QuerySyllables.java` | Tập tiếng của truy vấn — dùng cho title boost VÀ snippet | [32](#32-querysyllables--khớp-chặt-và-khớp-lỏng-dấu) |
+| 8 | `ranking/PageRankService.java` | Thuật toán PageRank — power iteration | [39](#39-pagerankservice--power-iteration-đầy-đủ) |
+| 9 | `ranking/SnippetBuilder.java` | Sinh đoạn trích, cửa sổ trượt, chống XSS | [47](#47-snippetbuilder--cửa-sổ-trượt-và-chống-xss) |
+| 10 | `ranking/ResultRanker.java` | Lắp mọi thứ, lấy top-K | [53](#53-hai-giai-đoạn--vì-sao-nhanh-hơn-50-lần) |
+| 11 | `datastructure/MinHeap.java` *(core-common)* | Top-K tổng quát bằng min-heap | [44](#44-minheaptopk--oc-log-k-thay-vì-oc-log-c) |
+| 12 | `datastructure/SparseMatrix.java` *(core-common)* | Ma trận thưa CSR — nền của PageRank | [36](#36-sparsematrix--csr-nền-của-phép-nhân-ma-trận-nhanh) |
 | 13 | `service/SearchEngineFacade.java` *(core-search)* | Điểm gọi vào chặng 6 từ tầng REST | [1](#1-ranh-giới-trách-nhiệm-chặng-5-kết-thúc-ở-đâu-chặng-6-bắt-đầu-ở-đâu) |
 
 Đường dẫn đầy đủ của các file 1–10: `backend/java/libs/core-search/src/main/java/com/vnsearch/`.
@@ -397,8 +413,8 @@ for (ScoredCandidate candidate : top) {                                         
 (xem Javadoc của `ResultRanker`): chấm điểm, kết hợp ba tín hiệu bằng công
 thức tuyến tính chọn cứng, VÀ sinh snippet — cho MỌI ứng viên, rồi mới cắt
 top-N. Tách thành bốn giai đoạn rõ ràng vừa sửa một lỗi thật (PageRank chỉ
-đóng góp 0,1% dù trọng số danh nghĩa là 30%, xem [mục 15](#15-pagerankboostscorer)),
-vừa cắt chi phí sinh snippet đi 50 lần (xem [mục 23](#23-hai-giai-đoạn--vì-sao-nhanh-hơn-50-lần)).
+đóng góp 0,1% dù trọng số danh nghĩa là 30%, xem [mục 27](#27-pagerankboostscorer)),
+vừa cắt chi phí sinh snippet đi 50 lần (xem [mục 53](#53-hai-giai-đoạn--vì-sao-nhanh-hơn-50-lần)).
 
 ---
 
@@ -461,7 +477,7 @@ pageRankScores : Map<docId, Double>          crawledAt : Map<docId, epochMillis>
 </details>
 
 ★ **Vì sao tách hẳn ra khỏi đường truy vấn.** Một vòng lặp luỹ thừa trên
-toàn corpus (xem [mục 19](#19-pagerankservice--power-iteration-đầy-đủ)) tốn
+toàn corpus (xem [mục 39](#39-pagerankservice--power-iteration-đầy-đủ)) tốn
 O(số vòng lặp × nnz) — với vài chục nghìn trang và vài trăm nghìn liên kết,
 đây là phép tính có thể mất hàng trăm mili-giây tới vài giây. Chạy nó trên
 MỖI truy vấn sẽ biến một tra cứu tưởng chừng tức thời thành một tác vụ theo
@@ -501,7 +517,7 @@ bằng phép nhân, xem 7.3), không thuộc về những gì người vận hà
 ```
 
 `base · (1 + β·PR̂)` giữ nguyên THỨ NGUYÊN của điểm liên quan — đổi scorer cơ
-sở từ TF-IDF sang BM25 (thang điểm khác hẳn nhau: xem PHẦN VIII, TF-IDF cho
+sở từ TF-IDF sang BM25 (thang điểm khác hẳn nhau: xem PHẦN XII, TF-IDF cho
 `~0,03–0,04` còn BM25 cho `~0,7–1,0` trên CÙNG một corpus) không cần chỉnh
 lại `β`/`γ`. Cộng thẳng PageRank vào sẽ đẩy một trang uy tín nhưng LẠC ĐỀ lên
 đầu bảng — và cả hai lớp Decorator đều thoát sớm khi `base == 0`, đúng chủ
@@ -551,7 +567,7 @@ BM25 thuần   : MRR 0,8989   Success@1 85,0%
 | Thành phần | Nhận | Trả | Vai trò |
 |---|---|---|---|
 | `score(qtf, docId, index)` | Toàn bộ ngữ cảnh mỗi lần gọi | `double` | API "thô" — dùng cho một lần chấm điểm lẻ |
-| `name()` | — | `String` | Nhãn mô tả, các Decorator tự GHÉP tên lớp trong (mục 15–16) |
+| `name()` | — | `String` | Nhãn mô tả, các Decorator tự GHÉP tên lớp trong (mục 27–16) |
 | `prepare(qtf, index)` | Ngữ cảnh CHỈ MỘT LẦN | `DocumentScorer` (hàm `docId -> double`) | API "nóng" — dùng trong vòng lặp chấm điểm hàng loạt |
 
 `DocumentScorer` là một giao diện hàm (`@FunctionalInterface`) — thực chất
@@ -580,7 +596,9 @@ Với 5.000 ứng viên và 3 term truy vấn, đó là **30.000 phép logarit**
 **5.000 đôi tập băm** bị vứt đi ngay sau khi tạo — chuẩn bị trước đưa chúng
 về đúng MỘT lần mỗi truy vấn, tức từ `O(c·q)` xuống `O(q)`.
 
-### 9.2 Cách `TfIdfScorer.prepare` làm điều đó (mã thật)
+---
+
+## 10. Cách `TfIdfScorer.prepare` làm điều đó (mã thật)
 
 ```java
 @Override
@@ -638,7 +656,9 @@ public DocumentScorer prepare(Map<String, Integer> queryTermFrequency, SearchInd
    mảng nguyên thuỷ phẳng cho cục bộ cache tốt hơn hẳn một mảng tham chiếu
    trỏ tới các đối tượng nằm rải rác trong heap.
 
-### 9.3 Cài đặt mặc định vẫn tồn tại — vì sao không xoá
+---
+
+## 11. Cài đặt mặc định vẫn tồn tại — vì sao không xoá
 
 `prepare` mặc định trong giao diện (chỉ gọi lại `score`) tồn tại để một
 `RelevanceScorer` không cài lại nó VẪN CHẠY ĐÚNG — chỉ là chậm hơn, không sai
@@ -650,15 +670,15 @@ khi công thức đã ổn định.
 
 ---
 
-# PHẦN III — HAI CÔNG THỨC CƠ BẢN
+# PHẦN III — CÔNG THỨC CƠ SỞ 1: TF-IDF COSINE
 
 ---
 
-## 10. `TfIdfScorer` — cosine similarity
+## 12. `TfIdfScorer` — cosine similarity
 
 **File:** `ranking/TfIdfScorer.java`
 
-### 10.1 Công thức
+### 12.1 Công thức
 
 ```
 tf(x)  = 1 + log10(x)                           nếu x > 0, ngược lại 0
@@ -682,7 +702,9 @@ lượng thông tin của biến cố "tài liệu chứa term này": term hiế
 biến. Term có mặt ở MỌI tài liệu cho `idf = log10(1) = 0` — đúng trực giác:
 nó không phân biệt được tài liệu nào với tài liệu nào.
 
-### 10.2 Vì sao chỉ duyệt qua term của TRUY VẤN, không phải toàn bộ từ vựng
+---
+
+## 13. Vì sao chỉ duyệt qua term của TRUY VẤN, không phải toàn bộ từ vựng
 
 ```java
 @Override
@@ -697,7 +719,9 @@ thưa (sparse vector) làm việc được: dù không gian vector có 136.768 c
 (bằng số term phân biệt của corpus), phép tính chỉ cần chạm vào `q` chiều mà
 truy vấn thực sự có, độ phức tạp `O(q log d)` chứ không phải `O(|từ vựng|)`.
 
-### 10.3 Chuẩn hoá độ dài — xấp xỉ và cái giá của nó
+---
+
+## 14. Chuẩn hoá độ dài — xấp xỉ và cái giá của nó
 
 ★ **Xấp xỉ Lucene classic.** Cosine similarity chuẩn cần chia cho
 `||vector tài liệu||`, mà norm này về lý thuyết phải tính trên TẤT CẢ term
@@ -711,7 +735,9 @@ lệ `|d|^0,25` trong khi xấp xỉ dùng `|d|^0,5` — tức nó PHẠT tài l
 hơn thực tế đáng ra cần. Đây đúng là điểm mà BM25 làm tốt hơn: BM25 có tham
 số `b` để điều chỉnh MỨC phạt độ dài thay vì chọn cứng một số mũ.
 
-### 10.4 Trace bằng số thật
+---
+
+## 15. TF-IDF — trace bằng số thật
 
 Chạy `TfIdfScorer.main` (demo có sẵn trong mã nguồn, 2 tài liệu, truy vấn
 `"máy tính"`):
@@ -727,11 +753,15 @@ tránh luôn cả việc chia `0/x`.
 
 ---
 
-## 11. `BM25Scorer` — mô hình xác suất Robertson–Sparck Jones
+# PHẦN IV — CÔNG THỨC CƠ SỞ 2: BM25
+
+---
+
+## 16. `BM25Scorer` — mô hình xác suất Robertson–Sparck Jones
 
 **File:** `ranking/BM25Scorer.java`
 
-### 11.1 Công thức đầy đủ
+### 16.1 Công thức đầy đủ
 
 ```
                         f(q,D) · (k1 + 1)
@@ -745,7 +775,9 @@ với `k1 = 1,2` (`app.ranking.bm25.k1`), `b = 0,75` (`app.ranking.bm25.b`) —
 hai giá trị chuẩn hoá qua nhiều thập kỷ thực nghiệm TREC, và là giá trị mặc
 định thật trong `application.properties` của `search-service`.
 
-### 11.2 BM25 hơn TF-IDF cosine ở ba điểm — trích nguyên văn lập luận trong mã nguồn
+---
+
+## 17. BM25 hơn TF-IDF cosine ở ba điểm — trích nguyên văn lập luận trong mã nguồn
 
 **Một — tần suất bão hoà có TRẦN.** Ở TF-IDF, `tf = 1 + log10(f)` vẫn tăng vô
 hạn theo số lần lặp (chậm dần nhưng không bao giờ dừng). Ở BM25, phần thức
@@ -765,7 +797,9 @@ DƯƠNG — khác với biến thể `log(N/df)` (như ở TF-IDF) vốn hoá Â
 hiện ở hơn một nửa số tài liệu, khiến tài liệu chứa nó bị TRỪ điểm một cách
 vô lý.
 
-### 11.3 Cài đặt: validate tham số ngay ở constructor
+---
+
+## 18. Validate tham số ngay ở constructor
 
 ```java
 public BM25Scorer(double k1, double b) {
@@ -787,7 +821,9 @@ hoặc đổi dấu, phá vỡ hoàn toàn tính đơn điệu của công thứ
 hình sai sẽ ném lỗi ngay khi khởi động ứng dụng, không lặng lẽ cho ra điểm
 vô nghĩa khi phục vụ truy vấn.
 
-### 11.4 `prepare` — cùng kỹ thuật với TF-IDF, khác chi tiết bão hoà theo tài liệu
+---
+
+## 19. `BM25Scorer.prepare` — cùng kỹ thuật với TF-IDF, khác chi tiết bão hoà
 
 ```java
 @Override
@@ -816,10 +852,12 @@ tài liệu (ngoài vòng lặp `for (i < count)`), dù nó phụ thuộc `docId
 với `idfValues`, phụ thuộc TRUY VẤN nên đã được đẩy hẳn ra khỏi cả hai vòng
 lặp trong `prepare`).
 
-### 11.5 Trace bằng số thật (từ PHẦN VIII, xem chi tiết ở đó)
+---
+
+## 20. BM25 — trace bằng số thật
 
 Với corpus 5 trang về "máy tính xách tay" (dựng thật, chạy thật —
-[mục 25](#25-corpus-dựng-lại-và-truy-vấn-thật)): `N=5`, `avgdl=28,6`,
+[mục 57](#57-corpus-dựng-lại-và-truy-vấn-thật)): `N=5`, `avgdl=28,6`,
 `df(máy_tính)=df(xách_tay)=4`, nên `idf = ln(1 + (5−4+0,5)/(4+0,5)) = ln(4/3) ≈ 0,287682`
 cho CẢ HAI term. Với `doc1` (`docLength=26`, `tf=4` cho cả hai term):
 
@@ -831,7 +869,7 @@ tổng 2 term ≈ 0,989280   ←  khớp với số in ra thật: BM25 base = 0,
 
 ---
 
-## 12. TF-IDF đấu BM25 — hai đường cong bão hoà
+## 21. TF-IDF đấu BM25 — hai đường cong bão hoà
 
 ```
 điểm/idf
@@ -869,17 +907,21 @@ tổng 2 term ≈ 0,989280   ←  khớp với số in ra thật: BM25 base = 0,
 ★ **Đọc bảng:** ở vùng `f` nhỏ (1–10 lần), hai đường gần như trùng nhau — cả
 hai mô hình đồng ý một tài liệu có nhiều từ khoá hơn thì liên quan hơn. Từ
 `f ≈ 15` trở đi, TF-IDF vẫn tiếp tục leo (dù rất chậm) trong khi BM25 gần
-như đi ngang ở `2,2`. Đây chính là "tần suất bão hoà có TRẦN" nói ở mục 11.2
+như đi ngang ở `2,2`. Đây chính là "tần suất bão hoà có TRẦN" nói ở mục 17
 — và là lý do BM25 chống nhồi từ khoá tốt hơn TF-IDF cosine kể cả sau khi đã
 qua bước nén `log10`.
 
 ---
 
-## 13. `ScorerFactory` — Factory pattern chọn và lắp ráp
+# PHẦN V — NHÀ MÁY VÀ DECORATOR
+
+---
+
+## 22. `ScorerFactory` — Factory pattern chọn và lắp ráp
 
 **File:** `ranking/ScorerFactory.java`
 
-### 13.1 Vấn đề thật mà lớp này giải
+### 22.1 Vấn đề thật mà lớp này giải
 
 Trước khi có `ScorerFactory`, `SearchEngineFacade` CHỌN CỨNG một cài đặt:
 
@@ -903,7 +945,9 @@ app.ranking.gamma=0.10    # trọng số khớp tiêu đề
 app.ranking.delta=0.20    # trọng số độ mới (crawledAt)
 ```
 
-### 13.2 Hai bước: chọn CƠ SỞ, rồi BỌC tín hiệu
+---
+
+## 23. Hai bước: chọn CƠ SỞ, rồi BỌC tín hiệu
 
 ```java
 public RelevanceScorer createBase() {
@@ -954,7 +998,9 @@ Tắt một tín hiệu bằng cách đặt trọng số 0 trong cấu hình ngh
 Decorator tương ứng KHÔNG BAO GIỜ được tạo ra — không một phép nhân thừa nào
 chạy trên đường nóng vì một tín hiệu đang tắt.
 
-### 13.3 Hai constructor — vì sao có bản tường minh
+---
+
+## 24. Hai constructor — vì sao có bản tường minh
 
 ```java
 public ScorerFactory() { }   // @Component — Spring tiêm giá trị qua @Value
@@ -975,13 +1021,9 @@ trị `@Value`. Bản 5 tham số giữ lại để test cũ không phải sửa
 
 ---
 
-# PHẦN IV — DECORATOR: TÍN HIỆU BỔ SUNG
+## 25. Decorator pattern — vì sao không thêm tham số vào công thức
 
----
-
-## 14. Decorator pattern — vì sao không thêm tham số vào công thức
-
-### 14.1 Công thức cũ, và lý do nó sai
+### 25.1 Công thức cũ, và lý do nó sai
 
 ```
 final = alpha·relevance + beta·pageRank + gamma·titleBonus     ← CÔNG THỨC CŨ, đã bỏ
@@ -994,9 +1036,11 @@ chỉ đo đạc bằng số mới lộ ra: PageRank là một PHÂN PHỐI XÁC
 lớn lên** (`trung bình = 1/N`). Cộng thẳng một đại lượng như vậy vào một
 điểm liên quan có thang hoàn toàn khác là một phép toán không có ý nghĩa —
 không có `beta` nào sửa được, vì vấn đề nằm ở PHÉP TOÁN chứ không phải hằng
-số. Xem con số cụ thể ở [mục 15](#15-pagerankboostscorer).
+số. Xem con số cụ thể ở [mục 27](#27-pagerankboostscorer).
 
-### 14.2 Cách Decorator sửa nó
+---
+
+## 26. Cách Decorator sửa nó
 
 ```
 final = base(q,d) · (1 + β·PR̂(d)) · (1 + γ·title(q,d)) · (1 + δ·recency(d))
@@ -1071,11 +1115,15 @@ nó không thể bọc thêm `PageRankBoostScorer` mà không nhân bản mã.
 
 ---
 
-## 15. `PageRankBoostScorer`
+# PHẦN VI — BA LỚP BỌC TÍN HIỆU
+
+---
+
+## 27. `PageRankBoostScorer`
 
 **File:** `ranking/decorator/PageRankBoostScorer.java`
 
-### 15.1 Bằng chứng bằng số cho công thức CỘNG bị sai
+### 27.1 Bằng chứng bằng số cho công thức CỘNG bị sai
 
 Đo trên corpus 5.011 trang (số liệu ghi trong Javadoc mã nguồn):
 
@@ -1091,7 +1139,9 @@ tỷ lệ đóng góp của PageRank = 0,00010616 / 0,106612 ≈ 0,1%
 như không đo được. Đây không phải "beta chưa tối ưu" — beta bằng bao nhiêu
 cũng không sửa được vì bản chất là phép CỘNG hai đại lượng khác thang.
 
-### 15.2 Cách nhân, có chuẩn hoá log
+---
+
+## 28. `PageRankBoostScorer` — cách nhân, có chuẩn hoá log
 
 ```java
 public PageRankBoostScorer(RelevanceScorer inner, Map<Integer, Double> pageRankScores, double weight) {
@@ -1150,11 +1200,11 @@ mẫu số cực nhỏ. Đây là trường hợp biên chưa có bài kiểm th
 
 ---
 
-## 16. `TitleBoostScorer`
+## 29. `TitleBoostScorer`
 
 **File:** `ranking/decorator/TitleBoostScorer.java`
 
-### 16.1 Vì sao tín hiệu này MẠNH hơn PageRank rất nhiều
+### 29.1 Vì sao tín hiệu này MẠNH hơn PageRank rất nhiều
 
 Đo trên 200 truy vấn known-item (số liệu ghi trong Javadoc mã nguồn):
 
@@ -1169,7 +1219,9 @@ liên quan rất mạnh — và khác với PageRank, nó cùng thang đo với 
 quan (cả hai đều là "mức độ khớp với truy vấn", không phải "mức độ uy tín
 của trang"), nên kết hợp dễ hơn nhiều.
 
-### 16.2 Cài đặt
+---
+
+## 30. `TitleBoostScorer` — cài đặt
 
 ```java
 @Override
@@ -1210,7 +1262,9 @@ của bất biến vòng lặp bị kẹt bên trong vòng lặp".
 `titleBonus` đã nằm sẵn trong `[0,1]` nên không cần chuẩn hoá log, nhưng vẫn
 nhân chứ không cộng để bất biến khi đổi scorer cơ sở.
 
-### 16.4 `RecencyBoostScorer` — tín hiệu độ mới
+---
+
+## 31. `RecencyBoostScorer` — tín hiệu độ mới
 
 **File:** `ranking/decorator/RecencyBoostScorer.java`
 
@@ -1287,7 +1341,11 @@ ghép sau cùng, ví dụ đầy đủ:
 
 ---
 
-## 17. `QuerySyllables` — khớp chặt và khớp lỏng dấu
+# PHẦN VII — KHỚP TIẾNG CỦA TRUY VẤN
+
+---
+
+## 32. `QuerySyllables` — khớp chặt và khớp lỏng dấu
 
 **File:** `ranking/QuerySyllables.java`
 
@@ -1296,7 +1354,7 @@ quyết định từ nào được bôi sáng trong `SnippetBuilder`. Cùng mộ
 cả hai chỗ là chủ đích — người dùng thấy từ được bôi sáng trong snippet
 chính là những từ đã góp vào điểm khớp tiêu đề.
 
-### 17.1 Lỗi đã sửa, và nguyên nhân gốc
+### 32.1 Lỗi đã sửa, và nguyên nhân gốc
 
 ⚠ **Trước đây mọi tiếng đều bị bỏ dấu trước khi so khớp**, khiến snippet bôi
 sáng nhầm: truy vấn `ngân hàng` làm sáng cả chữ `ngàn` trong câu "cắt giảm cả
@@ -1305,7 +1363,9 @@ gốc: bỏ dấu là một ánh xạ NHIỀU-MỘT (`ngân → ngan`, `ngàn �
 `ngắn → ngan`) — so khớp trên ẢNH của ánh xạ này mất khả năng phân biệt các
 nghịch ảnh.
 
-### 17.2 Quy tắc mới
+---
+
+## 33. Quy tắc mới của khớp chặt và khớp lỏng
 
 | Người dùng gõ | Chế độ khớp | Ví dụ |
 |---|---|---|
@@ -1317,7 +1377,9 @@ phải chỉ mục cả hai dạng để bắt được cả hai) — nhưng ở
 việc bỏ dấu là thừa và GÂY SAI, vì lúc này đã biết chính xác người dùng gõ
 gì.
 
-### 17.3 Cài đặt
+---
+
+## 34. `QuerySyllables` — cài đặt
 
 ```java
 public static QuerySyllables from(Set<String> terms) {
@@ -1351,7 +1413,9 @@ dấu: `stripDiacritics(s) == s` khi và chỉ khi `s` không có dấu. Không 
 một bảng tra riêng liệt kê ký tự có dấu — tận dụng luôn hàm `stripDiacritics`
 đã có sẵn cho mục đích index hoá.
 
-### 17.4 `titleMatchRatio` — vì sao phải KẸP trong [0,1]
+---
+
+## 35. `titleMatchRatio` — vì sao phải KẸP trong [0,1]
 
 ```java
 public double titleMatchRatio(String title) {
@@ -1369,19 +1433,19 @@ Tử số đếm SỐ LẦN xuất hiện, còn mẫu số là số tiếng PHÂ
 một tiêu đề nhồi từ khoá (`"Máy tính và máy tính bảng"` với truy vấn
 `"máy tính"`) cho tỷ số thô `4/2 = 2`. Không kẹp thì một tiêu đề nhồi từ khoá
 được thưởng tuỳ ý, phá vỡ đúng thứ mà giới hạn `[0,1]` của công thức nhân ở
-mục 14.2 đang cố giữ.
+mục 26 đang cố giữ.
 
 ---
 
-# PHẦN V — PAGERANK
+# PHẦN VIII — PAGERANK: MA TRẬN THƯA
 
 ---
 
-## 18. `SparseMatrix` — CSR, nền của phép nhân ma trận nhanh
+## 36. `SparseMatrix` — CSR, nền của phép nhân ma trận nhanh
 
 **File:** `datastructure/SparseMatrix.java` *(core-common)*
 
-### 18.1 Vì sao thưa, không phải `double[n][n]`
+### 36.1 Vì sao thưa, không phải `double[n][n]`
 
 Với `n = 5.011` trang (corpus mẫu ghi trong Javadoc), ma trận ĐẶC cần
 `5011² × 8 byte ≈ 191,5 MB`, trong khi thực tế chỉ có `nnz = 239.691` phần tử
@@ -1390,7 +1454,9 @@ khác 0 (độ thưa 0,95%). Tỷ lệ này còn XẤU ĐI khi corpus lớn hơn
 `k_tb` mỗi trang gần như không đổi khi web lớn lên, nên mẫu số `n` càng lớn
 thì độ thưa càng nhỏ.
 
-### 18.2 Hai chế độ lưu trữ — dựng linh hoạt, đông cứng để chạy nhanh
+---
+
+## 37. Hai chế độ lưu trữ — dựng linh hoạt, đông cứng để chạy nhanh
 
 ```mermaid
 stateDiagram-v2
@@ -1448,12 +1514,14 @@ new SparseMatrix(rows, cols)
 | Cục bộ cache | Nhảy tới object rải rác trong heap | 3 mảng liên tục — 16 giá trị `double`/cache line |
 | Áp lực GC | `nnz` object riêng lẻ | 3 object cho cả ma trận |
 
-PageRank chạy hàng chục vòng lặp trên CÙNG một ma trận (xem mục 19), nên trả
+PageRank chạy hàng chục vòng lặp trên CÙNG một ma trận (xem mục 39), nên trả
 chi phí đông cứng MỘT lần để đổi lấy hàng chục lần nhân nhanh hơn là một
 đánh đổi rất có lợi — `multiply(double[])` tự chọn chế độ tuỳ `isFrozen()`,
 người gọi không cần biết.
 
-### 18.3 Trace bằng số thật — chạy `SparseMatrix.main`
+---
+
+## 38. `SparseMatrix` — trace bằng số thật
 
 Ma trận 3×3: `(0,1)=0,5`, `(1,2)=1,0`, `(2,0)=0,5`, `(2,1)=0,5`, nhân với
 vector `[1,1,1]`:
@@ -1472,11 +1540,15 @@ node), tỷ lệ hội tụ về đúng con số lý thuyết.
 
 ---
 
-## 19. `PageRankService` — power iteration đầy đủ
+# PHẦN IX — PAGERANK: POWER ITERATION
+
+---
+
+## 39. `PageRankService` — power iteration đầy đủ
 
 **File:** `ranking/PageRankService.java`
 
-### 19.1 Công thức
+### 39.1 Công thức
 
 ```
 PR(j) = (1−d)/N + d · [ Σ_{i liên kết tới j} PR(i)/outDegree(i)  +  danglingMass/N ]
@@ -1485,7 +1557,9 @@ PR(j) = (1−d)/N + d · [ Σ_{i liên kết tới j} PR(i)/outDegree(i)  +  dan
 với `d = 0,85` (`DAMPING`), điều kiện dừng `‖PR_new − PR_old‖₁ < ε` (`ε = 1e-6`,
 `EPSILON`) HOẶC đủ `MAX_ITERATIONS = 100` vòng, tuỳ điều kiện nào đến trước.
 
-### 19.2 Xây ma trận: "hàng j = ai trỏ TỚI j", không phải "hàng i = i trỏ tới ai"
+---
+
+## 40. Xây ma trận: "hàng j = ai trỏ TỚI j", không phải "hàng i = i trỏ tới ai"
 
 Định nghĩa toán học kinh điển viết `M[i][j] = 1/outDegree(i)` nếu `i` liên
 kết tới `j`, rồi phải nhân `Mᵀ · PR` (chuyển vị). Cài đặt ở đây lưu TRỰC TIẾP
@@ -1520,7 +1594,9 @@ chưa từng crawl) không được tính vào `outDegree` — nếu tính, "kh�
 của trang đó sẽ bị rò rỉ ra một đích không tồn tại trong ma trận, vi phạm
 `Σ PR = 1`.
 
-### 19.3 Dangling node — vì sao phải rải đều, không được bỏ qua
+---
+
+## 41. Dangling node — vì sao phải rải đều, không được bỏ qua
 
 Một trang KHÔNG có outlink nào trỏ TỚI một trang khác TRONG CORPUS đã crawl
 (`outDegree == 0`) là một "nút cụt". Nếu bỏ qua, toàn bộ khối lượng PR của nó
@@ -1547,7 +1623,9 @@ với `teleport = (1−d)/n` tính một lần trước vòng lặp. Mỗi vòng
 `O(nnz)` (nhân ma trận thưa) cộng `O(n)` (dangling + teleport), tổng
 `O(iterations · (nnz + n))`.
 
-### 19.4 Vì sao `Logger` chứ không phải `System.out`
+---
+
+## 42. Vì sao `Logger` chứ không phải `System.out`
 
 ```java
 log.info("PageRank hoi tu sau {} vong lap (diff cuoi = {}, nnz = {}, do thua = {}%)",
@@ -1562,12 +1640,12 @@ thì ở profile production (log dạng JSON có cấu trúc) dòng đó "lọt"
 
 ---
 
-## 20. Trace hai đồ thị thật
+## 43. Trace hai đồ thị thật
 
 Cả hai bảng dưới đây là kết quả CHẠY THẬT `PageRankService.computePageRank`
 (biên dịch và chạy trực tiếp từ `target/classes` đã build sẵn của repo).
 
-### 20.1 Đồ thị demo 6 node có sẵn trong mã nguồn (`PageRankService.main`)
+### 43.1 Đồ thị demo 6 node có sẵn trong mã nguồn (`PageRankService.main`)
 
 ```
 A → B, C        B → C        C → A        D → C        E: dangling        F: dangling (chỉ được trỏ tới)
@@ -1620,7 +1698,7 @@ xác suất `(1−d)` "nhảy ngẫu nhiên" tới bất kỳ trang nào bất k
 và `F` bằng nhau (0,03488) vì cả hai đều là nút cụt không nhận liên kết nào,
 đối xứng hoàn toàn trong đồ thị này.
 
-### 20.2 Đồ thị 5 trang "máy tính xách tay" (dựng cho tài liệu này, chạy thật)
+### 43.2 Đồ thị 5 trang "máy tính xách tay" (dựng cho tài liệu này, chạy thật)
 
 ```mermaid
 flowchart LR
@@ -1661,20 +1739,20 @@ doc4 PR = 0.071918
 `doc1`). `doc3` (bài nấu ăn, hoàn toàn không liên quan tới truy vấn) có PR
 KHÔNG NHỎ (0,071918, chỉ vì nó có đúng một outlink duy nhất trỏ tới `doc0`,
 "đóng góp" phiếu bầu — nhưng bản thân `doc3` không NHẬN outlink nào nên PR
-của chính nó vẫn thấp). PHẦN VIII sẽ dùng đúng bộ điểm PageRank này để trace
+của chính nó vẫn thấp). PHẦN XII sẽ dùng đúng bộ điểm PageRank này để trace
 `PageRankBoostScorer`.
 
 ---
 
-# PHẦN VI — TOP-K VÀ SNIPPET
+# PHẦN X — TOP-K VÀ SNIPPET
 
 ---
 
-## 21. `MinHeap.topK` — O(c·log K) thay vì O(c·log c)
+## 44. `MinHeap.topK` — O(c log K) thay vì O(c log c)
 
 **File:** `datastructure/MinHeap.java` *(core-common)*
 
-### 21.1 Vì sao dùng MIN-heap để tìm phần tử LỚN NHẤT
+### 44.1 Vì sao dùng MIN-heap để tìm phần tử LỚN NHẤT
 
 ```java
 public static <T> List<T> topK(Collection<T> items, int k, Comparator<T> cmp) {
@@ -1716,7 +1794,9 @@ Với mỗi phần tử mới: nếu heap chưa đầy `k` thì thêm; nếu đ�
 mới lớn hơn ngưỡng thì thay thế (`extractMin` + `insert`); ngược lại bỏ qua
 ngay — chỉ tốn MỘT phép so sánh cho phần lớn ứng viên bị loại.
 
-### 21.2 Hai tối ưu bên trong
+---
+
+## 45. Hai tối ưu bên trong `MinHeap`
 
 **Một — gom `k` phần tử đầu rồi heapify MỘT LẦN.** Constructor
 `MinHeap(Collection, Comparator)` dùng thuật toán Floyd heapify (siftDown từ
@@ -1735,7 +1815,7 @@ phần tử BẰNG một phần tử khác cũng bằng nó không đổi tập 
 phần tử NÀO trong số các phần tử bằng nhau được giữ lại, và bài toán top-K
 không cam kết thứ tự giữa các phần tử điểm bằng nhau).
 
-### 21.3 Tối ưu "hole" trong `siftUp`/`siftDown` — dùng chung với `UrlFrontier` của crawler
+### 45.1 Tối ưu "hole" trong `siftUp`/`siftDown` — dùng chung với `UrlFrontier` của crawler
 
 ```java
 private void siftUp(int index) {
@@ -1756,10 +1836,12 @@ một biến tạm, chỉ KÉO phần tử trên đường đi vào chỗ trốn
 đúng MỘT LẦN ở cuối — `log n + 1` phép gán thay vì `3·log n`. Đây cũng là kỹ
 thuật mà `java.util.PriorityQueue` của JDK dùng, và là cùng cấu trúc dữ liệu
 mà `UrlFrontier` của tầng crawler bọc trong khối `synchronized` để dùng làm
-hàng đợi ưu tiên URL (xem `CRAWLER-PIPELINE.md` mục 31) — `MinHeap` ở đây
+hàng đợi ưu tiên URL (xem `CRAWLER-PIPELINE.md` mục 67) — `MinHeap` ở đây
 KHÔNG thread-safe, người gọi tự chịu trách nhiệm đồng bộ nếu cần.
 
-### 21.4 Trace bằng số thật
+---
+
+## 46. MinHeap — trace bằng số thật
 
 ```
 Extract theo thứ tự tăng dần: 1 2 3 5 7 8 9
@@ -1771,7 +1853,7 @@ Với dãy `[5, 3, 8, 1, 9, 2, 7]`, `topK(..., 3, ...)` trả về `[9, 8, 7]` �
 đúng ba phần tử lớn nhất, sắp GIẢM DẦN — mà không cần sắp xếp toàn bộ 7 phần
 tử.
 
-### 21.5 Vì sao vẫn tốt hơn sắp toàn bộ dù `topN` có thể bằng `page·size`
+### 46.1 Vì sao vẫn tốt hơn sắp toàn bộ dù `topN` có thể bằng `page·size`
 
 Độ phức tạp `O(c log K)` so với `O(c log c)` của sắp toàn bộ: với `c = 5.000`
 ứng viên và `K = topN = 30` (trang 3, size 10), `log K ≈ 5` so với
@@ -1782,18 +1864,20 @@ kể việc `Collections.sort` phải di chuyển toàn bộ `c` phần tử tro
 
 ---
 
-## 22. `SnippetBuilder` — cửa sổ trượt và chống XSS
+## 47. `SnippetBuilder` — cửa sổ trượt và chống XSS
 
 **File:** `ranking/SnippetBuilder.java`
 
-### 22.1 Vì sao tách hẳn khỏi `ResultRanker`
+### 47.1 Vì sao tách hẳn khỏi `ResultRanker`
 
 Xếp hạng làm việc với ĐIỂM SỐ, sinh snippet làm việc với VĂN BẢN — hai trách
 nhiệm khác hẳn nhau. Tách ra cho phép kiểm thử riêng, và cho phép thay đổi
 chiến lược sinh snippet (một cửa sổ, nhiều đoạn rời rạc, tóm tắt bằng mô
 hình ngôn ngữ...) mà không đụng tới mã xếp hạng.
 
-### 22.2 Bài toán cửa sổ trượt
+---
+
+## 48. Bài toán cửa sổ trượt
 
 Bài toán: trong tài liệu `n` từ, tìm cửa sổ `w` từ liên tiếp chứa nhiều từ
 khoá nhất (`w = DEFAULT_WINDOW_SIZE = 25`).
@@ -1828,19 +1912,23 @@ private int findBestWindow(boolean[] isMatch, int window) {
 }
 ```
 
-### 22.3 Khớp CHÍNH XÁC hay LỎNG — quyết định nằm ở `QuerySyllables`, không phải ở đây
+---
+
+## 49. Khớp CHÍNH XÁC hay LỎNG — quyết định nằm ở `QuerySyllables`
 
 ```java
 isMatch[i] = syllables.matches(QuerySyllables.stripPunctuation(words[i]));
 ```
 
 ⚠ **Truyền từ NGUYÊN DẤU vào `matches()`** — chính `QuerySyllables.matches`
-(mục 17.3) quyết định khớp chặt hay khớp lỏng dựa trên tập `exact`/`loose`
+(mục 34) quyết định khớp chặt hay khớp lỏng dựa trên tập `exact`/`loose`
 đã dựng từ truy vấn. Nếu bỏ dấu từ TRƯỚC khi gọi `matches()` ở đây, quy tắc
-"chỉ khớp lỏng khi CHÍNH truy vấn không dấu" (mục 17.2) sẽ bị phá vỡ hoàn
+"chỉ khớp lỏng khi CHÍNH truy vấn không dấu" (mục 33) sẽ bị phá vỡ hoàn
 toàn — mọi tra cứu sẽ luôn khớp lỏng bất kể người dùng gõ có dấu hay không.
 
-### 22.4 Chống XSS thật, không phải giả định lý thuyết
+---
+
+## 50. Chống XSS thật, không phải giả định lý thuyết
 
 ```java
 private static String escapeHtml(String text) {
@@ -1858,7 +1946,9 @@ NÓI VỀ lỗ hổng XSS) thì văn bản đó vẫn lọt qua nguyên vẹn �
 bằng `innerHTML` sẽ THỰC THI nó. Đây là một lỗ hổng XSS phản chiếu (reflected
 XSS) THẬT SỰ, không phải một giả định phòng thủ thừa.
 
-### 22.5 Vì sao chỉ thêm `"..."` khi cửa sổ THỰC SỰ không ở đầu/cuối
+---
+
+## 51. Vì sao chỉ thêm `"..."` khi cửa sổ THỰC SỰ không ở đầu/cuối
 
 ```java
 if (bestStart > 0) {
@@ -1873,7 +1963,9 @@ Một tài liệu ngắn hơn `windowSize` (25 từ) sẽ có `window = words.le
 cả hai điều kiện đều sai — snippet không có dấu `...` thừa ở đầu/cuối một
 đoạn văn vốn đã trọn vẹn.
 
-### 22.6 Trace bằng số thật (dùng chung corpus PHẦN VIII)
+---
+
+## 52. `SnippetBuilder` — trace bằng số thật
 
 Với `doc1` ("Mua máy tính xách tay ở đâu uy tín tại Hà Nội...", 26 từ) và
 truy vấn `máy tính xách tay`, cửa sổ 25 từ trùng gần hết tài liệu, snippet
@@ -1892,15 +1984,15 @@ TIẾNG chứ không theo cụm từ ghép nguyên vẹn.
 
 ---
 
-# PHẦN VII — LẮP RÁP: `ResultRanker`
+# PHẦN XI — LẮP RÁP: `ResultRanker`
 
 ---
 
-## 23. Hai giai đoạn — vì sao nhanh hơn 50 lần
+## 53. Hai giai đoạn — vì sao nhanh hơn 50 lần
 
 **File:** `ranking/ResultRanker.java`
 
-### 23.1 Trạng thái TRƯỚC: một vòng lặp làm ba việc
+### 53.1 Trạng thái TRƯỚC: một vòng lặp làm ba việc
 
 Trước khi tách, lớp này làm BA việc trong MỘT vòng lặp duy nhất chạy trên
 TOÀN BỘ ứng viên: (1) kết hợp ba tín hiệu bằng công thức tuyến tính chọn
@@ -1917,7 +2009,9 @@ mục. Sinh snippet là thao tác ĐẮT NHẤT của cả chặng: nó phải t
 `bodyText` (trung bình hơn 1.000 token, sau khi GIẢI NÉN từ `CompressedText`)
 rồi trượt cửa sổ qua nó.
 
-### 23.2 Trạng thái SAU: tách bạch bằng comment ngay trong mã (đã trích ở mục 5)
+---
+
+## 54. Trạng thái SAU: tách bạch bằng comment ngay trong mã
 
 ```
 GIAI ĐOẠN 0 (O(q))       — chuẩn bị, MỘT lần
@@ -1933,7 +2027,7 @@ hiện trong vòng lặp GIAI ĐOẠN 3, tức đúng `topN` lần, KHÔNG phả
 
 ---
 
-## 24. `RankedResult` — vì sao chỉ còn một trường điểm
+## 55. `RankedResult` — vì sao chỉ còn một trường điểm
 
 ```java
 public record RankedResult(WebDocument document, double finalScore,
@@ -2001,11 +2095,81 @@ không được đưa lên GIAI ĐOẠN 1 (sẽ chạm `c` tài liệu).
 
 ---
 
-# PHẦN VIII — ĐỐI CHIẾU OUTPUT THẬT
+# PHẦN XII — ĐỐI CHIẾU OUTPUT THẬT
 
 ---
 
-## 25. Corpus dựng lại và truy vấn thật
+## 56. Tổng quan output thật
+
+**Output của chặng 6 không phải một tệp trên đĩa.** Khác với crawler (kết thúc
+ở `data/crawled-documents.json`) và chỉ mục (kết thúc ở `data/index.json`),
+tầng xếp hạng sinh ra một **giá trị trong bộ nhớ**, sống đúng một lượt request:
+danh sách `ResultRanker.RankedResult`, rồi được `SearchEngineFacade.search`
+chuyển thành `SearchResult` để Jackson tuần tự hoá ra JSON của `GET /api/search`.
+
+### 56.1 Hai record — biên giới giữa "kết quả xếp hạng" và "hợp đồng API"
+
+```java
+public record RankedResult(WebDocument document, double finalScore,
+                            double pageRankScore, String snippet) {
+}
+```
+
+```java
+public record SearchResult(String title, String url, String snippet,
+                            double score, double pageRankScore, Instant crawledAt) {
+}
+```
+
+| Trường `RankedResult` | Đi vào trường `SearchResult` | Sinh ra ở đâu |
+|---|---|---|
+| `document` | `title`, `url`, `crawledAt` | `index.getDocument(docId)` — GIAI ĐOẠN 1 |
+| `finalScore` | `score` | `prepared.score(docId)` — chuỗi Decorator |
+| `pageRankScore` | `pageRankScore` | `pageRankScores.getOrDefault(docId, 0.0)` — **chỉ để BÁO CÁO** |
+| `snippet` | `snippet` | `snippetBuilder.build(...)` — GIAI ĐOẠN 3 |
+
+`RankedResult` giữ nguyên cả `WebDocument`; `SearchResult` chỉ lấy ba trường của
+nó. Đó là chủ ý: `RankedResult` là kiểu **nội bộ** của tầng xếp hạng, còn
+`SearchResult` là **hợp đồng REST** — đổi một cái không kéo theo cái kia.
+
+### 56.2 Bốn đặc điểm của output mà PHẦN này sẽ giải thích
+
+1. **`score` và `pageRankScore` là hai con số ĐỘC LẬP trong JSON**, nhưng
+   `pageRankScore` KHÔNG được cộng vào `score` ở tầng này — nó đã được nhân vào
+   từ trước, bên trong `PageRankBoostScorer`.
+2. **Số bản ghi trả về ≤ số ứng viên**, và thường nhỏ hơn rất nhiều: `ResultRanker`
+   cắt còn `topN`, rồi `SearchEngineFacade` cắt tiếp một trang:
+
+   ```java
+   int topN = Math.max(page * size, size);
+   int fromIndex = Math.min((Math.max(page, 1) - 1) * size, ranked.size());
+   int toIndex = Math.min(fromIndex + size, ranked.size());
+   ```
+
+3. **Chỉ các tài liệu THỰC SỰ trả về mới có `snippet`** — mọi ứng viên khác
+   không bao giờ đi qua `SnippetBuilder` (đây chính là tối ưu 50 lần).
+4. **Một tài liệu điểm 0 vẫn nằm trong danh sách ứng viên nhưng không bao giờ
+   lên đầu** — cơ chế thoát sớm `base == 0` trong mọi lớp bọc.
+
+### 56.3 Cách dựng lại toàn bộ số liệu của PHẦN này
+
+Số liệu trong PHẦN XII **không** lấy từ `backend/data/seed-documents.json` (mỗi
+bản ghi ở đó trộn hàng chục chủ đề trong một `bodyText`, không trace tay được),
+mà từ một corpus năm trang dựng riêng, nạp bằng đúng lớp `InvertedIndex` thật —
+mô tả đầy đủ ở mục 57. Đường đi được trace là:
+
+```
+CandidateResolver.resolve → candidateDocIds + queryTermFrequency
+   → ResultRanker.rank(..., scorer = BM25Scorer
+                              → PageRankBoostScorer(β=0,30)
+                              → TitleBoostScorer(γ=0,10), topN)
+      → GIAI ĐOẠN 1 chấm điểm → GIAI ĐOẠN 2 MinHeap.topK → GIAI ĐOẠN 3 snippet
+   → List<RankedResult> → cắt trang → List<SearchResult>
+```
+
+---
+
+## 57. Corpus dựng lại và truy vấn thật
 
 Vì `backend/data/seed-documents.json` là các trang tin tổng hợp (VnExpress,
 mỗi bản ghi hàng chục chủ đề trộn lẫn trong một `bodyText`), không phù hợp
@@ -2014,7 +2178,7 @@ THẬT — năm tài liệu tiếng Việt về chủ đề "máy tính xách ta
 lớp `InvertedIndex` thật của hệ thống (không phải một chỉ mục giả lập), rồi
 chạy đúng chuỗi `BM25Scorer → PageRankBoostScorer(β=0,30) → TitleBoostScorer(γ=0,10)`
 mà `ScorerFactory.create` sẽ lắp trong sản phẩm thật. PageRank ở
-[mục 20.2](#202-đồ-thị-5-trang-máy-tính-xách-tay-dựng-cho-tài-liệu-này-chạy-thật)
+[mục 43.2](#432-đồ-thị-5-trang-máy-tính-xách-tay-dựng-cho-tài-liệu-này-chạy-thật)
 được tính trên ĐÚNG đồ thị liên kết của năm trang này.
 
 > **Trace này CỐ Ý dừng ở lớp `TitleBoostScorer`, không bọc `RecencyBoostScorer`.**
@@ -2022,7 +2186,7 @@ mà `ScorerFactory.create` sẽ lắp trong sản phẩm thật. PageRank ở
 > chênh nhau vài mili-giây — `recency(d)` gần như bằng nhau và thừa số
 > `(1 + δ·recency)` chỉ nhân đều mọi điểm, không đổi thứ hạng. Mục đích của
 > PHẦN này là trace số học của `base · (1 + β·PR̂) · (1 + γ·title)`; tín hiệu
-> độ mới đã tách riêng ở [mục 16.4](#164-recencyboostscorer--tín-hiệu-độ-mới).
+> độ mới đã tách riêng ở [mục 31](#31-recencyboostscorer--tín-hiệu-độ-mới).
 
 | docId | Tiêu đề | outlinks |
 |---|---|---|
@@ -2045,15 +2209,15 @@ df(máy_tính) = 4     df(xách_tay) = 4
 
 `doc3` (bài nấu ăn) là tài liệu DUY NHẤT không chứa cả hai term — đúng chủ
 đích: nó đóng vai "nhiễu" để kiểm chứng cơ chế thoát sớm khi `base == 0`
-(mục 15.2, 16.2) hoạt động đúng trên dữ liệu thật.
+(mục 28, 16.2) hoạt động đúng trên dữ liệu thật.
 
 ---
 
-## 26. Bảng điểm từng giai đoạn, từng docId
+## 58. Bảng điểm từng giai đoạn, từng docId
 
-### 26.1 Đầu vào thô của từng tài liệu
+### 58.1 Đầu vào thô của từng tài liệu
 
-| docId | docLength | tf(máy_tính) | tf(xách_tay) | PageRank (mục 20.2) |
+| docId | docLength | tf(máy_tính) | tf(xách_tay) | PageRank (mục 43.2) |
 |---|---|---|---|---|
 | 0 | 44 | 5 | 5 | 0,363014 |
 | 1 | 26 | 4 | 4 | 0,246575 |
@@ -2061,7 +2225,7 @@ df(máy_tính) = 4     df(xách_tay) = 4
 | 3 | 25 | 0 | 0 | 0,071918 |
 | 4 | 21 | 2 | 1 | 0,071918 |
 
-### 26.2 Điểm qua từng tầng — chạy thật, không phải suy diễn
+### 58.2 Điểm qua từng tầng — chạy thật, không phải suy diễn
 
 | docId | TF-IDF cosine | BM25 base | BM25 + PR ×0,30 | BM25 + PR + title ×0,10 | Hạng cuối |
 |---|---|---|---|---|---|
@@ -2092,9 +2256,7 @@ Ba dòng đầu (top-3) là kết quả THẬT của `ResultRanker.rank(...)` kh
 
 ---
 
-## 27. Vì sao thứ tự cuối cùng lại như vậy
-
-### 27.1 `doc3` bị loại hoàn toàn — đúng thiết kế "thoát sớm"
+## 59. `doc3` bị loại hoàn toàn — đúng thiết kế "thoát sớm"
 
 `doc3` không chứa cả hai term truy vấn (`tf = 0` cho cả `máy_tính` lẫn
 `xách_tay`), nên `BM25 base = 0`. Cả `PageRankBoostScorer.prepare` lẫn
@@ -2102,9 +2264,11 @@ Ba dòng đầu (top-3) là kết quả THẬT của `ResultRanker.rank(...)` kh
 NGAY ĐẦU closure — dù `doc3` CÓ một outlink trỏ tới `doc0` (đóng góp PageRank
 0,071918, không hề nhỏ so với `doc4` cùng mức), uy tín đó không cứu được nó
 vì nội dung hoàn toàn lạc đề. Đây là bằng chứng thực nghiệm trực tiếp cho
-nguyên tắc ★ đã nêu ở mục 7.3 và mục 14.2.
+nguyên tắc ★ đã nêu ở mục 7.3 và mục 26.
 
-### 27.2 `doc4` bị đẩy ra khỏi top-3 — vì tiêu đề không khớp CHÚT NÀO
+---
+
+## 60. `doc4` bị đẩy ra khỏi top-3 — vì tiêu đề không khớp CHÚT NÀO
 
 `doc4` (docLength=21, `tf=2/1`) có BM25 base thấp nhất trong bốn tài liệu
 còn sống sót (0,750285 — vì `tf` thấp hơn hẳn). Sau boost PageRank (PR chỉ
@@ -2114,7 +2278,9 @@ nhất trong ngày"` không chứa bất kỳ tiếng nào trong `{máy, tính, 
 `1 + 0,10·0 = 1` → điểm GIỮ NGUYÊN 0,836977, thấp hơn cả ba đối thủ còn lại,
 nên rớt khỏi top-3.
 
-### 27.3 `doc1` vượt `doc0` dù PageRank THẤP HƠN — điểm đáng chú ý nhất của bảng
+---
+
+## 61. `doc1` vượt `doc0` dù PageRank THẤP HƠN
 
 Đây là bằng chứng thực nghiệm rõ nhất cho lý do "nhân, không cộng" (mục 7.3):
 
@@ -2135,7 +2301,7 @@ doc1: lengthNorm = 1,2·(0,25 + 0,75·26/28,6) = 1,2·(0,25+0,6818) ≈ 1,1182
 ```
 
 `lengthNorm` của `doc0` LỚN hơn `doc1` tới 50% — đúng cơ chế `b=0,75` "phạt"
-tài liệu dài hơn trung bình (mục 11.2, điểm "hai"), và vì `doc0` chứa nhiều
+tài liệu dài hơn trung bình (mục 17, điểm "hai"), và vì `doc0` chứa nhiều
 NỘI DUNG KHÁC ngoài phần nói về máy tính xách tay (nên dài hơn) mà không có
 tương ứng `tf` cao gấp đủ để bù lại. Cả hai tài liệu có `titleMatchRatio = 1,0`
 NHƯ NHAU (tiêu đề đều chứa trọn cụm "máy tính xách tay"), nên hệ số nhân của
@@ -2145,7 +2311,9 @@ yếu tố phân định ở đây; toàn bộ khác biệt thứ hạng bắt n
 đảo ngược một khoảng cách base score đáng kể — càng không nên, vì base score
 đo trực tiếp mức độ khớp NỘI DUNG với truy vấn, thứ người dùng thực sự tìm.
 
-### 27.4 Vì sao `TF-IDF cosine` (cột đầu bảng 26.2) xếp hạng SAI khác
+---
+
+## 62. Vì sao `TF-IDF cosine` xếp hạng SAI khác
 
 Nếu dùng TF-IDF cosine thay vì BM25 làm cơ sở (đổi `app.ranking.scorer=tfidf`),
 thứ tự base sẽ là `doc1 (0,043060) > doc2 (0,038960) > doc0 (0,035103) > doc4 (0,034409) > doc3 (0)`
@@ -2153,16 +2321,153 @@ thứ tự base sẽ là `doc1 (0,043060) > doc2 (0,038960) > doc0 (0,035103) > 
 `doc2`. Cả hai công thức đều đồng ý `doc1` đứng đầu (không đổi), nhưng khác
 nhau đúng ở phần "phạt độ dài": TF-IDF dùng `docNorm = √docLength` chọn cứng,
 BM25 dùng `lengthNorm` có tham số `b`. Đây là minh chứng cụ thể, trên dữ liệu
-thật, cho khác biệt lý thuyết đã nêu ở [mục 10.3](#103-chuẩn-hoá-độ-dài--xấp-xỉ-và-cái-giá-của-nó)
-và [mục 12](#12-tf-idf-đấu-bm25--hai-đường-cong-bão-hoà).
+thật, cho khác biệt lý thuyết đã nêu ở [mục 14](#14-chuẩn-hoá-độ-dài--xấp-xỉ-và-cái-giá-của-nó)
+và [mục 21](#21-tf-idf-đấu-bm25--hai-đường-cong-bão-hoà).
 
 ---
 
-# PHẦN IX — PHỤ LỤC
+# PHẦN XIII — PHỤ LỤC
 
 ---
 
-## 28. Bảng hằng số toàn hệ thống
+## 63. Chế độ suy biến: khi một tín hiệu bị tắt hoặc thiếu dữ liệu
+
+`CRAWLER-PIPELINE.md` có một mục phụ lục cho "chế độ chạy khác" (Kafka).
+Tầng xếp hạng không có chế độ chạy thứ hai, nhưng có thứ tương đương và quan
+trọng hơn nhiều trong vận hành: **các nhánh suy biến** — khi một tín hiệu bị
+tắt bằng cấu hình, hoặc dữ liệu nuôi nó không tồn tại. Mọi nhánh dưới đây đều
+có trong mã nguồn thật, không phải giả định.
+
+### 63.1 Bảng cấu hình — đọc từ `@Value` của `ScorerFactory`
+
+| Khoá cấu hình | Trường Java | Mặc định trong `@Value` | Giá trị trong `application.properties` | Tác dụng |
+|---|---|---|---|---|
+| `app.ranking.scorer` | `scorerType` | `tfidf` | `${APP_RANKING_SCORER:tfidf}` | chọn scorer CƠ SỞ: `tfidf` / `tf-idf` / `bm25` |
+| `app.ranking.bm25.k1` | `k1` | `1.2` | `1.2` | bão hoà tần suất của BM25 |
+| `app.ranking.bm25.b` | `b` | `0.75` | `0.75` | mức chuẩn hoá theo độ dài của BM25 |
+| `app.ranking.beta` | `pageRankWeight` | `0.30` | `0.30` | β — trọng số PageRank |
+| `app.ranking.gamma` | `titleWeight` | `0.10` | `0.10` | γ — trọng số khớp tiêu đề |
+| `app.ranking.delta` | `recencyWeight` | `0.20` | `0.20` | δ — trọng số độ mới (`crawledAt`) |
+
+Constructor tường minh 5 tham số `ScorerFactory(scorerType, k1, b, pageRankWeight,
+titleWeight)` gọi sang bản 6 tham số với `recencyWeight = 0.20` — đúng bằng mặc
+định của `@Value`, nên test chạy ngoài Spring vẫn thấy cùng một cấu hình.
+
+### 63.2 Sáu nhánh suy biến, và hệ quả quan sát được
+
+**(1) Corpus rỗng.** `SearchEngineFacade.refreshDerivedState` không gọi PageRank
+khi chỉ mục trống, và bản thân `PageRankService` cũng tự chặn:
+
+```java
+pageRankScores = index.getTotalDocs() > 0
+        ? pageRankService.computePageRank(index.getAllDocuments()).scores()
+        : Map.of();
+```
+
+```java
+int n = docIds.size();
+if (n == 0) {
+    return new PageRankResult(Map.of(), 0);
+}
+```
+
+**(2) Không có điểm PageRank.** `ScorerFactory.create` chỉ bọc lớp PageRank khi
+bản đồ điểm **khác rỗng** — corpus rỗng hoặc β = 0 đều làm lớp này biến mất khỏi
+chuỗi, và tên scorer in ra log cũng mất đoạn `+ PR x0.30`:
+
+```java
+if (pageRankWeight > 0 && pageRankScores != null && !pageRankScores.isEmpty()) {
+    scorer = new PageRankBoostScorer(scorer, pageRankScores, pageRankWeight);
+}
+```
+
+Nếu lớp bọc VẪN được dựng nhưng mọi điểm đều bằng 0, constructor vẫn an toàn:
+`min` lấy giá trị **dương** nhỏ nhất, không có thì rơi về `1e-9`, và mẫu số
+`logRange` được kẹp sàn để không bao giờ chia cho 0.
+
+```java
+double min = this.pageRankScores.values().stream()
+        .mapToDouble(Double::doubleValue).filter(v -> v > 0).min().orElse(1e-9);
+double max = this.pageRankScores.values().stream()
+        .mapToDouble(Double::doubleValue).max().orElse(min);
+this.logRange = Math.max(Math.log1p(max / min), 1e-9);
+```
+
+**(3) `crawledAt` rỗng — recency boost bị bỏ qua.** Bản đồ `crawledAt` do
+`SearchEngineFacade.crawledAtEpochMillis()` dựng, và nó **chỉ nạp tài liệu có
+`crawledAt != null`**. Corpus không mang dấu thời gian ⇒ bản đồ rỗng ⇒
+`RecencyBoostScorer` không được lắp:
+
+```java
+if (crawledAt != null) {
+    result.put(entry.getKey(), crawledAt.toEpochMilli());
+}
+```
+
+```java
+if (recencyWeight > 0 && crawledAtEpochMillis != null && !crawledAtEpochMillis.isEmpty()) {
+    scorer = new RecencyBoostScorer(scorer, crawledAtEpochMillis, recencyWeight);
+}
+```
+
+Ngay cả khi đã lắp, lớp bọc còn hai chốt nữa: `prepare` trả thẳng `base` khi bản
+đồ rỗng, và một tài liệu **thiếu** `crawledAt` được trả về `base` nguyên vẹn —
+**không bị phạt**, chỉ là không được thưởng:
+
+```java
+Long millis = crawledAtEpochMillis.get(docId);
+if (millis == null) {
+    return baseScore;
+}
+```
+
+Trường hợp mọi tài liệu có **cùng một** `crawledAt` cũng không làm vỡ phép chia:
+`rangeMillis = Math.max(max - min, 1L)`.
+
+**(4) Trọng số bằng 0.** Cả ba lớp bọc đều có cùng một dòng ở đầu `prepare`:
+`if (weight == 0.0) return base;` — tín hiệu bị tắt thì **không trả chi phí**
+cho một lambda thừa. Trọng số ÂM thì không phải suy biến mà là lỗi cấu hình:
+constructor ném `IllegalArgumentException("weight phai >= 0, ...")`.
+
+**(5) Truy vấn không còn tín hiệu nào.** `TfIdfScorer.prepare` loại mọi term có
+`idf <= 0`; nếu không còn term nào, hoặc chuẩn truy vấn bằng 0, nó trả về một
+scorer hằng:
+
+```java
+if (count == 0 || queryNorm == 0.0) {
+    return docId -> 0.0;
+}
+```
+
+`BM25Scorer.prepare` chặn sớm bằng điều kiện của riêng nó —
+`if (totalDocs == 0 || avgDocLength <= 0) return docId -> 0.0;`. `TitleBoostScorer`
+trả thẳng `base` khi `syllables.isEmpty()` hoặc khi `index.getDocument(docId)`
+trả `null`. Và mọi lớp bọc đều thoát sớm khi `baseScore == 0.0` — uy tín, tiêu
+đề hay độ mới đều **không cứu được** một tài liệu không liên quan.
+
+**(6) Không có thân bài để trích.** `SnippetBuilder.build` trả về chuỗi RỖNG
+thay vì ném lỗi khi `bodyText` null/trắng hoặc không tách được từ nào — kết quả
+vẫn có `title`, `url`, `score`, chỉ thiếu đoạn trích. Tương tự, `ResultRanker`
+bỏ qua ứng viên mà `index.getDocument(docId)` trả `null`, và đọc PageRank bằng
+`pageRankScores == null ? 0.0 : ...`.
+
+### 63.3 Một nhánh KHÔNG suy biến: cấu hình sai thì phải chết ngay
+
+| Điều kiện | Nơi kiểm tra | Hành vi |
+|---|---|---|
+| `app.ranking.scorer` không phải `tfidf`/`tf-idf`/`bm25` | `ScorerFactory.createBase` | `IllegalArgumentException` |
+| `k1 < 0` | constructor `BM25Scorer` | `IllegalArgumentException` |
+| `b` ngoài `[0, 1]` | constructor `BM25Scorer` | `IllegalArgumentException` |
+| `weight < 0` | constructor cả ba Decorator | `IllegalArgumentException` |
+| `inner == null` | constructor cả ba Decorator | `IllegalArgumentException` |
+
+Ranh giới rất rõ: **thiếu DỮ LIỆU thì suy biến êm** (bỏ lớp bọc, trả `base`,
+trả chuỗi rỗng); **sai CẤU HÌNH thì hỏng ồn ào** ngay lúc khởi động, không âm
+thầm xếp hạng bằng một công thức mà người vận hành không hề chọn.
+
+---
+
+## 64. Bảng hằng số toàn hệ thống
 
 | Hằng số | Giá trị | File | Cấu hình được không |
 |---|---|---|---|
@@ -2190,7 +2495,7 @@ dùng BM25 trong triển khai thật phải đặt biến môi trường
 
 ---
 
-## 29. Bảng tra nhanh khối ↔ file ↔ hàm
+## 65. Bảng tra nhanh khối ↔ file ↔ hàm
 
 | Khối | File | Hàm/phương thức chính |
 |---|---|---|
@@ -2211,7 +2516,7 @@ dùng BM25 trong triển khai thật phải đặt biến môi trường
 
 ---
 
-## 30. Câu hỏi thường gặp
+## 66. Câu hỏi thường gặp
 
 **1. Vì sao mặc định là TF-IDF chứ không phải BM25 nếu BM25 đo được tốt hơn?**
 Đây là lựa chọn AN TOÀN của người vận hành, không phải giới hạn kỹ thuật —
@@ -2226,13 +2531,13 @@ trên đường phục vụ request tức thời. Xem [mục 6](#6-pagerank--tí
 
 **3. Trọng số một tín hiệu bằng 0 thì có tốn chi phí gì không?**
 Không. `ScorerFactory.create` KHÔNG tạo lớp Decorator tương ứng khi trọng số
-là 0 — không một phép nhân thừa nào chạy trên đường nóng. Xem mục 13.2.
+là 0 — không một phép nhân thừa nào chạy trên đường nóng. Xem mục 23.
 
 **4. Vì sao PageRank+title dùng phép NHÂN chứ không phải CỘNG như trước?**
 Vì PageRank là một phân phối xác suất (`Σ PR = 1`) nên giá trị trung bình
 của nó nhỏ dần khi corpus lớn lên — cộng thẳng vào điểm liên quan (thang đo
 khác hẳn) là một phép toán vô nghĩa mà không trọng số nào sửa được. Xem mục
-14 và mục 15.1 (bằng chứng: PageRank chỉ đóng góp 0,1% dù trọng số danh nghĩa
+14 và mục 27.1 (bằng chứng: PageRank chỉ đóng góp 0,1% dù trọng số danh nghĩa
 30%).
 
 **5. `prepare()` khác `score()` chỗ nào, tại sao không gộp làm một?**
@@ -2244,35 +2549,35 @@ lặp lại cho MỖI ứng viên. Xem mục 9.
 **6. Vì sao BM25 "bão hoà" tần suất còn TF-IDF thì không (hẳn)?**
 Số hạng `f·(k1+1)/(f+lengthNorm)` của BM25 tiến tới tiệm cận NGANG `k1+1`
 khi `f→∞`; số hạng `1+log10(f)` của TF-IDF vẫn tăng (rất chậm) không giới
-hạn. Xem bảng số ở mục 12.
+hạn. Xem bảng số ở mục 21.
 
 **7. Tiêu đề khớp 100% nhồi từ khoá 4 lần có được thưởng gấp 4 không?**
 Không — `titleMatchRatio` bị KẸP trong `[0,1]` bằng `Math.min(1.0, matched/exact.size())`.
-Tỷ lệ tối đa là 1,0 dù đếm được bao nhiêu lần khớp. Xem mục 17.4.
+Tỷ lệ tối đa là 1,0 dù đếm được bao nhiêu lần khớp. Xem mục 35.
 
 **8. Truy vấn không dấu ("may tinh") có khớp được tài liệu có dấu không? Và ngược lại?**
 Truy vấn KHÔNG dấu khớp LỎNG cả hai chiều (bắt được cả `máy` lẫn dạng không
 dấu). Truy vấn CÓ dấu chỉ khớp CHÍNH XÁC — không tự động khớp lỏng sang các
 biến thể bỏ dấu khác nhau (vì bỏ dấu là ánh xạ nhiều-một, dễ nhầm `ngân`
-với `ngàn`). Xem mục 17.1–17.2.
+với `ngàn`). Xem mục 32.1–17.2.
 
 **9. Vì sao `index.getBodyText` không gọi ngay ở giai đoạn chấm điểm?**
 Vì đó là thao tác giải nén tốn kém nhất của cả chặng (mỗi lần giải nén MỘT
 tài liệu, trung bình hơn 1.000 token) — gọi cho MỌI ứng viên rồi mới cắt
-top-N sẽ lãng phí gấp khoảng 50 lần so với chỉ gọi cho top-K. Xem mục 23.1.
+top-N sẽ lãng phí gấp khoảng 50 lần so với chỉ gọi cho top-K. Xem mục 53.1.
 
 **10. Đổi từ TF-IDF sang BM25 có phải chỉnh lại `beta`/`gamma` không?**
 Không — đây chính là lý do chọn phép NHÂN thay vì CỘNG: công thức
 `base·(1+β·PR̂)·(1+γ·title)` bất biến với thang đo của `base`. Bằng chứng
 ngược lại (khi còn dùng phép CỘNG): bộ trọng số tinh chỉnh cho TF-IDF không
 dùng lại được cho BM25, khiến `"BM25+PR+title"` từng THUA `"TF-IDF+PR+title"`
-dù BM25 mạnh hơn ở dạng thuần. Xem mục 15.2.
+dù BM25 mạnh hơn ở dạng thuần. Xem mục 28.
 
 **11. Vì sao `MinHeap.topK` dùng min-heap chứ không phải max-heap để tìm top-K lớn nhất?**
 Vì đỉnh của min-heap luôn là phần tử YẾU NHẤT trong tập đã chọn — đó chính
 là NGƯỠNG cần biết để quyết định một ứng viên mới có đáng thay thế hay
 không, và đọc đỉnh là O(1). Max-heap sẽ để lộ phần tử MẠNH nhất, không phải
-thông tin cần cho quyết định "có nên thay thế". Xem mục 21.1.
+thông tin cần cho quyết định "có nên thay thế". Xem mục 44.1.
 
 **12. `topN = max(page·size, size)` nghĩa là trang càng xa càng chậm?**
 Đúng. Trang thứ `page` cần lấy đủ `page·size` phần tử điểm cao nhất rồi mới
@@ -2281,7 +2586,7 @@ không nhảy vọt nhưng có tăng. Xem mục 1.1 và 21.5.
 
 ---
 
-## 31. Chẩn đoán sự cố
+## 67. Chẩn đoán sự cố
 
 ```mermaid
 flowchart TD
@@ -2293,7 +2598,7 @@ flowchart TD
     C1A -->|"Không"| C1C["Kiểm tra queryTermFrequency<br/>có term nào df=0 hoặc idf<=0 không<br/>(term hiếm/lạ hoặc term có ở MỌI tài liệu)"]
 
     Q1 -->|"Không"| Q2{"Thứ hạng 'trông sai'<br/>theo cảm quan?"}
-    Q2 -->|"Có"| C2["So sánh BM25 base TRƯỚC khi boost —<br/>đa phần khác biệt nằm ở ĐÂY,<br/>không ở PageRank/title (xem mục 27.3)"]
+    Q2 -->|"Có"| C2["So sánh BM25 base TRƯỚC khi boost —<br/>đa phần khác biệt nằm ở ĐÂY,<br/>không ở PageRank/title (xem mục 61)"]
     C2 --> C2A["Tài liệu dài bất thường?<br/>→ BM25 phạt qua lengthNorm (b=0,75)"]
     C2 --> C2B["Tiêu đề không chứa từ khoá?<br/>→ titleBonus=0, hệ số nhân chỉ còn ×1"]
 
@@ -2323,7 +2628,7 @@ Kết quả xếp hạng có vấn đề?
 │
 ├─ Thứ hạng "trông sai" theo cảm quan?
 │   └─ So sánh BM25 base TRƯỚC khi boost — phần lớn khác biệt nằm ở đây,
-│      không ở PageRank/title (xem mục 27.3: PR cao 47% vẫn có thể thua)
+│      không ở PageRank/title (xem mục 61: PR cao 47% vẫn có thể thua)
 │      ├─ Tài liệu dài bất thường?  → bị phạt qua lengthNorm (b=0,75)
 │      └─ Tiêu đề không chứa từ khoá? → titleBonus=0, hệ số nhân chỉ còn x1
 │
@@ -2341,7 +2646,7 @@ Kết quả xếp hạng có vấn đề?
 
 ---
 
-## 32. Thuật ngữ
+## 68. Thuật ngữ
 
 | Thuật ngữ | Nghĩa trong tài liệu này |
 |---|---|
@@ -2366,7 +2671,7 @@ Kết quả xếp hạng có vấn đề?
 
 ---
 
-## 33. Toàn cảnh một trang
+## 69. Toàn cảnh một trang
 
 ```
 SearchEngineFacade.search  →  ResultRanker.rank(candidates, qtf, index, scorer, pageRank, topN)
@@ -2402,10 +2707,10 @@ SearchEngineFacade.search  →  ResultRanker.rank(candidates, qtf, index, scorer
       │  │  └─ logRange = max(log1p(max/min), 1e-9)
       │  ├─ weight == 0 → TRẢ THẲNG base, không bọc lớp nào
       │  └─ trả docId →
-      │        base == 0 → thoát sớm  ← uy tín KHÔNG cứu được tài liệu không liên quan (đã kiểm chứng: doc3, mục 27.1)
+      │        base == 0 → thoát sớm  ← uy tín KHÔNG cứu được tài liệu không liên quan (đã kiểm chứng: doc3, mục 59)
       │        normalized = log1p(pr/min) / logRange ∈ [0, 1]   ← thang log, vì PageRank lệch nặng
       │        base · (1 + β · normalized)             ← NHÂN, không cộng: giữ đúng thứ nguyên
-      │        ↳ đã kiểm chứng thật: PR cao hơn 47% (doc0 so doc1) vẫn có thể thua vì base thấp hơn (mục 27.3)
+      │        ↳ đã kiểm chứng thật: PR cao hơn 47% (doc0 so doc1) vẫn có thể thua vì base thấp hơn (mục 61)
       │
       └─ [lớp bọc 2] TitleBoostScorer                      γ = app.ranking.gamma = 0.10
          ├─ weight == 0 hoặc truy vấn không còn tiếng nào → trả thẳng base
@@ -2447,7 +2752,7 @@ SearchEngineFacade.search  →  ResultRanker.rank(candidates, qtf, index, scorer
    ├─ QuerySyllables.from(qtf.keySet())
    └─ SnippetBuilder.build(index.getBodyText(docId), syllables)     DEFAULT_WINDOW_SIZE = 25
       ├─ getBodyText → CompressedText.decompress   ← GIẢI NÉN, mỗi lời gọi một tài liệu
-      │  ↳ nên nó nằm ở đây, trong vòng lặp top-K, chứ KHÔNG ở giai đoạn chấm điểm (nhanh hơn ~50 lần, mục 23.1)
+      │  ↳ nên nó nằm ở đây, trong vòng lặp top-K, chứ KHÔNG ở giai đoạn chấm điểm (nhanh hơn ~50 lần, mục 53.1)
       ├─ ∀ từ: isMatch[i] = syllables.matches(stripPunctuation(words[i]))
       │  ├─ khớp CHÍNH XÁC theo tập `exact`
       │  └─ khớp LỎNG (bỏ dấu) chỉ khi truy vấn vốn viết không dấu
@@ -2479,10 +2784,10 @@ SearchEngineFacade.refreshDerivedState → PageRankService.computePageRank(allDo
 │  └─ diff = Σ|newPr − pr| ;  lặp tới khi diff < ε HOẶC đủ 100 vòng
 └─ log: số vòng hội tụ, diff cuối, nnz, độ thưa (%)
    → Map{docId → điểm}, dùng cho PageRankBoostScorer VÀ trả ra SearchResult.pageRankScore
-   ↳ đã kiểm chứng thật: đồ thị 6 node demo hội tụ sau 28 vòng, đồ thị 5 trang máy tính hội tụ sau 20 vòng (mục 20)
+   ↳ đã kiểm chứng thật: đồ thị 6 node demo hội tụ sau 28 vòng, đồ thị 5 trang máy tính hội tụ sau 20 vòng (mục 43)
 ```
 
-Ba quyết định thiết kế đáng nói nhất (nở đầy đủ ở mục 7 và PHẦN IV):
+Ba quyết định thiết kế đáng nói nhất (nở đầy đủ ở mục 7 và PHẦN V–VI):
 
 ```
 1. prepare() tách khỏi score()
@@ -2502,3 +2807,26 @@ Ba quyết định thiết kế đáng nói nhất (nở đầy đủ ở mục 
      bổ trợ — một tài liệu PR cao hơn 47% vẫn xếp SAU nếu BM25 base thấp hơn.
 ```
 
+---
+
+## Kết
+
+Một bản ghi `SearchResult` trong JSON của `GET /api/search` là kết quả của một
+chuỗi **bảy khối** nối tiếp nhau — scorer cơ sở, ba lớp bọc tín hiệu, PageRank,
+top-K và snippet — mỗi khối một lớp Java, mỗi quyết định thiết kế đều có lý do
+có thể truy nguyên:
+
+| Đặc điểm quan sát được trong output | Khối chịu trách nhiệm | Mục |
+|---|---|---|
+| `score` và `pageRankScore` là hai con số khác nhau trong cùng một bản ghi | `RankedResult` gom mọi tín hiệu vào một điểm, PageRank chỉ báo cáo | [55](#55-rankedresult--vì-sao-chỉ-còn-một-trường-điểm), [56](#56-tổng-quan-output-thật) |
+| Kết quả đầu bảng KHÔNG phải trang có PageRank cao nhất | `PageRankBoostScorer` nhân chứ không cộng | [28](#28-pagerankboostscorer--cách-nhân-có-chuẩn-hoá-log), [61](#61-doc1-vượt-doc0-dù-pagerank-thấp-hơn) |
+| `doc3` không xuất hiện dù corpus chỉ có 5 trang | thoát sớm khi `base == 0` ở mọi lớp bọc | [28](#28-pagerankboostscorer--cách-nhân-có-chuẩn-hoá-log), [59](#59-doc3-bị-loại-hoàn-toàn--đúng-thiết-kế-thoát-sớm) |
+| Từ khoá trong `snippet` được bao bằng `<mark>` | `SnippetBuilder.render` + `escapeHtml` | [50](#50-chống-xss-thật-không-phải-giả-định-lý-thuyết) |
+| `snippet` mở đầu hoặc kết thúc bằng `"..."` | chỉ thêm khi cửa sổ không chạm đầu/cuối văn bản | [51](#51-vì-sao-chỉ-thêm--khi-cửa-sổ-thực-sự-không-ở-đầucuối) |
+| `snippet` dài khoảng 25 từ | `DEFAULT_WINDOW_SIZE = 25` và cửa sổ trượt O(n) | [48](#48-bài-toán-cửa-sổ-trượt) |
+| Chỉ tài liệu THỰC SỰ trả về mới có `snippet` | bốn giai đoạn của `ResultRanker.rank` | [5](#5-bốn-giai-đoạn-của-resultrankerrank), [53](#53-hai-giai-đoạn--vì-sao-nhanh-hơn-50-lần) |
+| Log in ra `"TF-IDF cosine + PR x0.30 + title x0.10 + recency x0.20"` | `name()` ghép chuỗi Decorator từ trong ra ngoài | [22](#22-scorerfactory--factory-pattern-chọn-và-lắp-ráp), [23](#23-hai-bước-chọn-cơ-sở-rồi-bọc-tín-hiệu) |
+| Tài liệu có tiêu đề không chứa từ khoá vẫn có điểm > 0 | `titleMatchRatio` = 0 ⇒ thừa số `(1 + γ·0)` = 1 | [30](#30-titleboostscorer--cài-đặt), [60](#60-doc4-bị-đẩy-ra-khỏi-top-3--vì-tiêu-đề-không-khớp-chút-nào) |
+| Điểm không bao giờ âm và giữ nguyên thứ nguyên của điểm liên quan | công thức NHÂN `base · (1 + w·x)` | [25](#25-decorator-pattern--vì-sao-không-thêm-tham-số-vào-công-thức) |
+| Tài liệu thiếu `crawledAt` không bị tụt hạng | `RecencyBoostScorer` trả thẳng `base`, không phạt | [31](#31-recencyboostscorer--tín-hiệu-độ-mới), [63](#63-chế-độ-suy-biến-khi-một-tín-hiệu-bị-tắt-hoặc-thiếu-dữ-liệu) |
+| Trang cụt (không outlink) vẫn có điểm PageRank > 0 | rải đều `danglingContribution` mỗi vòng lặp | [41](#41-dangling-node--vì-sao-phải-rải-đều-không-được-bỏ-qua), [43](#43-trace-hai-đồ-thị-thật) |

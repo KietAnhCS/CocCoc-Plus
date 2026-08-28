@@ -7,83 +7,7 @@
 > thứ tự thực thi, kèm sơ đồ Mermaid, bảng đối chiếu và trace dữ liệu thật trên corpus
 > `backend/data/seed-documents.json`.
 
----
-
-## MỤC LỤC
-
-### PHẦN I — TỔNG QUAN
-- [0. Cách đọc tài liệu này](#0-cách-đọc-tài-liệu-này)
-- [1. Điểm vào và vòng đời một request](#1-điểm-vào-và-vòng-đời-một-request)
-- [2. Bản đồ toàn hệ thống](#2-bản-đồ-toàn-hệ-thống)
-- [3. Danh mục toàn bộ file tham gia](#3-danh-mục-toàn-bộ-file-tham-gia)
-- [4. Sơ đồ tuần tự tổng quát](#4-sơ-đồ-tuần-tự-tổng-quát)
-- [5. Vòng đời của một truy vấn: chuỗi → `ParsedQuery` → cây AST → tập ứng viên](#5-vòng-đời-của-một-truy-vấn-chuỗi--parsedquery--cây-ast--tập-ứng-viên)
-- [6. `SearchEngineFacade` — vì sao chụp trạng thái một lần](#6-searchenginefacade--vì-sao-chụp-trạng-thái-một-lần)
-- [7. LRU cache truy vấn](#7-lru-cache-truy-vấn)
-
-### PHẦN II — PHÂN TÍCH CÚ PHÁP: `QueryParser`
-- [8. Ba bước của `QueryParser.parse`](#8-ba-bước-của-queryparserparse)
-- [9. Bước 1 — cắt cụm từ trong ngoặc kép](#9-bước-1--cắt-cụm-từ-trong-ngoặc-kép)
-- [10. Bước 2 — quét token: `site:`, `OR`, `-loại_trừ`, còn lại](#10-bước-2--quét-token-site-or--loại_trừ-còn-lại)
-- [11. Bước 3 — tokenize bằng chung tokenizer với tầng chỉ mục](#11-bước-3--tokenize-bằng-chung-tokenizer-với-tầng-chỉ-mục)
-- [12. `ParsedQuery` — cấu trúc dữ liệu kết quả](#12-parsedquery--cấu-trúc-dữ-liệu-kết-quả)
-- [13. `buildAst` — dựng cây từ `ParsedQuery`](#13-buildast--dựng-cây-từ-parsedquery)
-- [14. Trace 3 truy vấn mẫu qua `QueryParser`](#14-trace-3-truy-vấn-mẫu-qua-queryparser)
-
-### PHẦN III — CÂY CÚ PHÁP: GÓI `query.ast`
-- [15. `QueryNode` — giao diện chung](#15-querynode--giao-diện-chung)
-- [16. `TermNode` — nút lá](#16-termnode--nút-lá)
-- [17. `PhraseNode` — nút cụm từ](#17-phrasenode--nút-cụm-từ)
-- [18. `AndNode` — nút giao](#18-andnode--nút-giao)
-- [19. `OrNode` — nút hợp](#19-ornode--nút-hợp)
-- [20. `NotNode` — nút loại trừ và vì sao nó không đứng một mình được](#20-notnode--nút-loại-trừ-và-vì-sao-nó-không-đứng-một-mình-được)
-- [21. `estimatedSize()` — chi phí ước lượng của từng loại nút](#21-estimatedsize--chi-phí-ước-lượng-của-từng-loại-nút)
-
-### PHẦN IV — TRUY HỒI ỨNG VIÊN: `CandidateResolver`
-- [22. `resolve()` — tổng quan hai giai đoạn](#22-resolve--tổng-quan-hai-giai-đoạn)
-- [23. `buildQueryTermFrequency`](#23-buildqueryterfrequency)
-- [24. GIAI ĐOẠN 1 — đánh giá cây AST](#24-giai-đoạn-1--đánh-giá-cây-ast)
-- [25. `PostingListMerger` — trái tim thuật toán của tầng truy vấn](#25-postinglistmerger--trái-tim-thuật-toán-của-tầng-truy-vấn)
-- [26. `matchesPhrase` — khớp cụm từ theo vị trí](#26-matchesphrase--khớp-cụm-từ-theo-vị-trí)
-- [27. Bộ lọc ứng viên: `CandidateFilter`, `DomainFilter`, `MaxCandidatesFilter`](#27-bộ-lọc-ứng-viên-candidatefilter-domainfilter-maxcandidatesfilter)
-- [28. GIAI ĐOẠN 2 — nới lỏng truy vấn khi rỗng](#28-giai-đoạn-2--nới-lỏng-truy-vấn-khi-rỗng)
-
-### PHẦN V — TỪ ỨNG VIÊN ĐẾN PHẢN HỒI
-- [29. Bàn giao cho `ResultRanker`](#29-bàn-giao-cho-resultranker)
-- [30. Cắt trang và `SearchResponse`](#30-cắt-trang-và-searchresponse)
-- [31. Ghi cache và học gợi ý truy vấn](#31-ghi-cache-và-học-gợi-ý-truy-vấn)
-
-### PHẦN VI — ĐỐI CHIẾU OUTPUT THẬT
-- [32. Corpus dùng để trace](#32-corpus-dùng-để-trace)
-- [33. Truy vấn 1: `trump iran` — AND hai term phổ biến](#33-truy-vấn-1-trump-iran--and-hai-term-phổ-biến)
-- [34. Truy vấn 2: `"tơi bời" trump -mỹ` — rỗng vì loại trừ, không vì thiếu](#34-truy-vấn-2-tơi-bời-trump--mỹ--rỗng-vì-loại-trừ-không-vì-thiếu)
-- [35. Truy vấn 3: `trump OR iran` — hợp](#35-truy-vấn-3-trump-or-iran--hợp)
-- [36. Truy vấn 4: `sài gòn site:vnexpress.net` — lọc domain](#36-truy-vấn-4-sài-gòn-sitevnexpressnet--lọc-domain)
-- [37. Truy vấn 5: `trump khủng long iran` — nới lỏng thật](#37-truy-vấn-5-trump-khủng-long-iran--nới-lỏng-thật)
-
-### PHẦN VII — PHỤ LỤC
-- [38. Bảng hằng số toàn hệ thống](#38-bảng-hằng-số-toàn-hệ-thống)
-- [39. Bảng tra nhanh khối ↔ file ↔ hàm](#39-bảng-tra-nhanh-khối--file--hàm)
-- [40. Câu hỏi thường gặp](#40-câu-hỏi-thường-gặp)
-- [41. Chẩn đoán sự cố](#41-chẩn-đoán-sự-cố)
-- [42. Thuật ngữ](#42-thuật-ngữ)
-- [43. Toàn cảnh một trang](#43-toàn-cảnh-một-trang)
-
----
----
-
-# PHẦN I — TỔNG QUAN
-
----
-
-## 0. Cách đọc tài liệu này
-
-Tài liệu này viết theo nguyên tắc **một chiều, không nhảy cóc**, giống hệt
-`docs2/CRAWLER-PIPELINE.md`: mọi mục xuất hiện theo đúng thứ tự mà CPU thực sự
-chạy qua khi xử lý một truy vấn tìm kiếm — từ chuỗi ký tự người dùng gõ vào ô tìm
-kiếm, tới JSON `SearchResponse` trả về trình duyệt.
-
-### Quy ước ký hiệu
+**Quy ước ký hiệu**
 
 | Ký hiệu | Nghĩa |
 |---|---|
@@ -95,26 +19,99 @@ kiếm, tới JSON `SearchResponse` trả về trình duyệt.
 | ↺ | Vòng lặp khép kín (feedback loop) |
 | 🔒 | Điểm đồng bộ hoá (lock / cache / trạng thái chia sẻ) |
 
-### Ba mức chi tiết
+---
 
-1. **Mức sơ đồ** — một hình Mermaid, hiểu trong 10 giây.
-2. **Mức mã** — trích đoạn mã thật, đã lược bỏ getter/log cho gọn.
-3. **Mức lập luận** — vì sao viết như vậy, viết khác thì hỏng ở đâu.
+## MỤC LỤC
 
-### Quan hệ với các tài liệu khác trong `docs2/`
+### PHẦN I — TỔNG QUAN
+- [1. Điểm vào và vòng đời một request](#1-điểm-vào-và-vòng-đời-một-request)
+- [2. Bản đồ toàn hệ thống](#2-bản-đồ-toàn-hệ-thống)
+- [3. Danh mục toàn bộ file tham gia](#3-danh-mục-toàn-bộ-file-tham-gia)
+- [4. Sơ đồ tuần tự tổng quát](#4-sơ-đồ-tuần-tự-tổng-quát)
+- [5. Vòng đời của một truy vấn: chuỗi → `ParsedQuery` → cây AST → tập ứng viên](#5-vòng-đời-của-một-truy-vấn-chuỗi--parsedquery--cây-ast--tập-ứng-viên)
+- [6. `SearchEngineFacade` — vì sao chụp trạng thái một lần](#6-searchenginefacade--vì-sao-chụp-trạng-thái-một-lần)
+- [7. LRU cache truy vấn](#7-lru-cache-truy-vấn)
 
-Tài liệu này là bản **dệt liền mạch** của mười hai tài liệu per-class đã có sẵn
-tại `docs2/main/java/com/vnsearch/query/**/*.md` (chặng 5 trong
-`docs2/main/roadmap.md`, mục #68–#79). Nếu tài liệu per-class mô tả **một lớp**
-theo chiều sâu, tài liệu này mô tả **một truy vấn thật** đi xuyên qua tất cả các
-lớp đó theo đúng trình tự thực thi — giống quan hệ giữa `docs2/CRAWLER-PIPELINE.md`
-và các tài liệu per-class của gói `crawler`.
+### PHẦN II — TẦNG 0: PHÂN TÍCH CÚ PHÁP — `QueryParser`
+- [8. Ba bước của `QueryParser.parse`](#8-ba-bước-của-queryparserparse)
+- [9. Bước 1 — cắt cụm từ trong ngoặc kép](#9-bước-1--cắt-cụm-từ-trong-ngoặc-kép)
+- [10. Bước 2 — quét token: `site:`, `OR`, `-loại_trừ`, còn lại](#10-bước-2--quét-token-site-or--loại_trừ-còn-lại)
+- [11. `site:` — điều kiện host rỗng](#11-site--điều-kiện-host-rỗng)
+- [12. ★ `OR` — chỉ gom được một từ đơn mỗi bên, không phải cụm từ](#12--or--chỉ-gom-được-một-từ-đơn-mỗi-bên-không-phải-cụm-từ)
+- [13. `-loại_trừ` và dấu `-` đơn độc](#13--loại_trừ-và-dấu---đơn-độc)
 
-Tầng truy vấn đọc **ngược chiều** với tầng chỉ mục (`docs2/INDEX-PIPELINE.md`):
-tầng chỉ mục biến hàng nghìn tài liệu thành danh sách posting; tầng này biến
-một chuỗi người dùng gõ thành phép toán tập hợp trên chính các danh sách posting
-đó. Việc xếp hạng kết quả (`docs2/RANKING-PIPELINE.md`) là chặng kế tiếp, nhận
-đầu vào là tập ứng viên do tài liệu này tạo ra.
+### PHẦN III — TẦNG 1: TỪ TOKEN ĐẾN CÂY AST
+- [14. Bước 3 — tokenize bằng chung tokenizer với tầng chỉ mục](#14-bước-3--tokenize-bằng-chung-tokenizer-với-tầng-chỉ-mục)
+- [15. `ParsedQuery` — cấu trúc dữ liệu kết quả](#15-parsedquery--cấu-trúc-dữ-liệu-kết-quả)
+- [16. `buildAst` — dựng cây từ `ParsedQuery`](#16-buildast--dựng-cây-từ-parsedquery)
+- [17. Trace 3 truy vấn mẫu qua `QueryParser`](#17-trace-3-truy-vấn-mẫu-qua-queryparser)
+- [18. Bảng đối chiếu cả bốn truy vấn (kèm `trump OR iran`)](#18-bảng-đối-chiếu-cả-bốn-truy-vấn-kèm-trump-or-iran)
+
+### PHẦN IV — TẦNG 2: CÂY CÚ PHÁP — NÚT LÁ
+- [19. `QueryNode` — giao diện chung](#19-querynode--giao-diện-chung)
+- [20. `TermNode` — nút lá](#20-termnode--nút-lá)
+- [21. `PhraseNode` — nút cụm từ](#21-phrasenode--nút-cụm-từ)
+
+### PHẦN V — TẦNG 3: CÂY CÚ PHÁP — NÚT GIAO VÀ NÚT HỢP
+- [22. `AndNode` — nút giao](#22-andnode--nút-giao)
+- [23. ★ Vì sao shortest-first, bằng con số cụ thể](#23--vì-sao-shortest-first-bằng-con-số-cụ-thể)
+- [24. Xử lý `NotNode` — tách riêng, áp sau cùng](#24-xử-lý-notnode--tách-riêng-áp-sau-cùng)
+- [25. `OrNode` — nút hợp](#25-ornode--nút-hợp)
+
+### PHẦN VI — TẦNG 4: CÂY CÚ PHÁP — NÚT LOẠI TRỪ VÀ CHI PHÍ
+- [26. `NotNode` — nút loại trừ và vì sao nó không đứng một mình được](#26-notnode--nút-loại-trừ-và-vì-sao-nó-không-đứng-một-mình-được)
+- [27. Two-pointer trừ tập — vì sao `O(m+n)` chứ không `O(m·n)`](#27-two-pointer-trừ-tập--vì-sao-omn-chứ-không-om·n)
+- [28. `estimatedSize()` — chi phí ước lượng của từng loại nút](#28-estimatedsize--chi-phí-ước-lượng-của-từng-loại-nút)
+
+### PHẦN VII — TRUY HỒI ỨNG VIÊN: TỔNG QUAN
+- [29. `resolve()` — tổng quan hai giai đoạn](#29-resolve--tổng-quan-hai-giai-đoạn)
+- [30. ★ "Lùi dần về AND-của-tập-con" — vấn đề gốc mà cả lớp giải quyết](#30--lùi-dần-về-and-của-tập-con--vấn-đề-gốc-mà-cả-lớp-giải-quyết)
+- [31. `buildQueryTermFrequency`](#31-buildquerytermfrequency)
+- [32. GIAI ĐOẠN 1 — đánh giá cây AST](#32-giai-đoạn-1--đánh-giá-cây-ast)
+
+### PHẦN VIII — GHÉP POSTING LIST
+- [33. `PostingListMerger` — trái tim thuật toán của tầng truy vấn](#33-postinglistmerger--trái-tim-thuật-toán-của-tầng-truy-vấn)
+- [34. `intersectCursors` — galloping search, không cấp phát trung gian](#34-intersectcursors--galloping-search-không-cấp-phát-trung-gian)
+- [35. `matchesPhrase` — khớp cụm từ theo vị trí](#35-matchesphrase--khớp-cụm-từ-theo-vị-trí)
+
+### PHẦN IX — BỘ LỌC ỨNG VIÊN
+- [36. Bộ lọc ứng viên: `CandidateFilter`, `DomainFilter`, `MaxCandidatesFilter`](#36-bộ-lọc-ứng-viên-candidatefilter-domainfilter-maxcandidatesfilter)
+- [37. ★ Thứ tự "rẻ và loại nhiều trước"](#37--thứ-tự-rẻ-và-loại-nhiều-trước)
+- [38. `MaxCandidatesFilter` — chặn trên đơn giản, không phải WAND/MaxScore](#38-maxcandidatesfilter--chặn-trên-đơn-giản-không-phải-wandmaxscore)
+
+### PHẦN X — NỚI LỎNG TRUY VẤN
+- [39. GIAI ĐOẠN 2 — nới lỏng truy vấn khi rỗng](#39-giai-đoạn-2--nới-lỏng-truy-vấn-khi-rỗng)
+- [40. ★ `isUnmatchable` — thoát sớm khỏi nỗ lực vô ích](#40--isunmatchable--thoát-sớm-khỏi-nỗ-lực-vô-ích)
+- [41. ★ Vì sao "cái gì KHÔNG bao giờ bị bỏ" quan trọng hơn "cái gì bị bỏ"](#41--vì-sao-cái-gì-không-bao-giờ-bị-bỏ-quan-trọng-hơn-cái-gì-bị-bỏ)
+- [42. Hai bước nới lỏng, theo đúng thứ tự IDF tăng dần](#42-hai-bước-nới-lỏng-theo-đúng-thứ-tự-idf-tăng-dần)
+- [43. `attempt()` — thử lại và điểm bất biến về chấm điểm](#43-attempt--thử-lại-và-điểm-bất-biến-về-chấm-điểm)
+
+### PHẦN XI — TRẢ KẾT QUẢ VÀ KẾT THÚC
+- [44. Bàn giao cho `ResultRanker`](#44-bàn-giao-cho-resultranker)
+- [45. Cắt trang và `SearchResponse`](#45-cắt-trang-và-searchresponse)
+- [46. Ghi cache và học gợi ý truy vấn](#46-ghi-cache-và-học-gợi-ý-truy-vấn)
+
+### PHẦN XII — ĐỐI CHIẾU OUTPUT THẬT
+- [47. Corpus dùng để trace](#47-corpus-dùng-để-trace)
+- [48. Truy vấn 1: `trump iran` — AND hai term phổ biến](#48-truy-vấn-1-trump-iran--and-hai-term-phổ-biến)
+- [49. Truy vấn 2: `"tơi bời" trump -mỹ` — rỗng vì loại trừ, không vì thiếu](#49-truy-vấn-2-tơi-bời-trump--mỹ--rỗng-vì-loại-trừ-không-vì-thiếu)
+- [50. Truy vấn 3: `trump OR iran` — hợp](#50-truy-vấn-3-trump-or-iran--hợp)
+- [51. Truy vấn 4: `sài gòn site:vnexpress.net` — lọc domain](#51-truy-vấn-4-sài-gòn-sitevnexpressnet--lọc-domain)
+- [52. Truy vấn 5: `trump khủng long iran` — nới lỏng thật](#52-truy-vấn-5-trump-khủng-long-iran--nới-lỏng-thật)
+
+### PHẦN XIII — PHỤ LỤC
+- [53. Chế độ suy biến và trần tham số](#53-chế-độ-suy-biến-và-trần-tham-số)
+- [54. Bảng hằng số toàn hệ thống](#54-bảng-hằng-số-toàn-hệ-thống)
+- [55. Bảng tra nhanh khối ↔ file ↔ hàm](#55-bảng-tra-nhanh-khối--file--hàm)
+- [56. Câu hỏi thường gặp](#56-câu-hỏi-thường-gặp)
+- [57. Chẩn đoán sự cố](#57-chẩn-đoán-sự-cố)
+- [58. Thuật ngữ](#58-thuật-ngữ)
+- [59. Toàn cảnh một trang](#59-toàn-cảnh-một-trang)
+
+---
+---
+
+# PHẦN I — TỔNG QUAN
 
 ---
 
@@ -425,8 +422,8 @@ AndNode[
 [12, 47, 205, ...]           (danh sách docId, sắp tăng dần)
 ```
 
-Mỗi mũi tên là một PHẦN riêng trong tài liệu này: PHẦN II là mũi tên thứ nhất,
-PHẦN III là cấu trúc dữ liệu đích của mũi tên thứ hai, PHẦN IV là mũi tên thứ ba.
+Mỗi mũi tên là một PHẦN riêng trong tài liệu này: PHẦN II–III là mũi tên thứ nhất,
+PHẦN IV–VI là cấu trúc dữ liệu đích của mũi tên thứ hai, PHẦN VII–X là mũi tên thứ ba.
 
 ---
 
@@ -479,10 +476,7 @@ request hiện tại nếu nó là cache hit.
 
 ---
 
-
----
-
-# PHẦN II — PHÂN TÍCH CÚ PHÁP: `QueryParser`
+# PHẦN II — TẦNG 0: PHÂN TÍCH CÚ PHÁP — `QueryParser`
 
 **File:** `query/QueryParser.java` (249 dòng)
 
@@ -577,7 +571,7 @@ bất kỳ điều gì khác:
 Nếu bước này không tồn tại, truy vấn `"biến đổi khí hậu"` sẽ vừa sinh ra
 `PhraseNode([biến_đổi, khí_hậu])` (nếu có bước xử lý ngoặc riêng ở chỗ khác) vừa
 để nguyên các tiếng `biến`, `đổi`, `khí`, `hậu` lẫn vào dòng `mustRaw` — khiến
-`buildQueryTermFrequency` (mục 23) đếm hai lần cho cùng khái niệm, làm lệch
+`buildQueryTermFrequency` (mục 31) đếm hai lần cho cùng khái niệm, làm lệch
 trọng số khi xếp hạng.
 
 ### 9.1 Trường hợp biên
@@ -664,14 +658,18 @@ tu word
 
 </details>
 
-### 10.1 `site:` — điều kiện host rỗng
+---
+
+## 11. `site:` — điều kiện host rỗng
 
 `site:` theo sau bởi chuỗi rỗng (ví dụ gõ `site:` một mình, hoặc `site: `) thì
 `host.isEmpty()` đúng và dòng `if (!host.isEmpty())` **không set** `siteFilter`
 (dòng 116-118) — từ `site:` bị nuốt (nhánh `continue`) mà không để lại dấu vết
 nào trong `ParsedQuery`, không rơi xuống `mustRaw`.
 
-### 10.2 ★ `OR` — chỉ gom được **một từ đơn** mỗi bên, không phải cụm từ
+---
+
+## 12. ★ `OR` — chỉ gom được một từ đơn mỗi bên, không phải cụm từ
 
 Điều kiện `!mustRaw.isEmpty() && i + 1 < words.length` (dòng 123) có nghĩa `OR`
 đứng **đầu câu** hoặc **cuối câu** không được nhận diện như từ khoá — nó rơi
@@ -684,14 +682,16 @@ hiểu lầm: **`OR` chỉ gộp được từ đơn liền kề ngay trước v
 giới khoảng trắng, không phải theo ranh giới từ ghép tiếng Việt.** Ví dụ
 `laptop OR máy tính giá rẻ` — vế phải của `OR` chỉ là từ thô `máy` (một "word"
 theo `split("\\s+")`), còn `tính` bị coi là một mustTerm độc lập tách rời khỏi
-`máy`. Xem trace thật ở mục 14.2.
+`máy`. Xem trace thật ở mục 17.2.
 
 Vòng `while` (dòng 128-136) gom dây `OR` liên tiếp: mỗi lần lặp thêm từ kế tiếp
 vào `group`, rồi kiểm tra xem từ **sau** nữa có phải `OR` không — nếu có thì nuốt
 luôn từ khoá đó và lặp tiếp; nếu không thì dừng. Nhờ vậy `a OR b OR c` gom thành
 **một** nhóm ba phần tử `[a, b, c]` chứ không phải lồng nhau `(a OR b) OR c`.
 
-### 10.3 `-loại_trừ` và dấu `-` đơn độc
+---
+
+## 13. `-loại_trừ` và dấu `-` đơn độc
 
 `word.startsWith("-") && word.length() > 1` loại trừ trường hợp `word` chỉ là
 chính dấu `-` (length == 1) — điều kiện `else if (!word.equals("-"))` ở nhánh cuối
@@ -700,7 +700,11 @@ chính dấu `-` (length == 1) — điều kiện `else if (!word.equals("-"))` 
 
 ---
 
-## 11. Bước 3 — tokenize bằng chung tokenizer với tầng chỉ mục
+# PHẦN III — TẦNG 1: TỪ TOKEN ĐẾN CÂY AST
+
+---
+
+## 14. Bước 3 — tokenize bằng chung tokenizer với tầng chỉ mục
 
 ```java
 // dòng 152-174
@@ -738,7 +742,7 @@ Ba cách gọi `tokenizeToTerms` khác nhau về **phạm vi ngữ cảnh** đư
 | mỗi `phraseRaw` | Tokenize **riêng biệt từng cụm** (KHÔNG nối các cụm với nhau, KHÔNG nối với `mustRaw`) | Mỗi cặp ngoặc kép là một đơn vị độc lập về mặt ngữ nghĩa — cụm này không được phép mượn ngữ cảnh của cụm khác |
 | mỗi `alternative` trong một `orGroup` | Tokenize **riêng từng alternative** rồi gộp list | Mỗi vế OR là một khái niệm độc lập, không ghép từ chéo giữa `laptop` và `máy` |
 
-### 11.1 ★ "OR một vế" hạ xuống thành `mustTerm`
+### 14.1 ★ "OR một vế" hạ xuống thành `mustTerm`
 
 Khi `alternatives.size() == 1` sau khi tokenize (dòng 171-174) — nghĩa là dù
 `orGroupsRaw` từng có ≥ 2 "word" thô, sau khi tokenize hoá chúng lại **gộp về
@@ -751,7 +755,7 @@ một khái niệm) — nhóm OR không còn ý nghĩa phân nhánh, code hạ n
 
 ---
 
-## 12. `ParsedQuery` — cấu trúc dữ liệu kết quả
+## 15. `ParsedQuery` — cấu trúc dữ liệu kết quả
 
 ```java
 public record ParsedQuery(List<String> mustTerms, List<List<String>> phrases,
@@ -783,13 +787,13 @@ và `siteFilter = null`.
 ⚠ `isEmpty()` (dòng 74-76) **không** kiểm tra `excludedTerms` lẫn `siteFilter`.
 Một truy vấn chỉ gồm `-spam` (chỉ có excludedTerms) hoặc chỉ có `site:abc.vn`
 (chỉ có siteFilter) được `isEmpty()` báo là **rỗng** — điều này nhất quán với
-hành vi của `buildAst` (mục 13): cả hai trường hợp đều không có "mệnh đề khẳng
+hành vi của `buildAst` (mục 16): cả hai trường hợp đều không có "mệnh đề khẳng
 định" nào để truy hồi, nên coi là truy vấn rỗng là đúng ngữ nghĩa tìm kiếm dù có
 vẻ ngược trực giác khi đọc code lần đầu.
 
 ---
 
-## 13. `buildAst` — dựng cây từ `ParsedQuery`
+## 16. `buildAst` — dựng cây từ `ParsedQuery`
 
 ```java
 // dòng 194-217
@@ -824,7 +828,7 @@ còn chưa được thêm, nên nếu `mustTerms`/`phrases`/`orGroups` đều r�
 `null` ngay — `CandidateResolver` nhận `null` sẽ trả về tập ứng viên rỗng **mà
 không hề gọi `ast.evaluate()`**.
 
-Đây chính là lý do, khi đọc mã `AndNode.evaluate()` (PHẦN III), việc
+Đây chính là lý do, khi đọc mã `AndNode.evaluate()` (PHẦN V), việc
 `positives.isEmpty()` ném `UnsupportedOperationException` gần như **không bao
 giờ xảy ra trên đường đi qua `buildAst` bình thường** — `AndNode` tự vệ hai lớp:
 lớp ngoài (`buildAst`, trả `null` sớm) và lớp trong (`AndNode` tự ném exception
@@ -833,13 +837,13 @@ không qua `buildAst`, như trong test).
 
 ---
 
-## 14. Trace 3 truy vấn mẫu qua `QueryParser`
+## 17. Trace 3 truy vấn mẫu qua `QueryParser`
 
 Ba lần chạy **thật** dưới đây được lấy bằng cách biên dịch và chạy trực tiếp
 `QueryParser.parse()` + `buildAst()` (cùng `VietnameseTokenizer` thật, cùng
 từ điển từ ghép 185.000 mục thật của repo) — không phải suy đoán tay.
 
-### 14.1 `trump iran` — AND ngầm định giữa hai term đơn
+### 17.1 `trump iran` — AND ngầm định giữa hai term đơn
 
 ```
 must=[trump, iran]
@@ -853,7 +857,7 @@ ast=(trump AND iran)
 Không có ký tự đặc biệt nào, cả hai "word" đều là một tiếng đơn nên không có gì
 để ghép — kết quả `mustTerms` giữ nguyên hai token gốc.
 
-### 14.2 `"tơi bời" trump -mỹ` — cụm từ, must, và loại trừ cùng lúc
+### 17.2 `"tơi bời" trump -mỹ` — cụm từ, must, và loại trừ cùng lúc
 
 ```
 must=[trump]
@@ -868,7 +872,7 @@ Ba quan sát đối chiếu trực tiếp với mã ở mục 9–13:
 
 - Cụm `"tơi bời"` bị **Bước 1** cắt khỏi chuỗi trước khi Bước 2 chạy, nên nó
   không bao giờ lẫn vào `mustRaw` — đúng như lời giải thích ở mục 9.
-- Hai tiếng `tơi` và `bời` được tokenize **thành một cụm riêng** (mục 11) và bộ
+- Hai tiếng `tơi` và `bời` được tokenize **thành một cụm riêng** (mục 14) và bộ
   ghép từ của `VietnameseTokenizer` nhận ra đây là một từ ghép có trong từ điển
   185.000 mục, cho ra đúng **một** token `tơi_bời` — `phrases=[[tơi_bời]]` chỉ
   có một phần tử trong danh sách trong, không phải hai token rời `tơi`, `bời`.
@@ -876,14 +880,14 @@ Ba quan sát đối chiếu trực tiếp với mã ở mục 9–13:
   `NotNode(TermNode(mỹ))` **sau cùng** trong `AndNode`, đúng thứ tự dòng
   795-796 của mã.
 
-★ Truy vấn này minh hoạ đúng cảnh báo ★★ ở mục 13: nếu người dùng gõ **chỉ**
+★ Truy vấn này minh hoạ đúng cảnh báo ★★ ở mục 16: nếu người dùng gõ **chỉ**
 `-mỹ` (không `trump`, không cụm nào), `children` rỗng tại thời điểm kiểm tra,
 `buildAst` trả `null`, và `CandidateResolver` không bao giờ chạm tới
 `ast.evaluate()`. Xem thêm hệ quả thật của truy vấn này (nó trả về **rỗng** vì
 một lý do khác hẳn — loại trừ, không phải thiếu term) ở
-[mục 35](#35-truy-vấn-2-tơi-bời-trump--mỹ--rỗng-vì-loại-trừ-không-vì-thiếu).
+[mục 49](#49-truy-vấn-2-tơi-bời-trump--mỹ--rỗng-vì-loại-trừ-không-vì-thiếu).
 
-### 14.3 `sài gòn site:vnexpress.net` — cụm ghép qua ranh giới "word" và `site:`
+### 17.3 `sài gòn site:vnexpress.net` — cụm ghép qua ranh giới "word" và `site:`
 
 ```
 must=[sài_gòn]
@@ -896,15 +900,17 @@ ast=(sài_gòn)
 
 Hai "word" thô `sài` và `gòn` (không có dấu ngoặc kép nào) vẫn được ghép thành
 đúng **một** token `sài_gòn` vì bước 3 tokenize **toàn bộ** `mustRaw` đã nối
-bằng khoảng trắng trong **một lần gọi** (`String.join(" ", mustRaw)`, mục 11) —
+bằng khoảng trắng trong **một lần gọi** (`String.join(" ", mustRaw)`, mục 14) —
 bộ ghép từ có đủ ngữ cảnh để nhận ra từ ghép nằm vắt qua ranh giới hai "word".
 `site:vnexpress.net` bị Bước 2 nuốt trọn thành `siteFilter`, không để lại dấu
 vết trong `mustRaw`, nên cây AST chỉ còn đúng một `TermNode(sài_gòn)` — ràng
 buộc domain được `CandidateResolver` áp ở **tầng lọc riêng**, không nằm trong
-cây (xem [mục 6 phần đầu tài liệu](#6-hai-mẫu-thiết-kế-chia-nhau-công-việc)
-và [mục 27](#27-bộ-lọc-ứng-viên-candidatefilter-domainfilter-maxcandidatesfilter)).
+cây (xem [mục 2 phần đầu tài liệu](#2-bản-đồ-toàn-hệ-thống)
+và [mục 36](#36-bộ-lọc-ứng-viên-candidatefilter-domainfilter-maxcandidatesfilter)).
 
-### 14.4 Bảng đối chiếu cả bốn truy vấn (kèm `trump OR iran`)
+---
+
+## 18. Bảng đối chiếu cả bốn truy vấn (kèm `trump OR iran`)
 
 | Truy vấn | mustTerms | phrases | excludedTerms | orGroups | siteFilter |
 |---|---|---|---|---|---|
@@ -913,14 +919,13 @@ và [mục 27](#27-bộ-lọc-ứng-viên-candidatefilter-domainfilter-maxcandid
 | `trump OR iran` | `[]` | `[]` | `[]` | `[[trump, iran]]` | `null` |
 | `sài gòn site:vnexpress.net` | `[sài_gòn]` | `[]` | `[]` | `[]` | `vnexpress.net` |
 
-Dòng `trump OR iran` xác nhận đúng mục 10.2: `OR` giữa hai từ đơn hợp lệ,
+Dòng `trump OR iran` xác nhận đúng mục 12: `OR` giữa hai từ đơn hợp lệ,
 `mustRaw` (đã có `trump`) bị pop phần tử cuối làm vế trái, `iran` làm vế phải —
 kết quả rơi thẳng vào `orGroups`, `mustTerms` trở lại rỗng.
 
 ---
----
 
-# PHẦN III — CÂY CÚ PHÁP: GÓI `query.ast`
+# PHẦN IV — TẦNG 2: CÂY CÚ PHÁP — NÚT LÁ
 
 **Thư mục:** `query/ast/` — 6 file, tổng cộng dưới 300 dòng mã thực (phần lớn
 là Javadoc). Đây là cấu trúc dữ liệu **Composite pattern**: một cây, mỗi nút là
@@ -929,7 +934,7 @@ trong ghép kết quả của các con.
 
 ---
 
-## 15. `QueryNode` — giao diện chung
+## 19. `QueryNode` — giao diện chung
 
 **File:** `query/ast/QueryNode.java`
 
@@ -963,7 +968,7 @@ Ba điểm thiết kế đáng chú ý:
   `TermNode`, ước lượng là `getDocumentFrequency` — `O(1)` — trong khi
   `evaluate()` phải lấy hẳn posting list `O(df)`.
 
-### 15.1 Sơ đồ cây tổng quát
+### 19.1 Sơ đồ cây tổng quát
 
 ```mermaid
 classDiagram
@@ -999,7 +1004,7 @@ classDiagram
     NotNode o-- QueryNode : inner
 ```
 
-Ví dụ cây thật cho `"tơi bời" trump -mỹ` (đối chiếu mục 14.2):
+Ví dụ cây thật cho `"tơi bời" trump -mỹ` (đối chiếu mục 17.2):
 
 ```
 AndNode
@@ -1010,7 +1015,7 @@ AndNode
 
 ---
 
-## 16. `TermNode` — nút lá
+## 20. `TermNode` — nút lá
 
 **File:** `query/ast/TermNode.java`
 
@@ -1041,7 +1046,7 @@ dựa trên `TermNode.estimatedSize` không bao giờ sai thứ tự.
 
 ---
 
-## 17. `PhraseNode` — nút cụm từ
+## 21. `PhraseNode` — nút cụm từ
 
 **File:** `query/ast/PhraseNode.java`
 
@@ -1083,7 +1088,7 @@ lớp giải thích rõ lý do có hai bước thay vì một:
 Cụ thể: `evaluate()` **tái sử dụng `AndNode`** để tạo bước lọc thô — dựng một
 `AndNode` tạm gồm mỗi tiếng của cụm bọc trong `TermNode`, rồi gọi
 `evaluate()` của nó. Điều này có nghĩa `PhraseNode` được lợi **miễn phí** từ
-mọi tối ưu shortest-first mà `AndNode` đã có (mục 20) — không phải cài đặt lại
+mọi tối ưu shortest-first mà `AndNode` đã có (mục 26) — không phải cài đặt lại
 logic giao posting list riêng cho trường hợp cụm từ.
 
 ⚠ Nếu bỏ bước lọc thô này và chạy thẳng `matchesPhrase` trên **toàn bộ**
@@ -1096,7 +1101,11 @@ trong nó xuất hiện.
 
 ---
 
-## 18. `AndNode` — nút giao
+# PHẦN V — TẦNG 3: CÂY CÚ PHÁP — NÚT GIAO VÀ NÚT HỢP
+
+---
+
+## 22. `AndNode` — nút giao
 
 **File:** `query/ast/AndNode.java`
 
@@ -1133,7 +1142,7 @@ public List<Integer> evaluate(SearchIndex index) {
 }
 ```
 
-### 18.1 Ba việc `evaluate()` làm theo đúng thứ tự
+### 22.1 Ba việc `evaluate()` làm theo đúng thứ tự
 
 ```mermaid
 flowchart TD
@@ -1166,25 +1175,29 @@ children
 ```
 </details>
 
-### 18.2 ★ Vì sao shortest-first, bằng con số cụ thể
+---
+
+## 23. ★ Vì sao shortest-first, bằng con số cụ thể
 
 Cơ sở toán học: `|A ∩ B| <= min(|A|, |B|)` — giao không bao giờ lớn hơn tập
 nhỏ hơn. Nếu bắt đầu từ con có **ít** kết quả nhất, `accumulator` nhỏ ngay từ
 bước đầu, và mọi bước giao sau đó tốn `O(|accumulator hiện tại| + |con kế
 tiếp|)` — rẻ hơn hẳn so với việc lỡ bắt đầu từ con có nhiều kết quả nhất trước.
 
-Với dữ liệu thật của [mục 34](#34-truy-vấn-1-trump-iran--and-hai-term-phổ-biến)
+Với dữ liệu thật của [mục 48](#48-truy-vấn-1-trump-iran--and-hai-term-phổ-biến)
 (`trump` có `df=9`, `iran` có `df=4` trên corpus 40 tài liệu): `AndNode` sắp
 `iran` (nhỏ hơn) lên trước, `accumulator` khởi đầu chỉ 4 phần tử thay vì 9.
 Trên corpus nhỏ khác biệt không đáng kể, nhưng cơ chế giữ nguyên khi một trong
 hai term có `df` chênh lệch hàng nghìn lần trên corpus lớn — đúng chỗ tối ưu
 phát huy tác dụng rõ nhất.
 
-### 18.3 Xử lý `NotNode` — tách riêng, áp sau cùng
+---
+
+## 24. Xử lý `NotNode` — tách riêng, áp sau cùng
 
 `AndNode` **không coi `NotNode` như một `positive` bình thường** — nó lọc
 riêng ra thành danh sách `negatives`, không đưa vào bước sort/intersect. Lý do
-nằm trọn ở [mục 20](#20-notnode--nút-loại-trừ-và-vì-sao-nó-không-đứng-một-mình-được): `NotNode`
+nằm trọn ở [mục 26](#26-notnode--nút-loại-trừ-và-vì-sao-nó-không-đứng-một-mình-được): `NotNode`
 không đánh giá độc lập được, nên nó chỉ có thể được áp dụng **sau khi** đã có
 một `accumulator` khẳng định làm nền — đúng thứ tự "trừ trên một tập ứng viên
 có sẵn" mà Javadoc của `NotNode` yêu cầu.
@@ -1207,7 +1220,7 @@ nó không đóng góp thông tin gì cho việc ước lượng chặn trên.
 
 ---
 
-## 19. `OrNode` — nút hợp
+## 25. `OrNode` — nút hợp
 
 **File:** `query/ast/OrNode.java`
 
@@ -1243,7 +1256,11 @@ shortest-first ở `AndNode` cha — một chặn trên là đủ chính xác, k
 
 ---
 
-## 20. `NotNode` — nút loại trừ và vì sao nó không đứng một mình được
+# PHẦN VI — TẦNG 4: CÂY CÚ PHÁP — NÚT LOẠI TRỪ VÀ CHI PHÍ
+
+---
+
+## 26. `NotNode` — nút loại trừ và vì sao nó không đứng một mình được
 
 **File:** `query/ast/NotNode.java`
 
@@ -1273,7 +1290,7 @@ public int estimatedSize(SearchIndex index) {
 }
 ```
 
-### 20.1 ★★ Vì sao `evaluate()` tự ném ngoại lệ thay vì cố trả về gì đó
+### 26.1 ★★ Vì sao `evaluate()` tự ném ngoại lệ thay vì cố trả về gì đó
 
 Đây là quyết định thiết kế quan trọng nhất của cả gói `query.ast`. Javadoc của
 lớp giải thích lý do bằng chính con số của corpus tham chiếu:
@@ -1292,10 +1309,12 @@ xuống các tầng sau — nơi lỗi loại đó cực khó lần ngược ngu
 exception nào cả, chỉ có kết quả "hơi lạ" nhưng không sai cú pháp.
 
 `evaluateAgainst(candidates, index)` mới là con đường đúng — luôn được gọi bởi
-`AndNode` (mục 18.3), không bao giờ được gọi trực tiếp từ `CandidateResolver`
+`AndNode` (mục 24), không bao giờ được gọi trực tiếp từ `CandidateResolver`
 hay bất kỳ đâu khác trong mã sản phẩm.
 
-### 20.2 Two-pointer trừ tập — vì sao `O(m+n)` chứ không `O(m·n)`
+---
+
+## 27. Two-pointer trừ tập — vì sao `O(m+n)` chứ không `O(m·n)`
 
 ```mermaid
 flowchart LR
@@ -1307,8 +1326,8 @@ flowchart LR
 ```
 
 Điểm mấu chốt: con trỏ `j` **chỉ tiến, không bao giờ lùi**, vì cả `candidates`
-và `excluded` đều sắp tăng dần (bất biến từ `QueryNode.evaluate`, mục 15) —
-đúng cấu trúc thuật toán hai-con-trỏ đã thấy ở `intersect`/`union` (mục 26).
+và `excluded` đều sắp tăng dần (bất biến từ `QueryNode.evaluate`, mục 19) —
+đúng cấu trúc thuật toán hai-con-trỏ đã thấy ở `intersect`/`union` (mục 35).
 Tổng số bước tiến của `j` trong suốt toàn bộ vòng lặp bị chặn bởi
 `excluded.size()`, nên tổng chi phí là `O(|candidates| + |excluded|)`, không
 phải `O(|candidates| * |excluded|)` như cách kiểm tra "có nằm trong danh sách
@@ -1316,13 +1335,13 @@ loại trừ không" bằng `List.contains` bên trong vòng lặp sẽ tốn.
 
 ⚠ `estimatedSize()` trả `index.getTotalDocs()` — chặn trên **tệ nhất có thể**,
 không giúp gì cho việc sắp xếp shortest-first (đây chính xác là lý do
-`AndNode.estimatedSize` phải bỏ qua `NotNode` khi tính `min`, mục 18.3: nếu
+`AndNode.estimatedSize` phải bỏ qua `NotNode` khi tính `min`, mục 24: nếu
 không bỏ qua, một `AndNode` có cả `NotNode` sẽ luôn ước lượng bằng
 `getTotalDocs()`, vô hiệu hoá hoàn toàn việc sắp xếp).
 
 ---
 
-## 21. `estimatedSize()` — chi phí ước lượng của từng loại nút
+## 28. `estimatedSize()` — chi phí ước lượng của từng loại nút
 
 | Loại nút | `estimatedSize()` trả về | Độ phức tạp | Chính xác hay chặn trên? |
 |---|---|---|---|
@@ -1340,16 +1359,15 @@ tường minh (tách `positives`/`negatives`) để không phụ thuộc vào vi
 tình cờ xếp đúng chỗ.
 
 ---
----
 
-# PHẦN IV — TRUY HỒI ỨNG VIÊN: `CandidateResolver`
+# PHẦN VII — TRUY HỒI ỨNG VIÊN: TỔNG QUAN
 
 **File:** `query/CandidateResolver.java` (lớp `final`, không thể kế thừa, mọi
 phương thức `static`)
 
 ---
 
-## 22. `resolve()` — tổng quan hai giai đoạn
+## 29. `resolve()` — tổng quan hai giai đoạn
 
 ```java
 public static ResolvedQuery resolve(SearchIndex index, QueryParser.ParsedQuery parsed) {
@@ -1371,7 +1389,7 @@ public static ResolvedQuery resolve(SearchIndex index, QueryParser.ParsedQuery p
 }
 ```
 
-### 22.1 Vì sao lớp này tồn tại tách biệt khỏi `SearchEngineFacade`
+### 29.1 Vì sao lớp này tồn tại tách biệt khỏi `SearchEngineFacade`
 
 Javadoc của lớp kể lại nguyên nhân — logic này từng nằm trong
 `SearchEngineFacade` dưới dạng một phương thức `private`:
@@ -1386,7 +1404,9 @@ chỉ là refactor cho gọn — nó là điều kiện để **"cái được �
 PHỤC VỤ"**, một bất biến quan trọng cho bất kỳ hệ thống nào có script đánh giá
 chất lượng chạy song song với đường chạy sản phẩm.
 
-### 22.2 ★ "Lùi dần về AND-của-tập-con" — vấn đề gốc mà cả lớp giải quyết
+---
+
+## 30. ★ "Lùi dần về AND-của-tập-con" — vấn đề gốc mà cả lớp giải quyết
 
 AND ngầm định giữa các term đúng về mặt ngữ nghĩa cho truy vấn ngắn, nhưng với
 truy vấn dài nó biến một kết quả tốt thành **không có kết quả nào**: chỉ cần
@@ -1421,7 +1441,7 @@ flowchart TD
 
 ---
 
-## 23. `buildQueryTermFrequency`
+## 31. `buildQueryTermFrequency`
 
 ```java
 private static Map<String, Integer> buildQueryTermFrequency(QueryParser.ParsedQuery parsed) {
@@ -1445,7 +1465,7 @@ này", không phải "cái này quan trọng với tôi".
 
 ★ **Luôn tính từ `parsed` GỐC, được gọi Ở ĐẦU `resolve()`** — trước khi biết
 liệu giai đoạn 2 (nới lỏng) có chạy hay không. Đây là điểm bất biến cốt lõi
-mà [mục 28](#28-giai-đoạn-2--nới-lỏng-truy-vấn-khi-rỗng) phụ thuộc vào: dù
+mà [mục 39](#39-giai-đoạn-2--nới-lỏng-truy-vấn-khi-rỗng) phụ thuộc vào: dù
 truy vấn có bị nới lỏng (bỏ bớt term khỏi tập truy hồi) hay không, việc CHẤM
 ĐIỂM vẫn luôn dùng tần suất của truy vấn người dùng thực sự gõ — tài liệu khớp
 nhiều term hơn trong truy vấn gốc vẫn được xếp trên, kể cả khi một vài term đó
@@ -1453,7 +1473,7 @@ nhiều term hơn trong truy vấn gốc vẫn được xếp trên, kể cả k
 
 ---
 
-## 24. GIAI ĐOẠN 1 — đánh giá cây AST
+## 32. GIAI ĐOẠN 1 — đánh giá cây AST
 
 Thân của giai đoạn 1 chỉ có ba dòng, nhưng mỗi dòng gánh một lớp trách nhiệm
 khác nhau:
@@ -1468,7 +1488,7 @@ List<Integer> candidates = applyFilters(ast.evaluate(index), index, parsed);
 
 | Dòng | Trách nhiệm | Nếu bỏ qua |
 |---|---|---|
-| `buildAst(parsed)` | Composite — dựng cấu trúc từ dữ liệu phẳng | Không thể biểu diễn `OR`/`NOT` lồng nhau (xem Javadoc `QueryNode`, mục 15) |
+| `buildAst(parsed)` | Composite — dựng cấu trúc từ dữ liệu phẳng | Không thể biểu diễn `OR`/`NOT` lồng nhau (xem Javadoc `QueryNode`, mục 19) |
 | `ast == null` | Thoát sớm cho truy vấn không có mệnh đề khẳng định | Sẽ phải xử lý `null` ở tận `AndNode`, hoặc gọi nhầm `evaluate()` trên cây rỗng |
 | `ast.evaluate(index)` | Truy hồi boolean thuần tuý trên posting list | — |
 | `applyFilters(…)` | Chain of Responsibility — ràng buộc sau truy hồi | `site:` và trần số ứng viên sẽ không bao giờ được áp dụng |
@@ -1481,11 +1501,15 @@ tiêm `Tokenizer` từ ngoài vào.
 
 ---
 
-## 25. `PostingListMerger` — trái tim thuật toán của tầng truy vấn
+# PHẦN VIII — GHÉP POSTING LIST
+
+---
+
+## 33. `PostingListMerger` — trái tim thuật toán của tầng truy vấn
 
 **File:** `query/PostingListMerger.java`
 
-### 25.1 `intersect` / `union` — two-pointer `O(m+n)`
+### 33.1 `intersect` / `union` — two-pointer `O(m+n)`
 
 ```java
 public static List<Integer> intersect(List<Integer> a, List<Integer> b) {
@@ -1519,7 +1543,9 @@ Ba lý do: two-pointer không tốn chi phí dựng cấu trúc trung gian (post
 lấy thẳng từ chỉ mục), có cục bộ cache tốt hơn (duyệt tuần tự thay vì nhảy
 ngẫu nhiên trong bảng băm), và không có hằng số ẩn của việc băm mỗi phần tử.
 
-### 25.2 `intersectCursors` — galloping search, không cấp phát trung gian
+---
+
+## 34. `intersectCursors` — galloping search, không cấp phát trung gian
 
 ```java
 public static List<Integer> intersectCursors(PostingCursor a, PostingCursor b) {
@@ -1551,7 +1577,7 @@ trung gian rỗng, vì rỗng là **phần tử hấp thụ** của phép giao.
 
 ---
 
-## 26. `matchesPhrase` — khớp cụm từ theo vị trí
+## 35. `matchesPhrase` — khớp cụm từ theo vị trí
 
 ```java
 public static boolean matchesPhrase(SearchIndex index, List<String> phraseTerms, int docId) {
@@ -1577,14 +1603,14 @@ public static boolean matchesPhrase(SearchIndex index, List<String> phraseTerms,
 }
 ```
 
-### 26.1 Hai tối ưu, đối chiếu với "bản cũ" mà Javadoc mô tả
+### 35.1 Hai tối ưu, đối chiếu với "bản cũ" mà Javadoc mô tả
 
 | Tối ưu | Bản cũ | Bản hiện tại | Vì sao nhanh hơn |
 |---|---|---|---|
 | Lấy vị trí | gọi `index.getPositions(term_i, docId)` **bên trong** vòng lặp qua từng vị trí của term đầu | lấy **một lần** cho mỗi term, **ngoài** vòng lặp (`positionsByTerm`) | Với term đầu xuất hiện 20 lần và cụm 3 từ: 40 lần tìm kiếm thay vì 2 |
 | Tìm vị trí kế tiếp | `List.contains` — quét tuyến tính `O(p)` | `Arrays.binarySearch` trên `int[]` đã sắp tăng dần | `O(log p)`, và chạy thẳng trên mảng nguyên thuỷ nên không phải mở hộp `Integer` ở vòng nóng nhất |
 
-### 26.2 Thuật toán: "mọi vị trí bắt đầu có thể" của tiếng đầu tiên
+### 35.2 Thuật toán: "mọi vị trí bắt đầu có thể" của tiếng đầu tiên
 
 ```mermaid
 flowchart TD
@@ -1604,7 +1630,11 @@ flowchart TD
 
 ---
 
-## 27. Bộ lọc ứng viên: `CandidateFilter`, `DomainFilter`, `MaxCandidatesFilter`
+# PHẦN IX — BỘ LỌC ỨNG VIÊN
+
+---
+
+## 36. Bộ lọc ứng viên: `CandidateFilter`, `DomainFilter`, `MaxCandidatesFilter`
 
 **File:** `query/CandidateResolver.java` (phương thức `applyFilters`) +
 `query/filter/*.java`
@@ -1626,7 +1656,7 @@ private static List<Integer> applyFilters(List<Integer> candidates, SearchIndex 
 }
 ```
 
-### 27.1 Vì sao đây là Chain of Responsibility, không phải hàm nội bộ
+### 36.1 Vì sao đây là Chain of Responsibility, không phải hàm nội bộ
 
 Javadoc của `CandidateFilter` mô tả "bản cũ" — ba tầng lọc từng nằm chọn cứng
 trong thân hàm `resolve` dài 104 dòng, không thể test riêng từng tầng, không
@@ -1635,7 +1665,9 @@ mỗi tầng là một lớp riêng cài `CandidateFilter`, thêm bộ lọc m�
 một dòng vào danh sách `FILTERS` — không sửa `applyFilters`, tuân thủ nguyên
 tắc Mở/Đóng.
 
-### 27.2 ★ Thứ tự "rẻ và loại nhiều trước"
+---
+
+## 37. ★ Thứ tự "rẻ và loại nhiều trước"
 
 ```
 1. Giao posting list (trong ast.evaluate, TRƯỚC applyFilters)   5011 -> ~50
@@ -1664,7 +1696,9 @@ vào cây sẽ buộc phải dựng thêm một chỉ mục phụ `host -> docId
 ứng viên đã qua bước giao posting list, kiểm tra trực tiếp URL của từng ứng
 viên đơn giản và đủ nhanh.
 
-### 27.3 `MaxCandidatesFilter` — chặn trên đơn giản, không phải WAND/MaxScore
+---
+
+## 38. `MaxCandidatesFilter` — chặn trên đơn giản, không phải WAND/MaxScore
 
 ```java
 public static final int DEFAULT_MAX_CANDIDATES = 10_000;
@@ -1686,7 +1720,11 @@ xếp hạng.
 
 ---
 
-## 28. GIAI ĐOẠN 2 — nới lỏng truy vấn khi rỗng
+# PHẦN X — NỚI LỎNG TRUY VẤN
+
+---
+
+## 39. GIAI ĐOẠN 2 — nới lỏng truy vấn khi rỗng
 
 **File:** `query/CandidateResolver.java`, phương thức `relaxAndRetry`
 
@@ -1725,7 +1763,9 @@ private static ResolvedQuery relaxAndRetry(SearchIndex index, QueryParser.Parsed
 }
 ```
 
-### 28.1 ★ `isUnmatchable` — thoát sớm khỏi nỗ lực vô ích
+---
+
+## 40. ★ `isUnmatchable` — thoát sớm khỏi nỗ lực vô ích
 
 ```java
 private static boolean isUnmatchable(SearchIndex index, QueryParser.ParsedQuery parsed) {
@@ -1749,7 +1789,9 @@ Một cụm từ chỉ khớp khi **mọi** tiếng của nó tồn tại; một
 hay `orGroups`. Kiểm tra này chạy TRƯỚC khi bắt đầu vòng lặp thử — tránh lãng
 phí tới `k` lần đánh giá lại cây cho một truy vấn không có cách nào cứu được.
 
-### 28.2 ★ Vì sao "cái gì KHÔNG bao giờ bị bỏ" quan trọng hơn "cái gì bị bỏ"
+---
+
+## 41. ★ Vì sao "cái gì KHÔNG bao giờ bị bỏ" quan trọng hơn "cái gì bị bỏ"
 
 Javadoc liệt kê rõ:
 
@@ -1759,14 +1801,16 @@ Javadoc liệt kê rõ:
 > không muốn. Chỉ các term đơn AND ngầm định mới là thứ hệ thống tự suy ra,
 > nên cũng chỉ chúng mới được phép rút lại.
 
-Đây chính là lý do truy vấn `"tơi bời" trump -mỹ` ở [mục 35](#35-truy-vấn-2-tơi-bời-trump--mỹ--rỗng-vì-loại-trừ-không-vì-thiếu)
+Đây chính là lý do truy vấn `"tơi bời" trump -mỹ` ở [mục 49](#49-truy-vấn-2-tơi-bời-trump--mỹ--rỗng-vì-loại-trừ-không-vì-thiếu)
 trả về rỗng **và không hề được nới lỏng**, dù về mặt kỹ thuật `relaxAndRetry`
 có chạy: `mustTerms` của nó chỉ có `[trump]` — không có gì để bỏ bớt mà vẫn
 còn "AndNode với ít nhất một mệnh đề khẳng định" (vòng `while (remaining.size()
 > 1)` dừng khi còn đúng 1 phần tử) — trong khi nguyên nhân rỗng thực sự nằm ở
 mệnh đề `NOT mỹ`, một thứ nằm ngoài phạm vi mà giai đoạn 2 được phép động vào.
 
-### 28.3 Hai bước nới lỏng, theo đúng thứ tự IDF tăng dần
+---
+
+## 42. Hai bước nới lỏng, theo đúng thứ tự IDF tăng dần
 
 ```mermaid
 flowchart TD
@@ -1811,7 +1855,9 @@ Vòng lặp dừng khi `remaining.size() > 1` không còn đúng — tức khi c
 đúng một term, không bỏ tiếp để tránh về `ast == null` (không còn mệnh đề
 khẳng định nào).
 
-### 28.4 `attempt()` — thử lại và điểm bất biến về chấm điểm
+---
+
+## 43. `attempt()` — thử lại và điểm bất biến về chấm điểm
 
 ```java
 private static ResolvedQuery attempt(SearchIndex index, QueryParser.ParsedQuery parsed,
@@ -1841,18 +1887,17 @@ khớp 3/5, dù cả hai đều "qua được" vòng lọc rút gọn.
 
 `droppedTerms` được trả ra **ngoài cùng** `SearchResponse` (qua
 `ResolvedQuery.droppedTerms()`) — không bị giấu đi. Đây chính là bất biến
-đã nêu ở [mục 1.3](#13-vì-sao-searchresponse-trả-về-pagesize-đã-áp-dụng-không-phải-size-client-gửi):
+đã nêu ở [mục 45](#45-cắt-trang-và-searchresponse):
 người dùng có quyền biết kết quả họ đang xem ứng với một truy vấn **hẹp hơn**
 truy vấn họ vừa gõ.
 
 ---
+
+# PHẦN XI — TRẢ KẾT QUẢ VÀ KẾT THÚC
+
 ---
 
-# PHẦN V — TỪ ỨNG VIÊN ĐẾN PHẢN HỒI
-
----
-
-## 29. Bàn giao cho `ResultRanker`
+## 44. Bàn giao cho `ResultRanker`
 
 **File:** `ranking/ResultRanker.java` (module `libs/core-search`) — chỉ nêu
 ranh giới trách nhiệm ở đây; chi tiết công thức BM25, Decorator PageRank/title
@@ -1869,7 +1914,7 @@ List<ResultRanker.RankedResult> ranked = resultRanker.rank(
 | Tham số truyền vào `rank()` | Nguồn gốc | Tại sao chặng này cần nó |
 |---|---|---|
 | `candidates` | `resolved.candidateDocIds()` | Tập ứng viên đã qua Composite + Chain of Responsibility + (có thể) nới lỏng |
-| `queryTermFrequency` | `resolved.queryTermFrequency()` | Vector truy vấn — luôn của truy vấn GỐC (mục 28.4), BM25 cần để tính điểm khớp từng term |
+| `queryTermFrequency` | `resolved.queryTermFrequency()` | Vector truy vấn — luôn của truy vấn GỐC (mục 43), BM25 cần để tính điểm khớp từng term |
 | `currentIndex`, `currentScorer`, `currentPageRank` | Biến cục bộ đã chụp một lần (mục 10) | Đảm bảo chấm điểm dùng ĐÚNG thế hệ chỉ mục đã dùng để truy hồi |
 | `topN` | `Math.max(page * size, size)` | Số lượng tối đa cần giữ lại sau khi sắp hạng — đưa vào `MinHeap.topK` |
 
@@ -1885,7 +1930,7 @@ posting list, một là hàm số liên tục trên không gian điểm số.
 
 ---
 
-## 30. Cắt trang và `SearchResponse`
+## 45. Cắt trang và `SearchResponse`
 
 ```java
 int fromIndex = Math.min((Math.max(page, 1) - 1) * size, ranked.size());
@@ -1919,7 +1964,7 @@ lần đầu.
 
 ---
 
-## 31. Ghi cache và học gợi ý truy vấn
+## 46. Ghi cache và học gợi ý truy vấn
 
 ```java
 cache.put(cacheKey, response);
@@ -1955,9 +2000,8 @@ gì người dùng gõ. Điều này nhất quán với triết lý "báo ra tha
 khớp đầy đủ".
 
 ---
----
 
-# PHẦN VI — ĐỐI CHIẾU OUTPUT THẬT
+# PHẦN XII — ĐỐI CHIẾU OUTPUT THẬT
 
 Mọi số liệu trong phần này lấy từ một lần chạy **thật**: dựng
 `InvertedIndex` bằng chính `IndexBuilder(new VietnameseTokenizer())` mà
@@ -1967,7 +2011,7 @@ rồi gọi thật `QueryParser.parse()` → `CandidateResolver.resolve()` trên
 
 ---
 
-## 32. Corpus dùng để trace
+## 47. Corpus dùng để trace
 
 ```
 Loaded docs: 40
@@ -2001,7 +2045,7 @@ phần này:
 
 ---
 
-## 33. Truy vấn 1: `trump iran` — AND hai term phổ biến
+## 48. Truy vấn 1: `trump iran` — AND hai term phổ biến
 
 Cây AST: `AndNode[TermNode(trump), TermNode(iran)]`.
 
@@ -2013,7 +2057,7 @@ flowchart LR
 ```
 
 `AndNode.evaluate` sắp `iran` (df=4, nhỏ hơn) lên **trước** `trump` (df=9) —
-đúng shortest-first ở [mục 18.2](#182--vì-sao-shortest-first-bằng-con-số-cụ-thể).
+đúng shortest-first ở [mục 23](#23--vì-sao-shortest-first-bằng-con-số-cụ-thể).
 `accumulator` khởi đầu bằng posting list của `iran`, rồi giao với posting list
 của `trump`.
 
@@ -2042,9 +2086,9 @@ doc 4 là trang "tin 24h" tổng hợp tương tự doc 0.
 
 ---
 
-## 34. Truy vấn 2: `"tơi bời" trump -mỹ` — rỗng vì loại trừ, không vì thiếu
+## 49. Truy vấn 2: `"tơi bời" trump -mỹ` — rỗng vì loại trừ, không vì thiếu
 
-Đây là truy vấn quan trọng nhất trong PHẦN VI: nó minh hoạ một hành vi mà chỉ
+Đây là truy vấn quan trọng nhất trong PHẦN XII: nó minh hoạ một hành vi mà chỉ
 đọc mã không đủ để thấy rõ — chỉ có **chạy thật** mới lộ ra.
 
 Cây AST: `AndNode[TermNode(trump), PhraseNode([tơi_bời]), NotNode(TermNode(mỹ))]`.
@@ -2075,20 +2119,20 @@ dropped    = []
 term nào. `resolve()` **có** gọi `relaxAndRetry` (vì candidates rỗng ở giai
 đoạn 1), nhưng `relaxAndRetry` chỉ có quyền bỏ bớt phần tử trong `mustTerms`
 — ở truy vấn này `mustTerms = [trump]`, chỉ có đúng một phần tử. Điều kiện
-dừng `while (remaining.size() > 1)` ở [mục 28.3](#283-hai-bước-nới-lỏng-theo-đúng-thứ-tự-idf-tăng-dần)
+dừng `while (remaining.size() > 1)` ở [mục 42](#42-hai-bước-nới-lỏng-theo-đúng-thứ-tự-idf-tăng-dần)
 không cho vòng lặp chạy (kích thước đã là 1, không lớn hơn 1), nên không có gì
 để thử. Nguyên nhân thật sự khiến kết quả rỗng — mệnh đề `NOT mỹ` loại bỏ
 đúng tài liệu duy nhất khớp phần khẳng định — nằm **ngoài phạm vi** mà giai
 đoạn 2 được phép động vào (theo đúng nguyên tắc ở
-[mục 28.2](#282--vì-sao-cái-gì-không-bao-giờ-bị-bỏ-quan-trọng-hơn-cái-gì-bị-bỏ):
+[mục 41](#41--vì-sao-cái-gì-không-bao-giờ-bị-bỏ-quan-trọng-hơn-cái-gì-bị-bỏ):
 loại trừ là ý định tường minh, không phải suy diễn của hệ thống).
 
 Đây là ví dụ thật cho câu hỏi FAQ "vì sao truy vấn của tôi vẫn 0 kết quả dù hệ
-thống có cơ chế nới lỏng?" — xem thêm [mục 40](#40-câu-hỏi-thường-gặp).
+thống có cơ chế nới lỏng?" — xem thêm [mục 56](#56-câu-hỏi-thường-gặp).
 
 ---
 
-## 35. Truy vấn 3: `trump OR iran` — hợp
+## 50. Truy vấn 3: `trump OR iran` — hợp
 
 Cây AST: `AndNode[OrNode[TermNode(trump), TermNode(iran)]]` (một `AndNode` bọc
 ngoài với duy nhất một con là `OrNode` — do `buildAst` luôn bọc mọi mệnh đề
@@ -2104,7 +2148,7 @@ candidates = [0, 1, 4, 6, 9, 13, 14, 18, 24]
 tài liệu chứa `iran` (4 tài liệu: 0, 6, 14, 18) đều **cũng** chứa `trump`
 (tập con của tập 9 tài liệu chứa `trump`), `union` ở đây thực chất cho kết quả
 trùng khít với tập `df(trump)` — minh hoạ trực quan lý do
-`OrNode.estimatedSize` chỉ là **chặn trên** (mục 19): tổng `9 + 4 = 13` nhưng
+`OrNode.estimatedSize` chỉ là **chặn trên** (mục 25): tổng `9 + 4 = 13` nhưng
 kết quả thật chỉ có 9, vì 4 tài liệu trùng lặp hoàn toàn.
 
 So với truy vấn 1 (`trump iran`, AND, 4 kết quả), truy vấn này (OR) cho **hơn
@@ -2113,7 +2157,7 @@ bằng AND của cùng cặp term.
 
 ---
 
-## 36. Truy vấn 4: `sài gòn site:vnexpress.net` — lọc domain
+## 51. Truy vấn 4: `sài gòn site:vnexpress.net` — lọc domain
 
 Cây AST chỉ còn `AndNode[TermNode(sài_gòn)]`; `site:vnexpress.net` không nằm
 trong cây — nó là `parsed.siteFilter()`, được `DomainFilter` áp dụng ở tầng
@@ -2140,16 +2184,16 @@ Toàn bộ 40 tài liệu của corpus này đều thuộc `vnexpress.net` hoặ
 tài liệu nào** so với trước lọc (`4 → 4`) — một minh hoạ trung thực rằng hiệu
 ứng của `site:` chỉ rõ rệt trên corpus đa domain thật (hàng nghìn trang từ
 nhiều báo khác nhau), không phải trên bộ seed nhỏ dùng để trace tài liệu này.
-`DomainFilter` khớp theo hậu tố (mục 27.2): nếu một trong bốn tài liệu trên
+`DomainFilter` khớp theo hậu tố (mục 37): nếu một trong bốn tài liệu trên
 thuộc `sport.vnexpress.net`, nó vẫn được giữ lại vì host đó kết thúc bằng
 `.vnexpress.net`.
 
 ---
 
-## 37. Truy vấn 5: `trump khủng long iran` — nới lỏng thật
+## 52. Truy vấn 5: `trump khủng long iran` — nới lỏng thật
 
 Đây là ví dụ **thật** của giai đoạn 2 thực sự làm việc — khác truy vấn 2
-(mục 34), lần này nguyên nhân rỗng NẰM ĐÚNG trong phạm vi `relaxAndRetry` được
+(mục 49), lần này nguyên nhân rỗng NẰM ĐÚNG trong phạm vi `relaxAndRetry` được
 phép sửa.
 
 `khủng long` tokenize thành `khủng_long` — một từ ghép **không có trong
@@ -2158,7 +2202,7 @@ khủng long).
 
 **Giai đoạn 1** (đầy đủ): `AndNode[Term(trump), Term(khủng_long), Term(iran)]`
 — shortest-first đưa `khủng_long` (df=0) lên đầu, `accumulator` khởi đầu đã
-**rỗng**, và mọi phép giao sau đó dừng ngay (rỗng là phần tử hấp thụ, mục 18).
+**rỗng**, và mọi phép giao sau đó dừng ngay (rỗng là phần tử hấp thụ, mục 22).
 `candidates` rỗng → chuyển sang giai đoạn 2.
 
 **Giai đoạn 2:** `isUnmatchable` kiểm tra `phrases` (rỗng — không áp dụng) và
@@ -2183,27 +2227,134 @@ candidates = [0, 4, 6, 18]
 dropped    = [khủng_long]
 ```
 
-Trùng khớp **chính xác** với kết quả của truy vấn 1 (`trump iran`) ở mục 33 —
+Trùng khớp **chính xác** với kết quả của truy vấn 1 (`trump iran`) ở mục 48 —
 đúng như kỳ vọng, vì sau khi bỏ `khủng_long`, truy vấn còn lại đúng là
 `trump AND iran`. `droppedTerms=[khủng_long]` được trả ra trong
 `SearchResponse`, để client hiển thị kiểu "không có kết quả chính xác cho
 'khủng long', hiển thị kết quả gần đúng cho 'trump iran'".
 
 ★ Một biến thể ngắn hơn, `trump khủng long` (không có `iran`), cho ra 9 ứng
-viên **giống hệt** tập kết quả của truy vấn 3 (`trump OR iran`, mục 35) —
+viên **giống hệt** tập kết quả của truy vấn 3 (`trump OR iran`, mục 50) —
 không phải trùng hợp: sau khi bỏ `khủng_long`, `mustTerms` chỉ còn `[trump]`,
 và `AndNode` với một con duy nhất trả về đúng posting list của `trump`, tình
-cờ đúng bằng tập `trump ∪ iran` vì (đã nêu ở mục 35) mọi tài liệu chứa `iran`
+cờ đúng bằng tập `trump ∪ iran` vì (đã nêu ở mục 50) mọi tài liệu chứa `iran`
 đều cũng chứa `trump`.
 
 ---
+
+# PHẦN XIII — PHỤ LỤC
+
 ---
 
-# PHẦN VII — PHỤ LỤC
+## 53. Chế độ suy biến và trần tham số
+
+`CRAWLER-PIPELINE.md` dành một mục phụ lục cho "chế độ chạy khác" (Kafka). Tầng
+truy vấn không có chế độ chạy thay thế, nhưng có **bốn trạng thái suy biến** mà
+mã nguồn xử lý tường minh — và chúng là nguồn của gần như mọi báo lỗi "tìm không
+ra" mà không phải lỗi thuật toán.
+
+### 53.1 Trần tham số — `SearchController` kẹp trước, `facade` không kiểm lại
+
+```java
+private static final int MAX_PAGE = 1_000;
+private static final int MAX_SIZE = 100;
+private static final int DEFAULT_SIZE = 20;
+
+@GetMapping("/search")
+public SearchResponse search(@RequestParam("q") String q, ... ) {
+    int safePage = Math.min(Math.max(page, 1), MAX_PAGE);
+    int safeSize = size < 1 || size > MAX_SIZE ? DEFAULT_SIZE : size;
+    return facade.search(q, safePage, safeSize);
+}
+```
+
+| Tham số client gửi | Giá trị thực dùng | Lý do |
+|---|---|---|
+| `page = 0` hoặc âm | `1` | `Math.max(page, 1)` |
+| `page = 999_999` | `1_000` | chặn tràn `int` khi tính `topN = page * size` |
+| `size = 0` hoặc âm | `20` | `DEFAULT_SIZE` |
+| `size = 5_000` | `20` — **không** phải `100` | biểu thức là `size < 1 \|\| size > MAX_SIZE ? DEFAULT_SIZE` — vượt trần thì **rơi về mặc định**, không bị kẹp xuống trần |
+
+★ Chi tiết cuối cùng dễ đọc nhầm nhất: `size = 5_000` **không** cho 100 kết quả,
+mà cho 20. Đây là lựa chọn có chủ ý — một client gửi `size` vô lý nhiều khả năng
+đang gửi nhầm tham số, và trả về đúng trang mặc định an toàn hơn là trả về trang
+lớn nhất có thể.
+
+### 53.2 Chế độ chỉ mục rỗng
+
+Khi `SearchEngineFacade.init()` không tìm được nguồn corpus nào, `index` là một
+`InvertedIndex` rỗng (chi tiết ở `INDEX-PIPELINE.md`). Tầng truy vấn **không có
+nhánh riêng** cho trường hợp này — nó chạy nguyên vẹn cả pipeline:
+
+```
+   q="trump iran"
+   → QueryParser.parse       → ParsedQuery{mustTerms=[trump, iran]}     (bình thường)
+   → buildAst                → AndNode[Term(trump), Term(iran)]         (bình thường)
+   → AndNode.evaluate        → getPostings("trump") = rỗng → giao = rỗng
+   → GIAI ĐOẠN 2 nới lỏng    → isUnmatchable: MỌI term đều df=0
+                             → thoát sớm, KHÔNG thử lại lần nào
+   → SearchResponse{totalResults=0, results=[], droppedTerms=[]}   HTTP 200
+```
+
+⚠ `droppedTerms` **rỗng**, không phải chứa cả hai term. Người đọc log dễ kết
+luận nhầm rằng truy vấn "khớp nhưng không có tài liệu"; thực tế là chỉ mục trống.
+Phân biệt bằng `/api/health` hoặc `totalDocs`, không bằng phản hồi tìm kiếm.
+
+### 53.3 Truy vấn rỗng
+
+`facade.search` chuẩn hoá trước mọi thứ khác:
+
+```java
+String normalizedQuery = rawQuery == null ? "" : rawQuery.trim();
+```
+
+`q=` (rỗng), `q=%20%20` (toàn khoảng trắng) và `q` thiếu hẳn đều quy về cùng một
+chuỗi rỗng → `ParsedQuery` rỗng → `AndNode` không có con → tập ứng viên rỗng.
+Không ngoại lệ nào được ném; phản hồi vẫn là `200` với `totalResults = 0`.
+
+### 53.4 ⚠ `cacheKey` viết thường — hai truy vấn khác nhau dùng chung một ô
+
+```java
+String cacheKey = normalizedQuery.toLowerCase(Locale.ROOT) + "|p" + page + "|s" + size;
+```
+
+Khoá cache viết thường, nhưng đối tượng `SearchResponse` được cất lại mang
+`normalizedQuery` **nguyên dạng hoa/thường của lần gọi đầu tiên**. Hệ quả quan
+sát được:
+
+```
+   1. GET /api/search?q=trump        → miss → tính thật → cất  key="trump|p1|s20"
+                                             response.query = "trump"
+   2. GET /api/search?q=TRUMP        → HIT   key="trump|p1|s20"
+                                             response.query = "trump"   ← không phải "TRUMP"
+```
+
+Không ảnh hưởng tới **kết quả** (tokenizer vốn đã chuẩn hoá về chữ thường), chỉ
+ảnh hưởng tới trường `query` phản chiếu trong phản hồi. ★ Nhưng nó có một hệ quả
+đúng và có ích: `OR` phân biệt hoa/thường ở tầng phân tích cú pháp
+(mục 12) **trước** khi cacheKey được tạo, nên `trump or iran` và `trump OR iran`
+là hai truy vấn khác nhau thật sự — và chúng cũng có hai ô cache khác nhau, vì
+`toLowerCase` chỉ chạy trên chuỗi đã phân tích xong.
+
+`Locale.ROOT` là bắt buộc, không phải trang trí: `toLowerCase()` không tham số
+dùng locale mặc định của JVM, và trong locale Thổ Nhĩ Kỳ `"I".toLowerCase()` cho
+ra `"ı"` (i không chấm) — đủ để cùng một truy vấn sinh hai khoá cache khác nhau
+trên hai máy chủ cấu hình khác nhau.
+
+### 53.5 Chạm trần ứng viên
+
+| Trần | Giá trị | Xảy ra khi | Hệ quả |
+|---|---|---|---|
+| `DEFAULT_MAX_CANDIDATES` | `10_000` | một term rất phổ biến (`df` lớn) qua được mọi bộ lọc | danh sách ứng viên bị **cắt cụt** trước khi chấm điểm |
+
+⚠ Cắt cụt xảy ra **trước** `ResultRanker`, nên tài liệu bị cắt không bao giờ có
+cơ hội được chấm điểm — kể cả khi nó lẽ ra đứng đầu. Đây là đánh đổi có ý thức
+và là điểm khác biệt lớn nhất giữa cài đặt này và một hệ WAND/MaxScore thật
+(mục 38).
 
 ---
 
-## 38. Bảng hằng số toàn hệ thống
+## 54. Bảng hằng số toàn hệ thống
 
 | Hằng số | Giá trị | File | Ý nghĩa |
 |---|---|---|---|
@@ -2218,7 +2369,7 @@ cờ đúng bằng tập `trump ∪ iran` vì (đã nêu ở mục 35) mọi tà
 
 ---
 
-## 39. Bảng tra nhanh khối ↔ file ↔ hàm
+## 55. Bảng tra nhanh khối ↔ file ↔ hàm
 
 | Khối trong sơ đồ | File | Hàm |
 |---|---|---|
@@ -2245,7 +2396,7 @@ cờ đúng bằng tập `trump ∪ iran` vì (đã nêu ở mục 35) mọi tà
 
 ---
 
-## 40. Câu hỏi thường gặp
+## 56. Câu hỏi thường gặp
 
 **1. Vì sao gõ `"máy tính"` (có ngoặc kép quanh MỘT từ ghép) lại không có gì
 đặc biệt so với gõ `máy tính` (không ngoặc)?**
@@ -2257,8 +2408,8 @@ lên**.
 **2. Vì sao `NOT` một mình luôn cho kết quả rỗng, ngay cả khi có tài liệu thật
 sự không chứa từ đó?**
 `NotNode.evaluate()` không được cài đặt theo hợp đồng thông thường — nó ném
-`UnsupportedOperationException` (mục 20.1). Nhưng thực tế người dùng không
-bao giờ chạm được lỗi này: `buildAst` (mục 13) đặt mọi `NotNode` **sau** khi
+`UnsupportedOperationException` (mục 26.1). Nhưng thực tế người dùng không
+bao giờ chạm được lỗi này: `buildAst` (mục 16) đặt mọi `NotNode` **sau** khi
 đã kiểm tra `children.isEmpty()`, nên một truy vấn chỉ toàn dấu trừ nhận
 `ast == null` và trả về tập rỗng ngay từ `resolve()`, không hề tạo ra một
 `AndNode` toàn `NotNode`.
@@ -2266,16 +2417,16 @@ bao giờ chạm được lỗi này: `buildAst` (mục 13) đặt mọi `NotNod
 **3. Vì sao truy vấn nới lỏng vẫn chấm điểm theo truy vấn gốc, không phải
 theo truy vấn đã bị bỏ bớt term?**
 `queryTermFrequency` được tính **một lần duy nhất** ở đầu `resolve()`
-(mục 23), từ `parsed` gốc — trước khi biết liệu có nới lỏng hay không. Mọi
+(mục 31), từ `parsed` gốc — trước khi biết liệu có nới lỏng hay không. Mọi
 lần gọi `attempt()` trong giai đoạn 2 đều tái sử dụng đúng `Map` đó
-(mục 28.4), không tính lại. Mục đích: tài liệu khớp 4/5 term của truy vấn gốc
+(mục 43), không tính lại. Mục đích: tài liệu khớp 4/5 term của truy vấn gốc
 vẫn xếp trên tài liệu chỉ khớp 3/5, dù cả hai đều "qua" được vòng lọc rút gọn.
 
 **4. Vì sao một nhóm `OR` chỉ còn một vế lại "hạ cấp" thành một `mustTerm`
 thay vì vẫn là một `OrNode` một-con?**
 Về mặt kết quả, `OrNode` với một con duy nhất và `TermNode` đó đứng thẳng
 trong `AndNode` cho ra **kết quả giống hệt nhau** — `union(List.of(),
-child.evaluate())` (mục 19) chỉ là chính `child.evaluate()`. Giữ nó như một
+child.evaluate())` (mục 25) chỉ là chính `child.evaluate()`. Giữ nó như một
 `mustTerm` đơn giản hơn, tránh một tầng bọc thừa trong cây, và tránh
 `estimatedSize` của `OrNode` (một phép cộng, dù chỉ cộng một số) chạy không
 cần thiết.
@@ -2283,7 +2434,7 @@ cần thiết.
 **5. Vì sao `DomainFilter` không nằm trong cây `AndNode`, cùng chỗ với
 `TermNode`?**
 Vì `site:` không có posting list tương ứng — nó là ràng buộc trên URL của tài
-liệu (siêu dữ liệu), không phải quan hệ boolean giữa các term (mục 27.2). Đưa
+liệu (siêu dữ liệu), không phải quan hệ boolean giữa các term (mục 37). Đưa
 nó vào cây sẽ buộc phải dựng thêm chỉ mục phụ `host -> docIds`; với vài chục
 ứng viên đã qua bước giao posting list, kiểm tra URL trực tiếp đơn giản hơn.
 
@@ -2292,20 +2443,20 @@ nó vào cây sẽ buộc phải dựng thêm chỉ mục phụ `host -> docIds`
 `totalResults = candidates.size()` sau `resolve()` — không phân biệt candidates
 đến từ giai đoạn 1 (đầy đủ) hay giai đoạn 2 (nới lỏng). Client cần nhìn riêng
 trường `droppedTerms` (không rỗng) để biết kết quả đang hiển thị ứng với một
-truy vấn hẹp hơn — xem mục 30 và mục 1.3.
+truy vấn hẹp hơn — xem mục 45.
 
-**7. Vì sao truy vấn hai term phổ biến như `trump iran` (mục 33) lại nhanh
+**7. Vì sao truy vấn hai term phổ biến như `trump iran` (mục 48) lại nhanh
 hơn nhiều so với việc duyệt toàn bộ posting list của từng term rồi so sánh thủ
 công?**
-Nhờ `intersect` two-pointer `O(m+n)` (mục 25.1) thay vì `HashSet.retainAll`
+Nhờ `intersect` two-pointer `O(m+n)` (mục 33.1) thay vì `HashSet.retainAll`
 (chậm hơn tới 2,7 lần theo đo thực tế trên danh sách 500.000 phần tử) và nhờ
-shortest-first (mục 18.2) đảm bảo phía giao luôn bắt đầu từ tập nhỏ nhất.
+shortest-first (mục 23) đảm bảo phía giao luôn bắt đầu từ tập nhỏ nhất.
 
 **8. Truy vấn `-mỹ` một mình (không có must term nào khác) trả về gì?**
 Rỗng, và **không** thông qua cơ chế nới lỏng nào — `buildAst` trả `null` vì
 `children` rỗng tại thời điểm kiểm tra (chỉ có `NotNode`, chưa được thêm vào),
 `resolve()` trả `ResolvedQuery(List.of(), queryTermFrequency)` ngay, không gọi
-`ast.evaluate()`, không gọi `relaxAndRetry` (mục 28: `relaxAndRetry` yêu cầu
+`ast.evaluate()`, không gọi `relaxAndRetry` (mục 39: `relaxAndRetry` yêu cầu
 `mustTerms` không rỗng, thoát sớm nếu rỗng).
 
 **9. Vì sao `site:` khớp theo hậu tố mà không khớp chính xác tuyệt đối?**
@@ -2318,7 +2469,7 @@ phân biệt phụ miền.
 top-10.000 điểm cao nhất không?**
 Không. Vì posting list sắp theo **docId**, không theo điểm số, việc cắt
 `subList(0, maxCandidates)` giữ 10.000 ứng viên **đầu tiên theo docId**, không
-phải 10.000 ứng viên điểm cao nhất (mục 27.3). Đây là đánh đổi có ý thức —
+phải 10.000 ứng viên điểm cao nhất (mục 38). Đây là đánh đổi có ý thức —
 Javadoc của lớp gọi rõ nó là "bảo vệ hệ thống khỏi truy vấn bất thường, không
 phải một tối ưu xếp hạng" — khác hẳn WAND/MaxScore của các hệ thống production
 lớn.
@@ -2331,7 +2482,7 @@ lệch nhau — ví dụ index dùng từ điển 185.000 mục nhưng truy vấ
 tokenizer mặc định nghèo hơn — mọi từ ghép sẽ tokenize khác nhau ở hai phía và
 không bao giờ khớp, mà không có ngoại lệ hay log nào cảnh báo.
 
-**12. `"tơi bời" trump -mỹ` (mục 34) và `trump khủng long iran` (mục 37) đều
+**12. `"tơi bời" trump -mỹ` (mục 49) và `trump khủng long iran` (mục 52) đều
 trả về rỗng ở giai đoạn 1 — vì sao một cái được nới lỏng cứu sống, cái kia
 không?**
 Vì nguyên nhân rỗng khác nhau. Truy vấn thứ hai rỗng vì một `mustTerm`
@@ -2342,7 +2493,7 @@ khớp phần khẳng định — nằm ngoài phạm vi `relaxAndRetry` đượ
 
 ---
 
-## 41. Chẩn đoán sự cố
+## 57. Chẩn đoán sự cố
 
 ```mermaid
 flowchart TD
@@ -2351,9 +2502,9 @@ flowchart TD
     Q1 -->|"không, droppedTerms rỗng"| Q2{"Truy vấn có cụm ngoặc kép<br/>hoặc nhóm OR không?"}
     Q2 -->|"có"| A2(["Kiểm tra df từng tiếng trong cụm/nhóm bằng<br/>index.getDocumentFrequency —<br/>một tiếng df=0 trong CỤM khiến isUnmatchable=true,<br/>relaxAndRetry thoát sớm, KHÔNG thử bỏ term nào"])
     Q2 -->|"không"| Q3{"Truy vấn có `-loại_trừ` không?"}
-    Q3 -->|"có"| A3(["Thử BỎ phần -loại_trừ đi và chạy lại thủ công —<br/>nếu có kết quả, nguyên nhân là NOT loại hết<br/>ứng viên khẳng định (xem mục 34, ví dụ thật)"])
+    Q3 -->|"có"| A3(["Thử BỎ phần -loại_trừ đi và chạy lại thủ công —<br/>nếu có kết quả, nguyên nhân là NOT loại hết<br/>ứng viên khẳng định (xem mục 49, ví dụ thật)"])
     Q3 -->|"không"| Q4{"mustTerms có tokenize đúng<br/>như kỳ vọng không?"}
-    Q4 -->|"kiểm tra bằng QueryParser.main<br/>hoặc trace giống mục 14"| A4(["Nếu tokenize RA KHÁC với lúc index<br/>(ví dụ tách 'máy tính' thành 2 token<br/>thay vì 'máy_tính'), đây là lỗi<br/>BẤT BIẾN TOKENIZER (mục 8) —<br/>kiểm tra index và query có dùng<br/>CHUNG một VietnameseTokenizer"])
+    Q4 -->|"kiểm tra bằng QueryParser.main<br/>hoặc trace giống mục 17"| A4(["Nếu tokenize RA KHÁC với lúc index<br/>(ví dụ tách 'máy tính' thành 2 token<br/>thay vì 'máy_tính'), đây là lỗi<br/>BẤT BIẾN TOKENIZER (mục 8) —<br/>kiểm tra index và query có dùng<br/>CHUNG một VietnameseTokenizer"])
     A4 --> Q5{"Từ có thật trong corpus không?"}
     Q5 -->|"df=0"| A5(["Người dùng gõ từ không tồn tại/gõ sai chính tả —<br/>hành vi ĐÚNG, không phải lỗi hệ thống"])
 
@@ -2386,19 +2537,19 @@ Truy van luon 0 ket qua
 ```
 </details>
 
-### 41.1 Bảng chẩn đoán nhanh khác
+### 57.1 Bảng chẩn đoán nhanh khác
 
 | Triệu chứng | Nguyên nhân khả dĩ | Kiểm tra ở |
 |---|---|---|
-| Truy vấn chậm bất thường khi số ứng viên rất lớn | `MaxCandidatesFilter` chưa kịp cắt (candidates < 10.000 nhưng vẫn nhiều), hoặc quá nhiều `PhraseNode` chạy `matchesPhrase` trên tập lớn | mục 27.3, mục 19 (lọc thô của `PhraseNode`) |
-| Kết quả `site:abc.vn` trả về tài liệu của domain khác hẳn | `DomainFilter` khớp theo hậu tố — kiểm tra domain khác có VÔ TÌNH kết thúc bằng `.abc.vn` không | mục 27.2 |
-| `OR` không hoạt động, cả cụm bị coi như must-term thường | `OR` viết thường/hoa lẫn (`or`), hoặc đứng đầu/cuối câu — điều kiện `!mustRaw.isEmpty()` không thoả | mục 10.2 |
+| Truy vấn chậm bất thường khi số ứng viên rất lớn | `MaxCandidatesFilter` chưa kịp cắt (candidates < 10.000 nhưng vẫn nhiều), hoặc quá nhiều `PhraseNode` chạy `matchesPhrase` trên tập lớn | mục 38, mục 25 (lọc thô của `PhraseNode`) |
+| Kết quả `site:abc.vn` trả về tài liệu của domain khác hẳn | `DomainFilter` khớp theo hậu tố — kiểm tra domain khác có VÔ TÌNH kết thúc bằng `.abc.vn` không | mục 37 |
+| `OR` không hoạt động, cả cụm bị coi như must-term thường | `OR` viết thường/hoa lẫn (`or`), hoặc đứng đầu/cuối câu — điều kiện `!mustRaw.isEmpty()` không thoả | mục 12 |
 | Cache trả kết quả cũ dù vừa reindex | `cacheKey` không đổi (cùng query/page/size) trong khi `searchCache` bị thay bằng instance mới sau reindex — chính là lý do phải chụp `cache` vào biến cục bộ TRƯỚC khi `get`/`put` cùng một request | mục 10 |
 | `elapsedMs`/`timeTakenMs` rất nhỏ cho một truy vấn "nặng" | Đó là cache hit — thời gian ghi trong response là thời gian của lần tính GỐC, không phải request hiện tại | mục 7 |
 
 ---
 
-## 42. Thuật ngữ
+## 58. Thuật ngữ
 
 | Thuật ngữ | Nghĩa trong ngữ cảnh tài liệu này |
 |---|---|
@@ -2418,7 +2569,7 @@ Truy van luon 0 ket qua
 
 ---
 
-## 43. Toàn cảnh một trang
+## 59. Toàn cảnh một trang
 
 ```
 GET /api/search?q=…&page=1&size=10
@@ -2490,7 +2641,7 @@ GET /api/search?q=…&page=1&size=10
 ```
 
 Cây biểu thức của các truy vấn mẫu dùng xuyên suốt tài liệu (dữ liệu thật, xem
-PHẦN VI):
+PHẦN XII):
 
 ```
 trump iran
@@ -2518,3 +2669,25 @@ NotNode.evaluateAgainst(…) → đường ĐÚNG, luôn trừ trên một tập
   ↳ phủ định độc lập sẽ trả về gần như TOÀN BỘ corpus — đúng về mặt tập hợp,
     vô dụng về mặt tìm kiếm, và tốn bộ nhớ đúng bằng cỡ corpus
 ```
+
+---
+
+## Kết
+
+Năm truy vấn được trace trong PHẦN XII đi qua một chuỗi **chín khối** nối tiếp
+nhau, mỗi khối một lớp Java, mỗi quyết định thiết kế đều có lý do có thể truy nguyên:
+
+| Đặc điểm quan sát được trong output | Khối chịu trách nhiệm | Mục |
+|---|---|---|
+| `trump iran` cho 4 kết quả dù không gõ toán tử nào | AND ngầm định khi dựng cây | [16](#16-buildast--dựng-cây-từ-parsedquery), [48](#48-truy-vấn-1-trump-iran--and-hai-term-phổ-biến) |
+| `"tơi bời" trump -mỹ` trả 0 và **không** nới lỏng | `isUnmatchable` + NOT không bao giờ bị bỏ | [40](#40--isunmatchable--thoát-sớm-khỏi-nỗ-lực-vô-ích), [41](#41--vì-sao-cái-gì-không-bao-giờ-bị-bỏ-quan-trọng-hơn-cái-gì-bị-bỏ), [49](#49-truy-vấn-2-tơi-bời-trump--mỹ--rỗng-vì-loại-trừ-không-vì-thiếu) |
+| `trump OR iran` cho 9 kết quả — nhiều hơn cả hai vế cộng riêng lẻ | `OrNode` hợp two-pointer | [25](#25-ornode--nút-hợp), [50](#50-truy-vấn-3-trump-or-iran--hợp) |
+| `site:vnexpress.net` không để lại dấu vết nào trong cây AST | ràng buộc domain là **bộ lọc**, không phải nút | [36](#36-bộ-lọc-ứng-viên-candidatefilter-domainfilter-maxcandidatesfilter), [51](#51-truy-vấn-4-sài-gòn-sitevnexpressnet--lọc-domain) |
+| `khủng long` biến mất khỏi truy vấn, hiện trong `droppedTerms` | GIAI ĐOẠN 2 bỏ term theo IDF tăng dần | [42](#42-hai-bước-nới-lỏng-theo-đúng-thứ-tự-idf-tăng-dần), [52](#52-truy-vấn-5-trump-khủng-long-iran--nới-lỏng-thật) |
+| `sài gòn` thành **một** token dù gõ rời hai tiếng | tokenize cả `mustRaw` trong một lần gọi | [14](#14-bước-3--tokenize-bằng-chung-tokenizer-với-tầng-chỉ-mục), [17](#17-trace-3-truy-vấn-mẫu-qua-queryparser) |
+| Giao tập luôn bắt đầu từ posting list **ngắn nhất** | shortest-first trong `AndNode` | [23](#23--vì-sao-shortest-first-bằng-con-số-cụ-thể) |
+| `NotNode.evaluate()` ném `UnsupportedOperationException` | phủ định độc lập là đúng tập hợp nhưng vô dụng | [26](#26-notnode--nút-loại-trừ-và-vì-sao-nó-không-đứng-một-mình-được) |
+| Cụm từ khớp theo **vị trí liền kề**, không chỉ cùng tài liệu | `matchesPhrase` | [35](#35-matchesphrase--khớp-cụm-từ-theo-vị-trí) |
+| `totalResults` lớn hơn số phần tử trong `results` | `totalResults = candidates.size()`, không phải số của trang | [45](#45-cắt-trang-và-searchresponse) |
+| Truy vấn lặp lại trả về gần như tức thời | LRU cache khoá theo `q|page|size` | [7](#7-lru-cache-truy-vấn), [46](#46-ghi-cache-và-học-gợi-ý-truy-vấn) |
+| `q=TRUMP` trả về `response.query = "trump"` | `cacheKey` viết thường, phản hồi cất theo lần gọi đầu | [53](#53-chế-độ-suy-biến-và-trần-tham-số) |

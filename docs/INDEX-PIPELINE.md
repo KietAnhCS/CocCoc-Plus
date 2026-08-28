@@ -2,105 +2,132 @@
 
 ### Từ `SearchEngineFacade.init()` đến `data/index.json`
 
----
+> **Tài liệu tham chiếu kỹ thuật đầy đủ.**
+> Mỗi file, mỗi hàm, mỗi hằng số, mỗi nhánh `if` mà một phiên dựng chỉ mục chạm tới —
+> theo đúng thứ tự thực thi, kèm sơ đồ Mermaid, bảng đối chiếu và trace dữ liệu thật.
 
-## MỤC LỤC
-
-### PHẦN I — TỔNG QUAN
-0. Cách đọc tài liệu này
-1. Hai đường đi vào tầng dựng chỉ mục
-2. Ba bất biến bắt buộc
-3. Bản đồ toàn hệ thống
-4. Danh mục toàn bộ file tham gia
-5. Sơ đồ tuần tự tổng quát
-6. Vòng đời của một `Posting`
-7. Bảng so sánh các cơ chế nén trong chỉ mục
-
-### PHẦN II — TẦNG TỪ ĐIỂN VÀ TÁCH TỪ TIẾNG VIỆT
-8. `VietnameseWordDictionary` — từ điển có trọng số
-9. `SyllableTrie` — cây tiền tố trên âm tiết
-10. `MaxWeightSegmenter` — quy hoạch động, trái tim thuật toán
-11. `VietnameseTokenizer` — sáu bước từ chuỗi thô đến `Token`
-
-### PHẦN III — TẦNG CẤU TRÚC CHỈ MỤC
-12. `Posting` — đơn vị nhỏ nhất
-13. `PostingCursor` / `ArrayPostingCursor` — duyệt không cấp phát, nhảy cóc
-14. `TermDictionary` — Flyweight cho 7 triệu chuỗi
-15. `SearchIndex` — hợp đồng, một bất biến mở khoá ba tối ưu
-16. `InvertedIndex` — trái tim của tầng chỉ mục
-
-### PHẦN IV — TẦNG NÉN
-17. `VByteCodec` — varint, delta encoding
-18. `CompressedPostings` — nén posting list
-19. `CompressedText` — nén thân bài
-
-### PHẦN V — BỀN VỮNG HOÁ VÀ ĐIỀU PHỐI
-20. `IndexPersistence` — ghi/đọc chỉ mục, hai hàng rào
-21. `IndexBuilder` — song song hoá theo lô
-22. `SearchEngineFacade.init()` — dệt tất cả lại thành một phiên khởi động
-23. `POST /api/admin/reindex` — dựng lại chỉ mục khi đang chạy
-
-### PHẦN VI — ĐỐI CHIẾU OUTPUT THẬT
-24. Trace tokenizer trên câu thật của corpus
-25. Trace posting list nén ra byte cụ thể
-
-### PHẦN VII — PHỤ LỤC
-26. Bảng hằng số toàn hệ thống
-27. Bảng tra nhanh khối ↔ file ↔ hàm
-28. Câu hỏi thường gặp (FAQ)
-29. Cây chẩn đoán sự cố
-30. Thuật ngữ
-31. Toàn cảnh một trang — cây rút gọn
-
----
-
-# PHẦN I — TỔNG QUAN
-
-## 0. Cách đọc tài liệu này
-
-Tài liệu này là bản mở rộng đầy đủ của bản rút gọn từng có ở `docs2/INDEX-PIPELINE.md`
-(cây ASCII ~200 dòng, được giữ nguyên và nâng cấp làm mục 31 ở cuối). Nó cùng
-chuẩn với `docs2/CRAWLER-PIPELINE.md` — tài liệu "giải phẫu toàn bộ một phiên
-crawl" — nhưng đối tượng mổ xẻ ở đây là **tầng dựng chỉ mục tìm kiếm**: từ lúc
-Spring Boot gọi `@PostConstruct` trên `SearchEngineFacade` cho tới khi
-`data/index.json` nằm trên đĩa và mọi truy vấn có thể tra cứu được.
-
-### Quy ước ký hiệu
+**Quy ước ký hiệu**
 
 ```
 ★   quyết định thiết kế quan trọng — cần hiểu RÕ "vì sao", không chỉ "cái gì"
 ⚠   hạn chế, rủi ro, hoặc lỗi im lặng đã biết (có trường hợp là sự cố THẬT đã xảy ra)
 ```
 
-Mỗi mục trong PHẦN II–V trích mã nguồn thật (không diễn giải sai lệch), có sơ đồ
-Mermaid kèm bản ASCII song song khi biểu diễn luồng/trạng thái, và bảng/ASCII khi
-cần chi tiết cấp bit/byte. Số liệu trong tài liệu lấy từ:
+---
 
-- `docs2/main/java/com/vnsearch/index/*.md` — 14 tài liệu per-class rất chi tiết,
-  vốn đã phân tích Javadoc, mã nguồn và test của từng lớp;
-- mã nguồn thật tại `backend/java/libs/core-search/src/main/java/com/vnsearch/`;
-- dữ liệu thật tại `backend/data/` (`seed-documents.json` — 40 tài liệu, 296 KB;
-  `crawled-documents.json` — 384 MB; `index.json` — 403 MB).
+## MỤC LỤC
 
-### Ba mức chi tiết
+### PHẦN I — TỔNG QUAN
+- [1. Hai đường đi vào tầng dựng chỉ mục](#1-hai-đường-đi-vào-tầng-dựng-chỉ-mục)
+- [2. Ba bất biến bắt buộc](#2-ba-bất-biến-bắt-buộc)
+- [3. Bản đồ toàn hệ thống](#3-bản-đồ-toàn-hệ-thống)
+- [4. Danh mục toàn bộ file tham gia](#4-danh-mục-toàn-bộ-file-tham-gia)
+- [5. Sơ đồ tuần tự tổng quát](#5-sơ-đồ-tuần-tự-tổng-quát)
+- [6. Vòng đời của một `Posting`](#6-vòng-đời-của-một-posting)
+- [7. Bảng so sánh các cơ chế nén trong chỉ mục](#7-bảng-so-sánh-các-cơ-chế-nén-trong-chỉ-mục)
 
-```
-   MỨC 1 — ĐỌC PHẦN I                    hiểu bức tranh toàn cảnh, 15 phút
-   MỨC 2 — ĐỌC PHẦN II–V THEO THỨ TỰ     hiểu từng tầng và vì sao nó tồn tại
-   MỨC 3 — ĐỐI CHIẾU PHẦN VI             thấy số liệu thật, không phải lý thuyết suông
-```
+### PHẦN II — TẦNG 0: TỪ ĐIỂN TIẾNG VIỆT
+- [8. `VietnameseWordDictionary` — từ điển có trọng số](#8-vietnameseworddictionary--từ-điển-có-trọng-số)
+- [9. Trọng số — vì sao "có/không" không đủ](#9-trọng-số--vì-sao-cókhông-không-đủ)
+- [10. Hai hằng số hiệu chỉnh của từ điển](#10-hai-hằng-số-hiệu-chỉnh-của-từ-điển)
+- [11. `normalize` — chuẩn hoá NFC và hai tối ưu lúc nạp](#11-normalize--chuẩn-hoá-nfc-và-hai-tối-ưu-lúc-nạp)
 
-### Về "điểm vào" — khác một tệp `.bat`
+### PHẦN III — TẦNG 1: TÁCH TỪ TIẾNG VIỆT
+- [12. `SyllableTrie` — cây tiền tố trên âm tiết](#12-syllabletrie--cây-tiền-tố-trên-âm-tiết)
+- [13. `MaxWeightSegmenter` — quy hoạch động, trái tim thuật toán](#13-maxweightsegmenter--quy-hoạch-động-trái-tim-thuật-toán)
+- [14. Trace đầy đủ trên "nhà hàng xóm"](#14-trace-đầy-đủ-trên-nhà-hàng-xóm)
+- [15. `traceBack` và an toàn đa luồng](#15-traceback-và-an-toàn-đa-luồng)
+- [16. `VietnameseTokenizer` — sáu bước từ chuỗi thô đến `Token`](#16-vietnamesetokenizer--sáu-bước-từ-chuỗi-thô-đến-token)
+
+### PHẦN IV — TẦNG 2: ĐƠN VỊ CHỈ MỤC
+- [17. `Posting` — đơn vị nhỏ nhất](#17-posting--đơn-vị-nhỏ-nhất)
+- [18. `PostingCursor` / `ArrayPostingCursor` — duyệt không cấp phát, nhảy cóc](#18-postingcursor--arraypostingcursor--duyệt-không-cấp-phát-nhảy-cóc)
+- [19. Ví dụ chạy và kiểm chứng đối sánh](#19-ví-dụ-chạy-và-kiểm-chứng-đối-sánh)
+
+### PHẦN V — TẦNG 3: HỢP ĐỒNG VÀ TỪ ĐIỂN TERM
+- [20. `TermDictionary` — Flyweight cho 7 triệu chuỗi](#20-termdictionary--flyweight-cho-7-triệu-chuỗi)
+- [21. `SearchIndex` — hợp đồng, một bất biến mở khoá ba tối ưu](#21-searchindex--hợp-đồng-một-bất-biến-mở-khoá-ba-tối-ưu)
+- [22. Bất biến này ai bảo đảm, ai kiểm tra](#22-bất-biến-này-ai-bảo-đảm-ai-kiểm-tra)
+
+### PHẦN VI — TẦNG 4: INVERTED INDEX
+- [23. `InvertedIndex` — trái tim của tầng chỉ mục](#23-invertedindex--trái-tim-của-tầng-chỉ-mục)
+- [24. Ép bất biến — biến lỗi im lặng thành lỗi ồn ào](#24-ép-bất-biến--biến-lỗi-im-lặng-thành-lỗi-ồn-ào)
+- [25. Vì sao gom vị trí theo term TRƯỚC rồi mới dựng `Posting`](#25-vì-sao-gom-vị-trí-theo-term-trước-rồi-mới-dựng-posting)
+- [26. Thân bài đi đường riêng, đã nén, tách khỏi `WebDocument`](#26-thân-bài-đi-đường-riêng-đã-nén-tách-khỏi-webdocument)
+- [27. `indexableText` là public static — để tách từ song song được](#27-indexabletext-là-public-static--để-tách-từ-song-song-được)
+- [28. `binarySearchPosting` — cùng lỗi 9 năm của JDK](#28-binarysearchposting--cùng-lỗi-9-năm-của-jdk)
+- [29. `FORMAT_VERSION = 3`, `exportData` và `importData`](#29-format_version--3-exportdata-và-importdata)
+- [30. `LinkedHashMap` và bảng bộ nhớ chỉ mục](#30-linkedhashmap-và-bảng-bộ-nhớ-chỉ-mục)
+
+### PHẦN VII — TẦNG NÉN SỐ NGUYÊN
+- [31. `VByteCodec` — varint, delta encoding](#31-vbytecodec--varint-delta-encoding)
+- [32. `readVInt` — đóng gói hai giá trị vào một long](#32-readvint--đóng-gói-hai-giá-trị-vào-một-long)
+- [33. `encodeSegments` và hai hàng rào trong `encodeSorted`](#33-encodesegments-và-hai-hàng-rào-trong-encodesorted)
+- [34. Số đo thật của VByte](#34-số-đo-thật-của-vbyte)
+- [35. `CompressedPostings` — hai ý tưởng nền](#35-compressedpostings--hai-ý-tưởng-nền)
+- [36. Vì sao không dùng GZIP toàn file, và vòng tròn khép kín](#36-vì-sao-không-dùng-gzip-toàn-file-và-vòng-tròn-khép-kín)
+- [37. Tỉ lệ nén ước lượng — corpus 5.011 tài liệu](#37-tỉ-lệ-nén-ước-lượng--corpus-5011-tài-liệu)
+
+### PHẦN VIII — TẦNG NÉN VĂN BẢN
+- [38. `CompressedText` — nén thân bài](#38-compressedtext--nén-thân-bài)
+- [39. `deflater.end()` — dòng dễ quên nhất trong lập trình Java](#39-deflaterend--dòng-dễ-quên-nhất-trong-lập-trình-java)
+- [40. UTF-8 tường minh và mức nén 6](#40-utf-8-tường-minh-và-mức-nén-6)
+- [41. Bộ nhớ tiết kiệm được](#41-bộ-nhớ-tiết-kiệm-được)
+
+### PHẦN IX — BỀN VỮNG HOÁ CHỈ MỤC
+- [42. `IndexPersistence` — ghi/đọc chỉ mục, hai hàng rào](#42-indexpersistence--ghiđọc-chỉ-mục-hai-hàng-rào)
+- [43. Hàng rào 1 — phiên bản định dạng](#43-hàng-rào-1--phiên-bản-định-dạng)
+- [44. Hàng rào 2 — tokenizer (hiện thực hoá Bất biến 2)](#44-hàng-rào-2--tokenizer-hiện-thực-hoá-bất-biến-2)
+- [45. ★ Bài học phương pháp: đo ba mốc, không phải hai](#45--bài-học-phương-pháp-đo-ba-mốc-không-phải-hai)
+- [46. Base64 có làm mất hết lợi ích nén không](#46-base64-có-làm-mất-hết-lợi-ích-nén-không)
+- [47. Hai hàm `load` — quá tải có chủ ý](#47-hai-hàm-load--quá-tải-có-chủ-ý)
+- [48. So sánh thời gian khởi động — vì sao lớp này tồn tại](#48-so-sánh-thời-gian-khởi-động--vì-sao-lớp-này-tồn-tại)
+
+### PHẦN X — DỰNG CHỈ MỤC VÀ ĐIỀU PHỐI
+- [49. `IndexBuilder` — song song hoá theo lô](#49-indexbuilder--song-song-hoá-theo-lô)
+- [50. `build()` — cấp lại docId, không tin số có sẵn](#50-build--cấp-lại-docid-không-tin-số-có-sẵn)
+- [51. `buildInBatches` — tách từ song song, nạp tuần tự](#51-buildinbatches--tách-từ-song-song-nạp-tuần-tự)
+- [52. `SearchEngineFacade.init()` — dệt tất cả lại thành một phiên khởi động](#52-searchenginefacadeinit--dệt-tất-cả-lại-thành-một-phiên-khởi-động)
+- [53. `loadCorpus()` — chuỗi dữ liệu, không phải chuỗi `else if`](#53-loadcorpus--chuỗi-dữ-liệu-không-phải-chuỗi-else-if)
+- [54. `persistIndex()` — ghi chỉ mục ra đĩa, và món nợ từng tồn tại](#54-persistindex--ghi-chỉ-mục-ra-đĩa-và-món-nợ-từng-tồn-tại)
+- [55. `refreshDerivedState()` — mọi thứ phụ thuộc vào chỉ mục](#55-refreshderivedstate--mọi-thứ-phụ-thuộc-vào-chỉ-mục)
+
+### PHẦN XI — DỰNG LẠI CHỈ MỤC KHI ĐANG CHẠY
+- [56. `POST /api/admin/reindex` — dựng lại chỉ mục khi đang chạy](#56-post-apiadminreindex--dựng-lại-chỉ-mục-khi-đang-chạy)
+- [57. `reindex()` — đọc lại từ đĩa thay vì giữ bản trong bộ nhớ](#57-reindex--đọc-lại-từ-đĩa-thay-vì-giữ-bản-trong-bộ-nhớ)
+- [58. ★★ Vì sao `search()` chụp biến cục bộ một lần](#58--vì-sao-search-chụp-biến-cục-bộ-một-lần)
+
+### PHẦN XII — ĐỐI CHIẾU OUTPUT THẬT
+- [59. Tổng quan tệp `index.json`](#59-tổng-quan-tệp-indexjson)
+- [60. Trace tokenizer trên câu thật của corpus](#60-trace-tokenizer-trên-câu-thật-của-corpus)
+- [61. Hai câu còn lại — tên riêng và câu dài](#61-hai-câu-còn-lại--tên-riêng-và-câu-dài)
+- [62. Trace posting list nén ra byte cụ thể](#62-trace-posting-list-nén-ra-byte-cụ-thể)
+- [63. Giải mã `offsets` và `positions`](#63-giải-mã-offsets-và-positions)
+- [64. Tổng kết phép nén và kiểm chứng ranh giới byte](#64-tổng-kết-phép-nén-và-kiểm-chứng-ranh-giới-byte)
+
+### PHẦN XIII — PHỤ LỤC
+- [65. Chế độ chỉ mục rỗng và corpus dự phòng](#65-chế-độ-chỉ-mục-rỗng-và-corpus-dự-phòng)
+- [66. Bảng hằng số toàn hệ thống](#66-bảng-hằng-số-toàn-hệ-thống)
+- [67. Bảng tra nhanh khối ↔ file ↔ hàm](#67-bảng-tra-nhanh-khối--file--hàm)
+- [68. Câu hỏi thường gặp (FAQ)](#68-câu-hỏi-thường-gặp-faq)
+- [69. Cây chẩn đoán sự cố](#69-cây-chẩn-đoán-sự-cố)
+- [70. Thuật ngữ](#70-thuật-ngữ)
+- [71. Toàn cảnh một trang — cây rút gọn](#71-toàn-cảnh-một-trang--cây-rút-gọn)
+
+---
+---
+
+# PHẦN I — TỔNG QUAN
+
+---
+
+## 1. Hai đường đi vào tầng dựng chỉ mục
 
 `CRAWLER-PIPELINE.md` bắt đầu từ một tệp `.bat` mà người vận hành gõ tay. Tầng
 dựng chỉ mục **không có** điểm vào kiểu đó: nó là một khối trong vòng đời khởi
 động của backend (Spring Boot), chạy tự động, không cần ai gõ lệnh. Có đúng
 **hai** con đường dẫn tới `IndexBuilder.build(...)` trong toàn bộ hệ thống —
 xem mục 1.
-
----
-
-## 1. Hai đường đi vào tầng dựng chỉ mục
 
 ### 1.1 Đường A — khởi động backend (đường mặc định, mọi lần chạy)
 
@@ -133,7 +160,7 @@ Bên trong `loadCorpus()` có **hai nhánh loại trừ nhau**:
    data/index.json tồn tại?             không có / hỏng / rỗng / sai tokenizer
    → IndexPersistence.load(...)         → buildStoreChain() (Chain of Responsibility)
    → nếu totalDocs() > 0: DÙNG NGAY      → JsonDocumentStore(crawled) ưu tiên
-     (~4 giây, xem mục 20)                 JsonDocumentStore(seed) dự phòng
+     (~4 giây, xem mục 42)                 JsonDocumentStore(seed) dự phòng
                                          → IndexBuilder.build(docs)  (~36 giây/2.518 trang)
                                          → persistIndex() — ghi ra đĩa cho lần sau
 ```
@@ -150,7 +177,7 @@ public Map<String, String> reindex() throws IOException {
 ```
 
 `AdminController.reindex()` gọi thẳng `SearchEngineFacade.reindex()`, luôn đọc
-lại corpus **từ đĩa** (không giữ bản trong bộ nhớ — xem mục 23), gọi lại đúng
+lại corpus **từ đĩa** (không giữ bản trong bộ nhớ — xem mục 56), gọi lại đúng
 `IndexBuilder.build(docs)` như đường A, rồi ghi đè `data/index.json`.
 
 ```mermaid
@@ -264,7 +291,7 @@ this.queryParser = new QueryParser(tokenizer);   // CÙNG object với IndexBuil
      thủ đều KHÔNG bắt được: version ✓, Jackson ✓, test ✓ (test tự
      dựng cả hai phía cùng lúc nên không thấy gì). Hàng rào
      checkTokenizerMatches() trong IndexPersistence được thêm SAU
-     sự cố này — xem mục 20.
+     sự cố này — xem mục 42.
 ```
 
 ### Bất biến 3 — `termFrequency == positions.length`
@@ -286,7 +313,7 @@ if (posting.termFrequency() != size) {
    MỞ KHOÁ:
    Dạng nén (CompressedPostings) KHÔNG lưu termFrequency — suy lại
    từ positions.length lúc giải nén. Tỉ lệ nén của việc bỏ hẳn một
-   trường là VÔ HẠN (mục 18).
+   trường là VÔ HẠN (mục 35).
 
    VI PHẠM:
    → CompressedPostings.of() ném NGAY (hàng rào ép bất biến)
@@ -443,9 +470,9 @@ com.vnsearch.query          — QueryParser (dùng CHUNG tokenizer với tầng 
 
 | # | File | Kích thước | Vai trò |
 |---|---|---|---|
-| 23 | `seed-documents.json` | 296 KB, 40 tài liệu | Corpus mẫu đi kèm repo — dùng để trace trong PHẦN VI |
-| 24 | `crawled-documents.json` | 384 MB | Corpus crawl thật, quy mô lớn |
-| 25 | `index.json` | 403 MB | Chỉ mục đã dựng — dùng để lấy số liệu quy mô thật |
+| 23 | `seed-documents.json` | 289 KB, 40 tài liệu | Corpus mẫu đi kèm repo — dùng để trace trong PHẦN XII |
+| 24 | `crawled-documents.json` | 464 MB | Corpus crawl thật, quy mô lớn |
+| 25 | `index.json` | 486 MB | Chỉ mục đã dựng — dùng để lấy số liệu quy mô thật |
 
 ---
 
@@ -553,9 +580,9 @@ stateDiagram-v2
 ### 6.2 `Posting` KHÔNG bao giờ đi qua các bước theo hướng khác
 
 Không có API nào sửa một `Posting` đã tồn tại trong posting list — chỉ APPEND
-(bất biến 1) hoặc THAY THẾ TOÀN BỘ chỉ mục (reindex, mục 23). Đây là lý do
+(bất biến 1) hoặc THAY THẾ TOÀN BỘ chỉ mục (reindex, mục 56). Đây là lý do
 `Posting` là `record` bất biến (ở mức tham chiếu ba trường; nội dung mảng
-`positions` vẫn kỹ thuật sửa được — xem PHẦN III mục 12).
+`positions` vẫn kỹ thuật sửa được — xem PHẦN IV mục 17).
 
 ---
 
@@ -574,7 +601,7 @@ Ba nơi trong tầng chỉ mục dùng "nén", nhưng chọn ba chiến lược 
 | Vì sao không đổi cho nhau | posting list cần random access theo term; dùng GZIP mất khả năng đó | văn bản đọc trọn vẹn nên nén tổng quát không mất gì | — |
 
 ```
-   BÀI HỌC CHUNG (nêu lại ở mục 18 và mục 19):
+   BÀI HỌC CHUNG (nêu lại ở mục 35 và mục 38):
 
    "Dự án dùng thuật toán nén gì?" là câu hỏi SAI.
    Câu hỏi đúng: "dữ liệu này được ĐỌC như thế nào?"
@@ -583,13 +610,13 @@ Ba nơi trong tầng chỉ mục dùng "nén", nhưng chọn ba chiến lược 
         Đọc trọn vẹn một lần      →  nén tổng quát, tỉ lệ tốt nhất (CompressedText)
 ```
 
-Ba mốc đo thật của định dạng file (`IndexPersistence`, mục 20) minh hoạ thêm một
+Ba mốc đo thật của định dạng file (`IndexPersistence`, mục 42) minh hoạ thêm một
 bài học đo lường: **không bao giờ đổi hai biến (thụt dòng JSON + thuật toán nén)
 cùng lúc rồi báo một tỉ lệ duy nhất.**
 
 ---
 
-# PHẦN II — TẦNG TỪ ĐIỂN VÀ TÁCH TỪ TIẾNG VIỆT
+# PHẦN II — TẦNG 0: TỪ ĐIỂN TIẾNG VIỆT
 
 Tiếng Việt viết rời theo **âm tiết** (tiếng), không theo **từ**. "máy tính lượng
 tử" là 4 tiếng nhưng 2 từ. Máy phải tự đoán ranh giới từ trước khi bất kỳ chỉ
@@ -601,6 +628,8 @@ Thứ tự đọc trong PHẦN này đi từ **dữ liệu** (từ điển có t
 tra cứu** (trie) tới **thuật toán** (quy hoạch động) tới **lớp lắp ráp** (tokenizer)
 — đúng thứ tự phụ thuộc mà `docs2/main/roadmap.md` "Chặng 4" quy định.
 
+---
+
 ## 8. `VietnameseWordDictionary` — từ điển có trọng số
 
 **File:** `VietnameseWordDictionary.java` (266 dòng). Nạp hai tệp tài nguyên:
@@ -610,13 +639,17 @@ tra cứu** (trie) tới **thuật toán** (quy hoạch động) tới **lớp l
 | `vietnamese-words.txt` | **49.644** | Có (đo từ corpus lớn) |
 | `vietnamese-bigrams.txt` | **158** | Không — mỗi mục nhận `CURATED_FREQUENCY = 10_000_000` |
 
-### 8.1 Vì sao "có/không" không đủ — phải là "bao nhiêu"
+---
+
+## 9. Trọng số — vì sao "có/không" không đủ
+
+### 9.1 Vì sao "có/không" không đủ — phải là "bao nhiêu"
 
 Từ điển cũ (chỉ `vietnamese-bigrams.txt`, khi đó 154 mục) chỉ trả lời **có/không**
 một chuỗi có phải từ ghép. Với câu trả lời nhị phân, khi hai cách tách đều hợp
 lệ về từ điển, thuật toán **không có cơ sở để chọn** — nó buộc phải đoán bằng
 heuristic "lấy cái dài nhất" (Longest Matching), và heuristic đó sai ở những câu
-nhập nhằng (xem ví dụ "nhà hàng xóm" ở mục 10).
+nhập nhằng (xem ví dụ "nhà hàng xóm" ở mục 13).
 
 ```
    TỪ TẬP HỢP NHỊ PHÂN SANG ÁNH XẠ CÓ TRỌNG SỐ
@@ -628,7 +661,7 @@ nhập nhằng (xem ví dụ "nhà hàng xóm" ở mục 10).
    ⇒ phải ĐOÁN                           ⇒ so được TỔNG: 13,05 vs 13,13 → CHỌN
 ```
 
-### 8.2 Công thức trọng số — nguyên văn từ Cốc Cốc
+### 9.2 Công thức trọng số — nguyên văn từ Cốc Cốc
 
 ```java
 public double weightOf(int frequency, int syllables) {
@@ -679,7 +712,11 @@ cứng của bảng `PARAM` (9 phần tử). `weightOf(freq, 5)` sẽ đọc `pa
 mảng. Muốn hỗ trợ 5 âm tiết phải đo thêm một cặp tham số, không thể chỉ đổi hằng
 số.
 
-### 8.3 `UNKNOWN_SYLLABLE_WEIGHT = 0.5` — hai ràng buộc phải thoả đồng thời
+---
+
+## 10. Hai hằng số hiệu chỉnh của từ điển
+
+### 10.1 `UNKNOWN_SYLLABLE_WEIGHT = 0.5` — hai ràng buộc phải thoả đồng thời
 
 ```java
 public static final double UNKNOWN_SYLLABLE_WEIGHT = 0.5;
@@ -694,7 +731,7 @@ public static final double UNKNOWN_SYLLABLE_WEIGHT = 0.5;
    0,5 nằm gọn giữa hai ràng buộc:  0  <  0,5  <  1,5
 ```
 
-### 8.4 `CURATED_FREQUENCY = 10_000_000` — gán tần suất cho tệp không có số
+### 10.2 `CURATED_FREQUENCY = 10_000_000` — gán tần suất cho tệp không có số
 
 `vietnamese-bigrams.txt` chứa cụm từ đặc thù đề tài ("công cụ tìm kiếm", "an
 toàn thông tin") mà từ điển tổng quát không có, nhưng không đi kèm số liệu tần
@@ -703,7 +740,9 @@ suất thật. `10_000_000` là ước lượng "tương đương một cụm t�
 23,3` so với `log2(45.231+3) ≈ 15,5` của một từ khá phổ biến trong từ điển lớn.
 ⚠ Con số này **chưa được đo** — là ước lượng hợp lý, không phải kết quả thực nghiệm.
 
-### 8.5 `normalize` — chống lỗi im lặng NFC/NFD
+---
+
+## 11. `normalize` — chuẩn hoá NFC và hai tối ưu lúc nạp
 
 ```java
 static String normalize(String s) {
@@ -721,7 +760,7 @@ Tiếng Việt dễ gặp lỗi này hơn ngôn ngữ khác vì có tới hai d�
 nguyên âm (dấu mũ/móc + dấu thanh) — nhiều tổ hợp NFD hơn, và các nguồn dữ liệu
 khác nhau (macOS dùng NFD, hầu hết web dùng NFC) không thống nhất.
 
-### 8.6 Hai tối ưu lúc nạp
+### 11.1 Hai tối ưu lúc nạp
 
 `parsePositiveInt` quét trực tiếp trên chuỗi thay vì `Integer.parseInt(substring)`
 — tránh cấp phát một `String` tạm cho mỗi trong 49.644 dòng. Dung lượng trie ban
@@ -730,7 +769,11 @@ khác nhau (macOS dùng NFD, hầu hết web dùng NFC) không thống nhất.
 
 ---
 
-## 9. `SyllableTrie` — cây tiền tố trên âm tiết
+# PHẦN III — TẦNG 1: TÁCH TỪ TIẾNG VIỆT
+
+---
+
+## 12. `SyllableTrie` — cây tiền tố trên âm tiết
 
 **File:** `backend/java/libs/core-common/.../datastructure/SyllableTrie.java` (302 dòng).
 
@@ -756,17 +799,17 @@ biến nhất. Đây là lý do cách cũ (dựng chuỗi ứng viên rồi tra 
 ~15 triệu lần cấp phát vô ích trên corpus 5.011 trang, ~1,65 GB rác) bị thay
 bằng đi trie một lượt.
 
-Xem chi tiết cắt nhánh trong thuật toán chính ở mục 10.
+Xem chi tiết cắt nhánh trong thuật toán chính ở mục 13.
 
 ---
 
-## 10. `MaxWeightSegmenter` — quy hoạch động, trái tim thuật toán
+## 13. `MaxWeightSegmenter` — quy hoạch động, trái tim thuật toán
 
 **File:** `MaxWeightSegmenter.java` (157 dòng). Đây là lớp mà `docs2/main/roadmap.md`
 gọi là "điểm cộng thuật toán rõ nhất của tầng này" — dành phần lớn nhất của mục
 này để trace nó từng bước trên một câu thật.
 
-### 10.1 Vì sao thuật toán tham lam sai — và sai một cách không sửa được
+### 13.1 Vì sao thuật toán tham lam sai — và sai một cách không sửa được
 
 ```
    "nhà hàng xóm"
@@ -789,7 +832,7 @@ tách tốt hơn ở phía sau cần đến. Ranh giới từ đúng phụ thu�
 sau, nên không có heuristic cục bộ nào đúng trong mọi trường hợp. Sửa heuristic
 ("ưu tiên từ 2 tiếng"?) chỉ đổi tập ví dụ sai, không xoá được lớp lỗi.
 
-### 10.2 Bài toán: đường đi trọng số lớn nhất trên DAG
+### 13.2 Bài toán: đường đi trọng số lớn nhất trên DAG
 
 ```
    best[i] = tổng trọng số LỚN NHẤT của một cách tách i âm tiết đầu tiên
@@ -808,7 +851,7 @@ tô-pô. Ở đây các đỉnh `0..n` **đã sẵn** ở thứ tự tô-pô (m�
 nhỏ tới chỉ số lớn), nên một lượt quét tiến là đủ — không cần chạy thuật toán
 sắp xếp tô-pô riêng.
 
-### 10.3 Vòng lặp chính
+### 13.3 Vòng lặp chính
 
 ```java
 for (int i = 0; i < n; i++) {
@@ -846,7 +889,9 @@ thị thật sự có thể đứt và nhánh này xử lý đúng.
 **④ Cắt nhánh** là lợi ích mà `HashSet` không có: `node == NONE` nghĩa là
 "không từ nào trong từ điển có tiền tố này" — các độ dài còn lại đều vô vọng.
 
-### 10.4 Trace đầy đủ trên "nhà hàng xóm"
+---
+
+## 14. Trace đầy đủ trên "nhà hàng xóm"
 
 ```
    syllables = ["nhà", "hàng", "xóm"]     n = 3
@@ -912,7 +957,11 @@ Ket qua: boundaries = [0, 1, 3]
 
 </details>
 
-### 10.5 `traceBack` — hai lượt để không cần cấu trúc động
+---
+
+## 15. `traceBack` và an toàn đa luồng
+
+### 15.1 `traceBack` — hai lượt để không cần cấu trúc động
 
 ```java
 private static int[] traceBack(int[] trace, int n) {
@@ -931,7 +980,7 @@ Truy ngược đi từ cuối về đầu, nhưng kết quả cần thứ tự t
 thêm), hai lượt trên mảng nguyên thuỷ: lượt 1 chỉ đếm, lượt 2 điền ngược vào
 mảng đã đúng kích thước — đúng một mảng được cấp phát.
 
-### 10.6 An toàn đa luồng — bắt buộc, không phải tuỳ chọn
+### 15.2 An toàn đa luồng — bắt buộc, không phải tuỳ chọn
 
 Hai mảng làm việc (`best`, `trace`) được cấp phát **trong lòng** `segment()` mỗi
 lời gọi. ★ Điều này bắt buộc vì `VietnameseTokenizer` (dùng chung `segmenter`)
@@ -945,7 +994,7 @@ cần cân nhắc lại.
 
 ---
 
-## 11. `VietnameseTokenizer` — sáu bước từ chuỗi thô đến `Token`
+## 16. `VietnameseTokenizer` — sáu bước từ chuỗi thô đến `Token`
 
 **File:** `VietnameseTokenizer.java` (314 dòng). Cài đặt duy nhất của
 `Tokenizer`, dùng chung cho cả `InvertedIndex` (lúc index) và `QueryParser`
@@ -978,7 +1027,7 @@ van ban tho
 
 </details>
 
-### 11.1 ★ Hai thay đổi phụ thuộc nhau — không thể đổi từng phần
+### 16.1 ★ Hai thay đổi phụ thuộc nhau — không thể đổi từng phần
 
 ```
    ① TỪ ĐIỂN:   nhị phân  →  có trọng số
@@ -994,7 +1043,7 @@ van ban tho
      "hướng này sai" và quay lại.
 ```
 
-### 11.2 Từ điển dùng chung — lazy holder idiom
+### 16.2 Từ điển dùng chung — lazy holder idiom
 
 ```java
 private static final class DictionaryHolder {
@@ -1012,7 +1061,7 @@ lồng chỉ khởi tạo một lần, đúng lúc lần đầu `INSTANCE` đư�
 khoá** ở các lần đọc sau — đúng, nhanh và ngắn hơn cả `synchronized` lẫn
 double-checked locking (một trong những mẫu bị viết sai nhiều nhất của Java).
 
-### 11.3 Xử lý "đ" riêng — chi tiết đặc thù tiếng Việt
+### 16.3 Xử lý "đ" riêng — chi tiết đặc thù tiếng Việt
 
 ```java
 public static String stripDiacritics(String s) {
@@ -1028,7 +1077,7 @@ tách được rồi bỏ `\p{M}` là xong. Nhưng **"đ" là một ký tự Lat
 gì. Không xử lý tay thì "đường" → "đương" (chữ đ còn nguyên), tìm không dấu
 "duong" không khớp.
 
-### 11.4 Từ ghép không bao giờ là từ dừng
+### 16.4 Từ ghép không bao giờ là từ dừng
 
 ```java
 if (to - from > 1) {
@@ -1049,7 +1098,7 @@ ngữ nghĩa thật.
 Vị trí `position` chỉ tăng khi token **không** bị lọc — đây là quy ước bắt buộc
 để phép tìm cụm từ (`vị trí sau − vị trí trước == 1`) hoạt động đúng.
 
-### 11.5 `Token` mang cả bản có dấu và không dấu
+### 16.5 `Token` mang cả bản có dấu và không dấu
 
 ```java
 public record Token(String term, String noDiacriticTerm, int position) { }
@@ -1060,7 +1109,7 @@ Cho phép tìm không dấu ("may tinh" vẫn ra "máy tính") mà không phải
 vấn cho mỗi term. Cùng nguyên tắc "tính một lần, dùng nhiều lần" đã gặp ở tầng
 crawler.
 
-### 11.6 `name()` phản ánh cấu hình — không chỉ tên lớp
+### 16.6 `name()` phản ánh cấu hình — không chỉ tên lớp
 
 ```java
 public String name() {
@@ -1073,22 +1122,24 @@ public String name() {
 ```
 
 Hai tokenizer với từ điển khác nhau cho ra `name()` khác nhau — đây chính là
-cơ chế mà `IndexPersistence.checkTokenizerMatches()` (mục 20) dùng để phát hiện
+cơ chế mà `IndexPersistence.checkTokenizerMatches()` (mục 42) dùng để phát hiện
 sự cố "từ điển đổi mà chỉ mục cũ không được dựng lại" đã nêu ở Bất biến 2. ⚠
 Nhưng chỉ một phần: hai từ điển **cùng số mục** nhưng **nội dung khác nhau**
 vẫn cho cùng `name()` — muốn chặt chẽ hơn cần băm nội dung.
 
 ---
 
-# PHẦN III — TẦNG CẤU TRÚC CHỈ MỤC
+# PHẦN IV — TẦNG 2: ĐƠN VỊ CHỈ MỤC
 
-`List<Token>` sinh ra từ PHẦN II bây giờ phải trở thành cấu trúc tra cứu được.
+`List<Token>` sinh ra từ PHẦN III bây giờ phải trở thành cấu trúc tra cứu được.
 PHẦN này đi từ đơn vị nhỏ nhất (`Posting`) tới cách duyệt nó không cấp phát
 (`PostingCursor`), tới kỹ thuật gộp chuỗi (`TermDictionary`), tới hợp đồng
 (`SearchIndex`), và dành phần lớn nhất cho cấu trúc trung tâm: `InvertedIndex`
 — tương đương vai trò của `BackQueues`/`UrlFrontier` trong `CRAWLER-PIPELINE.md`.
 
-## 12. `Posting` — đơn vị nhỏ nhất
+---
+
+## 17. `Posting` — đơn vị nhỏ nhất
 
 ```java
 public record Posting(int docId, int termFrequency, int[] positions) { }
@@ -1098,7 +1149,7 @@ Một `Posting` trả lời: term này xuất hiện trong tài liệu nào, m�
 những vị trí nào. Ba trường, nhưng trường thứ ba giữ toàn bộ bộ nhớ của chỉ
 mục.
 
-### 12.1 int[] thay vì List<Integer> — 72,9 MB tiết kiệm được, đo trên corpus thật
+### 17.1 int[] thay vì List<Integer> — 72,9 MB tiết kiệm được, đo trên corpus thật
 
 ```
    SO DO THAT - corpus 2.518 trang
@@ -1122,7 +1173,7 @@ lượng danh sách nhỏ hơn 12 lần so với số vị trí. Ranh giới đ�
 nguyên với số lượng hàng triệu thì phải tránh; đóng gói đối tượng thật thì
 không sao.
 
-### 12.2 Vì sao phải tự viết equals/hashCode/toString
+### 17.2 Vì sao phải tự viết equals/hashCode/toString
 
 `record` tự sinh `equals()` — nhưng với trường kiểu mảng, nó so sánh theo
 danh tính tham chiếu (`==`), không theo nội dung:
@@ -1132,15 +1183,15 @@ new Posting(7, 3, new int[]{1,2,3}).equals(new Posting(7, 3, new int[]{1,2,3}))
 // → FALSE nếu dùng equals sinh sẵn của record — hai posting GIỐNG HỆT vẫn "khác nhau"
 ```
 
-Đây không phải chi tiết trang trí: `IndexPersistence` (mục 20) và
-`CompressedPostings.of/toPostings` (mục 18) dựa hoàn toàn vào phép so sánh
+Đây không phải chi tiết trang trí: `IndexPersistence` (mục 42) và
+`CompressedPostings.of/toPostings` (mục 35) dựa hoàn toàn vào phép so sánh
 posting list trước và sau khi nén/giải nén để khẳng định vòng nén không
 làm mất dữ liệu. Với `equals` sinh sẵn, phép kiểm chứng quan trọng nhất của cả
 tầng nén sẽ luôn `false` dù codec hoàn toàn đúng. `hashCode` phải sửa cùng
 `equals` — hợp đồng Java bắt buộc hai đối tượng `equals` phải cùng `hashCode`,
 nếu không `HashMap`/`HashSet` mất phần tử một cách im lặng.
 
-### 12.3 positions() trả về mảng thật — chọn tốc độ, ghi rõ hợp đồng
+### 17.3 positions() trả về mảng thật — chọn tốc độ, ghi rõ hợp đồng
 
 `posting.positions()[0] = 999` hợp lệ về cú pháp và sửa thẳng chỉ mục thật.
 `Posting` bất biến chỉ ở mức tham chiếu. Trả bản sao (`clone()`) sẽ tốn 3,8
@@ -1151,7 +1202,7 @@ triệu lần sao chép mỗi lần duyệt toàn chỉ mục — không chấp 
 
 ---
 
-## 13. PostingCursor / ArrayPostingCursor — duyệt không cấp phát, nhảy cóc
+## 18. `PostingCursor` / `ArrayPostingCursor` — duyệt không cấp phát, nhảy cóc
 
 File: `PostingCursor.java` (72 dòng, giao diện) + `ArrayPostingCursor.java`
 (108 dòng, cài đặt duy nhất, package-private).
@@ -1170,7 +1221,7 @@ Giải hai bài toán, và bài toán thứ hai quan trọng hơn:
                                                   nhanh hon 83 lan
 ```
 
-### 13.1 Hợp đồng của skipTo — bốn tình huống
+### 18.1 Hợp đồng của skipTo — bốn tình huống
 
 | Tình huống | Trả về | Vị trí cursor sau đó |
 |---|---|---|
@@ -1184,7 +1235,7 @@ vòng lặp giao trở nên đúng tự nhiên — `max(docId của mọi cursor
 về `NO_MORE` khi một cursor hết, và điều kiện dừng viết được thành một dòng
 duy nhất, không cần kiểm tra riêng từng cursor.
 
-### 13.2 skipTo — galloping hai pha, đọc từng dòng
+### 18.2 skipTo — galloping hai pha, đọc từng dòng
 
 ```java
 public boolean skipTo(int targetDocId) {
@@ -1219,9 +1270,13 @@ sai, không có lỗi nào được ném.
 
 `>>>` (dịch phải không dấu) thay vì `/2` chống lỗi tràn số nổi tiếng từng tồn
 tại 9 năm trong chính `java.util.Arrays.binarySearch` của JDK (Joshua Bloch,
-2006) — cùng chi tiết lặp lại ở `InvertedIndex.binarySearchPosting` (mục 16).
+2006) — cùng chi tiết lặp lại ở `InvertedIndex.binarySearchPosting` (mục 23).
 
-### 13.3 Ví dụ chạy — skipTo(801) trên docIds = [1,3,5,...,4001] (n=2001)
+---
+
+## 19. Ví dụ chạy và kiểm chứng đối sánh
+
+### 19.1 Ví dụ chạy — skipTo(801) trên docIds = [1,3,5,...,4001] (n=2001)
 
 ```
    PHA 1 - nhay theo cap so nhan tu index = 0
@@ -1237,7 +1292,7 @@ tại 9 năm trong chính `java.util.Arrays.binarySearch` của JDK (Joshua Bloc
    TONG: 17 phep so sanh (quet tuyen tinh se ton 400 buoc)
 ```
 
-### 13.4 Kiểm chứng đối sánh — kỹ thuật test mạnh nhất cho một cấu trúc bit-tinh vi
+### 19.2 Kiểm chứng đối sánh — kỹ thuật test mạnh nhất cho một cấu trúc bit-tinh vi
 
 ```java
 @Test
@@ -1263,11 +1318,15 @@ chúng.
 
 ---
 
-## 14. TermDictionary — Flyweight cho 7 triệu chuỗi
+# PHẦN V — TẦNG 3: HỢP ĐỒNG VÀ TỪ ĐIỂN TERM
+
+---
+
+## 20. `TermDictionary` — Flyweight cho 7 triệu chuỗi
 
 File: `TermDictionary.java` (100 dòng).
 
-`String.join("_", ...)` khi ghép từ ghép (mục 11) luôn tạo một `String`
+`String.join("_", ...)` khi ghép từ ghép (mục 16) luôn tạo một `String`
 mới — kể cả khi nội dung đó đã gặp hàng nghìn lần. `TermDictionary` giữ một
 `Map<String,String>` ánh xạ nội dung sang một thể hiện chuẩn tắc duy nhất.
 
@@ -1283,7 +1342,7 @@ mới — kể cả khi nội dung đó đã gặp hàng nghìn lần. `TermDict
    => tiet kiem ~357 MB, tra 5,4 MB phi bang bam - ti le 66:1
 ```
 
-### 14.1 intern — một lần băm, không phải hai/ba
+### 20.1 intern — một lần băm, không phải hai/ba
 
 ```java
 public String intern(String term) {
@@ -1300,11 +1359,11 @@ nhỏ so với tổng thời gian build nhưng miễn phí để tránh.
 Vì sao không dùng `String.intern()` có sẵn của JDK: bảng chuỗi nội bộ
 JVM có kích thước cấu hình cứng, không giải phóng được cho tới khi lớp bị
 gỡ, và không đo được. Với một hệ thống xây lại chỉ mục định kỳ (đường B,
-mục 23), dùng `String.intern()` của JDK sẽ tích luỹ rò rỉ bộ nhớ tăng dần qua
+mục 56), dùng `String.intern()` của JDK sẽ tích luỹ rò rỉ bộ nhớ tăng dần qua
 mỗi lần build — bản cũ không được thu hồi vì bảng chuỗi giữ tham chiếu mạnh.
 `TermDictionary` tự quản, `clear()` được sau khi build xong.
 
-### 14.2 Dung lượng ban đầu 1 << 18 — tránh 15 lần rehash
+### 20.2 Dung lượng ban đầu 1 << 18 — tránh 15 lần rehash
 
 ```java
 public TermDictionary() {
@@ -1317,7 +1376,7 @@ mục, mỗi lần cấp phát bảng mới + băm lại toàn bộ mục hiện
 băm thừa ở tổng). Với `262.144 × 0,75 = 196.608 > 136.768`, không rehash lần
 nào.
 
-### 14.3 Không thread-safe — và vì sao an toàn
+### 20.3 Không thread-safe — và vì sao an toàn
 
 `InvertedIndex` chỉ dùng `TermDictionary` trong `addDocument`, mà việc dựng
 chỉ mục luôn đơn luồng (dựng xong một chỉ mục mới hoàn chỉnh rồi gán bằng
@@ -1328,7 +1387,7 @@ lớp — và cách dùng đó được ghi rõ trong Javadoc.
 
 ---
 
-## 15. SearchIndex — hợp đồng, một bất biến mở khoá ba tối ưu
+## 21. `SearchIndex` — hợp đồng, một bất biến mở khoá ba tối ưu
 
 File: `SearchIndex.java` (87 dòng, giao diện 11 phương thức). Cài đặt duy
 nhất: `InvertedIndex`.
@@ -1350,7 +1409,7 @@ câu được đóng khung trong Javadoc:
                         (docId 1002,1005,1009 -> delta 1002,3,4: 1 byte/so)
 ```
 
-### 15.1 Vì sao getBodyText tách khỏi getDocument
+### 21.1 Vì sao getBodyText tách khỏi getDocument
 
 ```
    getDocument(7)   ->  HashMap.get       ~50 ns
@@ -1362,7 +1421,7 @@ tốt không giấu chi phí đắt sau một lời gọi trông vô hại. Ch�
 gọi `getBodyText`, và chỉ cho top-10 kết quả thật sự trả về, không cho toàn bộ
 ứng viên (có thể tới 1.000).
 
-### 15.2 Vì sao có cả getPostings và cursor
+### 21.2 Vì sao có cả getPostings và cursor
 
 | | `getPostings(term)` | `cursor(term)` |
 |---|---|---|
@@ -1370,7 +1429,9 @@ gọi `getBodyText`, và chỉ cho top-10 kết quả thật sự trả về, kh
 | Nhảy cóc | Không | Có — O(log d) |
 | Dùng khi | Cần cả danh sách (thống kê, kiểm thử, lưu trữ) | Giao nhiều posting list — đường đi nóng |
 
-### 15.3 Bất biến này ai bảo đảm, ai kiểm tra
+---
+
+## 22. Bất biến này ai bảo đảm, ai kiểm tra
 
 ```
    BAO DAM:  InvertedIndex.addDocument gan docId TANG DAN va APPEND
@@ -1383,7 +1444,11 @@ gọi `getBodyText`, và chỉ cho top-10 kết quả thật sự trả về, kh
 
 ---
 
-## 16. InvertedIndex — trái tim của tầng chỉ mục
+# PHẦN VI — TẦNG 4: INVERTED INDEX
+
+---
+
+## 23. `InvertedIndex` — trái tim của tầng chỉ mục
 
 File: `InvertedIndex.java` (458 dòng) — lớp lớn nhất của cả gói `index`.
 Cấu trúc cốt lõi: `Map<String term, List<Posting>>`, nhưng giá trị thật của lớp
@@ -1420,7 +1485,9 @@ WebDocument (docId=7)
 
 </details>
 
-### 16.1 Ép bất biến — biến lỗi im lặng thành lỗi ồn ào
+---
+
+## 24. Ép bất biến — biến lỗi im lặng thành lỗi ồn ào
 
 ```java
 private int lastDocId = Integer.MIN_VALUE;
@@ -1447,7 +1514,9 @@ liệu biến mất khỏi kết quả — không có lỗi nào để lần the
 posting, "sai một chút" không thể phát hiện bằng mắt. Nay lớp tự ép bằng
 `lastDocId`: gọi sai ném ngay tại chỗ sai.
 
-### 16.2 Vì sao gom vị trí theo term TRƯỚC rồi mới dựng Posting
+---
+
+## 25. Vì sao gom vị trí theo term TRƯỚC rồi mới dựng `Posting`
 
 ```java
 // Gom vi tri theo term TRUOC, roi moi tao Posting: neu tao Posting ngay khi
@@ -1477,7 +1546,9 @@ lần ⇒ vị trí bị ghi đôi ⇒ `termFrequency` gấp đôi ⇒ BM25 sai.
 năng tìm không dấu: số khoá tăng gần gấp đôi (~136.768 thay vì ~70.000) — đánh
 đổi có ý thức, vì gõ không dấu là nhu cầu thật của người dùng Việt Nam.
 
-### 16.3 Thân bài đi đường riêng, đã nén, tách khỏi WebDocument
+---
+
+## 26. Thân bài đi đường riêng, đã nén, tách khỏi `WebDocument`
 
 ```java
 bodyTexts.put(docId, CompressedText.compress(doc.getBodyText()));
@@ -1490,7 +1561,9 @@ tốn 100% + 28% = 128% — không tiết kiệm được gì. Bỏ hẳn bản 
 `ResultRanker` chia hai giai đoạn (chấm điểm mọi ứng viên trước, sinh đoạn
 trích sau chỉ cho top-K) đúng vì lý do này.
 
-### 16.4 indexableText là public static — để tách từ song song được
+---
+
+## 27. `indexableText` là public static — để tách từ song song được
 
 ```java
 public static String indexableText(WebDocument doc) {
@@ -1502,7 +1575,7 @@ public static String indexableText(WebDocument doc) {
 ```
 
 Tách thành hàm `public static` để `IndexBuilder` tách từ song song trên
-nhiều luồng rồi mới nạp tuần tự vào chỉ mục (mục 21). Nếu hàm này chỉ là
+nhiều luồng rồi mới nạp tuần tự vào chỉ mục (mục 49). Nếu hàm này chỉ là
 biểu thức nội trong `addDocument`, bước tách từ — phần chiếm gần như toàn bộ
 thời gian dựng chỉ mục — bị khoá cứng vào một luồng.
 
@@ -1510,7 +1583,9 @@ Chú ý ba phép kiểm tra `!= null`: `String.join` chấp nhận `null` nhưng
 thành chuỗi `"null"` — bốn ký tự đó sẽ thành một token `"null"` trong chỉ mục ở
 mọi tài liệu thiếu tiêu đề, nếu bỏ kiểm tra.
 
-### 16.5 binarySearchPosting — cùng lỗi 9 năm của JDK, gộp về một cài đặt
+---
+
+## 28. `binarySearchPosting` — cùng lỗi 9 năm của JDK
 
 ```java
 private static int binarySearchPosting(List<Posting> postings, int docId) {
@@ -1530,7 +1605,11 @@ Trước đây hàm này bị sao chép gần như y hệt ở ba nơi (`TfIdfSc
 `BM25Scorer`, và ở đây) — ba cơ hội viết sai `>>>` thành `/2`, ba chỗ phải sửa
 khi đổi cách lưu trữ. Gộp về một cài đặt xoá cả ba rủi ro cùng lúc.
 
-### 16.6 FORMAT_VERSION = 3 và sự cố im lặng đã thật sự xảy ra
+---
+
+## 29. `FORMAT_VERSION = 3`, `exportData` và `importData`
+
+### 29.1 FORMAT_VERSION = 3 và sự cố im lặng đã thật sự xảy ra
 
 ```java
 public static final int FORMAT_VERSION = 3;
@@ -1551,9 +1630,9 @@ Jackson nạp trót lọt, test xanh (test tự dựng cả hai phía cùng lúc
 không thấy gì). `version` canh định dạng nhị phân, không canh nội dung
 còn nghĩa hay không — cần một chiều canh gác thứ hai: dấu vân tay của thứ
 đã sinh ra dữ liệu. Trường `tokenizer` (lưu `Tokenizer.name()`) là chiều canh
-gác đó — xem mục 20.
+gác đó — xem mục 42.
 
-### 16.7 importData — hai cái bẫy khi nạp từ file
+### 29.2 importData — hai cái bẫy khi nạp từ file
 
 Một, phải intern lại khoá: Jackson đọc JSON và tạo một `String` mới cho mỗi
 khoá — nếu không `intern` lại, kho Flyweight rỗng và mọi lợi ích của
@@ -1582,7 +1661,7 @@ Lưu ý: `addDocument` không gọi `recomputeDerivedState` — nó cập nhật
 `totalTokens`/`lastDocId` trực tiếp (tăng dần O(1) thay vì O(N) mỗi tài
 liệu). "Một nơi duy nhất" thật ra là hai nơi phải luôn khớp nhau.
 
-### 16.8 getAllDocuments/getAllTerms — bọc, không sao chép
+### 29.3 getAllDocuments/getAllTerms — bọc, không sao chép
 
 ```java
 public Map<Integer, WebDocument> getAllDocuments() {
@@ -1597,7 +1676,11 @@ phá huỷ trạng thái chỉ mục. `unmodifiableMap` là lớp bọc mỏng (
 về danh sách thật, sửa được — một lời gọi `sort()`/`remove()` vô ý ở tầng
 truy vấn sẽ phá bất biến vĩnh viễn; đây là khoảng hở chưa được vá.
 
-### 16.9 LinkedHashMap, không HashMap — cho tính tất định
+---
+
+## 30. `LinkedHashMap` và bảng bộ nhớ chỉ mục
+
+### 30.1 LinkedHashMap, không HashMap — cho tính tất định
 
 Cả bốn bản đồ chính (`index`, `documents`, `docLength`, `bodyTexts`) đều là
 `LinkedHashMap`. Giữ thứ tự chèn khi duyệt ⇒ `exportData` ghi ra file theo thứ
@@ -1605,7 +1688,7 @@ tự ổn định ⇒ hai lần build cùng dữ liệu cho file giống nhau �
 phân hai lần build có nghĩa (git diff có ý nghĩa). Chi phí: +8 byte/mục
 (~1 MB với 136.768 khoá) — đổi lấy tính tất định.
 
-### 16.10 Bảng bộ nhớ chỉ mục — corpus 2.518 trang
+### 30.2 Bảng bộ nhớ chỉ mục — corpus 2.518 trang
 
 ```
    Posting (1,59 trieu x 32 byte)         =  51 MB
@@ -1625,14 +1708,16 @@ phân hai lần build có nghĩa (git diff có ý nghĩa). Chi phí: +8 byte/m�
 
 ---
 
-# PHẦN IV — TẦNG NÉN
+# PHẦN VII — TẦNG NÉN SỐ NGUYÊN
 
-Chỉ mục trong RAM (PHẦN III) đủ nhanh để phục vụ truy vấn, nhưng chưa đủ nhỏ để
+Chỉ mục trong RAM (PHẦN IV–VI) đủ nhanh để phục vụ truy vấn, nhưng chưa đủ nhỏ để
 ghi ra đĩa và nạp lại nhanh. PHẦN này mổ xẻ ba lớp chỉ hoạt động ở biên
 ghi-ra-đĩa (`persistIndex`/`load`), không nằm trên đường đi của một truy vấn
 đang chạy.
 
-## 17. VByteCodec — varint, delta encoding
+---
+
+## 31. `VByteCodec` — varint, delta encoding
 
 File: `VByteCodec.java` (241 dòng, lớp tiện ích, chỉ hàm tĩnh, không trạng
 thái). Hai kỹ thuật xếp chồng, kỹ thuật thứ nhất là điều kiện để kỹ thuật thứ
@@ -1654,7 +1739,7 @@ hai có tác dụng:
       Thieu (1) thi (2) gan nhu vo dung: docId 4.000 van ton 2 byte.
 ```
 
-### 17.1 Định dạng varint — đọc từng bit
+### 31.1 Định dạng varint — đọc từng bit
 
 ```
    MOI BYTE:   [ co | 7 bit du lieu ]
@@ -1684,7 +1769,9 @@ vòng lặp vô hạn; `>>> 7` dịch bit không dấu → kết thúc sau 5 lư
 hoá số không âm nên trường hợp này bị chặn ở tầng trên, nhưng viết `>>>` khiến
 vòng lặp không thể vô hạn kể cả khi hàng rào đó hỏng.
 
-### 17.2 readVInt — đóng gói hai giá trị vào một long
+---
+
+## 32. `readVInt` — đóng gói hai giá trị vào một long
 
 ```java
 private static long readVInt(byte[] data, int position) {
@@ -1712,7 +1799,11 @@ giải gói ở nơi gọi (`packed & 0xFFFFFFFFL` rồi `packed >>> 32`) với 
 phát. `shift > 28` chặn dữ liệu hỏng tràn im lặng thành số vô nghĩa (int 32-bit
 cần tối đa 5 byte VByte, `shift` = 0,7,14,21,28).
 
-### 17.3 encodeSegments — vì sao vị trí cần một hàm riêng
+---
+
+## 33. `encodeSegments` và hai hàng rào trong `encodeSorted`
+
+### 33.1 encodeSegments — vì sao vị trí cần một hàm riêng
 
 Vị trí (`positions`) reset về 0 ở mỗi tài liệu. Nối rồi delta hoá một lần sẽ
 sinh delta âm ở ranh giới posting (VByte không mã hoá được số âm — `encodeSorted`
@@ -1726,12 +1817,12 @@ sẽ ném). `encodeSegments` reset `previous = 0` ở **mỗi đoạn**:
 
 `decodeSegments` đọc **tuần tự**: sau khi đọc xong đoạn `i`, con trỏ byte tự
 đứng ở đầu đoạn `i+1` — không cần lưu vị trí byte của từng đoạn, chỉ cần biết
-số phần tử mỗi đoạn (mà `CompressedPostings` đã suy được từ `offsets`, mục 18).
+số phần tử mỗi đoạn (mà `CompressedPostings` đã suy được từ `offsets`, mục 35).
 Cái giá: **không truy cập ngẫu nhiên được** — muốn đọc đoạn thứ 500 phải giải
 mã 500 đoạn trước đó. Chấp nhận được vì `CompressedPostings.toPostings` luôn
 giải nén cả posting list một lượt.
 
-### 17.4 Hai hàng rào trong encodeSorted
+### 33.2 Hai hàng rào trong encodeSorted
 
 ```java
 if (value < 0) { throw new IllegalArgumentException("VByte chỉ mã hoá số không âm, gặp: " + value); }
@@ -1741,11 +1832,13 @@ if (i > 0 && value < previous) {
 ```
 
 Cùng triết lý ép bất biến tại điểm nó bị vi phạm (đã gặp ở `InvertedIndex.lastDocId`,
-mục 16, và `CompressedPostings.of`, mục 18): nếu không có hàng rào thứ hai, dãy
+mục 23, và `CompressedPostings.of`, mục 35): nếu không có hàng rào thứ hai, dãy
 `[10, 5]` sẽ sinh delta `-5`, ghi ra 5 byte rác, và giải nén cho ra số rất lớn
 — **dữ liệu sai, không lỗi nào được ném**.
 
-### 17.5 Số đo thật (Javadoc gốc của lớp, đã đối chiếu với corpus)
+---
+
+## 34. Số đo thật của VByte
 
 ```
    Term "cong_nghe": 1.639 muc trai deu tren 5.011 tai lieu
@@ -1766,7 +1859,7 @@ không xảy ra.
 
 ---
 
-## 18. CompressedPostings — nén posting list
+## 35. `CompressedPostings` — hai ý tưởng nền
 
 File: `CompressedPostings.java` (152 dòng, `record` với ba mảng `byte[]`).
 
@@ -1785,7 +1878,7 @@ record CompressedPostings(int count, byte[] docIds, byte[] offsets, byte[] posit
 
 `termFrequency`: KHÔNG CÓ trường riêng. Nó được suy lại lúc giải nén.
 
-### 18.1 Ý tưởng 1 — bỏ hẳn termFrequency (chứng minh nó thừa)
+### 35.1 Ý tưởng 1 — bỏ hẳn termFrequency (chứng minh nó thừa)
 
 > Cách rẻ nhất để nén một trường không phải là tìm thuật toán tốt hơn, mà là
 > chứng minh trường đó thừa — tỉ lệ nén của việc bỏ hẳn là vô hạn.
@@ -1814,7 +1907,7 @@ Mỗi lần bỏ dữ liệu vì "suy lại được", ta đang biến một GI�
 THUỘC CỨNG. Giả định sai ⇒ dữ liệu sai im lặng. Phải ép giả định đó tại điểm
 nén, không phải hy vọng nó đúng.
 
-### 18.2 Ý tưởng 2 — tổng tích luỹ biến dãy bất kỳ thành dãy đơn điệu
+### 35.2 Ý tưởng 2 — tổng tích luỹ biến dãy bất kỳ thành dãy đơn điệu
 
 ```
    tf moi posting  : [3, 1, 2, 5]         <- KHONG tang dan
@@ -1835,7 +1928,11 @@ mặc định của mảng `int` mới) và cuối, để mọi `i` (kể cả p
 `sizes[i] = offsets[i+1] - offsets[i]` mà không cần nhánh `if` riêng cho
 trường hợp biên. Cùng ý tưởng "nút canh biên" (sentinel) đã gặp ở `LRUCache`.
 
-### 18.3 Vì sao không dùng GZIP toàn file cho xong
+---
+
+## 36. Vì sao không dùng GZIP toàn file, và vòng tròn khép kín
+
+### 36.1 Vì sao không dùng GZIP toàn file cho xong
 
 > GZIP nén tốt hơn và tốn ba dòng code, nhưng phá vỡ một tính chất quan trọng
 > hơn tỉ lệ nén: đọc MỘT term thì phải giải nén TOÀN BỘ file.
@@ -1853,7 +1950,7 @@ trường hợp biên. Cùng ý tưởng "nút canh biên" (sentinel) đã gặp
 Xem thêm bảng so sánh trực diện ở mục 7 (`CompressedText` chọn ngược lại —
 đúng vì đọc trọn vẹn một tài liệu, không phải một phần).
 
-### 18.4 of/toPostings — vòng tròn khép kín
+### 36.2 of/toPostings — vòng tròn khép kín
 
 ```java
 // of(): tf -> bỏ đi (vì == positions.length)
@@ -1861,11 +1958,13 @@ Xem thêm bảng so sánh trực diện ở mục 7 (`CompressedText` chọn ng�
 ```
 
 `toPostings(of(x)).equals(x)` cho mọi `x` thoả bất biến 3 — và phép so sánh
-này chỉ đúng nhờ `equals` tự viết của `Posting` (mục 12.2). Với `equals` sinh
+này chỉ đúng nhờ `equals` tự viết của `Posting` (mục 17.2). Với `equals` sinh
 sẵn của record, phép kiểm chứng vòng tròn quan trọng nhất của cả tầng nén sẽ
 luôn `false`.
 
-### 18.5 Tỉ lệ nén ước lượng — corpus 5.011 tài liệu
+---
+
+## 37. Tỉ lệ nén ước lượng — corpus 5.011 tài liệu
 
 ```
    -- THO --
@@ -1894,12 +1993,16 @@ Phần tiết kiệm lớn nhất thật ra không phải nén, mà là xoá b�
 
 ---
 
-## 19. CompressedText — nén thân bài
+# PHẦN VIII — TẦNG NÉN VĂN BẢN
+
+---
+
+## 38. `CompressedText` — nén thân bài
 
 File: `CompressedText.java` (88 dòng, lớp tiện ích, chỉ hàm tĩnh). Hai hàm tĩnh
 bọc quanh `Deflater`/`Inflater` của JDK, nhưng ba quyết định đáng đọc kỹ.
 
-### 19.1 Giữ trong bộ nhớ (đã nén), không đọc theo yêu cầu từ CSDL
+### 38.1 Giữ trong bộ nhớ (đã nén), không đọc theo yêu cầu từ CSDL
 
 Xếp hạng không cần thân bài — điểm số tính từ posting list. Chỉ MỘT chỗ cần:
 sinh đoạn trích cho top-10 thật sự trả về. Nhưng "chỉ 10 tài liệu" chỉ biết
@@ -1913,7 +2016,7 @@ Chi phí: ~2.518 tài liệu × ~2 KB nén ≈ 5 MB — rẻ tới mức không 
 Đây là quyết định về trải nghiệm người phát triển/người chấm đồ án, không phải
 về hiệu năng thuần tuý.
 
-### 19.2 Deflater thô, không phải GZIP
+### 38.2 Deflater thô, không phải GZIP
 
 ```
    GZIP = deflate + 10 byte header + 8 byte trailer   (18 byte MOI LAN goi)
@@ -1925,7 +2028,7 @@ về hiệu năng thuần tuý.
    Deflate tho khong co van de do (test tatDinh canh giu dieu nay).
 ```
 
-### 19.3 Vì sao dùng nén tổng quát ở đây mà KHÔNG dùng ở CompressedPostings
+### 38.3 Vì sao dùng nén tổng quát ở đây mà KHÔNG dùng ở CompressedPostings
 
 ```
    CompressedPostings: co y KHONG dung nen tong quat
@@ -1942,7 +2045,9 @@ về hiệu năng thuần tuý.
 được đọc như thế nào?" — đọc ngẫu nhiên từng phần thì nén từng phần độc lập;
 đọc trọn vẹn một lần thì nén tổng quát, tỉ lệ tốt nhất.
 
-### 19.4 `deflater.end()` — dòng dễ quên nhất trong lập trình Java
+---
+
+## 39. `deflater.end()` — dòng dễ quên nhất trong lập trình Java
 
 ```java
 } finally {
@@ -1971,7 +2076,11 @@ nó. `finally { deflater.end(); }` là bắt buộc, không phải phòng thủ 
 `InflaterInputStream` **tự tạo** `Inflater` bên trong nên tự dọn — sự bất đối
 xứng này là đúng, không phải thiếu sót.
 
-### 19.5 UTF-8 tường minh — chống hỏng dấu khi triển khai đa nền tảng
+---
+
+## 40. UTF-8 tường minh và mức nén 6
+
+### 40.1 UTF-8 tường minh — chống hỏng dấu khi triển khai đa nền tảng
 
 ```
    text.getBytes()      -> bảng mã MẶC ĐỊNH của JVM (phụ thuộc HĐH)
@@ -1984,7 +2093,7 @@ xứng này là đúng, không phải thiếu sót.
       = văn bản tiếng Việt HỎNG DẤU hoàn toàn
 ```
 
-### 19.6 Mức nén 6 — vì sao là mặc định
+### 40.2 Mức nén 6 — vì sao là mặc định
 
 ```
    Muc   Ti le nen   Toc do nen    Toc do GIAI nen
@@ -1996,7 +2105,9 @@ xứng này là đúng, không phải thiếu sót.
    thu nam tren duong nguoi dung cho (nen chi chay MOT lan luc build).
 ```
 
-### 19.7 Bộ nhớ tiết kiệm được
+---
+
+## 41. Bộ nhớ tiết kiệm được
 
 ```
    2.518 tai lieu x ~8 KB than bai  =  20,1 MB tho
@@ -2008,7 +2119,7 @@ xứng này là đúng, không phải thiếu sót.
 
 ---
 
-# PHẦN V — BỀN VỮNG HOÁ VÀ ĐIỀU PHỐI
+# PHẦN IX — BỀN VỮNG HOÁ CHỈ MỤC
 
 Ba lớp cuối cùng khép lại vòng đời: `IndexPersistence` ghi/đọc chỉ mục nén ra
 đĩa, `IndexBuilder` điều phối việc dựng chỉ mục (song song hoá đúng phần đáng
@@ -2016,14 +2127,18 @@ song song hoá), và `SearchEngineFacade` dệt tất cả — từ điển, tok
 chỉ mục, tầng nén, tầng bền vững hoá — thành một phiên khởi động backend hoàn
 chỉnh, cộng với đường B khi hệ thống đang chạy.
 
-## 20. IndexPersistence — ghi/đọc chỉ mục, hai hàng rào
+---
+
+## 42. `IndexPersistence` — ghi/đọc chỉ mục, hai hàng rào
 
 File: `IndexPersistence.java` (223 dòng). Ba việc: lưu/nạp chỉ mục ra JSON
 (posting list đã nén VByte, ghi thay vì crawl+index lại mỗi lần khởi động);
 hai hàng rào khi nạp (đều chống lỗi im lặng); và đo ba mốc thay vì hai (bài
 học phương pháp đáng học nhất của cả file).
 
-### 20.1 Hàng rào 1 — phiên bản định dạng
+---
+
+## 43. Hàng rào 1 — phiên bản định dạng
 
 ```java
 try {
@@ -2053,7 +2168,9 @@ phiên bản cũ"), **so với cái gì** ("mã nguồn hiện tại đọc đ�
 **vì sao không tự sửa được** ("hai định dạng KHÔNG đọc lẫn nhau được"), **phải
 làm gì** ("xoá file này đi").
 
-### 20.2 Hàng rào 2 — tokenizer (hiện thực hoá Bất biến 2)
+---
+
+## 44. Hàng rào 2 — tokenizer (hiện thực hoá Bất biến 2)
 
 ```java
 private static void checkTokenizerMatches(String path, String stored, Tokenizer current)
@@ -2076,7 +2193,7 @@ private static void checkTokenizerMatches(String path, String stored, Tokenizer 
 }
 ```
 
-Đây chính là hàng rào ứng phó trực tiếp với sự cố thật đã nêu ở mục 16.6 —
+Đây chính là hàng rào ứng phó trực tiếp với sự cố thật đã nêu ở mục 29.1 —
 đề xuất trong tài liệu `Tokenizer` đã được thực hiện. Ba trạng thái, ba cách
 xử lý khác nhau, và sự khác biệt đó là dấu hiệu của mã trưởng thành:
 
@@ -2093,7 +2210,9 @@ mục từ corpus gốc. Chỉ mục dựng sẵn là **cache dẫn xuất**, kh
 thật — vứt đi rồi làm lại luôn là hành vi đúng. Ghi log rồi chạy tiếp mới là
 sai: hệ thống sẽ chạy với một chỉ mục không dùng được.
 
-### 20.3 ★ Bài học phương pháp: đo ba mốc, không phải hai
+---
+
+## 45. ★ Bài học phương pháp: đo ba mốc, không phải hai
 
 > File cũ vừa không nén vừa thụt dòng (`INDENT_OUTPUT`). Gộp cả hai rồi báo
 > một con số sẽ quy nhầm công của thụt dòng cho phần nén.
@@ -2120,7 +2239,9 @@ vì đo một lần rồi xoá — để con số trong tài liệu tái lập �
 `RawIndexData` là package-private và `saveRaw` là `private`, không lọt ra API
 công khai, nên "mã đo" không thể bị nhầm là "mã sản phẩm".
 
-### 20.4 Base64 có làm mất hết lợi ích nén không
+---
+
+## 46. Base64 có làm mất hết lợi ích nén không
 
 Jackson mã hoá `byte[]` sang base64 khi ghi JSON — phí cố định 4/3 (+33%). So
 sánh đúng không phải với dạng nhị phân lý tưởng, mà với **định dạng thay thế
@@ -2132,7 +2253,9 @@ thật sự** (ghi số nguyên dưới dạng JSON):
    => 5 byte -> 1,33 byte, van giam ~73%
 ```
 
-### 20.5 Hai hàm `load` — quá tải có chủ ý
+---
+
+## 47. Hai hàm `load` — quá tải có chủ ý
 
 ```java
 public static InvertedIndex load(String path, Tokenizer tokenizer) throws IOException  // đường ĐÚNG cho ứng dụng
@@ -2147,7 +2270,9 @@ mà `QueryParser` đang dùng. Với tokenizer hiện tại vô hại (không tr
 cùng từ điển dùng chung qua lazy holder), nhưng nó là cửa sau cho đúng lỗi mà
 hàng rào sinh ra để chặn — nên đường sản phẩm luôn phải dùng `load(path, tokenizer)`.
 
-### 20.6 So sánh thời gian khởi động — vì sao lớp này tồn tại
+---
+
+## 48. So sánh thời gian khởi động — vì sao lớp này tồn tại
 
 ```
    -- KHONG co file chi muc --                -- CO file chi muc --
@@ -2162,7 +2287,11 @@ hàng rào sinh ra để chặn — nên đường sản phẩm luôn phải dù
 
 ---
 
-## 21. IndexBuilder — song song hoá theo lô
+# PHẦN X — DỰNG CHỈ MỤC VÀ ĐIỀU PHỐI
+
+---
+
+## 49. `IndexBuilder` — song song hoá theo lô
 
 File: `backend/java/libs/core-search/src/main/java/com/vnsearch/service/IndexBuilder.java`
 (136 dòng).
@@ -2173,7 +2302,7 @@ File: `backend/java/libs/core-search/src/main/java/com/vnsearch/service/IndexBui
 > `GinBaselineRunner`), mỗi nơi tự nhớ sort. Quên một chỗ là hệ thống trả kết
 > quả SAI một cách im lặng.
 
-### 21.1 Hai hằng số
+### 49.1 Hai hằng số
 
 ```java
 private static final int BATCH_SIZE = 512;
@@ -2189,7 +2318,9 @@ token sống cùng lúc bị chặn ở kích thước một lô, không phải 
 song song lớn hơn chính công việc — giữ cho các bài kiểm thử (thường 2–3 tài
 liệu) không phải trả giá đó.
 
-### 21.2 build() — cấp lại docId, không tin số có sẵn
+---
+
+## 50. `build()` — cấp lại docId, không tin số có sẵn
 
 ```java
 public InvertedIndex build(List<WebDocument> documents) {
@@ -2224,7 +2355,9 @@ idempotent (gọi hai lần cùng docId sẽ tạo posting trùng, và bị ch�
 bất biến 1), và việc dựng lại chỉ tốn vài giây — không đáng đánh đổi tính đúng
 đắn.
 
-### 21.3 buildInBatches — tách từ song song, nạp tuần tự
+---
+
+## 51. `buildInBatches` — tách từ song song, nạp tuần tự
 
 ```java
 private void buildInBatches(InvertedIndex index, List<WebDocument> sorted) {
@@ -2249,7 +2382,7 @@ private void buildInBatches(InvertedIndex index, List<WebDocument> sorted) {
 khởi động, và gần như toàn bộ thời gian đó nằm ở phép tách từ — một công việc
 thuần tính toán, không chạm I/O, và **độc lập giữa các tài liệu**. Điều kiện
 để song song hoá an toàn: `VietnameseTokenizer` bất biến sau khi dựng (mọi
-trường `final`, từ điển và trie chỉ đọc — mục 11.6), nên nhiều luồng gọi
+trường `final`, từ điển và trie chỉ đọc — mục 16.6), nên nhiều luồng gọi
 `tokenize` cùng lúc là an toàn; nhưng phép **nạp** vào chỉ mục không thể song
 song — nó phải theo đúng thứ tự docId tăng dần (bất biến 1). Nên chỉ bước tách
 từ được chia ra nhiều nhân, còn bước nạp vẫn chạy tuần tự trên luồng gọi.
@@ -2268,11 +2401,11 @@ tính từ phần tách từ chiếm ưu thế).
 
 ---
 
-## 22. SearchEngineFacade.init() — dệt tất cả lại thành một phiên khởi động
+## 52. `SearchEngineFacade.init()` — dệt tất cả lại thành một phiên khởi động
 
 File: `SearchEngineFacade.java` (497 dòng, `@Service`). Đây là điểm vào thật
 sự của tầng dựng chỉ mục — không phải một script, mà một khối trong vòng đời
-Spring, dệt PHẦN II–V lại thành một chuỗi hành động cụ thể.
+Spring, dệt PHẦN II–VIII lại thành một chuỗi hành động cụ thể.
 
 ```java
 public SearchEngineFacade(Tokenizer tokenizer, IndexBuilder indexBuilder, …) {
@@ -2303,7 +2436,9 @@ Constructor tiêm **đúng một** `tokenizer` (bean Spring singleton) vào cả
 `QueryParser` — hiện thực hoá Bất biến 2 ở mức tổ chức mã, không chỉ ở mức
 quy ước.
 
-### 22.1 loadCorpus() — chuỗi dữ liệu, không phải chuỗi `else if`
+---
+
+## 53. `loadCorpus()` — chuỗi dữ liệu, không phải chuỗi `else if`
 
 ```java
 private void loadCorpus() throws IOException {
@@ -2362,11 +2497,13 @@ private List<DocumentStore> buildStoreChain() {
 ```
 
 Chain of Responsibility với ba tầng dự phòng: PostgreSQL (tắt mặc định, để
-chạy được không cần CSDL — cùng triết lý với `CompressedText` mục 19.1) →
+chạy được không cần CSDL — cùng triết lý với `CompressedText` mục 38.1) →
 `crawled-documents.json` (corpus thật) → `seed-documents.json` (40 tài liệu
 mẫu đi kèm repo, để người vừa clone chạy được ngay).
 
-### 22.2 persistIndex() — ghi chỉ mục ra đĩa, và món nợ từng tồn tại
+---
+
+## 54. `persistIndex()` — ghi chỉ mục ra đĩa, và món nợ từng tồn tại
 
 ```java
 private void persistIndex() {
@@ -2395,7 +2532,9 @@ dẫn xuất, không phải nguồn sự thật — đĩa đầy hay không có 
 dụng vẫn phải phục vụ được, chỉ là lần sau khởi động lại chậm. Vì vậy ngoại lệ
 được bắt hết tại đây thay vì để nó nổi lên.
 
-### 22.3 refreshDerivedState() — mọi thứ phụ thuộc vào chỉ mục
+---
+
+## 55. `refreshDerivedState()` — mọi thứ phụ thuộc vào chỉ mục
 
 ```java
 private void refreshDerivedState() {
@@ -2435,14 +2574,18 @@ nhất cho mọi thứ phụ thuộc vào chỉ mục:
 ★ `CorpusStats` lấy độ dài tài liệu từ `current.getDocLength(docId)` — số
 token, $O(1)$ vì đã có sẵn trong `InvertedIndex.docLength` — **không** đo độ
 dài chuỗi `bodyText`: `WebDocument` trong chỉ mục không mang thân bài
-(`withoutBodyText()`, mục 16.3), nên đo độ dài chuỗi ở đây sẽ cho ra 0 cho mọi
+(`withoutBodyText()`, mục 26), nên đo độ dài chuỗi ở đây sẽ cho ra 0 cho mọi
 tài liệu. Một lượt duyệt toàn bộ corpus (có giải nén thân bài) không được phép
 nằm trên đường đi của một request hiển thị bảng điều khiển — số liệu mô tả
 corpus được tính sẵn ngay lúc dựng chỉ mục, không tính lại mỗi lần gọi.
 
 ---
 
-## 23. POST /api/admin/reindex — dựng lại chỉ mục khi đang chạy
+# PHẦN XI — DỰNG LẠI CHỈ MỤC KHI ĐANG CHẠY
+
+---
+
+## 56. `POST /api/admin/reindex` — dựng lại chỉ mục khi đang chạy
 
 **File:** `AdminController.java` (`backend/java/services/crawler-service/...`) và
 `SearchEngineFacade.reindex()`.
@@ -2469,7 +2612,9 @@ mục **trong tiến trình gọi nó** — chỉ mục mà `search-service` đa
 đúng là phát sự kiện `index.rebuilt` lên Kafka để `search-service` tự nạp lại
 — **chưa làm**.
 
-### 23.1 reindex() — đọc lại từ đĩa thay vì giữ bản trong bộ nhớ
+---
+
+## 57. `reindex()` — đọc lại từ đĩa thay vì giữ bản trong bộ nhớ
 
 ```java
 public void reindex() throws IOException {
@@ -2504,7 +2649,9 @@ giảm một byte nào. Đổi lại là một lần đọc đĩa mỗi khi gọ
 `/api/admin/reindex` — đánh đổi đúng, vì reindex không nằm trên đường chạy của
 truy vấn.
 
-### 23.2 ★★ Vì sao `search()` chụp biến cục bộ một lần
+---
+
+## 58. ★★ Vì sao `search()` chụp biến cục bộ một lần
 
 ```java
 public SearchResponse search(String rawQuery, int page, int size) {
@@ -2562,16 +2709,105 @@ sequenceDiagram
 
 ---
 
-# PHẦN VI — ĐỐI CHIẾU OUTPUT THẬT
+# PHẦN XII — ĐỐI CHIẾU OUTPUT THẬT
 
 Toàn bộ số liệu trong PHẦN này lấy từ việc chạy trực tiếp mã nguồn đã biên
 dịch sẵn của dự án (`backend/java/libs/core-search/target/classes`,
 `backend/java/libs/core-common/target/classes`) trên `java 21.0.12`, không bịa.
 
-## 24. Trace tokenizer trên câu thật của corpus
+---
+
+## 59. Tổng quan tệp `index.json`
+
+**Tệp:** `backend/data/index.json` — **510.099.435 byte (486,5 MB)**, sinh ra bởi
+`IndexPersistence.save` sau một phiên dựng chỉ mục trên corpus 39.780 trang.
+
+Toàn bộ tệp là **một đối tượng JSON duy nhất**: bản ghi `InvertedIndex.IndexData`
+với sáu trường, Jackson ghi theo đúng thứ tự khai báo của `record`:
+
+```java
+record IndexData(int version, String tokenizer,
+                  Map<String, CompressedPostings> index,
+                  Map<Integer, WebDocument> documents,
+                  Map<Integer, byte[]> bodyTexts,
+                  Map<Integer, Integer> docLength) {
+}
+```
+
+### 59.1 Bản đồ byte của tệp
+
+Bốn khối lớn, đo bằng vị trí byte thật của từng khoá trong tệp:
+
+```
+   OFFSET          KHỐI              KÍCH THƯỚC        TỈ LỆ
+   ─────────────────────────────────────────────────────────
+   0               "version"         }
+                   "tokenizer"       }  118 byte        0,00 %   ← hai hàng rào (mục 43, 44)
+   118             "index"              123,2 MB       25,3 %   ← posting list đã nén
+   129.198.151     "documents"          221,5 MB       45,5 %   ← siêu dữ liệu, KHÔNG có thân bài
+   361.468.516     "bodyTexts"          141,3 MB       29,0 %   ← thân bài Deflate + base64
+   509.622.368     "docLength"          466 KB          0,09 %  ← số token mỗi tài liệu
+   510.099.435     (hết tệp)
+```
+
+| Khối | Byte | Số mục | Trung bình mỗi mục |
+|---|---:|---:|---:|
+| `index` | 129.198.033 | **7.011 term** | 18,4 KB / term |
+| `documents` | 232.270.365 | **39.780 tài liệu** | 5,7 KB / tài liệu |
+| `bodyTexts` | 148.153.852 | 39.780 tài liệu | 3,6 KB / tài liệu |
+| `docLength` | 477.067 | 39.780 tài liệu | 12 byte / tài liệu |
+
+### 59.2 Ba quan sát rút ra ngay từ bảng trên
+
+**★ Tệp chỉ mục (486,5 MB) LỚN HƠN corpus sinh ra nó (`crawled-documents.json`,
+486.747.725 byte = 464,2 MB).** Điều này thoạt nghe vô lý với một tệp "đã nén",
+nhưng đúng: chỉ mục chứa **ba** biểu diễn của cùng một corpus — posting list,
+siêu dữ liệu tài liệu, và thân bài — trong khi corpus chỉ chứa hai (siêu dữ liệu
+và thân bài, cả hai đều **không nén**). Phần thêm vào là `index` (123,2 MB);
+phần bù lại là `bodyTexts` nén xuống còn 141,3 MB. Cộng trừ ra hơn 22 MB.
+
+**`documents` chiếm gần một nửa tệp mà không hề chứa thân bài.** `addDocument`
+gọi `doc.withoutBodyText()` trước khi cất (mục 26), nên 5,7 KB trung bình mỗi
+tài liệu ở đây là URL, tiêu đề, mô tả, ngôn ngữ, dấu thời gian — và **outlinks**,
+thứ chiếm phần lớn. Đây là khối đáng tấn công tiếp theo nếu cần giảm dung lượng,
+không phải posting list.
+
+**Chỉ có 7.011 term cho 39.780 tài liệu.** Không phải lỗi: `MaxWeightSegmenter`
+chỉ sinh ra term thuộc từ điển 49.793 mục (mục 8), stopword đã bị loại (91 từ),
+và corpus báo chí tiếng Việt dùng đi dùng lại một vốn từ hẹp. Hệ quả trực tiếp:
+posting list **rất dài** (trung bình 18,4 KB/term sau nén), nên `skipTo` galloping
+(mục 18) và thứ tự shortest-first khi giao tập là các tối ưu có ích thật, không
+phải trang trí.
+
+### 59.3 Hai trường đầu tệp — đọc nguyên văn
+
+118 byte đầu tiên của tệp, không rút gọn:
+
+```json
+{"version":3,"tokenizer":"VietnameseTokenizer(MaxWeightDP, maxSyllables=4, dict=49793 (40390 tu ghep), stopwords=91)","index":{...
+```
+
+| Trường | Giá trị thật | Kiểm tra ở đâu |
+|---|---|---|
+| `version` | `3` | `IndexPersistence.load` đọc **trước** khi Jackson dựng object (mục 43) |
+| `tokenizer` | chuỗi trên | so khớp với `tokenizer.name()` lúc nạp (mục 44) |
+
+Chuỗi `tokenizer` mang sẵn **kích thước từ điển** (`dict=49793`, trong đó 40.390 từ
+ghép) và **số stopword** (`91`). Đó là chủ ý: mọi thay đổi đáng kể ở tầng tách từ
+đều làm chuỗi này khác đi, nên Bất biến 2 (mục 2) được kiểm tra bằng một phép so
+sánh chuỗi duy nhất chứ không cần lưu cả từ điển vào chỉ mục.
+
+⚠ Các mục 30, 37 và 48 trích số liệu của corpus **2.518 / 5.011 trang** — bộ dữ
+liệu dùng khi những phần đó được viết. Mục 59 này đo trên corpus **39.780 trang**
+hiện tại. Hai bộ số không mâu thuẫn, chỉ khác quy mô; tỉ lệ (%) mới là thứ so
+sánh được giữa chúng.
+
+---
+
+## 60. Trace tokenizer trên câu thật của corpus
 
 Ba câu dưới lấy nguyên văn từ `backend/data/seed-documents.json` (40 tài liệu,
-296 KB — corpus mẫu đi kèm repo, chính là tầng cuối của `buildStoreChain()`).
+289 KB — corpus mẫu đi kèm repo, chính là tầng cuối của `buildStoreChain()`).
 
 ```
 === VietnameseTokenizer(MaxWeightDP, maxSyllables=4, dict=49793 (40390 tu ghep), stopwords=91) ===
@@ -2581,9 +2817,9 @@ Chú ý con số thật khi chạy: `dict=49793` (không phải 49.644 hay 49.80
 mục **sau khi nạp cả hai tệp và loại trùng lặp** khác số dòng tệp thô),
 `40390 từ ghép`, `91 từ dừng` (không phải 99 dòng tệp — một số dòng có thể là
 chú thích hoặc dòng trống bị bỏ qua khi nạp). Đây chính là kiểu lệch số liệu
-mà mục 28 (FAQ) giải thích.
+mà mục 68 (FAQ) giải thích.
 
-### 24.1 Câu 1 — "Việt Nam xác định đối thủ ở FIFA ASEAN Cup 2026"
+### 60.1 Câu 1 — "Việt Nam xác định đối thủ ở FIFA ASEAN Cup 2026"
 
 (lấy từ outlink text trong `seed-documents.json`, tài liệu docId=0)
 
@@ -2602,7 +2838,11 @@ mà mục 28 (FAQ) giải thích.
 nào xuất hiện: "ở" không nằm trong danh sách 91 từ dừng đã nạp). Ba từ ghép
 2 âm tiết được nhận diện đúng: `việt_nam`, `xác_định`, `đối_thủ`.
 
-### 24.2 Câu 2 — "Ông Trump dọa đánh Iran tơi bời"
+---
+
+## 61. Hai câu còn lại — tên riêng và câu dài
+
+### 61.1 Câu 2 — "Ông Trump dọa đánh Iran tơi bời"
 
 | Vị trí | `term` | `noDiacriticTerm` |
 |---|---|---|
@@ -2614,10 +2854,10 @@ nào xuất hiện: "ở" không nằm trong danh sách 91 từ dừng đã nạ
 | 5 | `tơi_bời` | `toi_boi` |
 
 `tơi_bời` được ghép đúng thành một từ 2 âm tiết (thành ngữ) — minh hoạ trực
-tiếp cho ví dụ trace `MaxWeightSegmenter` ở mục 10: quy hoạch động chọn cách
+tiếp cho ví dụ trace `MaxWeightSegmenter` ở mục 13: quy hoạch động chọn cách
 tách có tổng trọng số cao hơn thay vì tách lẻ "tơi" + "bời".
 
-### 24.3 Câu 3 — "Cựu trưởng công an phường bỏ trốn sau vụ nhận tiền giải cứu dân chơi ma túy"
+### 61.2 Câu 3 — "Cựu trưởng công an phường bỏ trốn sau vụ nhận tiền giải cứu dân chơi ma túy"
 
 (lấy từ tiêu đề tài liệu trong `seed-documents.json`)
 
@@ -2637,7 +2877,7 @@ tách có tổng trọng số cao hơn thay vì tách lẻ "tơi" + "bời".
 | 10 | `dân_chơi` | ghép 2 âm tiết |
 | 11 | `ma_túy` | ghép 2 âm tiết |
 
-★ Đây là ví dụ **thật, không dựng sẵn**, của mục 11.4: tiếng "sau" bị lọc vì
+★ Đây là ví dụ **thật, không dựng sẵn**, của mục 16.4: tiếng "sau" bị lọc vì
 nó là từ dừng một tiếng, và vị trí của các token sau nó (`vụ` → 6, không phải
 7) chứng minh trực tiếp quy tắc "vị trí chỉ tăng cho token được giữ lại" —
 nếu đếm cả token bị lọc, `vụ` sẽ phải mang vị trí 7 và phép tìm cụm từ (dựa
@@ -2645,7 +2885,7 @@ trên khoảng cách vị trí = 1) sẽ tính sai khoảng cách giữa "trốn
 
 ---
 
-## 25. Trace posting list nén ra byte cụ thể
+## 62. Trace posting list nén ra byte cụ thể
 
 Ba posting giả lập (đại diện đúng hình dạng dữ liệu thật — term xuất hiện
 trong nhiều tài liệu, nhiều vị trí mỗi tài liệu) được đưa qua
@@ -2670,7 +2910,7 @@ totalBytes=15
 roundtrip equals=true
 ```
 
-### 25.1 Giải mã `docIds = 03 04 0C`
+### 62.1 Giải mã `docIds = 03 04 0C`
 
 ```
    docId goc:  3, 7, 19
@@ -2684,7 +2924,11 @@ roundtrip equals=true
    => 3 so nguyen 32-bit (12 byte tho) nen con 3 byte — giam 75%
 ```
 
-### 25.2 Giải mã `offsets = 00 03 01 04`
+---
+
+## 63. Giải mã `offsets` và `positions`
+
+### 63.1 Giải mã `offsets = 00 03 01 04`
 
 ```
    So vi tri moi posting: 3, 1, 4   (KHONG tang dan tu nhien)
@@ -2705,7 +2949,7 @@ roundtrip equals=true
         sizes[2] = 8-4 = 4   (khop postings[2]: 4 vi tri)
 ```
 
-### 25.3 Giải mã `positions = 00 05 07 02 01 02 05 20`
+### 63.2 Giải mã `positions = 00 05 07 02 01 02 05 20`
 
 ```
    positions thuc cua tung posting:  [0,5,12]  [2]  [1,3,8,40]
@@ -2722,7 +2966,11 @@ roundtrip equals=true
    vi 32 < 128 (VByte 1 byte cho gia tri 0..127).
 ```
 
-### 25.4 Tổng kết phép nén
+---
+
+## 64. Tổng kết phép nén và kiểm chứng ranh giới byte
+
+### 64.1 Tổng kết phép nén
 
 ```
    THO:  3 docId x 4B + 3 tf x 4B + 8 vi tri x 4B = 12 + 12 + 32 = 56 byte
@@ -2731,14 +2979,14 @@ roundtrip equals=true
    NEN:  docIds 3B + offsets 4B + positions 8B = 15 byte   (totalBytes=15, KHOP)
 
    => 56 -> 15 byte, con 26,8%, tiet kiem 73,2% — đúng tầm 75% đã nêu ở
-      mục 17.5 cho posting list thật của corpus.
+      mục 34 cho posting list thật của corpus.
 
    roundtrip equals=true  — vòng CompressedPostings.of(...).toPostings()
    trả về ĐÚNG danh sách postings ban đầu, kiểm chứng bằng equals TỰ VIẾT
-   của Posting (mục 12.2) — không phải equals sinh sẵn của record.
+   của Posting (mục 17.2) — không phải equals sinh sẵn của record.
 ```
 
-### 25.5 `encodeSorted` cho một giá trị đơn lẻ — kiểm chứng ranh giới byte
+### 64.2 `encodeSorted` cho một giá trị đơn lẻ — kiểm chứng ranh giới byte
 
 ```
    encodedSize(3)   = 1     (< 128, một byte)
@@ -2748,14 +2996,129 @@ roundtrip equals=true
    Giải: 300 = 0b1_00101100
      7 bit thấp:  0101100 = 44 = 0x2C  →  bật cờ "còn nữa" (bit 7) → 0xAC
      phần còn lại: 10 = 2             →  byte cuối, cờ tắt         → 0x02
-   => hai byte AC 02, đúng khớp lý thuyết đã trình bày ở mục 17.1.
+   => hai byte AC 02, đúng khớp lý thuyết đã trình bày ở mục 31.1.
 ```
 
 ---
 
-# PHẦN VII — PHỤ LỤC
+# PHẦN XIII — PHỤ LỤC
 
-## 26. Bảng hằng số toàn hệ thống
+---
+
+## 65. Chế độ chỉ mục rỗng và corpus dự phòng
+
+`CRAWLER-PIPELINE.md` có một mục phụ lục cho "chế độ chạy khác" (Kafka). Tầng
+dựng chỉ mục cũng có đúng một thứ tương ứng: **nguồn corpus không cố định**.
+`loadCorpus()` không đọc thẳng một tệp — nó duyệt một **chuỗi trách nhiệm**
+(Chain of Responsibility) các `DocumentStore`, và nếu cả chuỗi rỗng thì hệ thống
+vẫn khởi động được với chỉ mục rỗng thay vì chết.
+
+### 65.1 Chuỗi ba tầng
+
+```java
+private List<DocumentStore> buildStoreChain() {
+    List<DocumentStore> chain = new ArrayList<>();
+    if (postgresEnabled) {
+        chain.add(new PostgresDocumentStore(postgresUrl, postgresUser, postgresPassword));
+    }
+    chain.add(new JsonDocumentStore(crawledDataPath, "corpus da crawl"));
+    // Tang cuoi: mau seed di kem repo, de nguoi vua clone ve chay duoc NGAY.
+    chain.add(new JsonDocumentStore(seedDataPath, "seed mau"));
+    return chain;
+}
+```
+
+| Thứ tự | Store | Bật khi | Nguồn |
+|---|---|---|---|
+| 1 | `PostgresDocumentStore` | `app.storage.postgres.enabled=true` (mặc định **false**) | `jdbc:postgresql://localhost:5432/vnsearch` |
+| 2 | `JsonDocumentStore("corpus da crawl")` | luôn có trong chuỗi | `app.crawler.data-path` → `data/crawled-documents.json` |
+| 3 | `JsonDocumentStore("seed mau")` | luôn có trong chuỗi | `app.seed.data-path` → `data/seed-documents.json` |
+
+```mermaid
+flowchart TD
+    START(["loadCorpus()"]) --> FAST{"index.json tồn tại?"}
+    FAST -- có --> LOAD["IndexPersistence.load"]
+    LOAD --> NONEMPTY{"totalDocs() > 0?"}
+    NONEMPTY -- có --> DONE(["dùng ngay — KHÔNG dựng lại"])
+    NONEMPTY -- "không (tệp hỏng/rỗng)" --> CHAIN
+    FAST -- không --> CHAIN["duyệt buildStoreChain()"]
+    CHAIN --> PG{"postgres bật?"}
+    PG -- có --> PGL["PostgresDocumentStore.loadAll"]
+    PG -- không --> J1
+    PGL --> J1{"crawled-documents.json<br/>tồn tại?"}
+    J1 -- có --> D1["loadAll → docs"]
+    J1 -- không --> J2
+    D1 --> E1{"docs rỗng?"}
+    E1 -- "rỗng — BỎ QUA, đi tiếp" --> J2
+    E1 -- không --> BUILD
+    J2{"seed-documents.json<br/>tồn tại?"} -- có --> D2["loadAll → docs"]
+    J2 -- không --> EMPTY
+    D2 --> E2{"docs rỗng?"}
+    E2 -- rỗng --> EMPTY
+    E2 -- không --> BUILD["IndexBuilder.build(docs)<br/>persistIndex()"]
+    BUILD --> DONE
+    EMPTY(["log.warn — chỉ mục RỖNG,<br/>ứng dụng vẫn khởi động"])
+```
+
+```
+   loadCorpus()
+   ├─ index.json tồn tại?
+   │  ├─ CÓ  → load → totalDocs() > 0 ? ─── CÓ ──→ dùng ngay, kết thúc
+   │  │                                └── KHÔNG → rơi xuống chuỗi ↓
+   │  └─ KHÔNG → chuỗi ↓
+   ├─ [1] PostgresDocumentStore   (chỉ khi app.storage.postgres.enabled=true)
+   ├─ [2] JsonDocumentStore(data/crawled-documents.json,  "corpus da crawl")
+   ├─ [3] JsonDocumentStore(data/seed-documents.json,     "seed mau")
+   └─ hết chuỗi → log.warn("Khong tim thay nguon du lieu nao, bat dau voi index rong")
+```
+
+### 65.2 ⚠ Hai cái bẫy mà chuỗi này sinh ra để tránh
+
+`JsonDocumentStore.isAvailable()` chỉ hỏi đúng một câu:
+
+```java
+public boolean isAvailable() {
+    return path != null && !path.isBlank() && Files.exists(Path.of(path));
+}
+```
+
+**"Tồn tại" không đồng nghĩa với "dùng được".** Hai sự cố thật đã xảy ra vì đúng
+chỗ này:
+
+| Bẫy | Hiện tượng | Chốt chặn hiện tại |
+|---|---|---|
+| Một phiên crawl hỏng để lại `crawled-documents.json` chứa đúng `[]` | store báo "khả dụng", **chặn** mất tầng seed phía sau, chỉ mục rỗng | `if (docs.isEmpty()) continue;` — bỏ qua và đi tiếp trong chuỗi |
+| Một lần crawl thử thất bại để lại `index.json` **159 byte** | đường nhanh chỉ hỏi "tệp có tồn tại", nạp tệp rỗng rồi `return` — che mất cả corpus mẫu; mọi truy vấn trả 0, `/api/health` báo 503, container Docker vào vòng khởi động lại vô hạn | kiểm tra thêm `prebuilt.totalDocs() > 0` trước khi chấp nhận đường nhanh |
+
+Cả hai chốt đều cùng một hình dạng: **không tin vào sự tồn tại của tệp, chỉ tin
+vào nội dung đếm được**. Đây là lý do chuỗi dự phòng tồn tại — nếu chỉ có một
+nguồn duy nhất thì một tệp rỗng sẽ là lỗi chí mạng chứ không phải một bước bị bỏ qua.
+
+### 65.3 Chế độ chỉ mục rỗng
+
+Khi cả chuỗi không cho tài liệu nào, `loadCorpus()` **không ném ngoại lệ**:
+
+```java
+log.warn("Khong tim thay nguon du lieu nao, bat dau voi index rong");
+```
+
+`init()` vẫn chạy tiếp `refreshDerivedState()`, ứng dụng vẫn lên, `/api/search`
+vẫn trả `200` với `totalResults = 0`. Lựa chọn này có chủ ý: một backend không có
+dữ liệu vẫn phải phục vụ được `/api/admin/reindex` (mục 56) — nếu nó chết lúc
+khởi động thì không còn cách nào nạp dữ liệu vào ngoài việc sửa tay trên đĩa.
+
+| Cấu hình | Khoá | Mặc định |
+|---|---|---|
+| Đường dẫn chỉ mục | `app.index.data-path` | *(bắt buộc khai)* |
+| Corpus đã crawl | `app.crawler.data-path` | *(bắt buộc khai)* |
+| Seed mẫu | `app.seed.data-path` | `data/seed-documents.json` |
+| Bật Postgres | `app.storage.postgres.enabled` | `false` |
+| URL Postgres | `app.storage.postgres.url` | `jdbc:postgresql://localhost:5432/vnsearch` |
+| Kích thước LRU cache truy vấn | `app.search.cache-size` | `200` |
+
+---
+
+## 66. Bảng hằng số toàn hệ thống
 
 | Hằng số | Giá trị | Lớp | Ý nghĩa |
 |---|---|---|---|
@@ -2773,7 +3136,9 @@ roundtrip equals=true
 | `app.search.cache-size` | `200` (mặc định) | `SearchEngineFacade` | Kích thước `LRUCache<String, SearchResponse>`, dựng lại mới sau mỗi lần reindex |
 | `app.seed.data-path` | `data/seed-documents.json` (mặc định) | `SearchEngineFacade` | Tầng cuối của `buildStoreChain()` |
 
-## 27. Bảng tra nhanh khối ↔ file ↔ hàm
+---
+
+## 67. Bảng tra nhanh khối ↔ file ↔ hàm
 
 | Khối | File | Hàm/phương thức chính |
 |---|---|---|
@@ -2797,10 +3162,12 @@ roundtrip equals=true
 | Nén thân bài | `CompressedText.java` | `compress()`, `decompress()` |
 | Ghi/đọc chỉ mục | `IndexPersistence.java` | `save()`, `load()`, `checkTokenizerMatches()` |
 
-## 28. Câu hỏi thường gặp (FAQ)
+---
 
-**1. Vì sao chỉ mục (`index.json`, 403 MB) lớn hơn cả corpus đã crawl
-(`crawled-documents.json`, 384 MB), dù có nén?**
+## 68. Câu hỏi thường gặp (FAQ)
+
+**1. Vì sao chỉ mục (`index.json`, 486 MB) lớn hơn cả corpus đã crawl
+(`crawled-documents.json`, 464 MB), dù có nén?**
 
 Chỉ mục lưu **nhiều bản sao có cấu trúc** của cùng nội dung: mỗi term (kể cả
 biến thể không dấu — gần gấp đôi số khoá) giữ một posting list riêng cho từng
@@ -2817,7 +3184,7 @@ sinh ra term khác nhau cho cùng một câu ("không trung thực" → `[không
 với từ điển cũ, `[không][trung_thực]` với từ điển mới). Khoá trong chỉ mục và
 khoá trong truy vấn không khớp — không có exception nào để ném, vì về mặt kỹ
 thuật đây chỉ là "tra một khoá không tồn tại trong `Map`", một thao tác hoàn
-toàn hợp lệ trả về rỗng. `IndexPersistence.checkTokenizerMatches` (mục 20.2)
+toàn hợp lệ trả về rỗng. `IndexPersistence.checkTokenizerMatches` (mục 44)
 là hàng rào được thêm sau khi sự cố này xảy ra thật.
 
 **3. Vì sao build chỉ mục chậm ở lần đầu (~36 giây/2.518 trang) nhưng nhanh ở
@@ -2847,7 +3214,7 @@ không?**
 
 Không làm mất dữ liệu hay ném lỗi cho truy vấn đang chạy — nhờ mẫu "xây xong
 rồi hoán đổi" và việc `search()` chụp mọi trường `volatile` liên quan vào biến
-cục bộ một lần (mục 23.2). Nhưng một truy vấn bắt đầu **đúng lúc** reindex
+cục bộ một lần (mục 58). Nhưng một truy vấn bắt đầu **đúng lúc** reindex
 đang giữa chừng có thể thấy chỉ mục cũ hoặc mới tuỳ thời điểm chụp — không bao
 giờ thấy tổ hợp lẫn lộn.
 
@@ -2898,7 +3265,9 @@ Không. `IndexPersistence.load()` ném `IOException`, `loadCorpus()` bắt nó
 xuống** chuỗi nguồn (`buildStoreChain()`) để dựng lại từ corpus gốc. Chỉ mục
 dựng sẵn luôn được coi là cache dẫn xuất, không phải nguồn sự thật.
 
-## 29. Cây chẩn đoán sự cố
+---
+
+## 69. Cây chẩn đoán sự cố
 
 ```
 TRIỆU CHỨNG: chỉ mục rỗng sau khi khởi động (getIndexedDocumentCount() == 0)
@@ -2946,7 +3315,7 @@ TRIỆU CHỨNG: khởi động chậm bất thường (>40 giây) LẶP LẠI m
 TRIỆU CHỨNG: BM25/TF-IDF cho điểm 0 hoặc thứ hạng vô nghĩa cho MỌI tài liệu
 ├─ getAverageDocLength() trả về 0?
 │    └─ CÓ → recomputeDerivedState() không được gọi sau khi nạp file
-│            (mục 16.7) — kiểm tra IndexPersistence.load có gọi
+│            (mục 29.2) — kiểm tra IndexPersistence.load có gọi
 │            importData() đầy đủ, không bị bắt tắt giữa chừng.
 └─ getTermCount() != getInternedTermCount() (phương thức debug)?
      └─ CÓ → TermDictionary không được intern lại sau importData —
@@ -2955,13 +3324,15 @@ TRIỆU CHỨNG: BM25/TF-IDF cho điểm 0 hoặc thứ hạng vô nghĩa cho M�
 
 TRIỆU CHỨNG: đổi index xong bằng /api/admin/reindex nhưng search-service
 vẫn trả kết quả cũ
-└─ ĐÂY LÀ MÓN NỢ KIẾN TRÚC ĐÃ BIẾT (mục 23) — reindex() chỉ đổi chỉ mục
+└─ ĐÂY LÀ MÓN NỢ KIẾN TRÚC ĐÃ BIẾT (mục 56) — reindex() chỉ đổi chỉ mục
      TRONG TIẾN TRÌNH crawler-service. search-service phải tự khởi động
      lại (hoặc tự nạp lại data/index.json) để thấy chỉ mục mới. Chưa có
      cơ chế thông báo tự động (Kafka event) giữa hai service.
 ```
 
-## 30. Thuật ngữ
+---
+
+## 70. Thuật ngữ
 
 | Thuật ngữ | Nghĩa trong dự án này |
 |---|---|
@@ -2985,7 +3356,9 @@ vẫn trả kết quả cũ
 | Varint (VByte) | Mã hoá số nguyên với độ dài byte biến đổi theo độ lớn của số |
 | Volatile | Từ khoá Java bảo đảm mọi luồng đọc thấy giá trị mới nhất được ghi bởi luồng khác, không có bảo đảm nguyên tử hoá nhiều trường cùng lúc |
 
-## 31. Toàn cảnh một trang — cây rút gọn
+---
+
+## 71. Toàn cảnh một trang — cây rút gọn
 
 ```
 run-backend.bat  (Docker: backend container)
@@ -2998,7 +3371,7 @@ run-backend.bat  (Docker: backend container)
    └─ SearchEngineFacade.init()   @PostConstruct                    ★ ĐIỂM VÀO
       ├─ new LRUCache(app.search.cache-size = 200)
       ├─ loadCorpus()
-      │  ├─ ĐƯỜNG NHANH: Files.exists("data/index.json")            (403 MB)
+      │  ├─ ĐƯỜNG NHANH: Files.exists("data/index.json")            (486 MB)
       │  │  └─ IndexPersistence.load(path, tokenizer)
       │  │     ├─ Jackson readValue → IndexData
       │  │     │  └─ MismatchedInputException → coi như version 1 → ném IOException dễ hiểu
@@ -3008,14 +3381,14 @@ run-backend.bat  (Docker: backend container)
       │  │     │  └─ khác   → IOException  ← chặn lỗi rỗng IM LẶNG khi từ điển đổi
       │  │     └─ InvertedIndex.importData
       │  │        ├─ ∀ term: termDictionary.intern(khoá)   ← giữ lại Flyweight sau khi nạp
-      │  │        ├─ CompressedPostings.toPostings()       (giải nén, xem PHẦN IV)
+      │  │        ├─ CompressedPostings.toPostings()       (giải nén, xem PHẦN VII)
       │  │        ├─ documents / bodyTexts / docLength .putAll
       │  │        └─ recomputeDerivedState → totalTokens, lastDocId
       │  │     ↳ prebuilt.getTotalDocs() == 0 → BỎ QUA, rơi xuống chuỗi nguồn
       │  │     ↳ IOException/RuntimeException → chỉ log.warn (chỉ mục là CACHE dẫn xuất)
       │  ├─ buildStoreChain()                                (Chain of Responsibility)
       │  │  ├─ PostgresDocumentStore   (nếu app.storage.postgres.enabled)
-      │  │  ├─ JsonDocumentStore "data/crawled-documents.json"   ← corpus đã crawl, 384 MB
+      │  │  ├─ JsonDocumentStore "data/crawled-documents.json"   ← corpus đã crawl, 464 MB
       │  │  └─ JsonDocumentStore "data/seed-documents.json"      ← mẫu đi kèm repo, 40 tài liệu
       │  │     ∀ store: isAvailable() → loadAll() → docs.isEmpty() ? bỏ qua : dùng
       │  ├─ IndexBuilder.build(docs)                              ★ DỰNG CHỈ MỤC
@@ -3104,3 +3477,25 @@ Ba bất biến mà cả hai đường đi đều phải giữ:
    → dạng nén KHÔNG lưu tf mà suy lại từ mảng offsets
    ✗ vi phạm: giải nén ra kết quả SAI một cách im lặng → CompressedPostings.of ném ngay
 ```
+
+---
+
+## Kết
+
+Tệp `data/index.json` 486,5 MB là kết quả của một chuỗi **mười khối** nối tiếp
+nhau, mỗi khối một lớp Java, mỗi quyết định thiết kế đều có lý do có thể truy nguyên:
+
+| Đặc điểm quan sát được trong output | Khối chịu trách nhiệm | Mục |
+|---|---|---|
+| `"version":3` là trường đầu tiên của tệp | `FORMAT_VERSION` + hàng rào phiên bản | [29](#29-format_version--3-exportdata-và-importdata), [43](#43-hàng-rào-1--phiên-bản-định-dạng) |
+| `"tokenizer"` chứa cả `dict=49793` lẫn `stopwords=91` | `Tokenizer.name()` phản ánh cấu hình | [16](#16-vietnamesetokenizer--sáu-bước-từ-chuỗi-thô-đến-token), [44](#44-hàng-rào-2--tokenizer-hiện-thực-hoá-bất-biến-2) |
+| Khoá của `index` là từ ghép có dấu (`"máy_tính"`), không phải âm tiết rời | `MaxWeightSegmenter` quy hoạch động | [13](#13-maxweightsegmenter--quy-hoạch-động-trái-tim-thuật-toán), [14](#14-trace-đầy-đủ-trên-nhà-hàng-xóm) |
+| `docIds` là chuỗi base64 chứ không phải mảng số | `CompressedPostings` + Jackson base64 | [35](#35-compressedpostings--hai-ý-tưởng-nền), [46](#46-base64-có-làm-mất-hết-lợi-ích-nén-không) |
+| Posting đã nén **không có** trường `termFrequency` | Bất biến 3 — `tf == positions.length` | [2](#2-ba-bất-biến-bắt-buộc), [35](#35-compressedpostings--hai-ý-tưởng-nền) |
+| `documents` chiếm 45,5 % tệp mà không chứa `bodyText` | `addDocument` gọi `withoutBodyText()` | [26](#26-thân-bài-đi-đường-riêng-đã-nén-tách-khỏi-webdocument) |
+| `bodyTexts` là base64 của luồng Deflate thô, không phải GZIP | `CompressedText` | [38](#38-compressedtext--nén-thân-bài), [40](#40-utf-8-tường-minh-và-mức-nén-6) |
+| `docLength` chỉ 466 KB cho 39.780 tài liệu | lưu **số token**, không đo lại chuỗi | [55](#55-refreshderivedstate--mọi-thứ-phụ-thuộc-vào-chỉ-mục) |
+| Thứ tự khoá trong `index` giống hệt nhau giữa hai lần ghi | `LinkedHashMap`, không `HashMap` | [30](#30-linkedhashmap-và-bảng-bộ-nhớ-chỉ-mục) |
+| `docId` chạy liên tục 0–39.779, không thủng lỗ | `build()` cấp lại docId, không tin số có sẵn | [50](#50-build--cấp-lại-docid-không-tin-số-có-sẵn) |
+| Tệp chỉ mục (486,5 MB) lớn hơn corpus sinh ra nó (464,2 MB) | ba biểu diễn của cùng corpus trong một tệp | [59](#59-tổng-quan-tệp-indexjson) |
+| Một `index.json` 159 byte từng làm container khởi động lại vô hạn | `totalDocs() > 0` — chốt chặn của đường nhanh | [53](#53-loadcorpus--chuỗi-dữ-liệu-không-phải-chuỗi-else-if), [65](#65-chế-độ-chỉ-mục-rỗng-và-corpus-dự-phòng) |

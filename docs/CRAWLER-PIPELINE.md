@@ -6,12 +6,23 @@
 > Mỗi file, mỗi hàm, mỗi hằng số, mỗi nhánh `if` mà lệnh trên chạm tới — theo đúng
 > thứ tự thực thi, kèm sơ đồ Mermaid, bảng đối chiếu và trace dữ liệu thật.
 
+**Quy ước ký hiệu**
+
+| Ký hiệu | Nghĩa |
+|---|---|
+| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/java/libs/core-crawler/src/main/java/com/vnsearch/` |
+| **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
+| ① ② ③ | Số thứ tự bước trong một chuỗi xử lý |
+| ★ | Điểm mấu chốt, dễ hiểu sai |
+| ⚠ | Cạm bẫy đã từng gây lỗi thật |
+| ↺ | Vòng lặp khép kín (feedback loop) |
+| 🔒 | Điểm đồng bộ hoá (lock / CAS / atomic) |
+
 ---
 
 ## MỤC LỤC
 
 ### PHẦN I — TỔNG QUAN
-- [0. Cách đọc tài liệu này](#0-cách-đọc-tài-liệu-này)
 - [1. Câu lệnh và ý nghĩa từng tham số](#1-câu-lệnh-và-ý-nghĩa-từng-tham-số)
 - [2. Bản đồ toàn hệ thống](#2-bản-đồ-toàn-hệ-thống)
 - [3. Danh mục toàn bộ file tham gia](#3-danh-mục-toàn-bộ-file-tham-gia)
@@ -72,9 +83,9 @@
 - [44. `ContentSeenFilter` — vân tay SHA-256](#44-contentseenfilter--vân-tay-sha-256)
 
 ### PHẦN IX — LƯU TRỮ VÀ ĐỒNG BỘ
-- [45. `claimPageSlot()` — vòng CAS](#45-claimpageslot--vòng-cas)
+- [45. `claimPageSlot()` — vòng CAS](#45-cấp-suất-trang--một-atomicinteger-dùng-cho-hai-việc)
 - [46. `ContentStorage`](#46-contentstorage)
-- [47. Ba bộ đếm và docId](#47-ba-bộ-đếm-và-docid)
+- [47. Ba bộ đếm và docId](#47-hai-biến-cho-docid--pagescrawled-kiêm-nhiệm)
 
 ### PHẦN X — BUS VÀ MODULAR SERVICES
 - [48. `PageEvent` và ranh giới kiến trúc](#48-pageevent-và-ranh-giới-kiến-trúc)
@@ -122,41 +133,11 @@
 
 ---
 
-## 0. Cách đọc tài liệu này
-
-Tài liệu này được viết theo nguyên tắc **một chiều, không nhảy cóc**: mọi thứ xuất
-hiện theo đúng thứ tự mà CPU thực sự chạy qua chúng. Nếu bạn đọc tuần tự từ đầu đến
-cuối, bạn sẽ đi đúng đường mà một URL đi.
-
-### Quy ước ký hiệu
-
-| Ký hiệu | Nghĩa |
-|---|---|
-| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/java/libs/core-crawler/src/main/java/com/vnsearch/` |
-| **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
-| ① ② ③ | Số thứ tự bước trong một chuỗi xử lý |
-| ★ | Điểm mấu chốt, dễ hiểu sai |
-| ⚠ | Cạm bẫy đã từng gây lỗi thật |
-| ↺ | Vòng lặp khép kín (feedback loop) |
-| 🔒 | Điểm đồng bộ hoá (lock / CAS / atomic) |
-
-### Ba mức chi tiết
-
-Mỗi khối lớn được trình bày ở ba mức, bạn có thể dừng ở mức nào cũng được:
-
-1. **Mức sơ đồ** — một hình Mermaid, hiểu trong 10 giây.
-2. **Mức mã** — trích đoạn mã thật, đã lược bỏ getter/log cho gọn.
-3. **Mức lập luận** — vì sao viết như vậy, viết khác thì hỏng ở đâu.
-
-### Về tên tệp bat
+## 1. Câu lệnh và ý nghĩa từng tham số
 
 > ⚠ Trong repo, tệp bat tên là **`run-crawl.bat`**, không phải `run-crawler.bat`.
 > Toàn bộ tài liệu dùng tên thật. Nếu bạn gõ `run-crawler.bat` thì Windows sẽ báo
 > `'run-crawler.bat' is not recognized as an internal or external command`.
-
----
-
-## 1. Câu lệnh và ý nghĩa từng tham số
 
 ```bat
 run-crawl.bat 8 3
@@ -3764,7 +3745,7 @@ flowchart TD
 
 **File:** `datastructure/MinHeap.java` — nằm trong module `core-common`, tức
 `backend/java/libs/core-common/src/main/java/com/vnsearch/datastructure/MinHeap.java`
-(ngoại lệ so với quy ước đường dẫn ở mục 0: đây là cấu trúc dữ liệu dùng chung
+(ngoại lệ so với quy ước đường dẫn ở đầu tài liệu: đây là cấu trúc dữ liệu dùng chung
 cho nhiều service, không riêng crawler).
 
 ### 31.1 Vai trò trong `BackQueues`
@@ -4441,7 +4422,7 @@ thời điểm 19 worker cùng kiểm tra gần như đồng thời, `pagesCrawl
 ### 34.5 ★ Vì sao 19 URL được lấy mà corpus có thể vượt nhẹ 8 trang
 
 ⚠ **Đã đổi so với bản trước.** Không còn `claimPageSlot()` cấp "suất" bằng CAS —
-xem [45](#45-claimpageslot--vòng-cas) và [47](#47-ba-bộ-đếm-và-docid). Cơ chế thật:
+xem [45](#45-cấp-suất-trang--một-atomicinteger-dùng-cho-hai-việc) và [47](#47-hai-biến-cho-docid--pagescrawled-kiêm-nhiệm). Cơ chế thật:
 mỗi worker chỉ kiểm tra `pagesCrawled.get() < maxPages` khi **bắt đầu một vòng lặp
 mới**; một khi đã lọt qua kiểm tra đó và bắt tay vào `processPage()`, worker cứ tải
 — lọc ngôn ngữ — lọc trùng nội dung — rồi `contentStorage.save()` và
@@ -8314,7 +8295,7 @@ service.
 
 ### 50.8 ⚠ `markSeenIfNew` được gọi ở **đây**, không ở `acceptDiscoveredUrl`
 
-Đã phân tích ở [mục 22.6](#226-acceptdiscoveredurl--không-lọc-lại). Nhắc lại điểm
+Đã phân tích ở [mục 22.6](#226-acceptdiscoveredurl---không-lọc-lại). Nhắc lại điểm
 mấu chốt:
 
 ```mermaid
@@ -12739,7 +12720,7 @@ việc; hạn ngạch 8 trang cạn trước khi bất kỳ host nào kịp ph�
 
 **Không.** Nếu tải lỗi thì `notifyError()` được gọi và `processPage` return — sẽ
 **không có** bản ghi nào. Trang này tải thành công (HTTP 200) nhưng HTML gần như
-trống, có thể vì render bằng JavaScript. Xem [mục 67.1](#671-docid-0--hcmiuedu.vn).
+trống, có thể vì render bằng JavaScript. Xem [mục 67.1](#671-docid-0--hcmiueduvn).
 
 ### 75.4 Vì sao `vietnamnews.vn` (báo tiếng Anh) lại có `language: "vi"`?
 
@@ -12832,7 +12813,7 @@ Bất kỳ giá trị nào khác `"bar"` sẽ chuyển sang chế độ in từn
 kiểm tra lại lúc lưu. 32 thread giúp **tải song song**, nên các trang đã lọt qua
 kiểm tra và đang tải dở lúc mốc `maxPages` bị cán vẫn được lưu trọn vẹn — corpus
 cuối phiên có thể **nhỉnh hơn** 8 một chút chứ không bị cắt cứng ở đúng 8.
-Xem [mục 45](#45-claimpageslot--vòng-cas) và [mục 47](#47-ba-bộ-đếm-và-docid).
+Xem [mục 45](#45-cấp-suất-trang--một-atomicinteger-dùng-cho-hai-việc) và [mục 47](#47-hai-biến-cho-docid--pagescrawled-kiêm-nhiệm).
 
 ---
 
@@ -13168,12 +13149,12 @@ thể truy nguyên:
 | Đặc điểm quan sát được trong output | Khối chịu trách nhiệm | Mục |
 |---|---|---|
 | URL không có `/` ở cuối | `UrlCanonicalizer` | [52.6](#526--cắt--cuối-nhưng-giữ-khi-path-chỉ-là-) |
-| Đúng 8 tài liệu, `docId` 0–7 | `pagesCrawled` (kiêm hạn ngạch lẫn cấp `docId`) | [45](#45-claimpageslot--vòng-cas), [47](#47-ba-bộ-đếm-và-docid) |
+| Đúng 8 tài liệu, `docId` 0–7 | `pagesCrawled` (kiêm hạn ngạch lẫn cấp `docId`) | [45](#45-cấp-suất-trang--một-atomicinteger-dùng-cho-hai-việc), [47](#47-hai-biến-cho-docid--pagescrawled-kiêm-nhiệm) |
 | Thứ tự trong tệp lộn xộn | `ConcurrentHashMap.values()` | [68](#68-vì-sao-thứ-tự-trong-tệp-lộn-xộn) |
 | 8 host khác nhau | `BackQueues` politeness | [30](#30-backqueues) |
 | `crawledAt` chênh 186 ms | 32 worker song song | [69](#69-phân-tích-dấu-thời-gian) |
 | Cả `nhandan.vn` và `en.nhandan.vn` | `stripLanguageLabel` | [17](#17-19-seed-và-striplanguagelabel) |
-| `hcmiu.edu.vn` rỗng, `language: und` | `LanguageFilter` + `ContentSeenFilter` | [67.1](#671-docid-0--hcmiuedu.vn) |
+| `hcmiu.edu.vn` rỗng, `language: und` | `LanguageFilter` + `ContentSeenFilter` | [67.1](#671-docid-0--hcmiueduvn) |
 | `vietnamnews.vn` gán nhãn `vi` | Tầng 2 của `detect()` | [70.3](#703-phân-tích-sâu-ca-vietnamnewsvn) |
 | `outlinks` chứa `cn.`/`fr.`/`ru.` | `publishOutlinks` trước, lọc sau | [50.4](#504-publishoutlinks-trước-lọc-sau) |
 | `bodyText` không có JavaScript | `ContentParser.extractBodyText` | [42.5](#425-extractbodytext--clone-rồi-cắt) |

@@ -3,82 +3,11 @@
 ### Từ `ContentStorage.save()` trong crawler đến bốn kho trên đĩa và trong PostgreSQL
 
 > **Tài liệu tham chiếu kỹ thuật đầy đủ.**
-> Mỗi lớp, mỗi hàm, mỗi hằng số, mỗi nhánh `if` mà một tài liệu chạm tới trên
-> đường từ lúc crawler lưu nó tới lúc nó nằm sẵn sàng cho `SearchEngineFacade`
-> đọc lại — theo đúng thứ tự thực thi, kèm sơ đồ Mermaid, bảng đối chiếu và
-> trace dữ liệu thật lấy từ chính repo này.
->
-> Tài liệu này là bản "nở ra" của bản cây rút gọn từng có ở đây — không xoá gì,
-> chỉ thêm. Bản cây rút gọn được giữ nguyên vẹn ở [PHẦN VII — mục 34](#34-toàn-cảnh-một-trang).
+> Mỗi lớp, mỗi hàm, mỗi hằng số, mỗi nhánh `if` mà một tài liệu chạm tới trên đường
+> từ lúc crawler lưu nó tới lúc nó nằm sẵn sàng cho `SearchEngineFacade` đọc lại —
+> theo đúng thứ tự thực thi, kèm sơ đồ Mermaid, bảng đối chiếu và trace dữ liệu thật.
 
----
-
-## MỤC LỤC
-
-### PHẦN I — TỔNG QUAN
-- [0. Cách đọc tài liệu này](#0-cách-đọc-tài-liệu-này)
-- [1. Bốn kho, bốn vòng đời khác nhau](#1-bốn-kho-bốn-vòng-đời-khác-nhau)
-- [2. Bản đồ toàn hệ thống](#2-bản-đồ-toàn-hệ-thống)
-- [3. Danh mục toàn bộ file tham gia](#3-danh-mục-toàn-bộ-file-tham-gia)
-- [4. Sơ đồ tuần tự tổng quát](#4-sơ-đồ-tuần-tự-tổng-quát)
-- [5. Vòng đời của một WebDocument qua bốn kho](#5-vòng-đời-của-một-webdocument-qua-bốn-kho)
-- [6. Bảng so sánh bốn kho](#6-bảng-so-sánh-bốn-kho)
-
-### PHẦN II — ĐƯỜNG GHI: TỪ CRAWLER XUỐNG ĐĨA
-- [7. `ContentStorage.save` và `applyOutlinks`](#7-contentstoragesave-và-applyoutlinks)
-- [8. `ContentStorage.saveToJson` — ghi nguyên tử](#8-contentstoragesavetojson--ghi-nguyên-tử)
-- [9. `ImageStorage` — tệp anh em của corpus](#9-imagestorage--tệp-anh-em-của-corpus)
-- [10. `CheckpointCrawlListener` và tần suất ghi](#10-checkpointcrawllistener-và-tần-suất-ghi)
-
-### PHẦN III — ĐƯỜNG ĐỌC: `SearchEngineFacade.loadCorpus()`
-- [11. Đường nhanh: `index.json` có sẵn](#11-đường-nhanh-indexjson-có-sẵn)
-- [12. Chain of Responsibility: `buildStoreChain()`](#12-chain-of-responsibility-buildstorechain)
-- [13. `DocumentStore` — hợp đồng ba phương thức](#13-documentstore--hợp-đồng-ba-phương-thức)
-- [14. `JsonDocumentStore` — một lớp, ba tầng](#14-jsondocumentstore--một-lớp-ba-tầng)
-- [15. Nguồn RỖNG không phải là nguồn — sự cố `index.json` 159 byte](#15-nguồn-rỗng-không-phải-là-nguồn--sự-cố-indexjson-159-byte)
-
-### PHẦN IV — KHO THỨ BA: `index.json` LÀ MỘT CACHE
-- [16. `index.json` nhìn từ tầng lưu trữ](#16-indexjson-nhìn-từ-tầng-lưu-trữ)
-- [17. `persistIndex()` — ghi lại sau khi dựng](#17-persistindex--ghi-lại-sau-khi-dựng)
-
-### PHẦN V — KHO THỨ TƯ: POSTGRESQL
-- [18. `DocumentRepository` — JDBC thuần, vì sao](#18-documentrepository--jdbc-thuần-vì-sao)
-- [19. `saveAll()` — một giao dịch, batch 500](#19-saveall--một-giao-dịch-batch-500)
-- [20. `ON CONFLICT DO UPDATE` — upsert và cái bẫy outlinks](#20-on-conflict-do-update--upsert-và-cái-bẫy-outlinks)
-- [21. `findAll()` — hai truy vấn, `ORDER BY doc_id`](#21-findall--hai-truy-vấn-order-by-doc_id)
-- [22. `PostgresDocumentStore` — Adapter vào chuỗi dự phòng](#22-postgresdocumentstore--adapter-vào-chuỗi-dự-phòng)
-- [23. `PostgresImportRunner` — nạp rồi kiểm chứng đọc lại](#23-postgresimportrunner--nạp-rồi-kiểm-chứng-đọc-lại)
-- [24. `GinBaselineRunner` — đối chứng GIN, bằng chứng "tự cài có đáng"](#24-ginbaselinerunner--đối-chứng-gin-bằng-chứng-tự-cài-có-đáng)
-
-### PHẦN VI — ĐỐI CHIẾU OUTPUT THẬT
-- [25. Kích thước bốn kho, số liệu thật của repo này](#25-kích-thước-bốn-kho-số-liệu-thật-của-repo-này)
-- [26. Cấu trúc `seed-documents.json` thật](#26-cấu-trúc-seed-documentsjson-thật)
-- [27. Cấu trúc `index.json` thật — vì sao nó lớn hơn corpus](#27-cấu-trúc-indexjson-thật--vì-sao-nó-lớn-hơn-corpus)
-- [28. `schema.sql` thật](#28-schemasql-thật)
-
-### PHẦN VII — PHỤ LỤC
-- [29. Bảng hằng số toàn hệ thống](#29-bảng-hằng-số-toàn-hệ-thống)
-- [30. Bảng tra nhanh khối ↔ file ↔ hàm](#30-bảng-tra-nhanh-khối--file--hàm)
-- [31. Câu hỏi thường gặp](#31-câu-hỏi-thường-gặp)
-- [32. Cây chẩn đoán sự cố](#32-cây-chẩn-đoán-sự-cố)
-- [33. Thuật ngữ](#33-thuật-ngữ)
-- [34. Toàn cảnh một trang](#34-toàn-cảnh-một-trang)
-
----
----
-
-# PHẦN I — TỔNG QUAN
-
----
-
-## 0. Cách đọc tài liệu này
-
-Tài liệu này viết theo nguyên tắc **một chiều, không nhảy cóc**, cùng quy ước với
-[`CRAWLER-PIPELINE.md`](./CRAWLER-PIPELINE.md): mọi thứ xuất hiện theo đúng thứ
-tự mà một tài liệu thật sự đi qua — từ lúc crawler lưu nó, tới lúc nó nằm trên
-đĩa, tới lúc một tiến trình khác đọc nó lại.
-
-### Quy ước ký hiệu
+**Quy ước ký hiệu**
 
 | Ký hiệu | Nghĩa |
 |---|---|
@@ -89,44 +18,127 @@ tự mà một tài liệu thật sự đi qua — từ lúc crawler lưu nó, t
 | ↺ | Vòng lặp dự phòng / phòng thủ theo chiều sâu |
 | 🔒 | Điểm đồng bộ hoá hoặc tính nguyên tử |
 
-### Điểm khác biệt lớn nhất với `CRAWLER-PIPELINE.md`
+---
 
-Crawler là **một tiến trình dài**, chạy hàng giờ, tạo dữ liệu. Tầng lưu trữ
-ngược lại: phần lớn các lớp ở đây được gọi **đúng một lần** trong vòng đời của
-một tiến trình — một lần khi ứng dụng khởi động (`loadCorpus`), một lần khi
-người vận hành gõ tay một lệnh (`PostgresImportRunner`, `GinBaselineRunner`).
-Vì vậy trọng tâm của tài liệu này không phải là *thông lượng trên đường nóng*
-(dù vẫn có, ở phần ghi batch) mà là ba câu hỏi:
+## MỤC LỤC
 
-1. **Ghi có bền không** — tiến trình chết giữa chừng thì còn lại gì?
-2. **Đọc có đáng tin không** — một nguồn "có vẻ có" thật sự dùng được chưa?
-3. **Đo có công bằng không** — khi so chỉ mục tự cài với GIN của PostgreSQL.
+### PHẦN I — TỔNG QUAN
+- [1. Bốn kho, bốn vòng đời khác nhau](#1-bốn-kho-bốn-vòng-đời-khác-nhau)
+- [2. Bản đồ toàn hệ thống](#2-bản-đồ-toàn-hệ-thống)
+- [3. Bản đồ gói (package)](#3-bản-đồ-gói-package)
+- [4. Danh mục toàn bộ file tham gia](#4-danh-mục-toàn-bộ-file-tham-gia)
+- [5. Sơ đồ tuần tự tổng quát](#5-sơ-đồ-tuần-tự-tổng-quát)
+- [6. Vòng đời của một WebDocument qua bốn kho](#6-vòng-đời-của-một-webdocument-qua-bốn-kho)
+- [7. Bảng so sánh bốn kho](#7-bảng-so-sánh-bốn-kho)
 
-### Về tên bốn kho
+### PHẦN II — ĐƯỜNG GHI: `ContentStorage` TRONG BỘ NHỚ
+- [8. `ContentStorage.save` — `putIfAbsent`, lớp phòng thủ trùng lặp cuối cùng](#8-contentstoragesave--putifabsent-lớp-phòng-thủ-trùng-lặp-cuối-cùng)
+- [9. `applyOutlinks()` — outlinks tới SAU nội dung](#9-applyoutlinks--outlinks-tới-sau-nội-dung)
+- [10. Vì sao lưu trong RAM, chỉ ghi đĩa ở cuối và ở điểm kiểm tra](#10-vì-sao-lưu-trong-ram-chỉ-ghi-đĩa-ở-cuối-và-ở-điểm-kiểm-tra)
+- [11. `CheckpointCrawlListener` và tần suất ghi](#11-checkpointcrawllistener-và-tần-suất-ghi)
 
-Trong toàn tài liệu, "kho" (store) dùng để chỉ một nơi dữ liệu **nằm bền** giữa
-hai lần chạy tiến trình. Bốn kho đó là:
+### PHẦN III — GHI JSON NGUYÊN TỬ XUỐNG ĐĨA
+- [12. `ContentStorage.saveToJson` — ghi nguyên tử](#12-contentstoragesavetojson--ghi-nguyên-tử)
+- [13. ★ Vì sao PHẢI ghi qua tệp tạm rồi đổi tên, thay vì ghi thẳng](#13--vì-sao-phải-ghi-qua-tệp-tạm-rồi-đổi-tên-thay-vì-ghi-thẳng)
+- [14. Đường lui khi hệ tệp không hỗ trợ đổi tên nguyên tử](#14-đường-lui-khi-hệ-tệp-không-hỗ-trợ-đổi-tên-nguyên-tử)
+- [15. Cấu hình `ObjectMapper` — ba tuỳ chọn, và chiều đọc ngược lại](#15-cấu-hình-objectmapper--ba-tuỳ-chọn-và-chiều-đọc-ngược-lại)
 
-```
-Kho 1   data/crawled-documents.json          — NGUỒN SỰ THẬT của văn bản
-Kho 2   data/crawled-documents.images.json   — NGUỒN SỰ THẬT của ảnh
-Kho 3   data/index.json                      — CACHE DẪN XUẤT của chỉ mục
-Kho 4   PostgreSQL (documents + outlinks)    — NGUỒN THAY THẾ + đối chứng GIN
-```
+### PHẦN IV — KHO ẢNH: `ImageStorage`
+- [16. `ImageStorage` — tệp anh em của corpus, và `pathFor()`](#16-imagestorage--tệp-anh-em-của-corpus-và-pathfor)
+- [17. Vì sao ảnh có tệp riêng, không nhét vào `WebDocument`](#17-vì-sao-ảnh-có-tệp-riêng-không-nhét-vào-webdocument)
+- [18. Ghi nguyên tử ở `ImageStorage` — cùng khuôn, một khác biệt tinh tế](#18-ghi-nguyên-tử-ở-imagestorage--cùng-khuôn-một-khác-biệt-tinh-tế)
+- [19. `loadQuietly` — đường khởi động không được phép chết vì ảnh](#19-loadquietly--đường-khởi-động-không-được-phép-chết-vì-ảnh)
+
+### PHẦN V — ĐƯỜNG ĐỌC: ĐƯỜNG NHANH VÀ CHUỖI NGUỒN
+- [20. Đường nhanh: `index.json` có sẵn](#20-đường-nhanh-indexjson-có-sẵn)
+- [21. Trên đường chạy thực tế của repo này, đường nhanh gần như không kích hoạt](#21-trên-đường-chạy-thực-tế-của-repo-này-đường-nhanh-gần-như-không-kích-hoạt)
+- [22. Chain of Responsibility: `buildStoreChain()`](#22-chain-of-responsibility-buildstorechain)
+- [23. Thứ tự trong danh sách = thứ tự ưu tiên dữ liệu, KHÔNG PHẢI thứ tự chi phí](#23-thứ-tự-trong-danh-sách--thứ-tự-ưu-tiên-dữ-liệu-không-phải-thứ-tự-chi-phí)
+
+### PHẦN VI — HỢP ĐỒNG `DocumentStore`
+- [24. `DocumentStore` — hợp đồng ba phương thức](#24-documentstore--hợp-đồng-ba-phương-thức)
+- [25. Mẫu vòng lặp chuẩn ở chỗ gọi](#25-mẫu-vòng-lặp-chuẩn-ở-chỗ-gọi)
+- [26. `close()` mặc định rỗng, và những gì interface cố ý KHÔNG làm](#26-close-mặc-định-rỗng-và-những-gì-interface-cố-ý-không-làm)
+- [27. `JsonDocumentStore` — một lớp, ba tầng](#27-jsondocumentstore--một-lớp-ba-tầng)
+- [28. `isAvailable()` — ba điều kiện, và tầng dự phòng cuối](#28-isavailable--ba-điều-kiện-và-tầng-dự-phòng-cuối)
+
+### PHẦN VII — NGUỒN RỖNG KHÔNG PHẢI LÀ NGUỒN
+- [29. Sự cố `index.json` 159 byte — diễn biến](#29-sự-cố-indexjson-159-byte--diễn-biến)
+- [30. Cách sửa — và vì sao nó tổng quát hoá thành một nguyên tắc](#30-cách-sửa--và-vì-sao-nó-tổng-quát-hoá-thành-một-nguyên-tắc)
+- [31. Vì sao lỗi này đặc biệt nguy hiểm — nó "trông đúng"](#31-vì-sao-lỗi-này-đặc-biệt-nguy-hiểm--nó-trông-đúng)
+
+### PHẦN VIII — KHO THỨ BA: `index.json` LÀ MỘT CACHE
+- [32. `index.json` nhìn từ tầng lưu trữ](#32-indexjson-nhìn-từ-tầng-lưu-trữ)
+- [33. Vì sao lại phải có một cache khi chỉ mục dựng "chỉ mất ~1 phút"](#33-vì-sao-lại-phải-có-một-cache-khi-chỉ-mục-dựng-chỉ-mất-1-phút)
+- [34. `persistIndex()` — ghi lại sau khi dựng](#34-persistindex--ghi-lại-sau-khi-dựng)
+- [35. ⚠ Sự cố đã có thật: đoạn `persistIndex()` từng bị THIẾU hoàn toàn](#35--sự-cố-đã-có-thật-đoạn-persistindex-từng-bị-thiếu-hoàn-toàn)
+- [36. ★ Lỗi ghi không được phép làm hỏng lần khởi động](#36--lỗi-ghi-không-được-phép-làm-hỏng-lần-khởi-động)
+
+### PHẦN IX — KHO THỨ TƯ: POSTGRESQL — ĐƯỜNG GHI
+- [37. `DocumentRepository` — JDBC thuần, vì sao](#37-documentrepository--jdbc-thuần-vì-sao)
+- [38. Hàm dựng và ba hằng số mặc định](#38-hàm-dựng-và-ba-hằng-số-mặc-định)
+- [39. `saveAll()` — một giao dịch, batch 500](#39-saveall--một-giao-dịch-batch-500)
+- [40. ★ Vì sao PHẢI nguyên tử — và ghi theo lô 500](#40--vì-sao-phải-nguyên-tử--và-ghi-theo-lô-500)
+- [41. `ON CONFLICT DO UPDATE` — upsert và cái bẫy outlinks](#41-on-conflict-do-update--upsert-và-cái-bẫy-outlinks)
+
+### PHẦN X — POSTGRESQL — ĐƯỜNG ĐỌC VÀ ADAPTER
+- [42. `findAll()` — hai truy vấn, `ORDER BY doc_id`](#42-findall--hai-truy-vấn-order-by-doc_id)
+- [43. ★★★ `ORDER BY doc_id` — một mệnh đề SQL gánh bất biến của một cấu trúc dữ liệu cách nó BỐN TẦNG](#43--order-by-doc_id--một-mệnh-đề-sql-gánh-bất-biến-của-một-cấu-trúc-dữ-liệu-cách-nó-bốn-tầng)
+- [44. `PostgresDocumentStore` — Adapter vào chuỗi dự phòng](#44-postgresdocumentstore--adapter-vào-chuỗi-dự-phòng)
+- [45. `isAvailable()` — trả `false` thay vì ném, và "rỗng" cũng là "không có"](#45-isavailable--trả-false-thay-vì-ném-và-rỗng-cũng-là-không-có)
+- [46. Cái giá: hai kết nối cho một lần khởi động, và rủi ro treo khi host chết](#46-cái-giá-hai-kết-nối-cho-một-lần-khởi-động-và-rủi-ro-treo-khi-host-chết)
+- [47. `loadAll()` và `describe()` — bọc lỗi, và một bẫy bảo mật kín đáo](#47-loadall-và-describe--bọc-lỗi-và-một-bẫy-bảo-mật-kín-đáo)
+
+### PHẦN XI — CÔNG CỤ DÒNG LỆNH: NẠP VÀ ĐỐI CHỨNG
+- [48. `PostgresImportRunner` — nạp rồi kiểm chứng đọc lại](#48-postgresimportrunner--nạp-rồi-kiểm-chứng-đọc-lại)
+- [49. Bốn giai đoạn](#49-bốn-giai-đoạn)
+- [50. Giai đoạn ④ — phần đáng giá nhất của cả công cụ, và cách chạy đầy đủ](#50-giai-đoạn-④--phần-đáng-giá-nhất-của-cả-công-cụ-và-cách-chạy-đầy-đủ)
+- [51. `GinBaselineRunner` — đối chứng GIN, bằng chứng "tự cài có đáng"](#51-ginbaselinerunner--đối-chứng-gin-bằng-chứng-tự-cài-có-đáng)
+- [52. `buildIndex()` — vì sao phải sắp lại dù CSDL đã `ORDER BY`](#52-buildindex--vì-sao-phải-sắp-lại-dù-csdl-đã-order-by)
+- [53. Làm nóng JVM — phần kỹ thuật đáng giá nhất](#53-làm-nóng-jvm--phần-kỹ-thuật-đáng-giá-nhất)
+- [54. Bộ truy vấn known-item, seed 42, và cái bẫy `TOP_N = 10`](#54-bộ-truy-vấn-known-item-seed-42-và-cái-bẫy-top_n--10)
+- [55. Hai nhánh diễn giải viết sẵn — trung thực cưỡng chế bằng mã](#55-hai-nhánh-diễn-giải-viết-sẵn--trung-thực-cưỡng-chế-bằng-mã)
+- [56. Ba điều phép so sánh này KHÔNG chứng minh](#56-ba-điều-phép-so-sánh-này-không-chứng-minh)
+
+### PHẦN XII — ĐỐI CHIẾU OUTPUT THẬT
+- [57. Tổng quan các tệp trong `backend/data/`](#57-tổng-quan-các-tệp-trong-backenddata)
+- [58. Kích thước bốn kho, số liệu thật của repo này](#58-kích-thước-bốn-kho-số-liệu-thật-của-repo-này)
+- [59. Cấu trúc `seed-documents.json` thật](#59-cấu-trúc-seed-documentsjson-thật)
+- [60. Cấu trúc `index.json` thật — vì sao nó lớn hơn corpus](#60-cấu-trúc-indexjson-thật--vì-sao-nó-lớn-hơn-corpus)
+- [61. ★★★ Vì sao `index.json` còn lớn hơn corpus dù ĐÃ nén](#61--vì-sao-indexjson-còn-lớn-hơn-corpus-dù-đã-nén)
+- [62. `schema.sql` thật](#62-schemasql-thật)
+- [63. `idx_documents_tsv` — chỉ mục được đo ở mục 51](#63-idx_documents_tsv--chỉ-mục-được-đo-ở-mục-51)
+
+### PHẦN XIII — PHỤ LỤC
+- [64. Các chế độ chạy khác của tầng lưu trữ](#64-các-chế-độ-chạy-khác-của-tầng-lưu-trữ)
+- [65. Bảng hằng số toàn hệ thống](#65-bảng-hằng-số-toàn-hệ-thống)
+- [66. Bảng tra nhanh khối ↔ file ↔ hàm](#66-bảng-tra-nhanh-khối--file--hàm)
+- [67. Câu hỏi thường gặp](#67-câu-hỏi-thường-gặp)
+- [68. Cây chẩn đoán sự cố](#68-cây-chẩn-đoán-sự-cố)
+- [69. Thuật ngữ](#69-thuật-ngữ)
+- [70. Toàn cảnh một trang](#70-toàn-cảnh-một-trang)
+
+---
+---
+
+# PHẦN I — TỔNG QUAN
 
 ---
 
 ## 1. Bốn kho, bốn vòng đời khác nhau
 
+Trong toàn tài liệu, "kho" (store) dùng để chỉ một nơi dữ liệu **nằm bền** giữa
+hai lần chạy tiến trình. Bốn kho đó là:
+
 ```
-data/crawled-documents.json         383 MB   NGUỒN SỰ THẬT  — crawler ghi, chỉ mục đọc
-data/crawled-documents.images.json   14 MB   NGUỒN SỰ THẬT của kho ảnh
-data/index.json                     384 MB   CACHE DẪN XUẤT — xoá đi vẫn dựng lại được
+data/crawled-documents.json         464 MB   NGUỒN SỰ THẬT  — crawler ghi, chỉ mục đọc
+data/crawled-documents.images.json   17 MB   NGUỒN SỰ THẬT của kho ảnh
+data/index.json                     486 MB   CACHE DẪN XUẤT — xoá đi vẫn dựng lại được
 PostgreSQL (documents + outlinks)            NGUỒN THAY THẾ + đối chứng GIN
 ```
 
 (Số liệu đo thật từ `backend/data/` của chính repo này ngày viết tài liệu — xem
-[mục 25](#25-kích-thước-bốn-kho-số-liệu-thật-của-repo-này) để có bảng đầy đủ
+[mục 58](#58-kích-thước-bốn-kho-số-liệu-thật-của-repo-này) để có bảng đầy đủ
 kèm ngày sửa đổi.)
 
 Bốn kho này không đối xứng. Chúng khác nhau ở **bốn trục** cùng lúc, và nhầm
@@ -180,14 +192,14 @@ flowchart TD
         WD["WebDocument đã crawl"] --> CS_SAVE["ContentStorage.save()<br/>ConcurrentHashMap trong RAM"]
         CS_SAVE --> CS_OUT["ContentStorage.applyOutlinks()<br/>tới SAU, qua bus"]
         CS_OUT --> CS_JSON["ContentStorage.saveToJson()<br/>tệp tạm + ATOMIC_MOVE"]
-        CS_JSON --> F1[("data/crawled-documents.json<br/>383 MB — NGUỒN SỰ THẬT")]
+        CS_JSON --> F1[("data/crawled-documents.json<br/>464 MB — NGUỒN SỰ THẬT")]
 
         IMG["ImageFound sự kiện"] --> IS_JSON["ImageStorage.saveToJson()<br/>cùng khuôn nguyên tử"]
-        IS_JSON --> F2[("data/crawled-documents.images.json<br/>14 MB — NGUỒN SỰ THẬT")]
+        IS_JSON --> F2[("data/crawled-documents.images.json<br/>17 MB — NGUỒN SỰ THẬT")]
     end
 
     subgraph BOOT["SearchEngineFacade.loadCorpus() — ĐỌC lúc khởi động"]
-        F3[("data/index.json<br/>384 MB — CACHE")]
+        F3[("data/index.json<br/>486 MB — CACHE")]
         F3 -.->|"đường nhanh, nếu tồn tại và KHÔNG rỗng"| IDX["InvertedIndex trong RAM"]
 
         F1 -->|"JsonDocumentStore"| CHAIN
@@ -222,14 +234,14 @@ GHI (trong lúc crawl, tiến trình MultiDomainCrawlRunner)
         -> ContentStorage.save()              (RAM, ConcurrentHashMap)
         -> ContentStorage.applyOutlinks()      (tới sau, qua bus)
         -> ContentStorage.saveToJson()         (tệp tạm + ATOMIC_MOVE)
-        -> data/crawled-documents.json          [NGUỒN SỰ THẬT, 383 MB]
+        -> data/crawled-documents.json          [NGUỒN SỰ THẬT, 464 MB]
 
     ImageFound sự kiện
         -> ImageStorage.saveToJson()           (cùng khuôn nguyên tử)
-        -> data/crawled-documents.images.json   [NGUỒN SỰ THẬT, 14 MB]
+        -> data/crawled-documents.images.json   [NGUỒN SỰ THẬT, 17 MB]
 
 ĐỌC (lúc khởi động, tiến trình web app)
-    data/index.json [CACHE, 384 MB]
+    data/index.json [CACHE, 486 MB]
         --(đường nhanh, nếu tồn tại và KHÔNG rỗng)--> InvertedIndex (RAM)
 
     Chain of Responsibility (buildStoreChain):
@@ -271,7 +283,9 @@ flowchart TD
     style C2 fill:#b3261e,color:#fff
 ```
 
-### 2.3 Bản đồ gói (package)
+---
+
+## 3. Bản đồ gói (package)
 
 ```mermaid
 flowchart TB
@@ -361,7 +375,7 @@ corpus (thêm CSDL, thêm cache) không đụng một dòng nào của crawler.
 
 ---
 
-## 3. Danh mục toàn bộ file tham gia
+## 4. Danh mục toàn bộ file tham gia
 
 | File | Module | Dòng | Vai trò |
 |---|---|---|---|
@@ -385,9 +399,9 @@ tình đo.
 
 ---
 
-## 4. Sơ đồ tuần tự tổng quát
+## 5. Sơ đồ tuần tự tổng quát
 
-### 4.1 Đường ghi — một trang crawl xong tới lúc nằm trên đĩa
+### 5.1 Đường ghi — một trang crawl xong tới lúc nằm trên đĩa
 
 ```mermaid
 sequenceDiagram
@@ -445,7 +459,7 @@ Worker                  ContentStorage        Bus            UrlExtractorService
 
 </details>
 
-### 4.2 Đường đọc — từ lệnh khởi động web app tới chỉ mục sẵn sàng
+### 5.2 Đường đọc — từ lệnh khởi động web app tới chỉ mục sẵn sàng
 
 ```mermaid
 sequenceDiagram
@@ -527,7 +541,7 @@ SearchEngineFacade.loadCorpus()
 
 ---
 
-## 5. Vòng đời của một WebDocument qua bốn kho
+## 6. Vòng đời của một WebDocument qua bốn kho
 
 Một `WebDocument` — kể từ lúc rời `ContentParser` trong crawler — có thể tồn
 tại đồng thời ở **tối đa bốn dạng khác nhau**, tại bốn nơi khác nhau, không
@@ -571,7 +585,7 @@ hỏng có phải là nguồn sự thật không?*
 
 ---
 
-## 6. Bảng so sánh bốn kho
+## 7. Bảng so sánh bốn kho
 
 | | Kho 1 — `crawled-documents.json` | Kho 2 — `*.images.json` | Kho 3 — `index.json` | Kho 4 — PostgreSQL |
 |---|---|---|---|---|
@@ -579,25 +593,24 @@ hỏng có phải là nguồn sự thật không?*
 | **Ai ghi** | Crawler (`ContentStorage`) | Crawler (`ImageStorage`) | `SearchEngineFacade.persistIndex()` | `PostgresImportRunner` (chạy tay) |
 | **Ai đọc** | `JsonDocumentStore` | `ImageStore` (khởi động) | Đường nhanh của `loadCorpus()` | `PostgresDocumentStore` |
 | **Ghi khi nào** | Trong lúc crawl, mỗi checkpoint + cuối phiên | Cùng nhịp với Kho 1 | Sau khi dựng chỉ mục từ Kho 1/4 | Chạy tay, một lần sau crawl |
-| **Định dạng** | JSON, thụt dòng, không nén | JSON, thụt dòng (bắt buộc, xem [mục 9](#9-imagestorage--tệp-anh-em-của-corpus)) | JSON, posting nén VByte, base64 | Quan hệ, có ràng buộc |
+| **Định dạng** | JSON, thụt dòng, không nén | JSON, thụt dòng (bắt buộc, xem [mục 16](#16-imagestorage--tệp-anh-em-của-corpus-và-pathfor)) | JSON, posting nén VByte, base64 | Quan hệ, có ràng buộc |
 | **Cách ghi bền** | Tệp tạm + `ATOMIC_MOVE` | Tệp tạm + `ATOMIC_MOVE` | Tệp tạm + `ATOMIC_MOVE` (qua `IndexPersistence`) | Giao dịch JDBC (`commit`/`rollback`) |
 | **Mất thì sao** | **Mất thật, không dựng lại được** | **Mất thật** | Dựng lại từ Kho 1, ~1 phút | Nạp lại từ Kho 1, ~2–3 phút |
 | **Rỗng/hỏng có được sập app không** | **Có** — corpus rỗng là sự thật | Không quan trọng bằng, `loadQuietly` nuốt lỗi | **Không** — log.warn, dựng lại | **Không** — log.info, lùi tầng JSON |
-| **Kích thước thật (repo này)** | 383 MB | 14 MB | 384 MB | phụ thuộc lần `PostgresImportRunner` gần nhất |
+| **Kích thước thật (repo này)** | 464 MB | 17 MB | 486 MB | phụ thuộc lần `PostgresImportRunner` gần nhất |
 | **Đọc lúc nào** | Lúc khởi động, nếu Kho 3 vắng/rỗng | Lúc khởi động, `loadQuietly` | Lúc khởi động, đường nhanh | Lúc khởi động, nếu bật cấu hình |
 
 ★ **Vì sao Kho 3 (`index.json`) lại lớn hơn cả Kho 1** dù nó chỉ là một cache
 phái sinh — đây là điều phản trực giác nhất trong toàn bộ tầng lưu trữ, và
-được giải thích đầy đủ ở [mục 27](#27-cấu-trúc-indexjson-thật--vì-sao-nó-lớn-hơn-corpus).
-
----
----
-
-# PHẦN II — ĐƯỜNG GHI: TỪ CRAWLER XUỐNG ĐĨA
+được giải thích đầy đủ ở [mục 60](#60-cấu-trúc-indexjson-thật--vì-sao-nó-lớn-hơn-corpus).
 
 ---
 
-## 7. `ContentStorage.save` và `applyOutlinks`
+# PHẦN II — ĐƯỜNG GHI: `ContentStorage` TRONG BỘ NHỚ
+
+---
+
+## 8. `ContentStorage.save` — `putIfAbsent`, lớp phòng thủ trùng lặp cuối cùng
 
 **File:** `core-crawler/crawler/ContentStorage.java` (138 dòng)
 
@@ -607,7 +620,7 @@ của một bản ghi bền vững. Trước khi tới đây, tài liệu chỉ 
 xếp lời gọi của một worker thread; sau khi qua đây, nó tồn tại trong một
 `ConcurrentHashMap` sống suốt phiên crawl.
 
-### 7.1 `save()` — `putIfAbsent`, lớp phòng thủ trùng lặp cuối cùng
+### 8.1 `save()` — `putIfAbsent`, lớp phòng thủ trùng lặp cuối cùng
 
 ```java
 private final ConcurrentHashMap<String, WebDocument> byUrl = new ConcurrentHashMap<>();
@@ -639,7 +652,9 @@ tiên của một URL là bản **đã đi qua** `ContentSeenFilter` và đã đ
 gắn vào (xem mục dưới) sẽ **mất trắng** — và mất một cách hoàn toàn câm, không
 ngoại lệ, không cảnh báo, chỉ thể hiện qua PageRank thiếu cạnh.
 
-### 7.2 `applyOutlinks()` — outlinks tới SAU nội dung
+---
+
+## 9. `applyOutlinks()` — outlinks tới SAU nội dung
 
 ```java
 public boolean applyOutlinks(String url, List<String> outlinks) {
@@ -718,7 +733,9 @@ tồn tại chính để cho phép đếm.
         nếu ContentStorage không sao ở đây thì không ai sao cả
 ```
 
-### 7.3 Vì sao lưu trong RAM, chỉ ghi đĩa ở cuối/checkpoint
+---
+
+## 10. Vì sao lưu trong RAM, chỉ ghi đĩa ở cuối và ở điểm kiểm tra
 
 ```
    Một phiên crawl vài nghìn trang chiếm khoảng vài trăm MB
@@ -738,7 +755,40 @@ sửa `CrawlerService`.
 
 ---
 
-## 8. `ContentStorage.saveToJson` — ghi nguyên tử
+## 11. `CheckpointCrawlListener` và tần suất ghi
+
+Lớp này thuộc về crawler và được phân tích đầy đủ ở `CRAWLER-PIPELINE.md` mục
+63–64; ở tài liệu này chỉ nhắc lại phần liên quan trực tiếp tới tầng lưu trữ.
+
+`CheckpointCrawlListener` gọi `ContentStorage.saveToJson()` **mỗi 250 trang**
+đã crawl, không chờ tới cuối phiên. Đây là lý do phiên crawl dài hàng giờ vẫn
+để lại một corpus gần như đầy đủ nếu bị dừng giữa chừng — đánh đổi lấy việc số
+lần ghi tăng từ 1 lên hàng chục mỗi phiên (xem [mục 13.1](#131-vì-sao-rủi-ro-này-lớn-hơn-hẳn-khi-có-checkpoint-định-kỳ)).
+
+```
+   ĐÁNH ĐỔI CỦA CHECKPOINT ĐỊNH KỲ
+
+   KHÔNG checkpoint:
+        + chỉ ghi 1 lần → cửa sổ rủi ro nhỏ nhất có thể
+        − crash ở phút thứ 119 của phiên 120 phút → MẤT TOÀN BỘ
+
+   CÓ checkpoint mỗi 250 trang (đang dùng):
+        + crash bất kỳ lúc nào → mất tối đa 249 trang cuối
+        − cửa sổ rủi ro của ghi nguyên tử nhân lên theo số lần ghi
+
+   ⇒ Ghi nguyên tử (mục 12) là ĐIỀU KIỆN CẦN để checkpoint định kỳ trở
+     thành một cải thiện ròng thay vì chỉ đổi loại rủi ro. Không có ghi
+     nguyên tử, checkpoint thường xuyên hơn sẽ làm mọi thứ TỆ HƠN, không
+     phải tốt hơn — vì nó tăng số lần tệp ở trạng thái dễ tổn thương.
+```
+
+---
+
+# PHẦN III — GHI JSON NGUYÊN TỬ XUỐNG ĐĨA
+
+---
+
+## 12. `ContentStorage.saveToJson` — ghi nguyên tử
 
 ```java
 public static void saveToJson(List<WebDocument> documents, String path) throws IOException {
@@ -766,7 +816,9 @@ public static void saveToJson(List<WebDocument> documents, String path) throws I
 }
 ```
 
-### 8.1 ★ Vì sao PHẢI ghi qua tệp tạm rồi đổi tên, thay vì ghi thẳng
+---
+
+## 13. ★ Vì sao PHẢI ghi qua tệp tạm rồi đổi tên, thay vì ghi thẳng
 
 Đây là quyết định thiết kế quan trọng nhất của toàn bộ đường ghi, và nó đáng
 được trình bày đầy đủ ba giai đoạn: hỏng ra sao nếu không làm, sửa thế nào, và
@@ -783,14 +835,14 @@ sequenceDiagram
     rect rgb(60, 20, 20)
     Note over P,OLD: KỊCH BẢN GHI ĐÈ TRỰC TIẾP — KHÔNG DÙNG Ở REPO NÀY
     P->>OLD: mở ở chế độ ghi → CẮT VỀ 0 BYTE NGAY LẬP TỨC
-    P->>OLD: ghi 383 MB (mất ~1-3 giây)
+    P->>OLD: ghi 464 MB (mất ~1-3 giây)
     Note over P: ✖ mất điện / Ctrl+C giữa chừng
     OLD-->>P: JSON CỤT — mất LUÔN corpus CŨ đang hoàn chỉnh
     end
 
     rect rgb(20, 60, 30)
     Note over P,NEW: KỊCH BẢN TỆP TẠM + ATOMIC_MOVE — ĐANG DÙNG
-    P->>TMP: ghi corpus.json.tmp (383 MB, ~1-3 giây)
+    P->>TMP: ghi corpus.json.tmp (464 MB, ~1-3 giây)
     Note over NEW: corpus.json GỐC KHÔNG BỊ ĐỘNG TỚI suốt lúc này
     Note over P: ✖ mất điện / Ctrl+C giữa chừng
     TMP-->>P: chỉ mất bản .tmp dở dang — corpus.json CŨ vẫn NGUYÊN VẸN
@@ -803,7 +855,7 @@ sequenceDiagram
 ```
 ── Ghi đè trực tiếp (KHÔNG dùng ở đây) ─────────────────────────────
 t0    mở corpus.json ở chế độ ghi  → tệp bị CẮT VỀ 0 BYTE ngay lập tức
-t0…t1 ghi 383 MB (mất vài giây)
+t0…t1 ghi 464 MB (mất vài giây)
 t0,x  ✖ Ctrl+C hoặc mất điện
       → corpus.json là JSON CỤT
       → MẤT LUÔN corpus CŨ vốn đang hoàn chỉnh
@@ -822,7 +874,7 @@ t1    Files.move(tmp, path, ATOMIC_MOVE) — đổi tên, KHÔNG phải ghi lạ
 
 </details>
 
-### 8.2 Vì sao rủi ro này lớn hơn hẳn khi có checkpoint định kỳ
+### 13.1 Vì sao rủi ro này lớn hơn hẳn khi có checkpoint định kỳ
 
 ```
    Không có checkpoint:  ghi 1 lần / phiên
@@ -839,7 +891,9 @@ t1    Files.move(tmp, path, ATOMIC_MOVE) — đổi tên, KHÔNG phải ghi lạ
    là trực giác sai nhất có thể có trong tình huống này.
 ```
 
-### 8.3 Đường lui khi hệ tệp không hỗ trợ đổi tên nguyên tử
+---
+
+## 14. Đường lui khi hệ tệp không hỗ trợ đổi tên nguyên tử
 
 ```java
 } catch (AtomicMoveNotSupportedException e) {
@@ -863,7 +917,9 @@ so với ghi đè trực tiếp, vì:
      riêng cho ổ mạng.
 ```
 
-### 8.4 Cấu hình `ObjectMapper` — ba tuỳ chọn, và một tuỳ chọn còn thiếu
+---
+
+## 15. Cấu hình `ObjectMapper` — ba tuỳ chọn, và chiều đọc ngược lại
 
 ```java
 new ObjectMapper()
@@ -874,7 +930,7 @@ new ObjectMapper()
 
 `INDENT_OUTPUT` làm tệp phình thêm khoảng 20–30% so với JSON nén, nhưng đổi
 lại `git diff` có ý nghĩa và tệp mở được bằng trình soạn thảo văn bản thường —
-với một corpus 383 MB thì việc soi bằng mắt hiếm khi thực tế, nhưng với các
+với một corpus 464 MB thì việc soi bằng mắt hiếm khi thực tế, nhưng với các
 tệp nhỏ hơn (seed, ảnh) đây là một tiện ích thật.
 
 ⚠ **`loadFromJson` (mục dưới) không bật `FAIL_ON_UNKNOWN_PROPERTIES = false`.**
@@ -885,7 +941,7 @@ hơn (hoặc mới hơn) mã đang chạy. Đây là một khoảng trống chư
 với khuôn mẫu ghi JSON khác trong dự án (`JsonUserStore` — xem
 `AUTH-PIPELINE.md` nếu có).
 
-### 8.5 `loadFromJson` — chiều ngược lại, chi phí gấp đôi lúc ghi
+### 15.1 `loadFromJson` — chiều ngược lại, chi phí gấp đôi lúc ghi
 
 ```java
 public static List<WebDocument> loadFromJson(String path) throws IOException {
@@ -896,22 +952,26 @@ public static List<WebDocument> loadFromJson(String path) throws IOException {
 ```
 
 Đọc **toàn bộ mảng vào bộ nhớ cùng lúc** — không có phiên bản đọc theo luồng
-(streaming). Với corpus thật 383 MB trên đĩa, bộ nhớ đỉnh lúc `readValue()`
+(streaming). Với corpus thật 464 MB trên đĩa, bộ nhớ đỉnh lúc `readValue()`
 chạy cao hơn kích thước tệp nhiều lần, vì Jackson phải giữ đồng thời bộ đệm
 phân tích cú pháp lẫn cây đối tượng Java đang dựng (`String` trong Java tốn
 gấp ~2× kích thước UTF-8 do dùng UTF-16 nội bộ, cộng chi phí đối tượng cho mỗi
 trường). Đây là lý do các script chạy tay trong tầng lưu trữ
 (`PostgresImportRunner`, `GinBaselineRunner`) đều cần `-Xmx` lớn — xem
-[mục 23](#23-postgresimportrunner--nạp-rồi-kiểm-chứng-đọc-lại) và
-[mục 24](#24-ginbaselinerunner--đối-chứng-gin-bằng-chứng-tự-cài-có-đáng).
+[mục 48](#48-postgresimportrunner--nạp-rồi-kiểm-chứng-đọc-lại) và
+[mục 51](#51-ginbaselinerunner--đối-chứng-gin-bằng-chứng-tự-cài-có-đáng).
 
 ---
 
-## 9. `ImageStorage` — tệp anh em của corpus
+# PHẦN IV — KHO ẢNH: `ImageStorage`
+
+---
+
+## 16. `ImageStorage` — tệp anh em của corpus, và `pathFor()`
 
 **File:** `core-crawler/crawler/modular/ImageStorage.java` (168 dòng)
 
-### 9.1 `pathFor()` — suy ra tên tệp, không cấu hình rời
+### 16.1 `pathFor()` — suy ra tên tệp, không cấu hình rời
 
 ```java
 private static final String SUFFIX = ".images.json";
@@ -940,7 +1000,9 @@ nữa, mà không có cách nào phát hiện qua kiểu dữ liệu hay ngoại
 ảnh phải suy ra từ tên corpus khiến trạng thái sai này **không biểu diễn
 được** — hai tệp luôn đi cùng nhau theo tên gốc.
 
-### 9.2 Vì sao ảnh có tệp riêng, không nhét vào `WebDocument`
+---
+
+## 17. Vì sao ảnh có tệp riêng, không nhét vào `WebDocument`
 
 Ba lý do, theo Javadoc của lớp:
 
@@ -951,14 +1013,16 @@ Ba lý do, theo Javadoc của lớp:
 
    ② Ảnh và văn bản có VÒNG ĐỜI KHÁC NHAU: ảnh do một Modular Service
       riêng (ImageDownloadService) sinh ra qua bus, có thể tới SAU khi
-      trang văn bản đã được lưu — giống hệt tình huống outlinks ở mục 7.2.
+      trang văn bản đã được lưu — giống hệt tình huống outlinks ở mục 9.
       Ghép chung một tệp là ép hai nhịp ghi khác nhau dùng chung một khoá.
 
    ③ Corpus đã nặng hàng trăm MB. Ai chỉ cần số liệu ảnh (ví dụ thống kê
       nhanh) không nên phải quét qua toàn bộ bodyText của mọi trang.
 ```
 
-### 9.3 Ghi nguyên tử — cùng khuôn với `ContentStorage`, một khác biệt tinh tế
+---
+
+## 18. Ghi nguyên tử ở `ImageStorage` — cùng khuôn, một khác biệt tinh tế
 
 ```java
 public static void saveToJson(Collection<ImageFound> images, String path) throws IOException {
@@ -989,7 +1053,7 @@ theo từng dòng thay vì phân tích JSON đầy đủ. Tắt cờ này sẽ k
 dịch, không gây ngoại lệ lúc chạy `ImageStorage` — chỉ âm thầm làm hỏng một
 script PowerShell nằm ở một thư mục hoàn toàn khác trong repo.
 
-### 9.4 Danh sách rỗng vẫn được ghi — phân biệt "chưa crawl" với "crawl rồi, không có ảnh"
+### 18.1 Danh sách rỗng vẫn được ghi — phân biệt "chưa crawl" với "crawl rồi, không có ảnh"
 
 ```
    Có tệp, nội dung []     : "đã crawl phiên này, không tìm được ảnh nào"
@@ -1001,11 +1065,13 @@ script PowerShell nằm ở một thư mục hoàn toàn khác trong repo.
 ```
 
 Đây là cùng nguyên tắc "phân biệt rỗng với không có" đã thấy nhiều lần trong
-tầng lưu trữ — ở `DocumentStore.isAvailable()` vs `loadAll()` (mục 13), ở
-`ContentStorage.applyOutlinks` (mục 7.2), và sẽ còn gặp lại ở
-`PostgresDocumentStore.isAvailable()` (mục 22).
+tầng lưu trữ — ở `DocumentStore.isAvailable()` vs `loadAll()` (mục 24), ở
+`ContentStorage.applyOutlinks` (mục 9), và sẽ còn gặp lại ở
+`PostgresDocumentStore.isAvailable()` (mục 44).
 
-### 9.5 `loadQuietly` — đường khởi động không được phép chết vì ảnh
+---
+
+## 19. `loadQuietly` — đường khởi động không được phép chết vì ảnh
 
 ```java
 public static List<ImageFound> loadQuietly(String path) {
@@ -1026,47 +1092,17 @@ public static List<ImageFound> loadQuietly(String path) {
 lên được — hỏng cả phần tìm kiếm văn bản vốn chẳng liên quan gì."* Đây là ví
 dụ rõ ràng của nguyên tắc "cache/dữ liệu phụ trợ không được phép làm sập tính
 năng cốt lõi" — cùng tinh thần với việc `index.json` hỏng không được sập app
-([mục 15](#15-nguồn-rỗng-không-phải-là-nguồn--sự-cố-indexjson-159-byte)), chỉ
+([mục 29](#29-sự-cố-indexjson-159-byte--diễn-biến)), chỉ
 là ở đây mức độ "phụ trợ" còn rõ ràng hơn nữa: dữ liệu ảnh không tham gia vào
 kết quả tìm kiếm văn bản chút nào.
 
 ---
 
-## 10. `CheckpointCrawlListener` và tần suất ghi
-
-Lớp này thuộc về crawler và được phân tích đầy đủ ở `CRAWLER-PIPELINE.md` mục
-63–64; ở tài liệu này chỉ nhắc lại phần liên quan trực tiếp tới tầng lưu trữ.
-
-`CheckpointCrawlListener` gọi `ContentStorage.saveToJson()` **mỗi 250 trang**
-đã crawl, không chờ tới cuối phiên. Đây là lý do phiên crawl dài hàng giờ vẫn
-để lại một corpus gần như đầy đủ nếu bị dừng giữa chừng — đánh đổi lấy việc số
-lần ghi tăng từ 1 lên hàng chục mỗi phiên (xem [mục 8.2](#82-vì-sao-rủi-ro-này-lớn-hơn-hẳn-khi-có-checkpoint-định-kỳ)).
-
-```
-   ĐÁNH ĐỔI CỦA CHECKPOINT ĐỊNH KỲ
-
-   KHÔNG checkpoint:
-        + chỉ ghi 1 lần → cửa sổ rủi ro nhỏ nhất có thể
-        − crash ở phút thứ 119 của phiên 120 phút → MẤT TOÀN BỘ
-
-   CÓ checkpoint mỗi 250 trang (đang dùng):
-        + crash bất kỳ lúc nào → mất tối đa 249 trang cuối
-        − cửa sổ rủi ro của ghi nguyên tử nhân lên theo số lần ghi
-
-   ⇒ Ghi nguyên tử (mục 8) là ĐIỀU KIỆN CẦN để checkpoint định kỳ trở
-     thành một cải thiện ròng thay vì chỉ đổi loại rủi ro. Không có ghi
-     nguyên tử, checkpoint thường xuyên hơn sẽ làm mọi thứ TỆ HƠN, không
-     phải tốt hơn — vì nó tăng số lần tệp ở trạng thái dễ tổn thương.
-```
-
----
----
-
-# PHẦN III — ĐƯỜNG ĐỌC: `SearchEngineFacade.loadCorpus()`
+# PHẦN V — ĐƯỜNG ĐỌC: ĐƯỜNG NHANH VÀ CHUỖI NGUỒN
 
 ---
 
-## 11. Đường nhanh: `index.json` có sẵn
+## 20. Đường nhanh: `index.json` có sẵn
 
 **File:** `core-search/service/SearchEngineFacade.java`, phương thức
 `loadCorpus()` (dòng 149–196 trong mã thật của repo).
@@ -1108,7 +1144,7 @@ private void loadCorpus() throws IOException {
 của chính repo này — kể cả phần Javadoc kể lại sự cố 159 byte, được viết thẳng
 vào bình luận mã nguồn chứ không chỉ nằm trong tài liệu bên ngoài.
 
-### 11.1 Ba đường ra từ khối `try`, ba mức nghiêm trọng khác nhau
+### 20.1 Ba đường ra từ khối `try`, ba mức nghiêm trọng khác nhau
 
 ```mermaid
 flowchart TD
@@ -1148,13 +1184,15 @@ quả `IndexPersistence.load()` bất kể nội dung, một `index.json` **tồ
 nhưng rỗng** sẽ khiến `loadCorpus()` `return` ngay lập tức — che mất hoàn toàn
 ba tầng dự phòng phía sau (`buildStoreChain()`), kể cả tầng seed **luôn có sẵn
 trong repo**. Đây chính xác là sự cố có thật đã xảy ra, phân tích đầy đủ ở
-[mục 15](#15-nguồn-rỗng-không-phải-là-nguồn--sự-cố-indexjson-159-byte).
+[mục 29](#29-sự-cố-indexjson-159-byte--diễn-biến).
 
-### 11.2 Trên đường chạy thực tế của repo này, đường nhanh gần như không kích hoạt
+---
+
+## 21. Trên đường chạy thực tế của repo này, đường nhanh gần như không kích hoạt
 
 `index.json` **chỉ được ghi** ở một chỗ duy nhất: `persistIndex()`, chạy ngay
 sau khi `loadCorpus()` tự dựng chỉ mục thành công từ một trong các
-`DocumentStore` (xem [mục 17](#17-persistindex--ghi-lại-sau-khi-dựng)). Không
+`DocumentStore` (xem [mục 34](#34-persistindex--ghi-lại-sau-khi-dựng)). Không
 có tiến trình `run-crawl.bat` nào ghi trực tiếp vào `index.json` — file này
 hoàn toàn là sản phẩm phụ của chính `SearchEngineFacade`.
 
@@ -1175,7 +1213,7 @@ hoàn toàn là sản phẩm phụ của chính `SearchEngineFacade`.
 
 ---
 
-## 12. Chain of Responsibility: `buildStoreChain()`
+## 22. Chain of Responsibility: `buildStoreChain()`
 
 ```java
 private List<DocumentStore> buildStoreChain() {
@@ -1215,7 +1253,7 @@ for (DocumentStore store : buildStoreChain()) {
 log.warn("Khong tim thay nguon du lieu nao, bat dau voi index rong");
 ```
 
-### 12.1 ★ Vì sao đây là DỮ LIỆU (một `List<DocumentStore>`), không phải CẤU TRÚC ĐIỀU KHIỂN
+### 22.1 ★ Vì sao đây là DỮ LIỆU (một `List<DocumentStore>`), không phải CẤU TRÚC ĐIỀU KHIỂN
 
 ```
    TRƯỚC — CẤU TRÚC ĐIỀU KHIỂN (không dùng ở đây)
@@ -1240,13 +1278,15 @@ log.warn("Khong tim thay nguon du lieu nao, bat dau voi index rong");
    5 dòng, 0 giây, không chạm đĩa.
 ```
 
-### 12.2 Thứ tự trong danh sách = thứ tự ưu tiên dữ liệu, KHÔNG PHẢI thứ tự chi phí
+---
+
+## 23. Thứ tự trong danh sách = thứ tự ưu tiên dữ liệu, KHÔNG PHẢI thứ tự chi phí
 
 Đây là một điểm dễ nhầm khi đọc mã lần đầu: `PostgresDocumentStore` đứng đầu
 danh sách không phải vì nó rẻ nhất để thử, mà vì nó là nguồn được **ưu tiên
 dùng nếu có** — trong khi trên thực tế, thử nó lại là bước **đắt nhất** trong
 toàn bộ chuỗi (`isAvailable()` của nó mở một kết nối JDBC thật, xem
-[mục 22](#22-postgresdocumentstore--adapter-vào-chuỗi-dự-phòng)). Chi phí thử
+[mục 44](#44-postgresdocumentstore--adapter-vào-chuỗi-dự-phòng)). Chi phí thử
 mỗi tầng, đo trên máy cục bộ:
 
 | Tầng | `isAvailable()` tốn | Vì sao |
@@ -1265,7 +1305,11 @@ mỗi tầng, đo trên máy cục bộ:
 
 ---
 
-## 13. `DocumentStore` — hợp đồng ba phương thức
+# PHẦN VI — HỢP ĐỒNG `DocumentStore`
+
+---
+
+## 24. `DocumentStore` — hợp đồng ba phương thức
 
 **File:** `core-search/storage/DocumentStore.java` (42 dòng)
 
@@ -1289,7 +1333,7 @@ gần như toàn bộ giá trị thiết kế nằm ở việc **tách `isAvaila
 `loadAll()`** thay vì gộp thành một phương thức duy nhất kiểu
 `Optional<List<WebDocument>> tryLoad()`.
 
-### 13.1 ★ Vì sao tách, không gộp — phân biệt "không có nguồn" với "nguồn hỏng"
+### 24.1 ★ Vì sao tách, không gộp — phân biệt "không có nguồn" với "nguồn hỏng"
 
 ```
    PHƯƠNG ÁN GỘP (không dùng):
@@ -1302,7 +1346,7 @@ gần như toàn bộ giá trị thiết kế nằm ở việc **tách `isAvaila
         ② "Nguồn CÓ nhưng nạp HỎNG"      → đây là LỖI THẬT, cần báo, KHÔNG
                                             nên lặng lẽ lùi về nguồn khác
 
-        Gộp lại ⇒ một tệp corpus 383 MB bị hỏng (đĩa lỗi, cắt dở dang) sẽ
+        Gộp lại ⇒ một tệp corpus 464 MB bị hỏng (đĩa lỗi, cắt dở dang) sẽ
         âm thầm khiến hệ thống chạy bằng ~40 tài liệu seed, và KHÔNG AI BIẾT
         — vì cả hai ca đều biểu diễn bằng cùng một giá trị: rỗng.
 
@@ -1312,11 +1356,13 @@ gần như toàn bộ giá trị thiết kế nằm ở việc **tách `isAvaila
 ```
 
 Đây là cùng nguyên tắc "phân biệt rỗng với không có" gặp lại nhiều lần trong
-toàn bộ tầng lưu trữ: ở `ImageStorage` (mục 9.4), ở
-`PostgresDocumentStore.isAvailable()` (mục 22), và ở chính `loadCorpus()`
-(mục 12) khi `docs.isEmpty()` được kiểm tra riêng biệt với `isAvailable()`.
+toàn bộ tầng lưu trữ: ở `ImageStorage` (mục 18.1), ở
+`PostgresDocumentStore.isAvailable()` (mục 44), và ở chính `loadCorpus()`
+(mục 22) khi `docs.isEmpty()` được kiểm tra riêng biệt với `isAvailable()`.
 
-### 13.2 Mẫu vòng lặp chuẩn ở chỗ gọi
+---
+
+## 25. Mẫu vòng lặp chuẩn ở chỗ gọi
 
 ```java
 for (DocumentStore store : nguonTheoUuTien) {
@@ -1339,15 +1385,17 @@ Ba mức log khác nhau là cố ý: `isAvailable() == false` không log gì (b�
 thường), `loadAll()` ném thì WARN (bất thường), hết nguồn thì ERROR. Người vận
 hành nhìn log biết ngay hệ thống đang chạy ở tầng dự phòng thứ mấy, và vì sao.
 
-Mã thật trong `SearchEngineFacade.loadCorpus()` (mục 12) hơi khác bản chuẩn
+Mã thật trong `SearchEngineFacade.loadCorpus()` (mục 22) hơi khác bản chuẩn
 này ở một điểm: nó **không** dùng `try (store)` — không có `try-with-resources`
 quanh vòng lặp. Với `JsonDocumentStore` điều này vô hại (không có tài nguyên gì
 để đóng), nhưng với `PostgresDocumentStore`, việc thiếu `try-with-resources` ở
 tầng gọi được bù lại bằng việc chính `isAvailable()` và `loadAll()` của lớp đó
-**tự mở và tự đóng kết nối bên trong từng lời gọi** (xem mục 22.3) — nên không
+**tự mở và tự đóng kết nối bên trong từng lời gọi** (xem mục 46) — nên không
 có rò rỉ kết nối thực tế xảy ra.
 
-### 13.3 `extends AutoCloseable` với `close()` mặc định rỗng
+---
+
+## 26. `close()` mặc định rỗng, và những gì interface cố ý KHÔNG làm
 
 ```
    VÌ SAO KẾ THỪA AutoCloseable:
@@ -1360,7 +1408,7 @@ có rò rỉ kết nối thực tế xảy ra.
         ✔ thêm nguồn mới cần đóng tài nguyên thì chỉ việc ghi đè
 ```
 
-### 13.4 Những gì interface này cố ý KHÔNG làm
+### 26.1 Những gì interface này cố ý KHÔNG làm
 
 ```
    KHÔNG có save(List<WebDocument>)
@@ -1377,7 +1425,7 @@ có rò rỉ kết nối thực tế xảy ra.
 
 ---
 
-## 14. `JsonDocumentStore` — một lớp, ba tầng
+## 27. `JsonDocumentStore` — một lớp, ba tầng
 
 **File:** `core-search/storage/JsonDocumentStore.java` (52 dòng)
 
@@ -1408,12 +1456,12 @@ public String describe() {
 ```
 
 `JsonDocumentStore` **không tự đọc JSON** — `loadAll()` uỷ thác thẳng cho
-`ContentStorage.loadFromJson()` (mục 8.5). Giá trị của lớp này không nằm ở
+`ContentStorage.loadFromJson()` (mục 15.1). Giá trị của lớp này không nằm ở
 việc đọc, mà ở việc biến **một đường dẫn tệp** thành **một phần tử có cùng
 kiểu** với `PostgresDocumentStore`, để hai loại nguồn hoàn toàn khác nhau về
 bản chất hạ tầng có thể xếp chung một `List<DocumentStore>`.
 
-### 14.1 ★ Ba lần dùng lại, một lớp — vì sao là dữ liệu chứ không phải hành vi
+### 27.1 ★ Ba lần dùng lại, một lớp — vì sao là dữ liệu chứ không phải hành vi
 
 ```
 data/crawled-documents.json  → new JsonDocumentStore(crawledDataPath, "corpus da crawl")
@@ -1421,14 +1469,16 @@ data/seed-documents.json     → new JsonDocumentStore(seedDataPath, "seed mau")
 ```
 
 Trong repo này, `buildStoreChain()` chỉ thật sự dùng **hai** trong ba tầng
-JSON lý thuyết (đường nhanh `index.json` được xử lý riêng ở mục 11, không đi
+JSON lý thuyết (đường nhanh `index.json` được xử lý riêng ở mục 20, không đi
 qua `JsonDocumentStore`). Hai tầng dự phòng khác nhau hoàn toàn về **ngữ
 nghĩa** — một là corpus thật đã crawl, một là mẫu vài chục tài liệu đi kèm repo
 — nhưng giống hệt nhau về **cơ chế**: "có tệp ở đường dẫn này không, nếu có thì
 đọc nó". Tham số hoá bằng `(path, label)` là đúng vì cái khác nhau giữa hai
 tầng là **dữ liệu**, không phải **hành vi**.
 
-### 14.2 `isAvailable()` — ba điều kiện, và tại sao thứ tự không hoán đổi được
+---
+
+## 28. `isAvailable()` — ba điều kiện, và tầng dự phòng cuối
 
 ```java
 return path != null && !path.isBlank() && Files.exists(Path.of(path));
@@ -1460,7 +1510,7 @@ mục** (`Files.exists` trả `true` cho thư mục, nên bị nhận nhầm là
 `loadAll()` chắc chắn sẽ ném ngay sau đó). Cách chính xác hơn là
 `Files.isRegularFile(p) && Files.isReadable(p)`, hiện chưa được áp dụng.
 
-### 14.3 Tầng dự phòng cuối — `seed-documents.json` và vì sao nó đáng khen
+### 28.1 Tầng dự phòng cuối — `seed-documents.json` và vì sao nó đáng khen
 
 ```
    KỊCH BẢN THẬT: người đánh giá mở repo lần đầu, không có Docker, data/
@@ -1475,7 +1525,7 @@ mục** (`Files.exists` trả `true` cho thư mục, nên bị nhận nhầm là
         → để chạy được phải: cài Docker HOẶC chạy crawler hàng giờ
 
    CÓ tầng seed (đang dùng):
-        → ~289 KB tài liệu nằm SẴN trong repo (xem mục 26 cho số liệu thật)
+        → ~289 KB tài liệu nằm SẴN trong repo (xem mục 59 cho số liệu thật)
         → có kết quả, có gợi ý, có phân trang, có PageRank
         → MỌI tính năng biểu diễn được ngay lập tức
 ```
@@ -1486,13 +1536,17 @@ hàng trăm MB không thực tế để commit vào git.
 
 ---
 
-## 15. Nguồn RỖNG không phải là nguồn — sự cố `index.json` 159 byte
+# PHẦN VII — NGUỒN RỖNG KHÔNG PHẢI LÀ NGUỒN
 
-Đây là mục quan trọng nhất của PHẦN III, vì nó là sự cố **có thật** đã xảy ra
+---
+
+## 29. Sự cố `index.json` 159 byte — diễn biến
+
+Đây là mục quan trọng nhất của PHẦN VII, vì nó là sự cố **có thật** đã xảy ra
 trong quá trình phát triển repo này, được ghi lại trực tiếp trong Javadoc của
-mã nguồn (mục 11) chứ không phải suy diễn.
+mã nguồn (mục 20) chứ không phải suy diễn.
 
-### 15.1 Diễn biến sự cố
+### 29.1 Diễn biến sự cố
 
 ```
 1. Một phiên crawl bị dừng/lỗi giữa chừng khi đang ghi index.json
@@ -1523,7 +1577,9 @@ mã nguồn (mục 11) chứ không phải suy diễn.
           chạm tới, vì đường nhanh return trước khi buildStoreChain() chạy
 ```
 
-### 15.2 Cách sửa — và vì sao nó tổng quát hoá thành một nguyên tắc
+---
+
+## 30. Cách sửa — và vì sao nó tổng quát hoá thành một nguyên tắc
 
 ```java
 if (prebuilt.getTotalDocs() > 0) {
@@ -1547,12 +1603,14 @@ log.warn("Chi muc dung san tai {} khong co tai lieu nao. Bo qua va"
    trong tầng lưu trữ, và cả ba đều đã được rào:
 
         ① index.json (mục này)         : getTotalDocs() > 0, không chỉ Files.exists()
-        ② JsonDocumentStore + loadCorpus: docs.isEmpty() được kiểm RIÊNG (mục 12)
+        ② JsonDocumentStore + loadCorpus: docs.isEmpty() được kiểm RIÊNG (mục 22)
         ③ PostgresDocumentStore         : countDocuments() > 0, không chỉ "kết nối được"
-                                          (mục 22.2)
+                                          (mục 45)
 ```
 
-### 15.3 Vì sao lỗi này đặc biệt nguy hiểm — nó "trông đúng"
+---
+
+## 31. Vì sao lỗi này đặc biệt nguy hiểm — nó "trông đúng"
 
 ```
    MỌI BƯỚC TRUNG GIAN ĐỀU BÁO CÁO THÀNH CÔNG:
@@ -1581,13 +1639,12 @@ xuất không được sập app"*) là lý do vì sao khi vòng lặp rơi xu�
 đường nhanh đừng chặn đường tới chúng.
 
 ---
+
+# PHẦN VIII — KHO THỨ BA: `index.json` LÀ MỘT CACHE
+
 ---
 
-# PHẦN IV — KHO THỨ BA: `index.json` LÀ MỘT CACHE
-
----
-
-## 16. `index.json` nhìn từ tầng lưu trữ
+## 32. `index.json` nhìn từ tầng lưu trữ
 
 `IndexPersistence` (223 dòng, `com.vnsearch.index`) đã có tài liệu đầy đủ
 riêng — cấu trúc `IndexData`, cơ chế nén posting bằng VByte, hai hàng rào khi
@@ -1619,7 +1676,9 @@ phải nó được nén ra sao.
       tự-lưu-cache, không phải một luồng dữ liệu một chiều như ba kho kia.
 ```
 
-### 16.1 Vì sao lại phải có một cache khi chỉ mục dựng "chỉ mất ~1 phút"
+---
+
+## 33. Vì sao lại phải có một cache khi chỉ mục dựng "chỉ mất ~1 phút"
 
 ```
    58,5 GIÂY — con số đo được TRÊN CORPUS THẬT của repo này (30.017 trang,
@@ -1628,7 +1687,7 @@ phải nó được nén ra sao.
    Một phút nghe có vẻ chấp nhận được cho MỘT lần khởi động. Nhưng:
 
         - môi trường container thường khởi động lại nhiều lần: mỗi lần
-          deploy, mỗi lần healthcheck thất bại (xem mục 15), mỗi lần
+          deploy, mỗi lần healthcheck thất bại (xem mục 29), mỗi lần
           autoscale thêm một instance
         - 58,5 giây × N lần khởi động lại = N phút người dùng chờ, hoặc
           N phút load balancer coi instance là chưa sẵn sàng
@@ -1639,7 +1698,7 @@ phải nó được nén ra sao.
 
 ---
 
-## 17. `persistIndex()` — ghi lại sau khi dựng
+## 34. `persistIndex()` — ghi lại sau khi dựng
 
 ```java
 private void persistIndex() {
@@ -1658,10 +1717,12 @@ private void persistIndex() {
 }
 ```
 
-### 17.1 ⚠ Sự cố đã có thật: đoạn này từng bị THIẾU hoàn toàn
+---
+
+## 35. ⚠ Sự cố đã có thật: đoạn `persistIndex()` từng bị THIẾU hoàn toàn
 
 Javadoc của chính phương thức này (trích thẳng từ mã nguồn) kể lại một sự cố
-khác, tách biệt với sự cố 159 byte ở mục 15 nhưng cùng liên quan tới
+khác, tách biệt với sự cố 159 byte ở mục 29 nhưng cùng liên quan tới
 `index.json`:
 
 ```
@@ -1686,7 +1747,9 @@ ngoại lệ nào bị ném, không có gì "hỏng" theo nghĩa thông thườn
 đúng chức năng ở mọi lần khởi động — chỉ là chậm hơn 58,5 giây một cách vô ích
 và lặp lại vô hạn lần, vì không ai viết dòng mã ghi cache lại.
 
-### 17.2 ★ Lỗi ghi không được phép làm hỏng lần khởi động
+---
+
+## 36. ★ Lỗi ghi không được phép làm hỏng lần khởi động
 
 ```
    "Chi muc dung san la CACHE dan xuat, khong phai nguon su that — dia
@@ -1704,17 +1767,16 @@ hưởng gì tới khả năng phục vụ ngay lập tức, chỉ ảnh hưởn
 động của lần sau**.
 
 Đây là cùng nguyên tắc số 3 đã nêu ở mục 1: *cache dẫn xuất không được sập
-app*, áp dụng ở cả hai chiều — không được sập khi **đọc** cache hỏng (mục 11),
+app*, áp dụng ở cả hai chiều — không được sập khi **đọc** cache hỏng (mục 20),
 và không được sập khi **ghi** cache thất bại (mục này).
 
 ---
+
+# PHẦN IX — KHO THỨ TƯ: POSTGRESQL — ĐƯỜNG GHI
+
 ---
 
-# PHẦN V — KHO THỨ TƯ: POSTGRESQL
-
----
-
-## 18. `DocumentRepository` — JDBC thuần, vì sao
+## 37. `DocumentRepository` — JDBC thuần, vì sao
 
 **File:** `core-search/storage/DocumentRepository.java` (256 dòng)
 
@@ -1728,12 +1790,12 @@ Boot, đây là một lựa chọn bất thường và gần như chắc chắn 
       Nếu spring-boot-starter-data-jpa nằm trên classpath, Spring Boot sẽ
       cố dựng DataSource lúc khởi động. Không có PostgreSQL đang chạy ⇒
       ứng dụng CHẾT NGAY khi khởi động — trước cả khi chuỗi dự phòng của
-      SearchEngineFacade (PHẦN III) có cơ hội chạy. Toàn bộ giá trị của
+      SearchEngineFacade (PHẦN V) có cơ hội chạy. Toàn bộ giá trị của
       bốn tầng dự phòng sẽ trở nên vô nghĩa nếu ứng dụng không sống nổi
       tới lúc duyệt qua chúng.
 
    ② GHI HÀNG LOẠT NHANH HƠN                       ★★☆  ĐO ĐƯỢC
-      JDBC batch đẩy 500 câu lệnh trong một gói (mục 19). Hibernate mặc
+      JDBC batch đẩy 500 câu lệnh trong một gói (mục 39). Hibernate mặc
       định KHÔNG bật batch, và kể cả bật thì vẫn phải quản lý persistence
       context cho hàng chục nghìn entity — dễ tràn heap.
 
@@ -1744,7 +1806,7 @@ Boot, đây là một lựa chọn bất thường và gần như chắc chắn 
 
 Nếu chỉ giữ lại một câu trả lời khi bị hỏi: **dự án phải chạy được trên một
 máy trắng không có Docker.** Đây không phải sự lười biếng mà là một yêu cầu
-phi chức năng thật, và nó nối trực tiếp với chuỗi dự phòng ở PHẦN III:
+phi chức năng thật, và nó nối trực tiếp với chuỗi dự phòng ở PHẦN V–VI:
 
 ```
    PostgresDocumentStore  ─ không có CSDL ─> isAvailable() = false
@@ -1761,7 +1823,9 @@ DocumentRepository(...)` là một `DriverManager.getConnection` mới, tốn
 60–220 ms. Với một hệ thống chỉ mở kết nối vài lần trong đời (khởi động, chạy
 thí nghiệm chạy tay), đây là đánh đổi đúng.
 
-### 18.1 Hàm dựng và ba hằng số mặc định
+---
+
+## 38. Hàm dựng và ba hằng số mặc định
 
 ```java
 public static final String DEFAULT_URL = "jdbc:postgresql://localhost:5432/vnsearch";
@@ -1777,7 +1841,7 @@ public static DocumentRepository connectDefault() throws SQLException {
 }
 ```
 
-Hàm dựng **mở kết nối ngay** — khác `PostgresDocumentStore` (mục 22), nơi hàm
+Hàm dựng **mở kết nối ngay** — khác `PostgresDocumentStore` (mục 44), nơi hàm
 dựng chỉ gán ba chuỗi mà không chạm mạng. Hệ quả: mọi lỗi hạ tầng nổ ra tại
 `new`, đúng hành vi cần có cho một lớp `AutoCloseable` — nếu đối tượng tồn tại
 thì tài nguyên của nó đã sẵn sàng.
@@ -1794,7 +1858,7 @@ thật**, không được coi là "đã xong".
 
 ---
 
-## 19. `saveAll()` — một giao dịch, batch 500
+## 39. `saveAll()` — một giao dịch, batch 500
 
 ```java
 public void saveAll(List<WebDocument> documents) throws SQLException {
@@ -1813,7 +1877,7 @@ public void saveAll(List<WebDocument> documents) throws SQLException {
 }
 ```
 
-### 19.1 Ba chi tiết viết đúng chuẩn trong 13 dòng
+### 39.1 Ba chi tiết viết đúng chuẩn trong 13 dòng
 
 ```
    ① LƯU LẠI autoCommit CŨ, KHÔI PHỤC TRONG finally
@@ -1830,7 +1894,9 @@ public void saveAll(List<WebDocument> documents) throws SQLException {
       Người gọi (PostgresImportRunner) cần biết chính xác lỗi gì.
 ```
 
-### 19.2 ★ Vì sao PHẢI nguyên tử — corpus dở dang là loại hỏng TỆ NHẤT
+---
+
+## 40. ★ Vì sao PHẢI nguyên tử — và ghi theo lô 500
 
 ```
    KỊCH BẢN KHÔNG CÓ GIAO DỊCH (giả định)
@@ -1849,11 +1915,11 @@ public void saveAll(List<WebDocument> documents) throws SQLException {
 ```
 
 ★ Điểm cần thành thật: giao dịch này bảo vệ *tính nguyên tử của lần ghi*, còn
-`deleteAll()` (chạy trước `saveAll()` trong `PostgresImportRunner`, mục 23)
+`deleteAll()` (chạy trước `saveAll()` trong `PostgresImportRunner`, mục 48)
 **nằm ngoài** giao dịch đó. Vẫn có một cửa sổ mà CSDL rỗng hoàn toàn giữa lúc
-xoá và lúc commit xong — xem [mục 23.2](#232-cửa-sổ-csdl-rỗng).
+xoá và lúc commit xong — xem [mục 49](#49-bốn-giai-đoạn).
 
-### 19.3 Ghi theo lô 500 — con số này từ đâu ra
+### 40.1 Ghi theo lô 500 — con số này từ đâu ra
 
 ```java
 private static final int BATCH_SIZE = 500;
@@ -1893,11 +1959,11 @@ statement.executeBatch();   // phần dư cuối cùng, NGOÀI vòng lặp
 Dòng `statement.executeBatch()` **cuối cùng, ngoài vòng lặp**, là bắt buộc: số
 bản ghi hiếm khi chia hết cho 500, và phần dư chỉ được ghi nhờ dòng này. Bỏ nó
 đi là mất dữ liệu **âm thầm** — lỗi kinh điển của mã batch JDBC, và là một
-trong những cạm bẫy được test bảo vệ trực tiếp (xem [mục 31](#31-câu-hỏi-thường-gặp)).
+trong những cạm bẫy được test bảo vệ trực tiếp (xem [mục 67](#67-câu-hỏi-thường-gặp)).
 
 ---
 
-## 20. `ON CONFLICT DO UPDATE` — upsert và cái bẫy outlinks
+## 41. `ON CONFLICT DO UPDATE` — upsert và cái bẫy outlinks
 
 ```sql
 INSERT INTO documents (doc_id, url, title, meta_description, body_text, crawled_at)
@@ -1933,13 +1999,17 @@ bằng `ON CONFLICT` — phải giữ kỷ luật gọi `deleteAll()` trước m
 `saveAll()`.
 
 `TRUNCATE TABLE documents CASCADE` xoá luôn `outlinks` nhờ ràng buộc
-`ON DELETE CASCADE` trong `schema.sql` (mục 28), nên `deleteAll()` chỉ cần một
+`ON DELETE CASCADE` trong `schema.sql` (mục 62), nên `deleteAll()` chỉ cần một
 dòng SQL. `TRUNCATE` cũng nhanh hơn `DELETE` nhiều vì không sinh bản ghi undo
 cho từng dòng.
 
 ---
 
-## 21. `findAll()` — hai truy vấn, `ORDER BY doc_id`
+# PHẦN X — POSTGRESQL — ĐƯỜNG ĐỌC VÀ ADAPTER
+
+---
+
+## 42. `findAll()` — hai truy vấn, `ORDER BY doc_id`
 
 ```java
 Map<Integer, WebDocument> byId = new LinkedHashMap<>();
@@ -1947,7 +2017,7 @@ Map<Integer, WebDocument> byId = new LinkedHashMap<>();
 // ② SELECT from_doc_id, to_url FROM outlinks ORDER BY from_doc_id
 ```
 
-### 21.1 Tránh lỗi N+1 bằng đúng hai truy vấn
+### 42.1 Tránh lỗi N+1 bằng đúng hai truy vấn
 
 ```
    LỖI N+1 TRÔNG NHƯ THẾ NÀO NẾU MẮC PHẢI
@@ -1963,11 +2033,13 @@ Map<Integer, WebDocument> byId = new LinkedHashMap<>();
 ```
 
 Đây là bài toán mà JPA thường làm sai (lazy loading không kiểm soát), và là
-một trong ba lý do chọn JDBC thuần ở mục 18.
+một trong ba lý do chọn JDBC thuần ở mục 37.
 
-### 21.2 ★★★ `ORDER BY doc_id` — một mệnh đề SQL gánh bất biến của một cấu trúc dữ liệu cách nó BỐN TẦNG
+---
 
-Đây là phần quan trọng nhất của toàn bộ tài liệu `PHẦN V`, và đáng đọc chậm.
+## 43. ★★★ `ORDER BY doc_id` — một mệnh đề SQL gánh bất biến của một cấu trúc dữ liệu cách nó BỐN TẦNG
+
+Đây là phần quan trọng nhất của toàn bộ tài liệu `PHẦN X`, và đáng đọc chậm.
 
 ```
    CHUỖI PHỤ THUỘC
@@ -2030,10 +2102,10 @@ SQL, và `LinkedHashMap` ở phía Java. Bỏ một trong hai là mất bất bi
 `LinkedHashMap` thành `HashMap` là một "dọn dẹp" trông vô hại nhất có thể tưởng
 tượng, sẽ phá vỡ mọi thứ mà không có cảnh báo nào từ trình biên dịch.
 
-### 21.3 Nhóm phương thức đo đạc
+### 43.1 Nhóm phương thức đo đạc
 
 Bốn phương thức không phục vụ chức năng nào của ứng dụng, chỉ phục vụ thí
-nghiệm ở mục 24:
+nghiệm ở mục 51:
 
 | Phương thức | Trả về | Dùng để |
 |---|---|---|
@@ -2044,15 +2116,15 @@ nghiệm ở mục 24:
 
 Cặp cuối cho phép câu so sánh mạnh nhất của đồ án: kích thước chỉ mục GIN của
 PostgreSQL đặt cạnh kích thước `InvertedIndex` tự cài, trên **cùng** một
-corpus — xem mục 24.
+corpus — xem mục 51.
 
 ---
 
-## 22. `PostgresDocumentStore` — Adapter vào chuỗi dự phòng
+## 44. `PostgresDocumentStore` — Adapter vào chuỗi dự phòng
 
 **File:** `core-search/storage/PostgresDocumentStore.java` (63 dòng)
 
-### 22.1 Vì sao bọc thay vì sửa `DocumentRepository` trực tiếp
+### 44.1 Vì sao bọc thay vì sửa `DocumentRepository` trực tiếp
 
 `DocumentRepository` đã có `findAll()` và `close()` — chỉ thiếu
 `isAvailable()` và `describe()` để cài `DocumentStore`. Vậy vì sao lại tốn
@@ -2064,7 +2136,7 @@ thêm một lớp?
         findAll()          → phải đổi tên thành loadAll()
         saveAll()           → KHÔNG thuộc hợp đồng DocumentStore
         deleteAll()         → KHÔNG thuộc
-        searchWithGin()     → KHÔNG thuộc, và là ĐỐI CHỨNG (mục 24)
+        searchWithGin()     → KHÔNG thuộc, và là ĐỐI CHỨNG (mục 51)
         indexSizeBytes()    → KHÔNG thuộc, là đo đạc
 
         ⇒ Một lớp cài DocumentStore nhưng mang theo 5+ phương thức không
@@ -2085,7 +2157,9 @@ thêm một lớp?
 chỉ đi một hướng, nên xoá toàn bộ tầng `DocumentStore` mà `DocumentRepository`
 vẫn biên dịch được.
 
-### 22.2 `isAvailable()` — trả `false` thay vì ném, và "rỗng" cũng là "không có"
+---
+
+## 45. `isAvailable()` — trả `false` thay vì ném, và "rỗng" cũng là "không có"
 
 ```java
 @Override
@@ -2119,7 +2193,7 @@ và làm ứng dụng không khởi động được, đúng như nên thế, v�
 không "lùi tầng" mà chữa được.
 
 ★ **`countDocuments() > 0`, không dừng ở "kết nối được"** — cùng nguyên tắc
-"nguồn rỗng không phải là nguồn" ở mục 15, áp ngược chiều:
+"nguồn rỗng không phải là nguồn" ở mục 29, áp ngược chiều:
 
 ```
    BA TRẠNG THÁI CỦA CSDL
@@ -2140,7 +2214,9 @@ không "lùi tầng" mà chữa được.
      người không dựng gì. countDocuments() > 0 loại bỏ đúng nghịch lý này.
 ```
 
-### 22.3 Cái giá: hai kết nối cho một lần khởi động, và rủi ro treo khi host chết
+---
+
+## 46. Cái giá: hai kết nối cho một lần khởi động, và rủi ro treo khi host chết
 
 ```
    SearchEngineFacade.init() thực hiện:
@@ -2162,7 +2238,9 @@ không "lùi tầng" mà chữa được.
 gọi**, nên `close()` không cần ghi đè, và **không thể rò rỉ kết nối** dù chỗ
 gọi quên `try-with-resources`.
 
-### 22.4 `loadAll()` — bọc `SQLException` thành `IOException`, giữ nguyên nhân gốc
+---
+
+## 47. `loadAll()` và `describe()` — bọc lỗi, và một bẫy bảo mật kín đáo
 
 ```java
 @Override
@@ -2187,7 +2265,7 @@ nếu chưa chạy `schema.sql`.
 thành cùng một `IOException`. Chỗ gọi không phân biệt được, nên ghi WARN rồi
 lùi tầng JSON cho cả ba — chấp nhận được ở tầm đồ án, miễn là ai đó đọc log.
 
-### 22.5 `describe()` và bẫy bảo mật kín đáo
+### 47.1 `describe()` và bẫy bảo mật kín đáo
 
 ```java
 @Override
@@ -2206,12 +2284,16 @@ trong log tập trung. Đây là một cái bẫy đang chờ, không phải l�
 
 ---
 
-## 23. `PostgresImportRunner` — nạp rồi kiểm chứng đọc lại
+# PHẦN XI — CÔNG CỤ DÒNG LỆNH: NẠP VÀ ĐỐI CHỨNG
+
+---
+
+## 48. `PostgresImportRunner` — nạp rồi kiểm chứng đọc lại
 
 **File:** `core-search/storage/PostgresImportRunner.java` (69 dòng), chỉ có
 `main()`, chạy **tay**, không phải bean Spring.
 
-### 23.1 Vì sao chạy tay, không phải `CommandLineRunner`
+### 48.1 Vì sao chạy tay, không phải `CommandLineRunner`
 
 ```
    ① THAO TÁC PHÁ HUỶ, KHÔNG ĐƯỢC CHẠY NGẦM              ★★★
@@ -2231,7 +2313,9 @@ Lý do ① minh hoạ một nguyên tắc chung: **thao tác phá huỷ dữ li�
 một hành động có chủ đích của con người** — ở đây là gõ một dòng lệnh Maven
 đủ dài để không ai gõ nhầm.
 
-### 23.2 Bốn giai đoạn
+---
+
+## 49. Bốn giai đoạn
 
 ```
    ① ĐỌC   ContentStorage.loadFromJson(corpusPath) → RAM, và GHI NHỚ
@@ -2256,7 +2340,7 @@ một hành động có chủ đích của con người** — ở đây là gõ 
                                               → CHẠY ĐƯỢC, nhưng dùng nguồn
                                                 khác mà không ai chú ý
 
-   ⇒ deleteAll() nằm NGOÀI giao dịch của saveAll() (mục 19.2). Tính
+   ⇒ deleteAll() nằm NGOÀI giao dịch của saveAll() (mục 40). Tính
      nguyên tử chỉ bảo vệ nửa sau của thao tác nạp.
 ```
 
@@ -2264,7 +2348,9 @@ một hành động có chủ đích của con người** — ở đây là gõ 
 mất **dữ liệu trong CSDL** — file JSON nguồn vẫn nguyên vẹn, chạy lại lệnh là
 xong. Đây là vấn đề vận hành, không phải mất mát không hồi phục.
 
-### 23.3 Giai đoạn ④ — phần đáng giá nhất của cả công cụ
+---
+
+## 50. Giai đoạn ④ — phần đáng giá nhất của cả công cụ, và cách chạy đầy đủ
 
 ```java
 List<WebDocument> reloaded = repo.findAll();
@@ -2283,7 +2369,7 @@ System.out.println(reloaded.size() == docs.size() && reloadedLinks == outlinkCou
 
 ★ Vì sao phải kiểm cả hai con số, không chỉ `size()`: chỉ so `size()` sẽ bỏ
 lọt toàn bộ nhóm lỗi liên quan tới bảng `outlinks` — bảng đông dòng gấp nhiều
-lần và dễ nhân đôi nhất (mục 20). Con số `outlinkCount` được **tính trước khi
+lần và dễ nhân đôi nhất (mục 41). Con số `outlinkCount` được **tính trước khi
 chạm CSDL** (giai đoạn ①), biến nó thành một giá trị niêm phong không thể bị
 chính quá trình ghi làm nhiễu — nguyên tắc chung của mọi phép kiểm tra toàn
 vẹn: tính checksum ở NGUỒN, so ở ĐÍCH.
@@ -2291,7 +2377,7 @@ vẹn: tính checksum ở NGUỒN, so ở ĐÍCH.
 Phép kiểm này bắt được: thiếu `executeBatch()` cuối vòng lặp, trùng `doc_id`
 trong JSON gốc, `outlinks` bị nhân đôi do quên `deleteAll()`. Nó **không** bắt
 được: nội dung sai (title bị cắt), **thứ tự sai** (bỏ `ORDER BY doc_id` — lỗi
-nguy hiểm nhất, mục 21.2), hay outlink ghép nhầm sang tài liệu khác trong khi
+nguy hiểm nhất, mục 43), hay outlink ghép nhầm sang tài liệu khác trong khi
 tổng vẫn đúng. Đây là kiểm tra ĐẾM, không phải kiểm tra NỘI DUNG.
 
 ⚠ **Điểm yếu thật:** phát hiện sai lệch được làm rất tốt, nhưng **báo** sai
@@ -2300,7 +2386,7 @@ LECH" — với mọi công cụ tự động hoá (CI, script có `set -e`), l�
 được coi là **thành công**, và corpus hỏng sẽ lặng lẽ trở thành nguồn dữ liệu
 cho toàn hệ thống.
 
-### 23.4 Cách chạy đầy đủ
+### 50.1 Cách chạy đầy đủ
 
 ```bash
 # ① dựng CSDL
@@ -2326,13 +2412,13 @@ nhỏ hơn** vào CSDL mà không có cảnh báo nào, vì lệnh vẫn chạy 
 
 ---
 
-## 24. `GinBaselineRunner` — đối chứng GIN, bằng chứng "tự cài có đáng"
+## 51. `GinBaselineRunner` — đối chứng GIN, bằng chứng "tự cài có đáng"
 
 **File:** `core-search/storage/GinBaselineRunner.java` (353 dòng)
 
-### 24.1 Câu hỏi phản biện khó nhất, và cách trả lời đúng
+### 51.1 Câu hỏi phản biện khó nhất, và cách trả lời đúng
 
-`schema.sql` (mục 28) tuyên bố PostgreSQL trong dự án này chỉ là **KHO**, việc
+`schema.sql` (mục 62) tuyên bố PostgreSQL trong dự án này chỉ là **KHO**, việc
 tìm kiếm vẫn do `InvertedIndex` tự cài đảm nhiệm. Tuyên bố ấy lập tức sinh ra
 câu hỏi phản biện khó nhất mà một hội đồng có thể đặt ra:
 
@@ -2357,7 +2443,7 @@ câu hỏi phản biện khó nhất mà một hội đồng có thể đặt ra
 
 `GinBaselineRunner` chính là mã hiện thực hoá câu trả lời thứ ba.
 
-### 24.2 Vì sao GIN là đối chứng đúng, không phải Lucene/Elasticsearch
+### 51.2 Vì sao GIN là đối chứng đúng, không phải Lucene/Elasticsearch
 
 ```
    Lucene / Elasticsearch          GIN của PostgreSQL
@@ -2376,7 +2462,9 @@ Cột `tsv` trong `schema.sql` là `GENERATED ALWAYS AS (...) STORED` — nghĩa
 bên bắt buộc nhìn cùng một corpus, do CSDL cưỡng chế chứ không do kỷ luật của
 người chạy thí nghiệm.
 
-### 24.3 `buildIndex()` — vì sao phải sắp lại dù CSDL đã `ORDER BY`
+---
+
+## 52. `buildIndex()` — vì sao phải sắp lại dù CSDL đã `ORDER BY`
 
 ```java
 private static InvertedIndex buildIndex(List<WebDocument> docs) {
@@ -2393,7 +2481,7 @@ private static InvertedIndex buildIndex(List<WebDocument> docs) {
 ```
    PHÒNG THỦ THEO CHIỀU SÂU, KHÔNG PHẢI MÃ THỪA
 
-   Bất biến cần (mục 21.2) đang được giữ bởi HAI thứ ở HAI TẦNG khác nhau:
+   Bất biến cần (mục 43) đang được giữ bởi HAI thứ ở HAI TẦNG khác nhau:
         tầng SQL   : ORDER BY doc_id trong findAll()
         tầng Java  : sorted.sort(...) ở ĐÂY
 
@@ -2419,7 +2507,9 @@ private static InvertedIndex buildIndex(List<WebDocument> docs) {
      nhìn cùng dữ liệu" đều được đẩy về chỗ người dùng KHÔNG THỂ làm sai.
 ```
 
-### 24.4 Làm nóng JVM — phần kỹ thuật đáng giá nhất
+---
+
+## 53. Làm nóng JVM — phần kỹ thuật đáng giá nhất
 
 ```java
 for (int round = 0; round < 2; round++) {
@@ -2457,7 +2547,9 @@ nhanh hơn), nhưng mức chênh lệch báo cáo ban đầu sai lệch đáng k
 con số cũ trong báo cáo thay vì lặng lẽ thay số mới là điều làm nên khác biệt
 giữa một báo cáo khoa học và một bài quảng cáo.
 
-### 24.5 Bộ truy vấn known-item, seed 42 — trục tái lập
+---
+
+## 54. Bộ truy vấn known-item, seed 42, và cái bẫy `TOP_N = 10`
 
 ```java
 List<KnownItemQueryGenerator.KnownItemQuery> queries =
@@ -2477,7 +2569,7 @@ truy vấn, nên MRR ở hai báo cáo **so sánh được trực tiếp**. Đ�
 chỗ mà quên chỗ kia: hai báo cáo vẫn sinh ra bình thường, hai con số MRR vẫn
 trông hợp lý, nhưng chúng không còn nói về cùng một thứ.
 
-### 24.6 `TOP_N = 10` — cái bẫy làm Success@10 trùng với Recall
+### 54.1 `TOP_N = 10` — cái bẫy làm Success@10 trùng với Recall
 
 ```java
 private static final int TOP_N = 10;
@@ -2500,7 +2592,9 @@ thấp hơn thực tế. ⚠ Điểm cần lưu ý: cắt ở top-10 làm thiệ
 án rơi vào hạng 11–100 hơn — tức ngưỡng cắt có thể **phóng đại** khoảng cách
 chất lượng đo được giữa hai bên.
 
-### 24.7 Hai nhánh diễn giải viết sẵn — trung thực cưỡng chế bằng mã
+---
+
+## 55. Hai nhánh diễn giải viết sẵn — trung thực cưỡng chế bằng mã
 
 ```java
 sb.append(ownMrr > ginMrr
@@ -2521,7 +2615,9 @@ ngôi.
 không tách từ ghép); nhánh "ta thua" chỉ có 2 dòng "cần phân tích thêm
 nguyên nhân" — một chỗ giữ chỗ, không phải một phân tích thật.
 
-### 24.8 Ba điều phép so sánh này KHÔNG chứng minh
+---
+
+## 56. Ba điều phép so sánh này KHÔNG chứng minh
 
 Đoạn văn `WHAT_IT_DOES_NOT_PROVE` trong mã nguồn tự tay tháo gỡ ba cách hiểu
 sai:
@@ -2547,13 +2643,74 @@ tay giới hạn phạm vi của chính kết luận mà file đang chứng minh
 báo cáo thí nghiệm nghiêm túc bắt buộc phải có.
 
 ---
+
+# PHẦN XII — ĐỐI CHIẾU OUTPUT THẬT
+
 ---
 
-# PHẦN VI — ĐỐI CHIẾU OUTPUT THẬT
+## 57. Tổng quan các tệp trong `backend/data/`
+
+Thư mục `backend/data/` là **toàn bộ trạng thái bền vững** của hệ thống khi
+chạy ở chế độ mặc định (không bật PostgreSQL). Năm tệp, đo bằng byte thật trên
+đĩa của repo này:
+
+| Tệp | Byte | Quy đổi | Ai GHI | Ai ĐỌC |
+|---|---:|---|---|---|
+| `crawled-documents.json` | 486.747.725 | **464,2 MB** | `ContentStorage.saveToJson` (cuối phiên + mỗi điểm kiểm tra) | `JsonDocumentStore` tầng 2, `PostgresImportRunner` |
+| `index.json` | 510.099.435 | **486,5 MB** | `IndexPersistence.save` qua `SearchEngineFacade.persistIndex()` | đường nhanh của `loadCorpus()` |
+| `crawled-documents.images.json` | 18.121.572 | **17,3 MB** | `ImageStorage.saveToJson` | `ImageStorage.loadQuietly`, `ImageStorePreloader` |
+| `seed-documents.json` | 295.738 | **289 KB** | không ai — cam kết sẵn trong repo | `JsonDocumentStore` tầng 3 |
+| `users.json` | 478 | 478 byte | `auth-service` (`app.auth.users-path`) | `auth-service` lúc khởi động |
+
+### 57.1 Ba nhóm tệp, ba vòng đời khác nhau
+
+```
+NGUỒN SỰ THẬT (sinh ra từ mạng, mất là mất hẳn)
+   crawled-documents.json          464,2 MB
+   crawled-documents.images.json    17,3 MB
+      ↳ hai tệp này bắt buộc cùng gốc tên — ImageStorage.pathFor ép điều đó
+
+CACHE DẪN XUẤT (xoá đi vẫn dựng lại được từ nguồn sự thật)
+   index.json                      486,5 MB
+
+CAM KẾT SẴN TRONG REPO (không sinh ra lúc chạy)
+   seed-documents.json                289 KB   40 tài liệu
+   users.json                         478 byte
+```
+
+Ranh giới này quyết định cách xử lý lỗi ở mọi mục phía trên: hỏng một tệp thuộc
+nhóm **cache dẫn xuất** chỉ được phép `log.warn` rồi dựng lại; hỏng một tệp thuộc
+nhóm **nguồn sự thật** thì không có đường cứu nào ngoài crawl lại — nên nó là tệp
+duy nhất bắt buộc ghi qua tệp tạm rồi đổi tên.
+
+### 57.2 Hai con số đáng chú ý
+
+**`index.json` (486,5 MB) LỚN HƠN corpus sinh ra nó (464,2 MB) — dù posting list
+đã nén VByte và thân bài đã nén Deflate.** Không phải lỗi: chỉ mục chứa **ba**
+biểu diễn của cùng một corpus (posting list, siêu dữ liệu tài liệu, thân bài đã
+nén) trong khi corpus chỉ chứa hai, và Jackson còn mã hoá base64 mọi `byte[]`.
+Phân tích đầy đủ ở mục 61.
+
+**Kho ảnh chỉ 17,3 MB, nhỏ hơn corpus 26,9 lần.** Vì `ImageDownloadService` chạy
+ở chế độ `metadataOnly` — tệp này lưu **siêu dữ liệu ảnh**, không lưu byte ảnh.
+Đó cũng là lý do nó tách khỏi `WebDocument` thay vì nhét thêm một trường (mục 17).
+
+### 57.3 Quy mô corpus mà mọi số liệu phía dưới dựa vào
+
+| Đại lượng | Giá trị thật |
+|---|---:|
+| Số tài liệu trong `index.json` | **39.780** (`docId` 0–39.779, đặc, không thủng lỗ) |
+| Số term trong `index.json` | **7.011** |
+| Số tài liệu trong `seed-documents.json` | **40** |
+| Trung bình mỗi tài liệu trong corpus | 486.747.725 ÷ 39.780 ≈ **12,2 KB** |
+
+⚠ Một số mục phía trên trích số liệu của corpus **2.518 / 5.011 trang** — bộ dữ
+liệu dùng khi những phần đó được viết. Bảng trong mục này đo trên corpus
+**39.780 trang** hiện tại. Hai bộ số không mâu thuẫn, chỉ khác quy mô.
 
 ---
 
-## 25. Kích thước bốn kho, số liệu thật của repo này
+## 58. Kích thước bốn kho, số liệu thật của repo này
 
 Đo trực tiếp bằng `ls -la backend/data/` trên chính máy đang viết tài liệu
 này. ⚠ Lưu ý: tại thời điểm đo, một phiên crawl đang chạy đồng thời trong
@@ -2561,23 +2718,23 @@ repo (nhiều agent làm việc song song trên các tài liệu `docs2/` khác 
 trong đó có ít nhất một phiên `run-crawl.bat` đang ghi), nên các con số dưới
 đây là một **lát cắt tại một thời điểm**, không phải hằng số cố định — và bản
 thân sự chênh lệch giữa hai lần đo cách nhau vài phút chính là minh chứng sống
-cho cơ chế checkpoint ghi định kỳ ở [mục 10](#10-checkpointcrawllistener-và-tần-suất-ghi).
+cho cơ chế checkpoint ghi định kỳ ở [mục 11](#11-checkpointcrawllistener-và-tần-suất-ghi).
 
 | Tệp | Kích thước (lần đo gần nhất) | Sửa lần cuối | Vai trò |
 |---|---|---|---|
 | `data/crawled-documents.json` | 486.747.725 byte (~464 MB) | đang được ghi (checkpoint) | Kho 1 — nguồn sự thật |
 | `data/crawled-documents.images.json` | 18.121.572 byte (~17,3 MB) | đang được ghi (checkpoint) | Kho 2 — nguồn sự thật ảnh |
-| `data/index.json` | 402.794.320 byte (~384 MB) | tĩnh — không tự đồng bộ với Kho 1 | Kho 3 — cache dẫn xuất |
+| `data/index.json` | 510.099.435 byte (~486 MB) | tĩnh — không tự đồng bộ với Kho 1 | Kho 3 — cache dẫn xuất |
 | `data/seed-documents.json` | 295.738 byte (~289 KB) | ổn định, đi kèm repo | Tầng dự phòng cuối |
 
 ★ **Điểm đáng chú ý nhất của bảng này không phải các con số tuyệt đối, mà là
 việc `index.json` KHÔNG cùng thời điểm sửa đổi với `crawled-documents.json`.**
-Đây là minh chứng trực tiếp cho nguyên tắc "cache dẫn xuất" ở mục 1 và mục 16:
+Đây là minh chứng trực tiếp cho nguyên tắc "cache dẫn xuất" ở mục 1 và mục 32:
 corpus (Kho 1) đang lớn dần theo thời gian thực vì một phiên crawl đang chạy,
 trong khi `index.json` (Kho 3) đứng yên ở kích thước của lần `persistIndex()`
 gần nhất — nó **không** tự cập nhật theo corpus, và sẽ chỉ đồng bộ lại vào lần
 tiếp theo `SearchEngineFacade` khởi động và dựng lại chỉ mục từ corpus mới.
-Nếu ứng dụng khởi động ngay lúc này với đường nhanh (mục 11), nó sẽ nạp một
+Nếu ứng dụng khởi động ngay lúc này với đường nhanh (mục 20), nó sẽ nạp một
 chỉ mục **cũ hơn** corpus hiện có trên đĩa — vẫn đúng theo hợp đồng (chỉ mục
 đó vẫn nhất quán nội bộ, dựng từ một corpus có thật tại một thời điểm trong
 quá khứ), chỉ là không phản ánh những trang mới nhất.
@@ -2586,11 +2743,11 @@ Ba con số kích thước còn cho thấy trực quan về hệ số phồng d�
 
 ```
    Kho 1 (văn bản gốc, JSON thụt dòng)     : ~464 MB
-   Kho 3 (chỉ mục ĐÃ NÉN VByte, base64)    : ~384 MB
+   Kho 3 (chỉ mục ĐÃ NÉN VByte, base64)    : ~486 MB
 
    Dù đã nén posting list bằng delta+VByte, index.json (một chỉ mục ĐẢO,
    về lý thuyết nhỏ gọn hơn corpus gốc) vẫn xấp xỉ 83% kích thước corpus.
-   Xem mục 27 để hiểu vì sao — câu trả lời ngắn: base64 mã hoá nhị phân
+   Xem mục 60 để hiểu vì sao — câu trả lời ngắn: base64 mã hoá nhị phân
    thành văn bản làm phồng ~33%, và index.json còn phải mang theo TOÀN
    BỘ bodyText đã nén riêng (CompressedText) để phục vụ trích đoạn kết
    quả tìm kiếm — nó không chỉ là posting list.
@@ -2598,7 +2755,7 @@ Ba con số kích thước còn cho thấy trực quan về hệ số phồng d�
 
 ---
 
-## 26. Cấu trúc `seed-documents.json` thật
+## 59. Cấu trúc `seed-documents.json` thật
 
 Trích trực tiếp từ đầu tệp thật trong repo (`backend/data/seed-documents.json`):
 
@@ -2632,7 +2789,7 @@ không quen thuộc với dữ liệu kỹ thuật trừu tượng.
 
 ---
 
-## 27. Cấu trúc `index.json` thật — vì sao nó lớn hơn corpus
+## 60. Cấu trúc `index.json` thật — vì sao nó lớn hơn corpus
 
 Trích trực tiếp phần đầu tệp thật (`backend/data/index.json`):
 
@@ -2640,7 +2797,7 @@ Trích trực tiếp phần đầu tệp thật (`backend/data/index.json`):
 {"version":3,"tokenizer":"VietnameseTokenizer(MaxWeightDP, maxSyllables=4, dict=49793 (40390 tu ghep), stopwords=91)","index":{"tin_tức":{"count":10081,"docIds":"AAEDAgEDAQIDAgIBAwEEAQIBAQQEAQUCAQMBAQQBAgIEAgECBAEBCwEDAwIEAwEHAQEEAwYBBQIBAwICAwIBAQQFAgEBAQEBAgEBAQUBAQECAQEBBAEBBwMBBAEBBQEDAgUEAgYBAgEDAwIIAgYBAQUBAgMFAgEDBgIBAQECAgEBAwICBAEEAQMFAQEBAgEBAwEBAQICAQQFBgEBAwEEAgECAQEBAQIHAQEBAgEBAQEBCAMDAQMCAQEBAQQCAgIBAwMEAQMBAQEBBgEBAgEDAQIGAgMDAQEFAQIBAQUBAwUCBAECAgICAQMCAQIBAQECAQMCBQQBAwEDBAEBAQQCBQEEBAQBAgIBAQIBAwICBAEDAQMBAgIFBwEDAwMDAgICAwMCAwICBQEBAQMDAQEDAQkBAgIBAwIBCAEBAQEDAQEFAgECAQEBAQEEBAQCAwIBAgIHAgEBAgEDAQICAgQCAQICCAECAQEDAgQCAQQCAQIEAQEDAQECAwIBCAEBAQIBAQIEAQQBBQIDAQEGBgEBAQICAgEBAQECAQECAQEBAgIGAgQBAgIBBAQCAQEGAQIEAgIBAQECAQEBBAECAwECAwQFAgEBBQQFAQEEAQIDAQIBAQECBQMBAQICAggBAgMDAwMBAgICBAECAwIBBQECAQcBAgMGAQIBAgMCAQMDAwECBwEBCAICAwQBBQMBAwYHAgEBAgIDBQUBAgIBAQEBAQEBAQEDAgEHAgMBAgcBBAIBAwMBBQQDAwIBBAIEAgMBBQQBAgECAQQBAQEBAgMDBAMBAQUFAQUDBQEBAQIIAgQFAQMBAwICCAEBAgUEAgEBBQMBAQIDAwIEAQMDBAcBBQIBBwEEBgEFBgECAgMBAgECAgIDAwICAQEDBgECBAEDAgMCAwEEAgEBBQMBBAQFAQEDAQEEAwEBBwEIBgEDAQEEBgECAQEHAgQFAQECAQMHAwIHAwMGAwUFAgIFAgEEAwEFBQIBAgIBAg4CAQMEAgEEAgMEAwMBCQEBAQgCBAEFAgICAwwB..."
 ```
 
-### 27.1 Giải phẫu từng trường
+### 60.1 Giải phẫu từng trường
 
 ```
    {
@@ -2664,9 +2821,9 @@ dict=49793 (40390 tu ghep), stopwords=91)"` là chính xác đoạn văn bản m
 `checkTokenizerMatches()` (xem `INDEX-PIPELINE.md`) so sánh khi nạp — bất kỳ
 thay đổi nào ở từ điển tách từ (49.793 mục, trong đó 40.390 là từ ghép) hay ở
 tham số `maxSyllables` sẽ đổi chuỗi này, và khiến `index.json` cũ bị coi là
-KHÔNG khớp, buộc phải dựng lại — đúng cơ chế được phân tích ở mục 16.
+KHÔNG khớp, buộc phải dựng lại — đúng cơ chế được phân tích ở mục 32.
 
-### 27.2 Vì sao trường `docIds` là một chuỗi base64, không phải mảng số
+### 60.2 Vì sao trường `docIds` là một chuỗi base64, không phải mảng số
 
 ```
    Chuỗi "AAEDAgED..." là kết quả của ba tầng biến đổi liên tiếp:
@@ -2686,7 +2843,9 @@ KHÔNG khớp, buộc phải dựng lại — đúng cơ chế được phân t�
      xuống còn ~10 KB, trước khi base64 làm phồng lại ~33%.
 ```
 
-### 27.3 ★★★ Vì sao `index.json` (384 MB) vẫn xấp xỉ kích thước `crawled-documents.json` (~464 MB) dù ĐÃ nén
+---
+
+## 61. ★★★ Vì sao `index.json` còn lớn hơn corpus dù ĐÃ nén
 
 Đây là điều phản trực giác nhất trong toàn bộ tầng lưu trữ, và câu trả lời có
 ba phần:
@@ -2720,7 +2879,7 @@ ba phần:
 
 ---
 
-## 28. `schema.sql` thật
+## 62. `schema.sql` thật
 
 Trích nguyên văn từ `backend/java/libs/core-search/src/main/resources/db/schema.sql`
 (57 dòng, không rút gọn):
@@ -2764,7 +2923,7 @@ ALTER TABLE documents
 CREATE INDEX IF NOT EXISTS idx_documents_tsv ON documents USING GIN (tsv);
 ```
 
-### 28.1 Bốn quyết định lược đồ đáng chú ý
+### 62.1 Bốn quyết định lược đồ đáng chú ý
 
 ```
    ① doc_id là PRIMARY KEY, KHÔNG PHẢI SERIAL / GENERATED
@@ -2777,9 +2936,9 @@ CREATE INDEX IF NOT EXISTS idx_documents_tsv ON documents USING GIN (tsv);
       Hai ràng buộc độc lập bảo vệ hai bất biến khác nhau: doc_id không
       trùng (định danh nội bộ), url không trùng (không có hai bản ghi
       cho cùng một trang web — bổ sung cho putIfAbsent ở ContentStorage,
-      mục 7.1, ở một tầng lưu trữ khác).
+      mục 8.1, ở một tầng lưu trữ khác).
 
-   ③ outlinks KHÔNG có khoá chính (xem mục 20)
+   ③ outlinks KHÔNG có khoá chính (xem mục 41)
       Cố ý — một trang có thể trỏ cùng URL hai lần hợp lệ trong HTML thật.
 
    ④ ON DELETE CASCADE trên from_doc_id
@@ -2787,7 +2946,9 @@ CREATE INDEX IF NOT EXISTS idx_documents_tsv ON documents USING GIN (tsv);
       để dọn sạch CẢ HAI bảng, thay vì phải TRUNCATE outlinks riêng trước.
 ```
 
-### 28.2 `idx_documents_tsv` — chỉ mục được đo ở mục 24
+---
+
+## 63. `idx_documents_tsv` — chỉ mục được đo ở mục 51
 
 `CREATE INDEX ... USING GIN (tsv)` chính là chỉ mục mà
 `GinBaselineRunner.indexSizeBytes("idx_documents_tsv")` đo kích thước, và
@@ -2795,16 +2956,128 @@ CREATE INDEX IF NOT EXISTS idx_documents_tsv ON documents USING GIN (tsv);
 `'english'`) là lựa chọn có chủ ý: bộ stemmer tiếng Anh sẽ cắt gốc từ tiếng
 Việt hoàn toàn sai — `'simple'` chỉ tách theo khoảng trắng và hạ chữ thường,
 không hiểu từ ghép tiếng Việt, đúng là điểm mà `VietnameseTokenizer` tự cài
-có lợi thế thật (xem mục 24.2).
-
----
----
-
-# PHẦN VII — PHỤ LỤC
+có lợi thế thật (xem mục 51.2).
 
 ---
 
-## 29. Bảng hằng số toàn hệ thống
+# PHẦN XIII — PHỤ LỤC
+
+---
+
+## 64. Các chế độ chạy khác của tầng lưu trữ
+
+`CRAWLER-PIPELINE.md` có một mục phụ lục cho "chế độ chạy khác" (Kafka). Tầng
+lưu trữ cũng có đúng ba thứ tương ứng, và cả ba đều là **cấu hình**, không phải
+nhánh `if` viết cứng: **nguồn corpus** (JSON hay PostgreSQL), **đường dẫn từng
+kho**, và **cách ghi xuống đĩa**.
+
+### 64.1 Chế độ 1 — chuỗi `DocumentStore`: JSON (mặc định) hay PostgreSQL
+
+`SearchEngineFacade.buildStoreChain()` dựng một `List<DocumentStore>`; tầng
+PostgreSQL chỉ được **thêm vào danh sách** khi cờ bật:
+
+```java
+private List<DocumentStore> buildStoreChain() {
+    List<DocumentStore> chain = new ArrayList<>();
+    if (postgresEnabled) {
+        chain.add(new PostgresDocumentStore(postgresUrl, postgresUser, postgresPassword));
+    }
+    chain.add(new JsonDocumentStore(crawledDataPath, "corpus da crawl"));
+    chain.add(new JsonDocumentStore(seedDataPath, "seed mau"));
+    return chain;
+}
+```
+
+| Chế độ | Cờ | Chuỗi nguồn thực tế |
+|---|---|---|
+| **JSON** (mặc định) | `app.storage.postgres.enabled=false` | `crawled-documents.json` → `seed-documents.json` |
+| **PostgreSQL** | `app.storage.postgres.enabled=true` | PostgreSQL → `crawled-documents.json` → `seed-documents.json` |
+
+Đổi chế độ **không sửa một dòng mã nào** — chỉ đổi một biến môi trường
+(`APP_STORAGE_POSTGRES_ENABLED=true`). Và ngay cả ở chế độ PostgreSQL, hai tầng
+JSON vẫn nằm nguyên trong chuỗi: CSDL chết thì `isAvailable()` trả `false`
+(mục 45) và ứng dụng tụt xuống JSON thay vì sập.
+
+### 64.2 Chế độ 2 — ghi JSON nguyên tử: `ATOMIC_MOVE`, và đường lui
+
+`ContentStorage.saveToJson` **không bao giờ** ghi thẳng vào tệp đích. Nó ghi ra
+tệp tạm cùng thư mục rồi đổi tên:
+
+```java
+Path temp = filePath.resolveSibling(filePath.getFileName() + ".tmp");
+mapper.writeValue(temp.toFile(), documents);
+try {
+    Files.move(temp, filePath, StandardCopyOption.REPLACE_EXISTING,
+            StandardCopyOption.ATOMIC_MOVE);
+} catch (AtomicMoveNotSupportedException e) {
+    Files.move(temp, filePath, StandardCopyOption.REPLACE_EXISTING);
+}
+```
+
+| Chế độ ghi | Kích hoạt khi | Cửa sổ nguy hiểm |
+|---|---|---|
+| `ATOMIC_MOVE` | hệ tệp cục bộ (NTFS, ext4) — đường chạy bình thường | **không có** |
+| `REPLACE_EXISTING` thường | `AtomicMoveNotSupportedException` (thường là ổ mạng) | một thao tác siêu dữ liệu |
+| ghi thẳng vào tệp đích | **không bao giờ** — mã không có nhánh này | (cả giây) |
+
+Đây là chế độ chạy khác duy nhất của tầng lưu trữ mà người dùng **không chọn
+được**: nó do hệ tệp quyết định lúc chạy. Chi tiết ở mục 13 và mục 14.
+
+### 64.3 Chế độ 3 — đường dẫn từng kho, lấy từ `@Value` thật
+
+Bảng dưới đây chép nguyên văn từ `SearchEngineFacade.java` (và
+`ImageStorePreloader.java`, `AuthConfig.java`) — cột "Mặc định" là giá trị trong
+chính chú giải `@Value`, cột "Ghi đè bằng" là biến môi trường khai báo ở
+`application.properties` của `search-service` / `crawler-service`:
+
+| Khoá cấu hình | Mặc định trong `@Value` | Ghi đè bằng | Trỏ tới kho nào |
+|---|---|---|---|
+| `app.index.data-path` | *(bắt buộc, không có mặc định)* | `APP_INDEX_PATH` → `data/index.json` | cache chỉ mục |
+| `app.crawler.data-path` | *(bắt buộc, không có mặc định)* | `APP_CRAWLER_DATA_PATH` → `data/crawled-documents.json` | corpus + (suy ra) kho ảnh |
+| `app.seed.data-path` | `data/seed-documents.json` | `APP_SEED_PATH` | tầng dự phòng cuối |
+| `app.storage.postgres.enabled` | `false` | `APP_STORAGE_POSTGRES_ENABLED` | bật/tắt tầng CSDL |
+| `app.storage.postgres.url` | `jdbc:postgresql://localhost:5432/vnsearch` | `APP_STORAGE_POSTGRES_URL` → `jdbc:postgresql://postgres:5432/vnsearch` | CSDL |
+| `app.storage.postgres.user` | `vnsearch` | `APP_STORAGE_POSTGRES_USER` | CSDL |
+| `app.storage.postgres.password` | `vnsearch` | `POSTGRES_PASSWORD` | CSDL |
+| `app.auth.store` | `json` | — | chọn kho người dùng |
+| `app.auth.users-path` | `data/users.json` | — | kho người dùng |
+
+Ba chi tiết đáng nhớ trong bảng này:
+
+**`app.index.data-path` và `app.crawler.data-path` KHÔNG có giá trị mặc định
+trong `@Value`.** Thiếu chúng thì Spring **không khởi động được** — lỗi ồn ào lúc
+nạp ngữ cảnh, thay vì âm thầm ghi chỉ mục vào một đường dẫn sai. Ngược lại,
+`app.seed.data-path` có mặc định, vì tầng dự phòng cuối phải chạy được cả khi
+không ai cấu hình gì.
+
+**Không có khoá riêng cho kho ảnh.** `ImageStorage.pathFor()` suy ra
+`crawled-documents.images.json` từ chính `app.crawler.data-path`, nên hai tệp
+không bao giờ lệch nhau (mục 16).
+
+**Mặc định của `postgres.url` khác nhau giữa `@Value` và `application.properties`:**
+`localhost` trong mã (để chạy trên máy trắng), `postgres` trong properties (tên
+service trong Docker Compose). Cùng một khoá, hai bối cảnh, không sửa mã.
+
+### 64.4 Bảng tóm tắt ba chế độ
+
+```
+                 CHẾ ĐỘ MẶC ĐỊNH              CHẾ ĐỘ POSTGRESQL
+                 (máy trắng, không Docker)     (compose có postgres)
+   nguồn 1       —                             PostgresDocumentStore
+   nguồn 2       crawled-documents.json        crawled-documents.json
+   nguồn 3       seed-documents.json           seed-documents.json
+   ghi corpus    tmp + ATOMIC_MOVE             tmp + ATOMIC_MOVE (không đổi)
+   nạp CSDL      —                             PostgresImportRunner chạy TAY
+                                               (không phải CommandLineRunner, mục 48)
+```
+
+Điểm mấu chốt: **chuyển chế độ chỉ THÊM một tầng vào đầu chuỗi, không bỏ tầng
+nào.** Đó là lý do bốn nguyên tắc ở mục 70 giữ nguyên hiệu lực trong cả hai
+chế độ.
+
+---
+
+## 65. Bảng hằng số toàn hệ thống
 
 | Hằng số | Giá trị | File | Vai trò |
 |---|---|---|---|
@@ -2813,8 +3086,8 @@ có lợi thế thật (xem mục 24.2).
 | `DocumentRepository.DEFAULT_USER` | `vnsearch` | `DocumentRepository.java` | User mặc định |
 | `DocumentRepository.DEFAULT_PASSWORD` | `vnsearch` | `DocumentRepository.java` | Mật khẩu mặc định — ⚠ đổi trước khi triển khai thật |
 | `ImageStorage.SUFFIX` | `.images.json` | `ImageStorage.java` | Hậu tố tên tệp ảnh, suy ra từ tên corpus |
-| `GinBaselineRunner.TOP_N` | `10` | `GinBaselineRunner.java` | Ngưỡng cắt kết quả cho cả hai phía khi đo (mục 24.6) |
-| Seed truy vấn known-item | `42L` | `GinBaselineRunner.java` (và `EvaluationRunner`) | Tái lập, so sánh được giữa hai báo cáo (mục 24.5) |
+| `GinBaselineRunner.TOP_N` | `10` | `GinBaselineRunner.java` | Ngưỡng cắt kết quả cho cả hai phía khi đo (mục 54.1) |
+| Seed truy vấn known-item | `42L` | `GinBaselineRunner.java` (và `EvaluationRunner`) | Tái lập, so sánh được giữa hai báo cáo (mục 54) |
 | Số term mỗi truy vấn known-item | `3` | `GinBaselineRunner.java` | Tham số cho `KnownItemQueryGenerator.generate()` |
 | Số truy vấn known-item mặc định | `200` | `GinBaselineRunner.main` | `args[0]` nếu không truyền |
 | Đường dẫn báo cáo GIN mặc định | `../docs/GIN-BASELINE.md` | `GinBaselineRunner.main` | `args[1]` nếu không truyền — ⚠ tương đối, phụ thuộc CWD |
@@ -2828,7 +3101,7 @@ có lợi thế thật (xem mục 24.2).
 
 ---
 
-## 30. Bảng tra nhanh khối ↔ file ↔ hàm
+## 66. Bảng tra nhanh khối ↔ file ↔ hàm
 
 | Khối trong sơ đồ | File | Hàm chính |
 |---|---|---|
@@ -2850,20 +3123,20 @@ có lợi thế thật (xem mục 24.2).
 
 ---
 
-## 31. Câu hỏi thường gặp
+## 67. Câu hỏi thường gặp
 
-**1. Vì sao `index.json` (384 MB) lớn gần bằng `crawled-documents.json`
+**1. Vì sao `index.json` (486 MB) lớn hơn cả `crawled-documents.json`
 (~464 MB), dù nó là một chỉ mục ĐÃ NÉN?**
 Vì `index.json` không chỉ chứa posting list — nó còn mang theo `bodyTexts` đã
 nén riêng và `docLength` cho mỗi tài liệu, cộng thêm chi phí phồng của base64
-(~33%) và cú pháp JSON. Xem phân tích đầy đủ ở [mục 27.3](#273--vì-sao-indexjson-384-mb-vẫn-xấp-xỉ-kích-thước-crawled-documentsjson-464-mb-dù-đã-nén).
+(~33%) và cú pháp JSON. Xem phân tích đầy đủ ở [mục 61](#61--vì-sao-indexjson-còn-lớn-hơn-corpus-dù-đã-nén).
 
 **2. Vì sao phải ghi qua tệp tạm rồi đổi tên, thay vì ghi thẳng đè lên
 tệp cũ?**
 Vì ghi đè trực tiếp cắt tệp đích về 0 byte ngay khi mở để ghi — mất điện hoặc
 Ctrl+C giữa chừng để lại một JSON cụt, mất luôn corpus cũ đang hoàn chỉnh. Ghi
 qua tệp tạm giữ nguyên tệp đích cho tới khi có `Files.move(..., ATOMIC_MOVE)`
-— một thao tác đổi tên gần như tức thời. Xem [mục 8.1](#81-★-vì-sao-phải-ghi-qua-tệp-tạm-rồi-đổi-tên-thay-vì-ghi-thẳng).
+— một thao tác đổi tên gần như tức thời. Xem [mục 13](#13--vì-sao-phải-ghi-qua-tệp-tạm-rồi-đổi-tên-thay-vì-ghi-thẳng).
 
 **3. Vì sao nguồn RỖNG không được coi là nguồn có sẵn (`isAvailable()`
 trả `true` nhưng vẫn bị bỏ qua)?**
@@ -2871,7 +3144,7 @@ Vì `isAvailable()`/`Files.exists()` chỉ trả lời "có tồn tại" chứ k
 "có dùng được". Một tệp `[]` hoặc một bảng CSDL rỗng vẫn "tồn tại" nhưng không
 mang lại tài liệu nào — dùng nó nghĩa là chỉ mục dựng trên 0 tài liệu, chặn
 mất các tầng dự phòng phía sau vốn CÓ dữ liệu. Đây chính là nguyên nhân sự cố
-`index.json` 159 byte, xem [mục 15](#15-nguồn-rỗng-không-phải-là-nguồn--sự-cố-indexjson-159-byte).
+`index.json` 159 byte, xem [mục 29](#29-sự-cố-indexjson-159-byte--diễn-biến).
 
 **4. `PostgresImportRunner` mặc định đọc file nào? Có phải file mà
 `run-crawl.bat` ghi ra không?**
@@ -2879,7 +3152,7 @@ Không. Mặc định của `PostgresImportRunner.main` là `"data/crawled-multi
 — khác với `"data/crawled-documents.json"` mà `ContentStorage.saveToJson` (và
 do đó `run-crawl.bat`) thực sự ghi ra. Phải truyền tường minh
 `-Dexec.args="data/crawled-documents.json"`. Xem
-[mục 23.4](#234-cách-chạy-đầy-đủ).
+[mục 50.1](#501-cách-chạy-đầy-đủ).
 
 **5. Xoá `data/index.json` đi có sao không?**
 Không sao — nó là cache dẫn xuất. Lần khởi động tiếp theo sẽ chậm hơn (khoảng
@@ -2896,14 +3169,14 @@ idempotent với `outlinks`?**
 Vì `documents` có `ON CONFLICT (doc_id) DO UPDATE` (upsert), còn `outlinks`
 không có khoá chính nên chỉ `INSERT` thuần — chạy `saveAll()` hai lần không
 gọi `deleteAll()` trước sẽ nhân đôi số dòng `outlinks`. Xem
-[mục 20](#20-on-conflict-do-update--upsert-và-cái-bẫy-outlinks).
+[mục 41](#41-on-conflict-do-update--upsert-và-cái-bẫy-outlinks).
 
 **8. Vì sao `findAll()` phải có `ORDER BY doc_id` — bỏ đi thì hỏng cái gì?**
 `InvertedIndex` giao hai posting list bằng thuật toán two-pointer, đòi hỏi cả
 hai danh sách phải tăng dần theo docId. Posting list được dựng theo đúng thứ
 tự tài liệu được `addDocument()`, mà thứ tự đó lại phụ thuộc thứ tự
 `findAll()` trả về. Bỏ `ORDER BY` thì PostgreSQL không đảm bảo thứ tự — hỏng
-muộn, không ổn định, không thông báo lỗi. Xem [mục 21.2](#212--★★★-order-by-doc_id--một-mệnh-đề-sql-gánh-bất-biến-của-một-cấu-trúc-dữ-liệu-cách-nó-bốn-tầng).
+muộn, không ổn định, không thông báo lỗi. Xem [mục 43](#43--order-by-doc_id--một-mệnh-đề-sql-gánh-bất-biến-của-một-cấu-trúc-dữ-liệu-cách-nó-bốn-tầng).
 
 **9. Vì sao chỉ mục GIN của PostgreSQL không được dùng để phục vụ tìm
 kiếm thật?**
@@ -2911,35 +3184,35 @@ Vì mục tiêu chính của dự án là tự cài đặt và đánh giá một
 tiếng Việt — nếu đẩy tìm kiếm sang GIN, phần cấu trúc dữ liệu tự cài sẽ trở
 nên vô nghĩa. GIN chỉ được dùng làm **đối chứng** trong `GinBaselineRunner`,
 chạy tay, tách biệt hoàn toàn khỏi đường phục vụ người dùng thật. Xem
-[mục 24](#24-ginbaselinerunner--đối-chứng-gin-bằng-chứng-tự-cài-có-đáng).
+[mục 51](#51-ginbaselinerunner--đối-chứng-gin-bằng-chứng-tự-cài-có-đáng).
 
 **10. Vì sao không dùng Spring Data JPA cho tầng CSDL?**
 Ba lý do, lý do mạnh nhất: nếu `spring-boot-starter-data-jpa` nằm trên
 classpath, Spring Boot sẽ cố tự động dựng `DataSource` lúc khởi động — không
 có PostgreSQL chạy sẵn thì ứng dụng **chết ngay**, trước cả khi chuỗi dự phòng
-bốn tầng có cơ hội chạy. Xem [mục 18](#18-documentrepository--jdbc-thuần-vì-sao).
+bốn tầng có cơ hội chạy. Xem [mục 37](#37-documentrepository--jdbc-thuần-vì-sao).
 
 **11. Kết nối PostgreSQL không được thì ứng dụng có sập không?**
 Không. `PostgresDocumentStore.isAvailable()` bắt mọi `Exception`, ghi log mức
 `INFO` (không phải cảnh báo — vì đây là kịch bản BÌNH THƯỜNG được thiết kế để
 hỗ trợ), và trả `false` để chuỗi dự phòng lùi xuống `JsonDocumentStore`. Xem
-[mục 22.2](#222-isavailable--trả-false-thay-vì-ném-và-rỗng-cũng-là-không-có).
+[mục 45](#45-isavailable--trả-false-thay-vì-ném-và-rỗng-cũng-là-không-có).
 
 **12. Ảnh có mất khi restart backend không?**
 Có, trừ khi `ImageStorage` đã ghi tệp `*.images.json` ra đĩa trước đó — kho
 ảnh trong bộ nhớ (`ImageStore`) không tự bền vững. Xem
-[mục 9](#9-imagestorage--tệp-anh-em-của-corpus).
+[mục 16](#16-imagestorage--tệp-anh-em-của-corpus-và-pathfor).
 
 **13. Vì sao `ContentStorage` và `ImageStorage` là hai lớp riêng, không
 gộp ảnh vào trường của `WebDocument`?**
 Ba lý do: đổi lược đồ `WebDocument` đụng vào nhiều công cụ khác đang đọc
 corpus; ảnh và văn bản có vòng đời ghi khác nhau (ảnh tới sau qua bus); và
 corpus đã đủ nặng, không nên buộc mọi công cụ chỉ cần thống kê ảnh phải quét
-qua toàn bộ `bodyText`. Xem [mục 9.2](#92-vì-sao-ảnh-có-tệp-riêng-không-nhét-vào-webdocument).
+qua toàn bộ `bodyText`. Xem [mục 17](#17-vì-sao-ảnh-có-tệp-riêng-không-nhét-vào-webdocument).
 
 ---
 
-## 32. Cây chẩn đoán sự cố
+## 68. Cây chẩn đoán sự cố
 
 ```
 TRIỆU CHỨNG: mọi truy vấn tìm kiếm trả về 0 kết quả, /api/health báo 503
@@ -2947,13 +3220,13 @@ TRIỆU CHỨNG: mọi truy vấn tìm kiếm trả về 0 kết quả, /api/hea
 ├─ Kiểm tra log khởi động: có dòng "Da nap chi muc dung san" không?
 │  │
 │  ├─ CÓ, và "(0 tai lieu)" hoặc tương tự
-│  │  → ĐÂY LÀ SỰ CỐ index.json RỖNG (mục 15). Xoá data/index.json,
+│  │  → ĐÂY LÀ SỰ CỐ index.json RỖNG (mục 29). Xoá data/index.json,
 │  │    khởi động lại — loadCorpus() sẽ dựng lại từ corpus gốc.
 │  │
 │  ├─ CÓ, và số tài liệu > 0 nhưng vẫn 0 kết quả
 │  │  → Có thể là lỗi tokenizer không khớp giữa lúc dựng và lúc truy vấn.
 │  │    Xem INDEX-PIPELINE.md / kiểm tra dòng "tokenizer" trong index.json
-│  │    có khớp cấu hình hiện tại không (mục 27.1).
+│  │    có khớp cấu hình hiện tại không (mục 60.1).
 │  │
 │  └─ KHÔNG thấy dòng đó — kiểm tra tiếp "Da nap corpus tu"
 │     │
@@ -2961,27 +3234,27 @@ TRIỆU CHỨNG: mọi truy vấn tìm kiếm trả về 0 kết quả, /api/hea
 │     │  → CẢ BỐN nguồn đều rỗng hoặc không có sẵn. Kiểm tra:
 │     │      data/crawled-documents.json có tồn tại và có nội dung không?
 │     │      data/seed-documents.json CÓ nằm trong repo không (không được
-│     │        vào .gitignore — mục 14.3)?
+│     │        vào .gitignore — mục 28.1)?
 │     │
 │     └─ THẤY "Bo qua nguon ...: khong co tai lieu nao" (log WARN)
 │        → Nguồn đó tồn tại (isAvailable() = true) nhưng loadAll() trả
 │          danh sách rỗng — kiểm tra nội dung file/bảng CSDL tương ứng
-│          trực tiếp (mục 12.2, mục 22.2)
+│          trực tiếp (mục 23, mục 45)
 
 TRIỆU CHỨNG: mất dữ liệu (thiếu trang) sau khi tiến trình bị giết giữa chừng
 │
 ├─ Trong lúc CRAWL bị giết
-│  → Kiểm tra data/crawled-documents.json — nhờ ghi nguyên tử (mục 8), tệp
+│  → Kiểm tra data/crawled-documents.json — nhờ ghi nguyên tử (mục 12), tệp
 │    PHẢI còn nguyên vẹn ở trạng thái checkpoint GẦN NHẤT (mất tối đa
-│    ~250 trang cuối, do CheckpointCrawlListener ghi mỗi 250 trang — mục 10).
+│    ~250 trang cuối, do CheckpointCrawlListener ghi mỗi 250 trang — mục 11).
 │    Nếu tệp CỤT/hỏng: kiểm tra không còn sót tệp .tmp (Files.move thất
 │    bại giữa chừng là dấu hiệu bất thường nghiêm trọng, nên báo cáo).
 │
 ├─ Trong lúc PostgresImportRunner đang chạy (giai đoạn saveAll)
-│  → Nhờ giao dịch một khối (mục 19), PostgreSQL sẽ TỰ ĐỘNG rollback về
+│  → Nhờ giao dịch một khối (mục 39), PostgreSQL sẽ TỰ ĐỘNG rollback về
 │    trạng thái TRƯỚC saveAll() khi kết nối/tiến trình chết giữa chừng.
 │    Nhưng deleteAll() đã chạy TRƯỚC ĐÓ và KHÔNG nằm trong giao dịch đó
-│    (mục 23.2) — nếu chết giữa deleteAll() và saveAll(), CSDL RỖNG.
+│    (mục 49) — nếu chết giữa deleteAll() và saveAll(), CSDL RỖNG.
 │    Cách chữa: chạy lại toàn bộ PostgresImportRunner — file JSON nguồn
 │    vẫn nguyên vẹn (Kho 1 không hề bị đụng tới bởi công cụ này).
 
@@ -2990,7 +3263,7 @@ TRIỆU CHỨNG: PostgreSQL không kết nối được — ứng dụng có s�
 └─ KHÔNG. PostgresDocumentStore.isAvailable() bắt mọi Exception, trả false,
    log mức INFO. Chuỗi dự phòng lùi xuống JsonDocumentStore. NHƯNG: nếu
    jdbcUrl trỏ tới một HOST KHÔNG TỒN TẠI (không phải "bị từ chối kết nối"),
-   khởi động có thể TREO tới ~75 giây trước khi lùi tầng (mục 22.3) — đây
+   khởi động có thể TREO tới ~75 giây trước khi lùi tầng (mục 46) — đây
    không phải sập, nhưng có thể BỊ NHẦM LÀ treo/sập nếu không biết cơ chế
    timeout TCP.
 
@@ -2998,7 +3271,7 @@ TRIỆU CHỨNG: chạy PostgresImportRunner xong, in ra "SAI LECH: du lieu
 doc lai KHONG khop"
 │
 ├─ Kiểm tra mã thoát của tiến trình — LƯU Ý: mã thoát VẪN LÀ 0 dù in "SAI
-│  LECH" (mục 23.3, điểm yếu đã biết) — không dựa vào mã thoát để phát
+│  LECH" (mục 50, điểm yếu đã biết) — không dựa vào mã thoát để phát
 │  hiện, phải ĐỌC đầu ra bằng mắt hoặc grep chuỗi "SAI LECH".
 │
 ├─ ĐỪNG chạy tiếp các bước phụ thuộc corpus trong CSDL (ví dụ bật
@@ -3006,14 +3279,14 @@ doc lai KHONG khop"
 │  PostgresImportRunner và thấy "OK: du lieu doc lai khop hoan toan".
 │
 └─ Nguyên nhân thường gặp: quên deleteAll() trước saveAll() (outlinks
-   nhân đôi — mục 20), hoặc trùng doc_id trong file JSON nguồn (ON
-   CONFLICT âm thầm ghi đè, giảm số tài liệu — mục 23.3).
+   nhân đôi — mục 41), hoặc trùng doc_id trong file JSON nguồn (ON
+   CONFLICT âm thầm ghi đè, giảm số tài liệu — mục 50).
 
 TRIỆU CHỨNG: GinBaselineRunner báo cáo ra file ở vị trí không mong đợi,
 hoặc "Kich thuoc chi muc: n/a"
 │
 ├─ Cả hai đường dẫn mặc định (reportPath và data/index.json để đo kích
-│  thước) đều TƯƠNG ĐỐI, phụ thuộc thư mục làm việc (mục 24, tham chiếu
+│  thước) đều TƯƠNG ĐỐI, phụ thuộc thư mục làm việc (mục 51, tham chiếu
 │  GinBaselineRunner.md mục 3 và 9). Kiểm tra CWD lúc chạy lệnh — phải
 │  là thư mục module core-search hoặc backend, tuỳ cấu hình exec-maven.
 │
@@ -3024,7 +3297,7 @@ hoặc "Kich thuoc chi muc: n/a"
 
 ---
 
-## 33. Thuật ngữ
+## 69. Thuật ngữ
 
 | Thuật ngữ | Nghĩa trong tài liệu này |
 |---|---|
@@ -3047,7 +3320,7 @@ hoặc "Kich thuoc chi muc: n/a"
 
 ---
 
-## 34. Toàn cảnh một trang
+## 70. Toàn cảnh một trang
 
 Bản cây rút gọn ban đầu của tài liệu này, giữ nguyên và nâng cấp — đọc trong
 hai phút để ôn lại toàn bộ tài liệu phía trên.
@@ -3096,7 +3369,7 @@ SearchEngineFacade.loadCorpus()
 │      ├─ getTotalDocs() > 0 → dùng luôn, RETURN — không chạm buildStoreChain()
 │      ├─ getTotalDocs() == 0 → log.warn, BỎ QUA, đi tiếp xuống buildStoreChain()
 │      │  ↳ index.json rỗng (159 byte do phiên crawl hỏng để lại) từng khiến
-│      │    app nạp thẳng cache rỗng rồi RETURN, che mất corpus mẫu — xem mục 15
+│      │    app nạp thẳng cache rỗng rồi RETURN, che mất corpus mẫu — xem mục 29
 │      └─ IOException/RuntimeException (sai version, sai tokenizer, file hỏng)
 │         → log.warn, BỎ QUA, đi tiếp xuống buildStoreChain()
 │      ↳ ĐƯỜNG NHANH này chỉ chạy khi index.json ĐÃ tồn tại từ trước — với hệ thống
@@ -3133,7 +3406,7 @@ IndexPersistence.save(index, "data/index.json")
    ├─ bodyTexts     → CompressedText.compress (Deflater thô, KHÔNG bọc GZIP)
    │                  ↳ GZIP thêm 10 byte header + 8 byte trailer cho MỖI tài liệu
    │                  ↳ deflater.end() bắt buộc: bộ đệm nằm NGOÀI heap, GC không thấy
-   └─ byte[] → Jackson mã hoá base64 → PHỒNG THÊM ~33% (mục 27.3)
+   └─ byte[] → Jackson mã hoá base64 → PHỒNG THÊM ~33% (mục 61)
 
 IndexPersistence.load(path, tokenizer)
 ├─ version ≠ 3        → IOException nói đúng việc phải làm (không phải MismatchedInputException)
@@ -3142,7 +3415,7 @@ IndexPersistence.load(path, tokenizer)
 └─ getTotalDocs() == 0 → bỏ qua tệp, dựng lại từ corpus gốc
    ↳ ca thật đã gặp: một phiên crawl hỏng để lại index.json 159 byte, đường nhanh nạp
      trót lọt rồi RETURN — che mất corpus mẫu, mọi truy vấn về 0, /api/health trả 503,
-     và trong Docker container vào vòng khởi động lại vô hạn (phân tích đầy đủ ở mục 15)
+     và trong Docker container vào vòng khởi động lại vô hạn (phân tích đầy đủ ở mục 29)
 ```
 
 Kho thứ tư — PostgreSQL, nạp và đối chứng:
@@ -3175,7 +3448,7 @@ PostgresImportRunner.main [corpusPath]           mặc định "data/crawled-mul
 
 GinBaselineRunner.main [numQueries=200] [reportPath=../docs/GIN-BASELINE.md]
 ├─ repo.findAll() → dựng LẠI InvertedIndex tự cài (KHÔNG nạp từ index.json —
-│                    tránh so hai corpus khác nhau, xem mục 24.3)
+│                    tránh so hai corpus khác nhau, xem mục 52)
 ├─ PageRankService.computePageRank
 ├─ KnownItemQueryGenerator.generate(index, n, 3, seed 42)   ← nối với docs/EVALUATION.md
 ├─ làm nóng JVM 2 vòng (chạy CẢ hai bên, xen kẽ)   ← thiếu bước này lệch ~40%
@@ -3194,3 +3467,26 @@ Bốn nguyên tắc chạy suốt tầng lưu trữ:
 4. Nguồn sự thật thì được phép sập  → không nguồn nào có tài liệu = chỉ mục rỗng, và
                                       /api/health nói thẳng điều đó
 ```
+
+---
+
+## Kết
+
+Năm tệp trong `backend/data/` và hai bảng trong PostgreSQL là kết quả của một
+chuỗi **bốn kho** nối tiếp nhau, mỗi kho một vòng đời riêng, mỗi quyết định thiết
+kế đều có lý do có thể truy nguyên:
+
+| Đặc điểm quan sát được trong output | Khối chịu trách nhiệm | Mục |
+|---|---|---|
+| `crawled-documents.json` không bao giờ là JSON cụt | ghi ra `.tmp` rồi `ATOMIC_MOVE` | [12](#12-contentstoragesavetojson--ghi-nguyên-tử), [13](#13--vì-sao-phải-ghi-qua-tệp-tạm-rồi-đổi-tên-thay-vì-ghi-thẳng) |
+| Rơi về `Files.move` thường trên ổ mạng, không ghi thẳng | `AtomicMoveNotSupportedException` | [14](#14-đường-lui-khi-hệ-tệp-không-hỗ-trợ-đổi-tên-nguyên-tử) |
+| `crawled-documents.images.json` luôn cùng gốc tên với corpus | `ImageStorage.pathFor()` | [16](#16-imagestorage--tệp-anh-em-của-corpus-và-pathfor) |
+| Kho ảnh chỉ 17,3 MB cho corpus 464,2 MB | ảnh đi tệp riêng, chỉ giữ siêu dữ liệu | [17](#17-vì-sao-ảnh-có-tệp-riêng-không-nhét-vào-webdocument) |
+| `index.json` 486,5 MB LỚN HƠN corpus 464,2 MB | ba biểu diễn của cùng corpus trong một tệp | [57](#57-tổng-quan-các-tệp-trong-backenddata), [61](#61--vì-sao-indexjson-còn-lớn-hơn-corpus-dù-đã-nén) |
+| Một `index.json` 159 byte từng làm container khởi động lại vô hạn | `getTotalDocs() > 0` — chốt chặn đường nhanh | [29](#29-sự-cố-indexjson-159-byte--diễn-biến), [30](#30-cách-sửa--và-vì-sao-nó-tổng-quát-hoá-thành-một-nguyên-tắc) |
+| Repo vừa clone về đã tìm kiếm được ngay | `seed-documents.json` 289 KB / 40 tài liệu | [28](#28-isavailable--ba-điều-kiện-và-tầng-dự-phòng-cuối), [59](#59-cấu-trúc-seed-documentsjson-thật) |
+| Thêm nguồn corpus thứ năm không phải sửa `loadCorpus()` | chuỗi dự phòng là DỮ LIỆU, không phải `else if` | [22](#22-chain-of-responsibility-buildstorechain), [24](#24-documentstore--hợp-đồng-ba-phương-thức) |
+| PostgreSQL chết mà ứng dụng vẫn khởi động | `isAvailable()` trả `false` thay vì ném | [45](#45-isavailable--trả-false-thay-vì-ném-và-rỗng-cũng-là-không-có) |
+| `docId` đọc từ CSDL ra đúng thứ tự 0–39.779 | `ORDER BY doc_id` gánh bất biến cách nó bốn tầng | [43](#43--order-by-doc_id--một-mệnh-đề-sql-gánh-bất-biến-của-một-cấu-trúc-dữ-liệu-cách-nó-bốn-tầng) |
+| Nạp lại corpus hai lần không nhân đôi tài liệu, nhưng NHÂN ĐÔI outlinks | `ON CONFLICT (doc_id) DO UPDATE` chỉ phủ bảng `documents` | [41](#41-on-conflict-do-update--upsert-và-cái-bẫy-outlinks) |
+| Đổi sang chế độ PostgreSQL không sửa một dòng mã nào | `app.storage.postgres.enabled` | [64](#64-các-chế-độ-chạy-khác-của-tầng-lưu-trữ) |

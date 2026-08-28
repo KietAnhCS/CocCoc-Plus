@@ -58,7 +58,7 @@ set "KILLED="
 call :kill_port 8080 api-gateway
 call :kill_port 8081 auth-service
 call :kill_port 8082 search-service
-call :kill_port 8083 crawler-service
+call :kill_port 8083 "crawler-service (chỉ khi --crawler)"
 call :kill_port 8084 analytics-service
 call :kill_port 8085 "history-service (Go)"
 call :kill_port 8086 "downloads-service (Go)"
@@ -66,13 +66,13 @@ call :kill_port 8087 "settings-service (Go)"
 call :kill_port 8090 "football-service (Go)"
 if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-8087 và 8090.
 
-if defined LOCAL_ONLY goto :report
+if defined LOCAL_ONLY goto :wsl_step
 
 where docker >nul 2>nul
 if errorlevel 1 (
     echo.
     echo Không có lệnh docker - bỏ qua phần container.
-    goto :report
+    goto :wsl_step
 )
 
 docker info >nul 2>nul
@@ -92,7 +92,7 @@ if defined ADMIN_API_KEY goto :key_ok
 set "ADMIN_API_KEY=khoa-tam-chi-de-compose-doc-duoc-tep"
 :key_ok
 
-set "PROFILES=--profile kafka"
+set "PROFILES=--profile kafka --profile monitoring"
 
 if defined STOP_ONLY (
     echo.
@@ -100,7 +100,7 @@ if defined STOP_ONLY (
     docker compose %PROFILES% stop
     if errorlevel 1 goto :compose_failed
     echo Container đã dừng. Bật lại: run-backend.bat --docker
-    goto :report
+    goto :wsl_step
 )
 
 if defined WIPE goto :wipe
@@ -136,7 +136,7 @@ if errorlevel 1 goto :compose_failed
 echo Đã hạ xong và đã XOÁ volume. Lần bật lại sẽ khởi tạo CSDL rỗng.
 
 :shutdown_desktop
-if defined KEEP_DOCKER goto :report
+if defined KEEP_DOCKER goto :wsl_step
 
 set "DOCKER_DESKTOP=%ProgramFiles%\Docker\Docker\Docker Desktop.exe"
 if not exist "%DOCKER_DESKTOP%" set "DOCKER_DESKTOP=%ProgramW6432%\Docker\Docker\Docker Desktop.exe"
@@ -146,14 +146,14 @@ tasklist /FI "IMAGENAME eq Docker Desktop.exe" /NH | findstr /i /c:"Docker Deskt
 if errorlevel 1 (
     echo.
     echo Docker Desktop không chạy - không có gì để đóng.
-    goto :report
+    goto :wsl_step
 )
 
 if not exist "%DOCKER_DESKTOP%" (
     echo.
     echo [CẢNH BÁO] Không tìm thấy Docker Desktop.exe để đóng bằng lệnh.
     echo            Đóng bằng tay ở khay hệ thống: Quit Docker Desktop.
-    goto :report
+    goto :wsl_step
 )
 
 echo.
@@ -169,7 +169,7 @@ set /a DD_WAIT+=2
 if %DD_WAIT% GEQ 90 (
     echo [CẢNH BÁO] Đợi 90 giây mà Docker Desktop chưa đóng hẳn.
     echo            Cứ để nó tự đóng nốt, hoặc đóng tay ở khay hệ thống.
-    goto :report
+    goto :wsl_step
 )
 goto :wait_dd
 
@@ -185,15 +185,28 @@ where wsl >nul 2>nul
 if not errorlevel 1 (
     echo Đang tắt máy ảo con của Docker trong WSL2 ^(distro docker-desktop^)...
     wsl --terminate docker-desktop >nul 2>nul
-    echo Đã tắt. VmmemWSL vẫn còn nhưng chỉ giữ mức nền, không còn RAM của Docker.
+    echo Đã tắt. vmmemWSL tự nhả RAM dần nhờ autoMemoryReclaim trong .wslconfig.
 )
 
-if defined KILL_WSL (
+:wsl_step
+REM Bước này phải nằm NGOÀI khối tắt Docker Desktop. Trước đây nó nằm ở cuối
+REM khối đó, sau bảy nhánh `goto :report` — nên `--wsl` chỉ chạy đúng một
+REM đường duy nhất: Docker Desktop đang mở VÀ đóng xong trong 90 giây. Mọi
+REM đường khác (đã tắt Docker từ trước, dùng --local, --stop, --keep-docker,
+REM hay hết 90 giây chờ) đều nhảy qua nó mà không báo gì.
+if not defined KILL_WSL goto :report
+
+where wsl >nul 2>nul
+if errorlevel 1 (
     echo.
-    echo Đang tắt toàn bộ máy ảo WSL2...
-    wsl --shutdown
-    echo Đã tắt WSL2. Lưu ý: lệnh này tắt MỌI distro WSL, không riêng của Docker.
+    echo [CẢNH BÁO] Có --wsl nhưng máy không có lệnh wsl - bỏ qua.
+    goto :report
 )
+
+echo.
+echo Đang tắt toàn bộ máy ảo WSL2...
+wsl --shutdown
+echo Đã tắt WSL2. Lưu ý: lệnh này tắt MỌI distro WSL, không riêng của Docker.
 
 :report
 ping -n 4 127.0.0.1 >nul
@@ -224,10 +237,18 @@ REM được. Bỏ qua - phần hạ container sẽ lo đúng cách.
 set "PORT_IMG="
 for /f "tokens=1 delims=," %%i in ('tasklist /FI "PID eq %PORT_PID%" /FO CSV /NH 2^>nul') do set "PORT_IMG=%%~i"
 echo %PORT_IMG% | findstr /i /c:"docker" /c:"vpnkit" /c:"wslrelay" /c:"com.docker" >nul
-if not errorlevel 1 (
-    echo   %~2 :%~1 - PID %PORT_PID% là tiến trình Docker ^(%PORT_IMG%^), bỏ qua.
-    goto :eof
-)
+REM KHÔNG dùng khối `if ... ( ... )` ở đây. Nhãn %~2 của bốn service Go là
+REM "history-service (Go)" — có ngoặc đơn. cmd.exe thay %~2 vào TRƯỚC khi
+REM chạy, nên dấu ")" trong "(Go)" đóng sớm khối lệnh và cả tệp chết với
+REM "8085 was unexpected at this time." NGAY CẢ KHI nhánh đó không được
+REM chọn, vì cmd phân tích cả khối trước rồi mới quyết định chạy hay không.
+REM Đó là lỗi thật: end-backend.bat luôn dừng ở cổng 8085, bỏ lại 4 binary
+REM Go, container và Docker Desktop. Dạng `goto` không có khối nên an toàn.
+if errorlevel 1 goto :kill_port_do
+echo   %~2 :%~1 - PID %PORT_PID% là tiến trình Docker %PORT_IMG%, bỏ qua.
+goto :eof
+
+:kill_port_do
 
 set "KILLED=1"
 echo   %~2 :%~1 - PID %PORT_PID%, đang tắt...
@@ -260,7 +281,8 @@ echo   end-backend.bat --keep-docker  hạ container nhưng để Docker Desktop
 echo   end-backend.bat --stop         chỉ dừng container, KHÔNG xoá - bật lại nhanh
 echo   end-backend.bat --wipe         hạ container VÀ XOÁ volume - MẤT DỮ LIỆU
 echo   end-backend.bat --wsl          tắt CẢ máy ảo WSL2 ^(mọi distro, không riêng
-echo                                  Docker^) sau khi tắt Docker
+echo                                  Docker^) để trả RAM ngay lập tức. Ghép được
+echo                                  với mọi cờ khác, kể cả --local và --stop.
 echo.
 echo   Bật lại: run-backend.bat
 echo.

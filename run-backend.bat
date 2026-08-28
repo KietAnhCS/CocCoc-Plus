@@ -5,7 +5,12 @@ set "ROOT=%~dp0"
 set "ENV_FILE=%ROOT%.env"
 
 set "MODE=full"
-set "USE_DOCKER="
+REM Docker LA MAC DINH. Truoc day mac dinh la chay jar thang trong tien
+REM trinh Windows, va o duong do khong co gioi han bo nho nao ca: JVM tu lay
+REM 1/4 RAM may lam heap toi da, nen search-service do duoc 3 GB cho mot
+REM corpus vua 500 MB. Trong container thi mem_limit cua docker-compose moi
+REM la tran that su. Muon lai duong cu thi dung --local.
+set "USE_DOCKER=1"
 set "FORCE_BUILD="
 set "SHOW_WINDOWS="
 set "NO_FRONTEND="
@@ -25,7 +30,10 @@ if /i "%~1"=="--full" (
 ) else if /i "%~1"=="--core" (
     set "MODE=core"
 ) else if /i "%~1"=="--docker" (
+    REM Da la mac dinh. Giu lai de cac lenh cu khong bao "tham so khong hieu".
     set "USE_DOCKER=1"
+) else if /i "%~1"=="--local" (
+    set "USE_DOCKER="
 ) else if /i "%~1"=="--build" (
     set "FORCE_BUILD=1"
 ) else if /i "%~1"=="--windows" (
@@ -123,7 +131,7 @@ if not defined BOOTSTRAP_ADMIN_USERNAME set "BOOTSTRAP_ADMIN_USERNAME=admin"
 
 if defined MONITORING if not defined USE_DOCKER (
     echo.
-    echo [GHI CHÚ] --monitoring chỉ có tác dụng cùng --docker. Đường chạy jar/binary
+    echo [GHI CHÚ] --monitoring không dùng được cùng --local. Đường chạy jar/binary
     echo           trực tiếp chỉ bật Postgres/Redis/Mongo bằng Docker, không bật
     echo           Prometheus/Grafana/Alertmanager.
 )
@@ -338,12 +346,17 @@ cd /d "%ROOT%backend"
 if not exist "logs" mkdir "logs"
 
 set "LAUNCH_ERR="
-call :launch api-gateway 8080
-call :launch auth-service 8081
-call :launch search-service 8082
+REM Tham so thu ba = -Xmx tinh bang MB. KHONG duoc bo: khong co no thi JVM
+REM lay 1/4 RAM may lam heap toi da (3,8 GB tren may 15 GB) va cu the phinh
+REM ra - do that te la search-service chiem 3 GB. Cac con so nay bam theo
+REM `mem_limit` cua docker-compose nhan 70%%, dung ty le MaxRAMPercentage ma
+REM Dockerfile dat cho ban chay trong container.
+call :launch api-gateway 8080 256
+call :launch auth-service 8081 256
+call :launch search-service 8082 1920
 if "%MODE%"=="full" (
-    if defined WITH_CRAWLER call :launch crawler-service 8083
-    call :launch analytics-service 8084
+    if defined WITH_CRAWLER call :launch crawler-service 8083 1400
+    call :launch analytics-service 8084 224
     call :launch_go history 8085
     call :launch_go downloads 8086
     call :launch_go settings 8087
@@ -390,7 +403,7 @@ echo   PostgreSQL, Redis và MongoDB được tệp này tự bật bằng Docke
 echo   5432/6379/27017 còn trống, và Docker Desktop cũng được mở giúp.
 echo.
 echo   Muốn cả giám sát Prometheus/Grafana thì dùng:
-echo       run-backend.bat --docker --monitoring
+echo       run-backend.bat --monitoring        ^(bỏ --local đi^)
 echo.
 if defined NO_FRONTEND goto :fe_done
 echo Đang mở giao diện ở cửa sổ riêng...
@@ -404,7 +417,7 @@ exit /b 0
 where docker >nul 2>nul
 if errorlevel 1 (
     echo [LỖI] Không tìm thấy lệnh docker.
-    echo       Cài Docker Desktop, hoặc bỏ tham số --docker để chạy jar trực tiếp.
+    echo       Cài Docker Desktop, hoặc thêm --local để chạy jar trực tiếp.
     goto :fail
 )
 docker info >nul 2>nul
@@ -415,24 +428,35 @@ if errorlevel 1 (
 
 if "%MODE%"=="core" (
     echo.
-    echo [GHI CHÚ] --docker luôn bật TOÀN BỘ hệ thống. Tham số --core/--full chỉ
-    echo           có tác dụng khi chạy jar trực tiếp.
+    echo [GHI CHÚ] Đường Docker luôn bật TOÀN BỘ hệ thống. Tham số --core/--full
+    echo           chỉ có tác dụng cùng --local.
 )
 
 echo.
 echo === VNSEARCH - DOCKER COMPOSE ===
-set "MON_PROFILE="
+set "PROFILES="
 set "MON_SHOW=KHÔNG bật - thêm --monitoring nếu cần"
 if defined MONITORING (
-    set "MON_PROFILE= --profile monitoring"
+    set "PROFILES=%PROFILES% --profile monitoring"
     set "MON_SHOW=BẬT - Prometheus 9090, Grafana 3000, Alertmanager 9093"
 )
-echo Chế độ             : TOÀN BỘ - 5 service Java + 4 service Go
+REM crawler-service nam sau ho so `crawler` cua compose. Truoc day
+REM `docker compose up -d` bat no len ma khong ai yeu cau: 2 GB tran RAM cho
+REM dung mot nhom endpoint quan tri ma tim kiem khong dung toi.
+set "CRAWLER_SHOW=KHÔNG bật - thêm --crawler nếu cần /api/admin/**"
+set "SVC_SHOW=4 service Java + 4 service Go"
+if defined WITH_CRAWLER (
+    set "PROFILES=%PROFILES% --profile crawler"
+    set "CRAWLER_SHOW=BẬT :8083 - cộng thêm 2 GB trần RAM"
+    set "SVC_SHOW=5 service Java + 4 service Go"
+)
+echo Chế độ             : TOÀN BỘ - %SVC_SHOW%
 echo                      + Postgres/Redis/Mongo
 echo Giám sát           : %MON_SHOW%
-echo Bộ nhớ             : khoảng 3.5 GB lúc không tải ^(4 service Go nhẹ hơn JVM^)
+echo Crawler            : %CRAWLER_SHOW%
+echo Bộ nhớ             : khoảng 2.9 GB lúc không tải, trần 4.8 GB
 echo.
-docker compose%MON_PROFILE% up -d --build
+docker compose%PROFILES% up -d --build
 if errorlevel 1 (
     echo.
     echo [LỖI] docker compose up thất bại. Cuộn lên xem dòng lỗi ĐẦU TIÊN.
@@ -508,13 +532,21 @@ if not exist "java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" (
     set "LAUNCH_ERR=1"
     goto :eof
 )
+REM MaxMetaspaceSize + ReservedCodeCacheSize chan hai vung NAM NGOAI heap;
+REM -Xmx khong rang buoc chung. Xss512k vi Tomcat mo hang tram luong va moi
+REM luong an 1 MB ngan xep theo mac dinh.
+set "JVM_OPTS=-Xmx%~3m -Xss512k -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=48m -XX:+ExitOnOutOfMemoryError"
+if %~3 GTR 512 set "JVM_OPTS=%JVM_OPTS% -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+if %~3 LEQ 512 set "JVM_OPTS=%JVM_OPTS% -XX:+UseSerialGC -XX:TieredStopAtLevel=1"
 if defined SHOW_WINDOWS (
-    start "VnSearch %~1 :%~2" cmd /k java -jar "java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar"
-    echo   %~1 :%~2 - cửa sổ console riêng
+    start "VnSearch %~1 :%~2" cmd /k java %JVM_OPTS% -jar "java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar"
+    echo   %~1 :%~2 - cửa sổ console riêng, heap tối đa %~3 MB
+    set "JVM_OPTS="
     goto :eof
 )
-powershell -NoProfile -Command "Start-Process -FilePath java -ArgumentList @('-jar', 'java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar') -WindowStyle Hidden -RedirectStandardOutput 'logs\%~1.log' -RedirectStandardError 'logs\%~1.err.log'"
-echo   %~1 :%~2 - chạy ngầm, log: backend\logs\%~1.log
+powershell -NoProfile -Command "Start-Process -FilePath java -ArgumentList (@('%JVM_OPTS%'.Split(' ')) + @('-jar', 'java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar')) -WindowStyle Hidden -RedirectStandardOutput 'logs\%~1.log' -RedirectStandardError 'logs\%~1.err.log'"
+echo   %~1 :%~2 - chạy ngầm, heap tối đa %~3 MB, log: backend\logs\%~1.log
+set "JVM_OPTS="
 goto :eof
 
 REM %~1 = tên thư mục Go (football/settings/downloads/history), %~2 = cổng.
@@ -540,21 +572,31 @@ goto :eof
 
 :usage
 echo.
-echo   run-backend.bat            4 service Java ^(jar^) + 4 service Go ^(binary^), KHÔNG
-echo                              có crawler-service - xem --crawler bên dưới
-echo                              + mở luôn giao diện
+echo   run-backend.bat            MẶC ĐỊNH: docker compose, toàn bộ hệ thống trong
+echo                              container ^(4 service Java + 4 service Go +
+echo                              Postgres/Redis/Mongo^), KHÔNG có crawler-service
+echo                              - xem --crawler bên dưới. Trần RAM 4,3 GB, đo
+echo                              lúc không tải khoảng 2,5 GB. Mở luôn giao diện.
+echo   run-backend.bat --local    chạy jar Java + binary Go THẲNG trên Windows,
+echo                              chỉ bật Postgres/Redis/Mongo bằng Docker.
+echo                              Khởi động nhanh hơn và debug dễ hơn, nhưng tốn
+echo                              RAM hơn: mỗi JVM chỉ bị chặn bằng -Xmx do tệp
+echo                              này truyền vào, không có mem_limit của Docker.
 echo   run-backend.bat --core     chỉ api-gateway + auth-service + search-service
-echo                              ^(bỏ qua 4 service Go, tab Bóng đá sẽ trống^)
+echo                              ^(bỏ qua 4 service Go, tab Bóng đá sẽ trống^).
+echo                              Chỉ có tác dụng cùng --local.
 echo   run-backend.bat --no-frontend
 echo                              chỉ chạy backend, không mở giao diện
 echo   run-backend.bat --build    dựng lại jar Java trước khi chạy
-echo                              ^(binary Go luôn được dựng lại, go build rất nhanh^)
+echo                              ^(binary Go luôn được dựng lại, go build rất nhanh^).
+echo                              Chỉ có tác dụng cùng --local - đường Docker luôn
+echo                              chạy `up -d --build`.
 echo   run-backend.bat --windows  mở một cửa sổ console cho mỗi service thay vì
-echo                              chạy ngầm ^(8 cửa sổ, 9 nếu kèm --crawler^)
-echo   run-backend.bat --docker   chạy bằng docker compose - bật toàn bộ hệ thống
-echo                              trong container, nên --core/--full không đổi được
-echo                              gì ở đường này
-echo   run-backend.bat --crawler  thêm crawler-service :8083. Mặc định KHÔNG bật: nó
+echo                              chạy ngầm ^(8 cửa sổ, 9 nếu kèm --crawler^).
+echo                              Chỉ có tác dụng cùng --local.
+echo   run-backend.bat --docker   đã là mặc định, giữ lại cho các lệnh cũ
+echo   run-backend.bat --crawler  thêm crawler-service :8083 ^(hồ sơ `crawler` của
+echo                              compose^). Mặc định KHÔNG bật: nó
 echo                              nạp sẵn chính bản chỉ mục mà search-service đã nạp
 echo                              - đo được 2 GB cho đúng một controller quản trị, và
 echo                              đó là tiến trình đã làm máy hết RAM. Tìm kiếm không
@@ -566,11 +608,17 @@ echo                              thêm Prometheus/Grafana/Alertmanager ^(hồ s
 echo                              `monitoring` của compose^). Mặc định KHÔNG bật:
 echo                              ba container đó tốn khoảng 544 MB trần RAM mà
 echo                              phần lớn thời gian không ai mở Grafana.
-echo                              Chỉ có tác dụng cùng --docker.
+echo                              KHÔNG dùng được cùng --local.
 echo.
-echo   Chế độ trực tiếp chạy các service NGẦM, log đổ vào backend\logs\^<ten^>.log.
+echo   Chế độ --local chạy các service NGẦM, log đổ vào backend\logs\^<ten^>.log.
 echo   Cần Java ^(JDK 17+^) và Go ^(1.24+^). PostgreSQL, Redis và MongoDB tự bật bằng
 echo   Docker khi cổng còn trống, kể cả việc mở Docker Desktop hộ.
+echo.
+echo   Trần RAM ^(mem_limit trong docker-compose.yml, hoặc -Xmx ở chế độ --local^):
+echo     search-service 2560   crawler 2048 ^(tắt^)   auth 384   gateway 384
+echo     analytics 320   postgres 384   mongo 384   redis 128   4 service Go 96 mỗi cái
+echo   Tổng trần mặc định 4928 MB. search-service chiếm hơn nửa vì chỉ mục đảo
+echo   nằm trong heap - dưới 2304 MB nó OOM, đã đo.
 echo.
 echo   Tắt hết: end-backend.bat
 echo.

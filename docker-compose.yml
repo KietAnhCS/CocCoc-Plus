@@ -2,8 +2,9 @@
 # VnSearch — toàn hệ thống, chạy được trên một máy 8 GB.
 # ===========================================================================
 #
-#   docker compose up -d                          Hệ thống      trần 6,6 GB
-#                                                 9 service + Postgres/Redis/Mongo
+#   docker compose up -d                          Hệ thống      trần 4,8 GB
+#                                                 8 service + Postgres/Redis/Mongo
+#   docker compose --profile crawler up -d        thêm crawler   trần +2,0 GB
 #   docker compose --profile monitoring up -d     thêm giám sát  trần +544 MB
 #                                                 Prometheus/Grafana/Alertmanager
 #   docker compose --profile kafka up -d          thêm Kafka     trần +1,3 GB
@@ -21,16 +22,17 @@
 # NGÂN SÁCH BỘ NHỚ — vì sao mỗi con số là con số đó
 # ---------------------------------------------------------------------------
 #
-#   search-service      2048 MB   ƯU TIÊN. Chỉ mục đảo, Trie gợi ý và vector
+#   search-service      2560 MB   ƯU TIÊN. Chỉ mục đảo, Trie gợi ý và vector
 #                                 PageRank đều nằm trong heap, và chúng lớn
 #                                 theo kích thước corpus chứ không theo số
-#                                 người dùng. Hạ từ 3072 vì máy phát triển
-#                                 15 GB chạy WSL trần 7 GB — xem .wslconfig.
-#   crawler-service     2048 MB   frontier + bộ lọc Bloom, CỘNG corpus trong
+#                                 người dùng. Nâng từ 2048: ở 2048 nó OOM ngay
+#                                 lúc nạp chỉ mục — xem số liệu đo tại chỗ.
+#   crawler-service     2048 MB   HỒ SƠ `crawler`, KHÔNG chạy mặc định.
+#                                 frontier + bộ lọc Bloom, CỘNG corpus trong
 #                                 thư mục data/ mà nó mount chung với
 #                                 search-service — xem chú thích tại chỗ.
 #                                 KHÔNG hạ được: 768 MB đã đo là OOM.
-#   auth-service         512 MB   BCrypt tốn CPU, không tốn heap.
+#   auth-service         384 MB   BCrypt tốn CPU, không tốn heap; đo ~240 MB.
 #   api-gateway          384 MB   chỉ định tuyến, không giữ trạng thái.
 #   postgres             384 MB   shared_buffers=128MB, work_mem=2MB.
 #   mongo                384 MB   wiredTigerCacheSizeGB=0.25.
@@ -48,10 +50,18 @@
 # như hồi còn là Spring Boot: một nhị phân Go tĩnh không có JVM để khởi động,
 # và 288 MB tiết kiệm được ở mỗi cái là gần 1,2 GB trên toàn hệ thống.
 #
-# TỔNG mem_limit mặc định = 6592 MB ≈ 6,4 GB; bật thêm hồ sơ `monitoring` là
-# 7136 MB ≈ 7,0 GB, vừa khớp trần `memory=7GB` trong C:\Users\<user>\.wslconfig.
+# TỔNG mem_limit mặc định = 4928 MB ≈ 4,8 GB, giảm từ 6592 MB: crawler-service
+# (2048 MB) đã ra sau hồ sơ `crawler` nên không còn chạy khi không ai gọi,
+# auth-service hạ từ 512 xuống 384, đổi lại search-service nâng từ 2048 lên
+# 2560 vì con số cũ ĐANG làm nó OOM. Bật thêm `monitoring` là 5472 MB;
+# bật cả `crawler` lẫn `monitoring` là 7520 MB.
+#
+# Trần `memory` trong C:\Users\<user>\.wslconfig hạ theo xuống 6 GB — đủ
+# cho mặc định và cho mặc định + `monitoring`. Chạy `crawler` cùng lúc thì
+# nâng .wslconfig lên 8GB rồi `wsl --shutdown` trước đã.
 # Đó KHÔNG phải lượng RAM thật sự dùng: `mem_limit` là trần, không phải chỗ
-# đặt trước — đo lúc chạy không tải là khoảng 4 GB. Trần cộng dồn chỉ cần
+# đặt trước — đo lúc chạy không tải là khoảng 2,9 GB sau khi bỏ crawler, và
+# gần 2 GB trong số đó là search-service. Trần cộng dồn chỉ cần
 # không vượt trần WSL, để kịch bản xấu nhất (mọi container chạm trần cùng
 # lúc) vẫn không đẩy máy vào swap.
 #
@@ -264,7 +274,10 @@ services:
       AUTH_JWK_PATH: ${AUTH_JWK_PATH:-}
     volumes:
       - ./backend/data:/app/data
-    mem_limit: 512m
+    # 384 MB chứ không 512: BCrypt tốn CPU chứ không tốn heap, và đo lúc chạy
+    # là ~240 MB. 512 là con số đặt lúc chưa có trần metaspace trong
+    # Dockerfile; giờ phần ngoài heap đã bị chặn cứng nên khoảng đệm đó thừa.
+    mem_limit: 384m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
       interval: 15s
@@ -301,15 +314,43 @@ services:
       # hàng triệu lần, và nó cần trình biên dịch C2 tối ưu hết mức. Đổi lại
       # là khởi động chậm hơn vài giây — không đáng kể với một tiến trình sống
       # hàng tuần.
+      # UseStringDeduplication chỉ chạy được với G1, nên nó nằm ở đây chứ không
+      # ở Dockerfile. Chỉ mục đảo là hàng triệu chuỗi từ vựng, và rất nhiều
+      # chuỗi trong số đó trùng nhau từng ký tự; G1 gộp phần mảng ký tự của
+      # chúng lại trong lúc dọn rác. Đo trên corpus hiện tại: heap giảm rõ mà
+      # không đổi một dòng mã nào.
+      # 75 chứ không 70 như các service khác: hai vùng ngoài heap lớn nhất đã bị
+      # chặn cứng ngay dưới đây (192 + 96 MB), nên phần dự phòng mà con số 70
+      # để dành cho chúng không còn cần rộng như vậy nữa.
       JAVA_TOOL_OPTIONS: >-
-        -XX:MaxRAMPercentage=70
+        -XX:MaxRAMPercentage=75
         -XX:+UseG1GC
         -XX:MaxGCPauseMillis=200
+        -XX:+UseStringDeduplication
+        -XX:MaxMetaspaceSize=192m
+        -XX:ReservedCodeCacheSize=96m
         -XX:+ExitOnOutOfMemoryError
         -Djava.security.egd=file:/dev/./urandom
     volumes:
       - ./backend/data:/app/data
-    mem_limit: 2048m
+    # 2560 MB, KHÔNG phải 2048. Con số cũ để lại từ hồi corpus còn nhỏ và nó
+    # ĐÃ HỎNG trước khi có tệp này: 2048 × 70%% = 1434 MB heap, và service chết
+    # bằng "OutOfMemoryError: Java heap space" ngay giữa lúc nạp chỉ mục, rồi
+    # `restart: unless-stopped` bật lại — vòng lặp không lối ra, triệu chứng
+    # duy nhất là container mãi không lên `healthy`.
+    #
+    # Đo trực tiếp trên corpus hiện tại (index.json 510 MB + crawled-documents
+    # 487 MB + 39552 ảnh):
+    #     2048 MB (heap 1536) OOM, khởi động lại vô hạn
+    #     2304 MB (heap 1728) lên `healthy`, ổn định ở 1,97 GB
+    #     2560 MB (heap 1920) lên `healthy` — chọn con số này
+    #     4096 MB (heap 2867) lên `healthy`, dùng tới 2,88 GB
+    # G1 lấp gần hết phần heap được cấp trước khi dọn nghiêm túc, nên "dùng
+    # 2,88 GB" ở dòng cuối KHÔNG có nghĩa là nó CẦN chừng đó. 2560 là 2304 đo
+    # được cộng một khoảng đệm cho corpus lớn thêm.
+    #
+    # Corpus phình tiếp thì đây là con số phải nâng đầu tiên.
+    mem_limit: 2560m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
       interval: 15s
@@ -378,9 +419,19 @@ services:
   # SERVICE ỨNG DỤNG (tiếp)
   # =========================================================================
 
+  # KHÔNG chạy mặc định — `docker compose --profile crawler up -d`, hoặc
+  # `run-backend.bat --crawler`. Đây là container tốn trần RAM lớn nhất hệ
+  # thống (2 GB) và nó nạp CHÍNH bản chỉ mục mà search-service đã nạp, cho
+  # đúng một nhóm endpoint quản trị. Tìm kiếm không cần nó, và `run-crawl.bat`
+  # cũng không gọi tới nó. Đường chạy jar trực tiếp đã bỏ nó theo mặc định từ
+  # lâu; hồ sơ này làm đường Docker khớp lại — trước đây `docker compose up -d`
+  # vẫn lặng lẽ bật nó lên và ăn 2 GB trần mà không ai yêu cầu.
+  #
+  # Không bật thì mất /api/admin/** và bảng điều khiển của analytics-service.
   crawler-service:
     <<: *java-service
     container_name: vnsearch-crawler
+    profiles: [crawler]
     build:
       context: ./backend
       dockerfile: java/Dockerfile
@@ -401,6 +452,8 @@ services:
       JAVA_TOOL_OPTIONS: >-
         -XX:MaxRAMPercentage=70
         -XX:+UseSerialGC
+        -XX:MaxMetaspaceSize=192m
+        -XX:ReservedCodeCacheSize=64m
         -XX:+ExitOnOutOfMemoryError
         -Djava.security.egd=file:/dev/./urandom
     volumes:

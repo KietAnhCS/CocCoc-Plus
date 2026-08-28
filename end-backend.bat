@@ -65,6 +65,7 @@ if defined RAM_BEFORE echo RAM trống lúc bắt đầu: %RAM_BEFORE% GB
 
 call :step "Dừng service chạy trực tiếp (jar Java + binary Go)"
 set "KILLED="
+set "SKIPPED="
 call :kill_port 8080 api-gateway
 call :kill_port 8081 auth-service
 call :kill_port 8082 search-service
@@ -74,7 +75,10 @@ call :kill_port 8085 "history-service (Go)"
 call :kill_port 8086 "downloads-service (Go)"
 call :kill_port 8087 "settings-service (Go)"
 call :kill_port 8090 "football-service (Go)"
-if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-8087 và 8090.
+if defined KILLED goto :ports_done
+if defined SKIPPED echo   Các cổng còn lại do Docker giữ, không phải jar/binary chạy trực tiếp.
+if not defined SKIPPED echo   Không có tiến trình nào giữ cổng 8080-8087 và 8090.
+:ports_done
 
 if defined LOCAL_ONLY goto :wsl_step
 
@@ -105,7 +109,9 @@ if defined ADMIN_API_KEY goto :key_ok
 set "ADMIN_API_KEY=khoa-tam-chi-de-compose-doc-duoc-tep"
 :key_ok
 
-set "PROFILES=--profile kafka --profile monitoring"
+REM Liet ke MOI ho so, ke ca `crawler`: khong co ten ho so thi
+REM `docker compose down` bo qua container cua ho so do va no cu chay tiep.
+set "PROFILES=--profile kafka --profile monitoring --profile crawler"
 
 call :step "Dừng/hạ container Docker"
 
@@ -114,7 +120,7 @@ if defined STOP_ONLY (
     echo Đang dừng container, vẫn giữ lại để bật lại cho nhanh...
     docker compose %PROFILES% stop
     if errorlevel 1 goto :compose_failed
-    echo Container đã dừng. Bật lại: run-backend.bat --docker
+    echo Container đã dừng. Bật lại: run-backend.bat
     goto :wsl_step
 )
 
@@ -175,28 +181,55 @@ if not exist "%DOCKER_DESKTOP%" (
 
 echo.
 echo Đang đóng Docker Desktop để trả lại RAM của máy ảo...
-start "" "%DOCKER_DESKTOP%" -Shutdown
 
+REM `docker desktop stop` la CLI chinh thuc cua Docker Desktop va no CHO cho
+REM toi khi dong xong. Uu tien no.
+REM
+REM `"Docker Desktop.exe" -Shutdown` chi GUI mot tin hieu roi tra ve ngay, va
+REM tren may nay no khong dong noi: ca hai lan do deu het 90 giay cho ma tien
+REM trinh van con. Giu lai lam duong du phong cho ban Docker Desktop cu chua
+REM co CLI plugin.
+where docker >nul 2>nul
+if errorlevel 1 goto :dd_fallback
+docker desktop stop >nul 2>nul
+goto :dd_wait
+:dd_fallback
+if exist "%DOCKER_DESKTOP%" start "" "%DOCKER_DESKTOP%" -Shutdown
+
+:dd_wait
 set /a DD_WAIT=0
 :wait_dd
-ping -n 3 127.0.0.1 >nul
 tasklist /FI "IMAGENAME eq Docker Desktop.exe" /NH | findstr /i /c:"Docker Desktop.exe" >nul
 if errorlevel 1 goto :dd_done
+ping -n 3 127.0.0.1 >nul
 set /a DD_WAIT+=2
-if %DD_WAIT% GEQ 90 (
-    echo [CẢNH BÁO] Đợi 90 giây mà Docker Desktop chưa đóng hẳn.
-    echo            Cứ để nó tự đóng nốt, hoặc đóng tay ở khay hệ thống.
-    goto :wsl_step
-)
+if %DD_WAIT% GEQ 60 goto :dd_force
 goto :wait_dd
+
+REM Het gio thi GIET, khong bo cuoc. Ban cu nhay thang toi :wsl_step o day va
+REM bo qua luon phan taskkill ben duoi - nghia la buoc "dong Docker Desktop"
+REM khong dong duoc gi ca, RAM cua may ao van nguyen, nhung tep bao la xong.
+:dd_force
+echo   Đợi %DD_WAIT%s mà Docker Desktop chưa tự đóng - đang tắt cứng.
+goto :dd_kill
 
 :dd_done
 echo Docker Desktop đã đóng sau %DD_WAIT%s.
 
+:dd_kill
 taskkill /F /IM "Docker Desktop.exe" /T >nul 2>nul
 taskkill /F /IM "com.docker.backend.exe" /T >nul 2>nul
 taskkill /F /IM "com.docker.build.exe" /T >nul 2>nul
 taskkill /F /IM "com.docker.dev-envs.exe" /T >nul 2>nul
+
+REM Kiem lai NGAY, thay vi tin la taskkill da xong viec.
+tasklist /FI "IMAGENAME eq Docker Desktop.exe" /NH | findstr /i /c:"Docker Desktop.exe" >nul
+if errorlevel 1 goto :dd_gone
+echo   [CẢNH BÁO] Docker Desktop VẪN còn tiến trình sau khi taskkill.
+echo              Đóng tay ở khay hệ thống: chuột phải - Quit Docker Desktop.
+goto :wsl_step
+:dd_gone
+echo   Không còn tiến trình Docker Desktop nào.
 
 :wsl_step
 REM Bước này phải nằm NGOÀI khối tắt Docker Desktop. Trước đây nó nằm ở cuối
@@ -248,7 +281,30 @@ goto :report
 :wsl_kill
 echo   Đang tắt toàn bộ máy ảo WSL2...
 wsl --shutdown
-echo   Đã tắt. Lưu ý: lệnh này tắt MỌI distro WSL, không riêng của Docker.
+echo   Lệnh đã chạy xong. Lưu ý: nó tắt MỌI distro WSL, không riêng của Docker.
+
+REM `wsl --shutdown` TRA VE TRUOC KHI Windows thu hoi xong bo nho cua vmmem.
+REM Ban cu in "Da tat" roi 4 giay sau doan bao cao van do duoc 1,4 GB va in
+REM "[CON] May ao WSL2 van giu 1.4 GB" - hai dong mau thuan nhau ngay trong
+REM mot lan chay, va do la ly do chinh de khong tin tep nay. Doi cho tien
+REM trinh vmmem bien mat that su roi hang moi di tiep.
+echo   Đang đợi Windows thu hồi bộ nhớ của máy ảo...
+set /a WK_WAIT=0
+:wsl_reclaim
+set "WK_NOW="
+for /f "delims=" %%m in ('powershell -NoProfile -Command "$ps = @(Get-Process vmmem,vmmemWSL -ErrorAction SilentlyContinue); $sum = 0; foreach ($x in $ps) { $sum += $x.WorkingSet64 }; [math]::Round($sum/1GB,2)"') do set "WK_NOW=%%m"
+if not defined WK_NOW goto :wsl_reclaimed
+if "%WK_NOW%"=="0" goto :wsl_reclaimed
+ping -n 3 127.0.0.1 >nul
+set /a WK_WAIT+=2
+if %WK_WAIT% GEQ 40 (
+    echo   [CẢNH BÁO] Đợi %WK_WAIT%s mà máy ảo vẫn giữ %WK_NOW% GB.
+    echo              Thường là có distro WSL khác vừa được khởi động lại.
+    goto :report
+)
+goto :wsl_reclaim
+:wsl_reclaimed
+echo   Máy ảo đã trả hết RAM sau %WK_WAIT%s.
 
 :report
 call :step "Kiểm chứng xem đã giải phóng thật chưa"
@@ -352,6 +408,7 @@ REM chọn, vì cmd phân tích cả khối trước rồi mới quyết định
 REM Đó là lỗi thật: end-backend.bat luôn dừng ở cổng 8085, bỏ lại 4 binary
 REM Go, container và Docker Desktop. Dạng `goto` không có khối nên an toàn.
 if errorlevel 1 goto :kill_port_do
+set "SKIPPED=1"
 echo   %~2 :%~1 - PID %PORT_PID% là tiến trình Docker %PORT_IMG%, bỏ qua.
 goto :eof
 

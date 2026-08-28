@@ -137,7 +137,15 @@ USER vnsearch
 # định của JVM là cố sống tiếp sau OOM, và một tiến trình thoi thóp còn tệ hơn
 # một tiến trình đã chết — nó vẫn qua được healthcheck TCP, vẫn nhận request,
 # và trả lỗi cho từng người một.
+#
+# MaxMetaspaceSize và ReservedCodeCacheSize chặn hai vùng NẰM NGOÀI heap, và
+# mặc định cả hai đều KHÔNG có trần. MaxRAMPercentage chỉ ràng buộc heap, nên
+# một service nạp nhiều lớp Spring vẫn có thể vượt `mem_limit` của container
+# trong khi heap còn trống — đúng kiểu hỏng mà đoạn trên vừa mô tả. Chặn cứng
+# ở 160 MB và 48 MB thì tổng bộ nhớ một JVM dùng mới thật sự nằm trong con số
+# ghi ở docker-compose, chứ không chỉ riêng phần heap của nó.
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=70 -XX:+UseSerialGC -Xss512k \
+-XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=48m \
 -XX:TieredStopAtLevel=1 -XX:+ExitOnOutOfMemoryError \
 -Djava.security.egd=file:/dev/./urandom"
 

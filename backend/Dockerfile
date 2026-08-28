@@ -49,10 +49,6 @@ COPY services/auth-service/pom.xml services/auth-service/
 COPY services/search-service/pom.xml services/search-service/
 COPY services/crawler-service/pom.xml services/crawler-service/
 COPY services/analytics-service/pom.xml services/analytics-service/
-COPY services/history-service/pom.xml services/history-service/
-COPY services/downloads-service/pom.xml services/downloads-service/
-COPY services/settings-service/pom.xml services/settings-service/
-COPY services/football-service/pom.xml services/football-service/
 COPY coverage/pom.xml coverage/
 
 # Làm nóng kho thư viện. `|| true` là có ý: đây thuần tuý là một bước TỐI ƯU

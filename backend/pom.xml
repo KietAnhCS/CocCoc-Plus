@@ -76,18 +76,9 @@
 		<module>services/search-service</module>
 		<module>services/crawler-service</module>
 		<module>services/analytics-service</module>
-		<module>services/history-service</module>
-		<module>services/downloads-service</module>
-		<module>services/settings-service</module>
-		<module>services/football-service</module>
-		
-		
-		
-		
-		
-		
-		
-		
+		<!-- history-service, downloads-service, settings-service, football-service:
+		     viết lại bằng Go, xem backend/go/. Không còn là module Maven. -->
+
 		<!-- PHẢI đứng cuối: nó đọc tệp jacoco.exec của mọi module đứng trước. -->
 		<module>coverage</module>
 	</modules>

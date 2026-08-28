@@ -103,21 +103,8 @@
 			<artifactId>analytics-service</artifactId>
 			<version>${project.version}</version>
 		</dependency>
-		<dependency>
-			<groupId>com.vnsearch</groupId>
-			<artifactId>history-service</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.vnsearch</groupId>
-			<artifactId>downloads-service</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>com.vnsearch</groupId>
-			<artifactId>settings-service</artifactId>
-			<version>${project.version}</version>
-		</dependency>
+		<!-- history/downloads/settings/football: viết lại bằng Go (backend/go),
+		     độ phủ đo bằng `go test` trong job CI riêng. -->
 	</dependencies>
 
 	<build>

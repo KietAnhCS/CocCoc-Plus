@@ -169,9 +169,27 @@ answer. Pass `--windows` for the old one-console-per-service behaviour.
 >
 > Or use `run-backend.bat --docker`, which brings everything up itself.
 
-`end-backend.bat` stops the jars, takes the Compose stack down, **and quits
-Docker Desktop**. Use `--local` to touch only the jars, or `--keep-docker` to
-leave Docker Desktop running.
+`end-backend.bat` stops the jars, takes the Compose stack down, quits Docker
+Desktop, and terminates the `docker-desktop` WSL2 distro. Every phase prints a
+progress bar (`[########....] 40% - buoc 2/5`), and the run ends with a
+verification pass that checks the three things that actually hold resources:
+ports 8080–8087 and 8090 still `LISTENING`, containers still running, and the
+RAM held by the `vmmem`/`vmmemWSL` virtual machine. Free-RAM before/after is not
+proof on its own — WSL2 releases memory gradually through `autoMemoryReclaim`,
+so the number often looks *worse* right after a clean shutdown.
+
+If the WSL2 VM is still holding memory, the script asks whether to shut it down
+outright. The default is no, because `wsl --shutdown` kills **every** distro, not
+just Docker's — including an Ubuntu session open in another window.
+
+| Flag | Effect |
+| --- | --- |
+| `--local` | only the jars and Go binaries; never touches Docker |
+| `--keep-docker` | take containers down, leave Docker Desktop running |
+| `--stop` | stop containers without removing them — fastest restart |
+| `--wipe` | take containers down **and delete the volumes** (asks you to type `XOA`) |
+| `--wsl` | shut the WSL2 VM down immediately, no prompt |
+| `--no-wsl` | never touch the WSL2 VM and never ask |
 
 ### Frontend
 

@@ -53,17 +53,17 @@ for /f "delims=" %%m in ('powershell -NoProfile -Command "[math]::Round((Get-Cim
 if defined RAM_BEFORE echo RAM trống lúc bắt đầu: %RAM_BEFORE% GB
 
 echo.
-echo Đang dừng các service chạy trực tiếp bằng jar...
+echo Đang dừng các service chạy trực tiếp ^(jar Java + binary Go^)...
 set "KILLED="
 call :kill_port 8080 api-gateway
 call :kill_port 8081 auth-service
 call :kill_port 8082 search-service
 call :kill_port 8083 crawler-service
 call :kill_port 8084 analytics-service
-call :kill_port 8085 history-service
-call :kill_port 8086 downloads-service
-call :kill_port 8087 settings-service
-call :kill_port 8090 football-service
+call :kill_port 8085 "history-service (Go)"
+call :kill_port 8086 "downloads-service (Go)"
+call :kill_port 8087 "settings-service (Go)"
+call :kill_port 8090 "football-service (Go)"
 if not defined KILLED echo   Không có tiến trình nào giữ cổng 8080-8087 và 8090.
 
 if defined LOCAL_ONLY goto :report
@@ -216,6 +216,19 @@ exit /b 0
 set "PORT_PID="
 for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":%~1 .*LISTENING"') do set "PORT_PID=%%p"
 if not defined PORT_PID goto :eof
+
+REM Ở chế độ Docker, cổng do MỘT tiến trình của chính Docker Desktop giữ
+REM ^(com.docker.backend / vpnkit / Docker Desktop.exe^). taskkill vào đó là
+REM giết luôn Docker engine, và `docker compose down` bên dưới không còn chạy
+REM được. Bỏ qua - phần hạ container sẽ lo đúng cách.
+set "PORT_IMG="
+for /f "tokens=1 delims=," %%i in ('tasklist /FI "PID eq %PORT_PID%" /FO CSV /NH 2^>nul') do set "PORT_IMG=%%~i"
+echo %PORT_IMG% | findstr /i /c:"docker" /c:"vpnkit" /c:"wslrelay" /c:"com.docker" >nul
+if not errorlevel 1 (
+    echo   %~2 :%~1 - PID %PORT_PID% là tiến trình Docker ^(%PORT_IMG%^), bỏ qua.
+    goto :eof
+)
+
 set "KILLED=1"
 echo   %~2 :%~1 - PID %PORT_PID%, đang tắt...
 taskkill /PID %PORT_PID% /T /F >nul 2>nul

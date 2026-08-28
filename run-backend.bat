@@ -121,6 +121,18 @@ if errorlevel 1 (
     goto :fail
 )
 
+REM history/downloads/settings/football viết bằng Go - chỉ chạy ở chế độ full.
+if "%MODE%"=="full" (
+    where go >nul 2>nul
+    if errorlevel 1 (
+        echo [LỖI] Không tìm thấy Go.
+        echo       Bốn service history/downloads/settings/football nay viết bằng Go.
+        echo       Cài tại https://go.dev/dl rồi mở lại cửa sổ này, hoặc chạy
+        echo       run-backend.bat --core để bỏ qua chúng.
+        goto :fail
+    )
+)
+
 set "NEED_BUILD="
 if defined FORCE_BUILD set "NEED_BUILD=1"
 call :need_jar api-gateway
@@ -129,15 +141,11 @@ call :need_jar search-service
 if "%MODE%"=="full" (
     call :need_jar crawler-service
     call :need_jar analytics-service
-    call :need_jar history-service
-    call :need_jar downloads-service
-    call :need_jar settings-service
-    call :need_jar football-service
 )
 
 if not defined NEED_BUILD goto :build_done
 echo.
-echo Đang dựng jar cho toàn bộ reactor... ^(lần đầu mất vài phút^)
+echo Đang dựng jar cho các service Java... ^(lần đầu mất vài phút^)
 echo.
 pushd "%ROOT%backend"
 call mvnw.cmd -B clean package -DskipTests
@@ -149,6 +157,23 @@ if not "%BUILD_ERR%"=="0" (
     goto :fail
 )
 :build_done
+
+REM Go build rất nhanh và tự cache - dựng lại mỗi lần cho chắc.
+if not "%MODE%"=="full" goto :go_build_done
+echo.
+echo Đang dựng binary Go ^(football/settings/downloads/history^)...
+pushd "%ROOT%backend\go"
+if not exist "bin" mkdir "bin"
+REM `-o bin` với bin là thư mục sẵn có: Go ghi mỗi binary theo tên package.
+go build -o bin ./services/football ./services/settings ./services/downloads ./services/history
+set "GO_BUILD_ERR=%errorlevel%"
+popd
+if not "%GO_BUILD_ERR%"=="0" (
+    echo.
+    echo [LỖI] go build thất bại. Cuộn lên xem thông báo lỗi ĐẦU TIÊN.
+    goto :fail
+)
+:go_build_done
 
 set "PORT_BUSY="
 call :check_port 8080
@@ -198,19 +223,27 @@ if /i "%APP_CRAWLER_BUS%"=="kafka" (
 if not defined AUTH_DB_PASSWORD      set "AUTH_DB_PASSWORD=%POSTGRES_PASSWORD%"
 if not defined DOWNLOADS_DB_PASSWORD set "DOWNLOADS_DB_PASSWORD=%POSTGRES_PASSWORD%"
 if not defined SETTINGS_DB_PASSWORD  set "SETTINGS_DB_PASSWORD=%POSTGRES_PASSWORD%"
+if not defined FOOTBALL_DB_PASSWORD  set "FOOTBALL_DB_PASSWORD=%POSTGRES_PASSWORD%"
 
 set "AUTH_DB_URL=jdbc:postgresql://localhost:5432/vnsearch_auth"
+REM Service Go chấp nhận cả tiền tố `jdbc:` (pg.DSN tự cắt) - giữ nguyên một
+REM định dạng URL cho cả Java lẫn Go.
 set "DOWNLOADS_DB_URL=jdbc:postgresql://localhost:5432/vnsearch_downloads"
 set "SETTINGS_DB_URL=jdbc:postgresql://localhost:5432/vnsearch_settings"
 set "APP_STORAGE_POSTGRES_URL=jdbc:postgresql://localhost:5432/vnsearch"
 set "FOOTBALL_DB_HOST=localhost"
+set "FOOTBALL_DB_PORT=5432"
+set "FOOTBALL_DB_NAME=vnsearch"
+set "FOOTBALL_DB_USER=vnsearch"
 set "MONGO_URI=mongodb://localhost:27017/vnsearch_history"
+REM JWKS RS256 - service Go dùng chung claim/issuer/audience với các service Java.
+set "AUTH_AUDIENCE=vnsearch-api"
 
 if "%MODE%"=="core" set "MODE_SHOW=RÚT GỌN - api-gateway + auth-service + search-service"
-if "%MODE%"=="full" set "MODE_SHOW=ĐẦY ĐỦ - cả 9 service Java"
+if "%MODE%"=="full" set "MODE_SHOW=ĐẦY ĐỦ - 5 service Java + 4 service Go"
 
 echo.
-echo === VNSEARCH - CHẠY TRỰC TIẾP BẰNG JAR ===
+echo === VNSEARCH - CHẠY TRỰC TIẾP ^(jar Java + binary Go^) ===
 echo Thư mục            : %CD%
 echo Chế độ             : %MODE_SHOW%
 echo Khoá quản trị      : %ADMIN_API_KEY:~0,8%...   ^(đầy đủ trong .env^)
@@ -294,10 +327,10 @@ call :launch search-service 8082
 if "%MODE%"=="full" (
     call :launch crawler-service 8083
     call :launch analytics-service 8084
-    call :launch history-service 8085
-    call :launch downloads-service 8086
-    call :launch settings-service 8087
-    call :launch football-service 8090
+    call :launch_go history 8085
+    call :launch_go downloads 8086
+    call :launch_go settings 8087
+    call :launch_go football 8090
 )
 if defined LAUNCH_ERR goto :fail
 
@@ -331,6 +364,7 @@ echo   Swagger UI      http://localhost:8080/swagger-ui.html
 echo.
 echo   Giao diện       mở tự động ở cửa sổ riêng ^(tắt bằng --no-frontend^)
 echo   Bóng đá         qua Gateway: http://localhost:8080/api/football/v1/fixtures
+echo   Service Go      football/settings/downloads/history - binary ở backend\go\bin
 echo   Đo corpus       crawl-stats.bat
 echo   Log service     backend\logs\^<ten-service^>.log
 echo   TẮT HẾT         end-backend.bat
@@ -369,9 +403,9 @@ if "%MODE%"=="core" (
 
 echo.
 echo === VNSEARCH - DOCKER COMPOSE ===
-echo Chế độ             : TOÀN BỘ - 9 service + Postgres/Redis/Mongo
-echo                      + Prometheus/Grafana/Alertmanager
-echo Bộ nhớ             : khoảng 4 GB lúc không tải
+echo Chế độ             : TOÀN BỘ - 5 service Java + 4 service Go
+echo                      + Postgres/Redis/Mongo + Prometheus/Grafana/Alertmanager
+echo Bộ nhớ             : khoảng 3.5 GB lúc không tải ^(4 service Go nhẹ hơn JVM^)
 echo.
 docker compose up -d --build
 if errorlevel 1 (
@@ -454,23 +488,46 @@ powershell -NoProfile -Command "Start-Process -FilePath java -ArgumentList @('-j
 echo   %~1 :%~2 - chạy ngầm, log: backend\logs\%~1.log
 goto :eof
 
+REM %~1 = tên thư mục Go (football/settings/downloads/history), %~2 = cổng.
+REM Tên log giữ hậu tố "-service" cho khớp với end-backend.bat và thói quen cũ.
+:launch_go
+if not exist "go\bin\%~1.exe" (
+    echo [LỖI] Chưa có "backend\go\bin\%~1.exe".
+    echo       Chạy lại với tham số --build.
+    set "LAUNCH_ERR=1"
+    goto :eof
+)
+set "SERVER_PORT=%~2"
+if defined SHOW_WINDOWS (
+    start "VnSearch %~1-service :%~2" cmd /k "set SERVER_PORT=%~2&& go\bin\%~1.exe"
+    echo   %~1-service :%~2 - cửa sổ console riêng
+    set "SERVER_PORT="
+    goto :eof
+)
+powershell -NoProfile -Command "Start-Process -FilePath 'go\bin\%~1.exe' -WindowStyle Hidden -RedirectStandardOutput 'logs\%~1-service.log' -RedirectStandardError 'logs\%~1-service.err.log'"
+echo   %~1-service :%~2 - chạy ngầm, log: backend\logs\%~1-service.log
+set "SERVER_PORT="
+goto :eof
+
 :usage
 echo.
-echo   run-backend.bat            jar, cả 9 service Java + mở luôn giao diện
+echo   run-backend.bat            5 service Java ^(jar^) + 4 service Go ^(binary^)
+echo                              + mở luôn giao diện
 echo   run-backend.bat --core     chỉ api-gateway + auth-service + search-service
-echo                              ^(tab Bóng đá sẽ trống vì thiếu football-service^)
+echo                              ^(bỏ qua 4 service Go, tab Bóng đá sẽ trống^)
 echo   run-backend.bat --no-frontend
 echo                              chỉ chạy backend, không mở giao diện
-echo   run-backend.bat --build    dựng lại jar trước khi chạy
+echo   run-backend.bat --build    dựng lại jar Java trước khi chạy
+echo                              ^(binary Go luôn được dựng lại, go build rất nhanh^)
 echo   run-backend.bat --windows  mở một cửa sổ console cho mỗi service thay vì
 echo                              chạy ngầm ^(9 cửa sổ^)
 echo   run-backend.bat --docker   chạy bằng docker compose - LUÔN bật toàn bộ hệ
 echo                              thống kèm Prometheus/Grafana/Alertmanager, nên
 echo                              --core/--full không đổi được gì ở đường này
 echo.
-echo   Chế độ jar chạy các service NGẦM, log đổ vào backend\logs\^<ten^>.log.
-echo   PostgreSQL, Redis và MongoDB tự bật bằng Docker khi cổng còn trống,
-echo   kể cả việc mở Docker Desktop hộ. Giao diện cũng tự mở ở cửa sổ riêng.
+echo   Chế độ trực tiếp chạy các service NGẦM, log đổ vào backend\logs\^<ten^>.log.
+echo   Cần Java ^(JDK 17+^) và Go ^(1.24+^). PostgreSQL, Redis và MongoDB tự bật bằng
+echo   Docker khi cổng còn trống, kể cả việc mở Docker Desktop hộ.
 echo.
 echo   Tắt hết: end-backend.bat
 echo.
@@ -480,10 +537,10 @@ echo                               Không đặt thì lấy từ .env, không c�
 echo     BOOTSTRAP_ADMIN_PASSWORD  mật khẩu tài khoản quản trị đầu tiên của
 echo                               auth-service. Thiếu thì tự sinh và ghi vào .env.
 echo.
-echo   Bảng cổng:
+echo   Bảng cổng ^(Java 8080-8084, Go 8085-8087 + 8090^):
 echo     8080 api-gateway    8081 auth-service      8082 search-service
-echo     8083 crawler        8084 analytics         8085 history
-echo     8086 downloads      8087 settings          8090 football
+echo     8083 crawler        8084 analytics         8085 history  ^(Go^)
+echo     8086 downloads ^(Go^) 8087 settings ^(Go^)    8090 football ^(Go^)
 echo.
 echo   Chỉ khi chạy bằng --docker:
 echo     3000 Grafana        9090 Prometheus        9093 Alertmanager

@@ -99,7 +99,7 @@ jobs:
       kho: ${{ steps.kho.outputs.duong-dan }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Đường dẫn kho ảnh, ĐÃ HẠ VỀ CHỮ THƯỜNG.
       #
@@ -222,7 +222,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - id: kho
         name: Xác định đường dẫn kho ảnh
@@ -299,10 +299,10 @@ jobs:
       packages: read
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Cài crane
-        uses: imjasonh/setup-crane@v0.4
+        uses: imjasonh/setup-crane@v0.7
 
       - name: Đăng nhập ghcr.io
         uses: docker/login-action@v3

@@ -82,7 +82,7 @@ tự mà một tài liệu thật sự đi qua — từ lúc crawler lưu nó, t
 
 | Ký hiệu | Nghĩa |
 |---|---|
-| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/libs/<module>/src/main/java/com/vnsearch/` |
+| **File:** `abc/Xyz.java` | Đường dẫn tính từ `backend/java/libs/<module>/src/main/java/com/vnsearch/` |
 | **Hàm:** `foo()` | Tên phương thức trong file vừa nêu |
 | ★ | Điểm mấu chốt, dễ hiểu sai |
 | ⚠ | Cạm bẫy đã từng gây lỗi thật |
@@ -176,7 +176,7 @@ kế được phân tích ở các phần sau đều quy về một trong bốn 
 
 ```mermaid
 flowchart TD
-    subgraph CRAWL["crawler — GHI (backend/libs/core-crawler)"]
+    subgraph CRAWL["crawler — GHI (backend/java/libs/core-crawler)"]
         WD["WebDocument đã crawl"] --> CS_SAVE["ContentStorage.save()<br/>ConcurrentHashMap trong RAM"]
         CS_SAVE --> CS_OUT["ContentStorage.applyOutlinks()<br/>tới SAU, qua bus"]
         CS_OUT --> CS_JSON["ContentStorage.saveToJson()<br/>tệp tạm + ATOMIC_MOVE"]
@@ -1104,7 +1104,7 @@ private void loadCorpus() throws IOException {
 ```
 
 Đây là đoạn mã **thật**, trích trực tiếp từ
-`backend/libs/core-search/src/main/java/com/vnsearch/service/SearchEngineFacade.java`
+`backend/java/libs/core-search/src/main/java/com/vnsearch/service/SearchEngineFacade.java`
 của chính repo này — kể cả phần Javadoc kể lại sự cố 159 byte, được viết thẳng
 vào bình luận mã nguồn chứ không chỉ nằm trong tài liệu bên ngoài.
 
@@ -2307,9 +2307,9 @@ cho toàn hệ thống.
 docker compose up -d
 # ② tạo lược đồ (nếu chưa có)
 docker compose exec -T postgres psql -U vnsearch -d vnsearch \
-    < backend/libs/core-search/src/main/resources/db/schema.sql
+    < backend/java/libs/core-search/src/main/resources/db/schema.sql
 # ③ nạp ĐÚNG corpus mà run-crawl.bat vừa tạo — đường dẫn PHẢI truyền tay
-cd backend
+cd backend/java
 ./mvnw -pl libs/core-search compile exec:java \
     -Dexec.mainClass=com.vnsearch.storage.PostgresImportRunner \
     -Dexec.args="data/crawled-documents.json"
@@ -2722,7 +2722,7 @@ ba phần:
 
 ## 28. `schema.sql` thật
 
-Trích nguyên văn từ `backend/libs/core-search/src/main/resources/db/schema.sql`
+Trích nguyên văn từ `backend/java/libs/core-search/src/main/resources/db/schema.sql`
 (57 dòng, không rút gọn):
 
 ```sql

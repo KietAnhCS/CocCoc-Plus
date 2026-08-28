@@ -99,7 +99,7 @@ Prometheus/Grafana/Alertmanager. Chỉ Kafka nằm sau hồ sơ riêng, vì bus 
 Đường 2 — MỘT Dockerfile cho CẢ CHÍN service:
 
 ```
-backend/Dockerfile   tham số hoá bằng hai build arg
+backend/java/Dockerfile   tham số hoá bằng hai build arg
 ├─ ARG MODULE=services/<ten>      ARG ARTIFACT=<ten>
 │  ↳ chín tệp riêng sẽ lệch nhau trong vài tháng: ai đó vá một lỗ hổng bảo mật ở một
 │    tệp rồi quên tám tệp còn lại. Một quy trình, khác biệt gói gọn trong hai dòng ARG.
@@ -131,7 +131,7 @@ ci.yml   on: push main | pull_request      concurrency: cancel-in-progress = TRU
 │  ├─ ./mvnw -B clean verify -Dspotbugs.skip=true     (661 test + cổng JaCoCo)
 │  └─ awk trên coverage/target/site/jacoco-aggregate/jacoco.csv → GITHUB_STEP_SUMMARY
 │     ↳ phải là báo cáo GỘP của module `coverage`: trong reactor đa module,
-│       backend/target/site/jacoco/ KHÔNG BAO GIỜ tồn tại. Trỏ sai chỗ thì bước này im
+│       backend/java/target/site/jacoco/ KHÔNG BAO GIỜ tồn tại. Trỏ sai chỗ thì bước này im
 │       lặng in "không có báo cáo" ở MỌI lần chạy và không ai biết độ phủ chưa từng hiện.
 ├─ backend-static     ./mvnw -B -T 1C clean verify -DskipTests -Djacoco.skip=true
 │  └─ upload-sarif spotbugs → tab Security        continue-on-error

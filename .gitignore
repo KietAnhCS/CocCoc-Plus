@@ -1,7 +1,7 @@
 # Backend (Maven / Java)
 backend/**/target/
 backend/sarif/
-backend/.mvn/wrapper/maven-wrapper.jar
+backend/java/.mvn/wrapper/maven-wrapper.jar
 *.class
 
 # Backend (Go) — binary do run-backend.bat dựng ra
@@ -32,5 +32,5 @@ Thumbs.db
 backend/logs/
 
 # Bao loi cua JVM khi may het RAM.
-backend/hs_err_pid*.log
-backend/replay_pid*.log
+backend/**/hs_err_pid*.log
+backend/**/replay_pid*.log

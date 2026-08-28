@@ -39,7 +39,7 @@ flowchart TB
     CRAWLER -.-> CORECRAWL
 ```
 
-The algorithms above live in `backend/libs/` — `core-search` (index, query,
+The algorithms above live in `backend/java/libs/` — `core-search` (index, query,
 ranking), `core-crawler` (fetching, frontier, event bus) and `core-common`
 (data structures, analytics); the services below are thin shells around them.
 That split is visible in the line counts: `crawler-service` is 393 lines of
@@ -128,7 +128,7 @@ Requires JDK 17+ and Node.js 22+.
 
 ```bash
 run-backend.bat             # Windows — gateway + auth + search, in the background
-run-backend.bat --full      # all nine Java services
+run-backend.bat --full      # all services: 4 Java + 4 Go
 run-backend.bat --build     # rebuild the jars first
 run-backend.bat --windows   # one console window per service instead of background
 run-backend.bat --docker    # hand over to docker compose instead
@@ -136,11 +136,12 @@ run-backend.bat --docker    # hand over to docker compose instead
 # or, by hand:
 export ADMIN_API_KEY=$(openssl rand -hex 32)          # Linux/macOS
 $env:ADMIN_API_KEY = "..."                             # PowerShell
-cd backend
+cd backend/java
 ./mvnw -B clean package -DskipTests
-java -jar services/auth-service/target/auth-service-0.0.1-SNAPSHOT.jar
-java -jar services/search-service/target/search-service-0.0.1-SNAPSHOT.jar
-java -jar services/api-gateway/target/api-gateway-0.0.1-SNAPSHOT.jar
+cd ..
+java -jar java/services/auth-service/target/auth-service-0.0.1-SNAPSHOT.jar
+java -jar java/services/search-service/target/search-service-0.0.1-SNAPSHOT.jar
+java -jar java/services/api-gateway/target/api-gateway-0.0.1-SNAPSHOT.jar
 ```
 
 Run the jars **from the `backend` directory** — the data paths
@@ -317,7 +318,7 @@ Four independent layers, each blocking something different:
 ## Development
 
 ```bash
-cd backend     && ./mvnw clean verify   # tests + coverage gate + static analysis
+cd backend/java && ./mvnw clean verify   # tests + coverage gate + static analysis
 cd desktop-app && npm run typecheck && npm run lint && npm test   # 155 tests
 ```
 

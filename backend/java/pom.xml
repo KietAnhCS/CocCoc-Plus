@@ -271,7 +271,7 @@
 							     Trong bản một khối, mọi bài test chạy với thư mục làm việc là
 							     `search-engine/`, nên `data/seed-documents.json` giải đúng.
 							     Với reactor đa module, surefire chạy mỗi module trong thư mục
-							     CỦA MODULE ĐÓ — `backend/libs/core/` — và đường dẫn tương đối
+							     CỦA MODULE ĐÓ — `backend/java/libs/core-search/` — và đường dẫn tương đối
 							     ấy trỏ vào hư không.
 
 							     Hai cách sửa, một cách sai: đặt `workingDirectory` của surefire
@@ -279,7 +279,11 @@
 							     khác đang trỏ tới `src/test/resources/fixtures/...` của chính
 							     module chúng. Một property mang đường dẫn tuyệt đối thì không
 							     động tới bài nào khác. -->
-							<vnsearch.data.dir>${maven.multiModuleProjectDirectory}/data</vnsearch.data.dir>
+							<!-- `..` vì `maven.multiModuleProjectDirectory` là nơi có thư mục `.mvn`,
+							     tức `backend/java/`, còn corpus nằm ở `backend/data/` —
+							     dùng chung cho cả Java lẫn container, nên không thuộc
+							     riêng cây ngôn ngữ nào. -->
+							<vnsearch.data.dir>${maven.multiModuleProjectDirectory}/../data</vnsearch.data.dir>
 						</systemPropertyVariables>
 					</configuration>
 				</plugin>

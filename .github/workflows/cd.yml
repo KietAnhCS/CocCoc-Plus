@@ -151,6 +151,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./backend
+          file: ./backend/java/Dockerfile
           push: true
           build-args: |
             MODULE=services/${{ matrix.service }}

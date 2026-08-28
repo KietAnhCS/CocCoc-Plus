@@ -86,15 +86,15 @@ jobs:
 
       # Bỏ SpotBugs vì đã có job `phan-tich-tinh` lo phần đó. `verify` vẫn chạy
       # trọn vòng đời gồm cả `package`, nên jar được sinh ra ngay tại bước này —
-      # đường dẫn `backend/services/*/target/*.jar` bên dưới vẫn đúng.
+      # đường dẫn `backend/java/services/*/target/*.jar` bên dưới vẫn đúng.
       - name: Test và độ phủ
-        working-directory: backend
+        working-directory: backend/java
         run: ./mvnw -B clean verify -Dspotbugs.skip=true
 
       - uses: actions/upload-artifact@v4
         with:
           name: jar
-          path: backend/services/*/target/*.jar
+          path: backend/java/services/*/target/*.jar
           retention-days: 1
 
   # ---------------------------------------------------------------------------
@@ -118,7 +118,7 @@ jobs:
           cache: maven
 
       - name: SpotBugs
-        working-directory: backend
+        working-directory: backend/java
         run: ./mvnw -B -T 1C clean verify -DskipTests -Djacoco.skip=true
 
   # ---------------------------------------------------------------------------
@@ -208,6 +208,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./backend
+          file: ./backend/java/Dockerfile
           push: true
           build-args: |
             MODULE=services/${{ matrix.service }}

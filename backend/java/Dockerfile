@@ -11,7 +11,7 @@
 # tên module và cổng — nằm gọn ở hai dòng ARG.
 #
 # CÁCH DÙNG:
-#     docker build -f backend/Dockerfile \
+#     docker build -f backend/java/Dockerfile \
 #       --build-arg MODULE=services/search-service \
 #       --build-arg ARTIFACT=search-service \
 #       -t vnsearch/search-service backend/
@@ -39,17 +39,17 @@ WORKDIR /build
 # Với reactor đa module thì phải chép ĐỦ MỌI pom, kể cả pom của module không
 # dựng tới: Maven đọc toàn bộ danh sách <modules> của POM cha trước khi biết
 # nó cần dựng cái nào. Thiếu một tệp là lỗi "Child module does not exist".
-COPY pom.xml .
-COPY libs/core-common/pom.xml libs/core-common/
-COPY libs/core-crawler/pom.xml libs/core-crawler/
-COPY libs/core-search/pom.xml libs/core-search/
-COPY libs/platform/pom.xml libs/platform/
-COPY services/api-gateway/pom.xml services/api-gateway/
-COPY services/auth-service/pom.xml services/auth-service/
-COPY services/search-service/pom.xml services/search-service/
-COPY services/crawler-service/pom.xml services/crawler-service/
-COPY services/analytics-service/pom.xml services/analytics-service/
-COPY coverage/pom.xml coverage/
+COPY java/pom.xml .
+COPY java/libs/core-common/pom.xml libs/core-common/
+COPY java/libs/core-crawler/pom.xml libs/core-crawler/
+COPY java/libs/core-search/pom.xml libs/core-search/
+COPY java/libs/platform/pom.xml libs/platform/
+COPY java/services/api-gateway/pom.xml services/api-gateway/
+COPY java/services/auth-service/pom.xml services/auth-service/
+COPY java/services/search-service/pom.xml services/search-service/
+COPY java/services/crawler-service/pom.xml services/crawler-service/
+COPY java/services/analytics-service/pom.xml services/analytics-service/
+COPY java/coverage/pom.xml coverage/
 
 # Làm nóng kho thư viện. `|| true` là có ý: đây thuần tuý là một bước TỐI ƯU
 # CACHE, và có những plugin mà `go-offline` không giải được phụ thuộc đúng cách.
@@ -62,10 +62,10 @@ COPY coverage/pom.xml coverage/
 RUN --mount=type=cache,target=/root/.m2 \
     mvn -B -q -pl ${MODULE} -am dependency:go-offline || true
 
-COPY libs libs
-COPY services services
-COPY coverage coverage
-COPY spotbugs-exclude.xml .
+COPY java/libs libs
+COPY java/services services
+COPY java/coverage coverage
+COPY java/spotbugs-exclude.xml .
 
 # `-pl ${MODULE} -am` = dựng module này VÀ những module nó phụ thuộc vào, bỏ
 # qua phần còn lại. Với search-service nghĩa là core + platform + chính nó,

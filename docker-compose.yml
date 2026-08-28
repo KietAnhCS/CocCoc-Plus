@@ -74,7 +74,7 @@ name: vnsearch
 x-java-service: &java-service
   build:
     context: ./backend
-    dockerfile: Dockerfile
+    dockerfile: java/Dockerfile
   restart: unless-stopped
   networks: [vnsearch]
   # Chỉ ghi 3 tệp log, mỗi tệp 10 MB. Mặc định của Docker là KHÔNG GIỚI HẠN:
@@ -201,7 +201,7 @@ services:
     container_name: vnsearch-gateway
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/api-gateway
         ARTIFACT: api-gateway
@@ -238,7 +238,7 @@ services:
     container_name: vnsearch-auth
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/auth-service
         ARTIFACT: auth-service
@@ -277,7 +277,7 @@ services:
     container_name: vnsearch-search
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/search-service
         ARTIFACT: search-service
@@ -383,7 +383,7 @@ services:
     container_name: vnsearch-crawler
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/crawler-service
         ARTIFACT: crawler-service
@@ -430,7 +430,7 @@ services:
     container_name: vnsearch-analytics
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: java/Dockerfile
       args:
         MODULE: services/analytics-service
         ARTIFACT: analytics-service

@@ -36,7 +36,7 @@
 # lập trình viên thì hoàn toàn bình thường, và thông báo lỗi không hề nhắc tới
 # Git hay quyền tệp trong kho. Sửa một lần bằng:
 #
-#     git update-index --chmod=+x backend/mvnw
+#     git update-index --chmod=+x backend/java/mvnw
 
 #
 # ═══════════════════════════════════════════════════════════════════════════
@@ -103,7 +103,7 @@ jobs:
       # `verify` chứ không phải `test`: pha verify mới chạy jacoco:check và
       # sinh báo cáo gộp. Chạy `test` là bỏ qua cổng độ phủ.
       - name: Test và đo độ phủ
-        working-directory: backend
+        working-directory: backend/java
         # -B (batch) tắt thanh tiến độ động, thứ chỉ có nghĩa trên terminal
         # thật và chỉ làm bẩn log của CI.
         run: ./mvnw -B clean verify -Dspotbugs.skip=true
@@ -112,13 +112,13 @@ jobs:
       # trang Actions mà không phải tải tệp về rồi mở ra.
       #
       # Đường dẫn phải là báo cáo GỘP của module `coverage`. Trong reactor đa
-      # module, `backend/target/site/jacoco/` KHÔNG BAO GIỜ tồn tại: mỗi module
+      # module, `backend/java/target/site/jacoco/` KHÔNG BAO GIỜ tồn tại: mỗi module
       # sinh báo cáo trong target của chính nó, còn thư mục gốc không chứa mã
       # nguồn nào. Trỏ sai chỗ thì bước này im lặng in "không có báo cáo" ở mọi
       # lần chạy, và phần tóm tắt trông như thể độ phủ chưa từng được đo.
       - name: Tóm tắt độ phủ
         if: always()
-        working-directory: backend
+        working-directory: backend/java
         run: |
           CSV=coverage/target/site/jacoco-aggregate/jacoco.csv
           if [ ! -f "$CSV" ]; then
@@ -144,7 +144,7 @@ jobs:
           name: bao-cao-backend
           path: |
             backend/**/target/surefire-reports/
-            backend/coverage/target/site/jacoco-aggregate/
+            backend/java/coverage/target/site/jacoco-aggregate/
           retention-days: 7
 
   # ═══════════════════════════════════════════════════════════════════════
@@ -175,7 +175,7 @@ jobs:
           cache: maven
 
       - name: Phân tích tĩnh
-        working-directory: backend
+        working-directory: backend/java
         run: ./mvnw -B -T 1C clean verify -DskipTests -Djacoco.skip=true
 
       # Cảnh báo phân tích tĩnh hiện thẳng trong tab Security và trong diff của
@@ -189,7 +189,7 @@ jobs:
         run: |
           mkdir -p backend/sarif
           find backend -name spotbugsSarif.json -print0 | while IFS= read -r -d '' f; do
-            module=$(echo "$f" | sed -E 's|backend/(.*)/target/.*|\1|; s|/|-|g')
+            module=$(echo "$f" | sed -E 's|backend/java/(.*)/target/.*|\1|; s|/|-|g')
             cp "$f" "backend/sarif/${module}.sarif"
           done
           ls -la backend/sarif || true
@@ -325,6 +325,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: ./backend
+          file: ./backend/java/Dockerfile
           push: false
           load: true
           tags: vnsearch-backend:ci
@@ -409,7 +410,7 @@ jobs:
       # libs/core-crawler là module DUY NHẤT có test gắn nhãn ấy, nên `-pl` cắt
       # reactor xuống đúng nó, còn `-am` dựng trước các thư viện nó phụ thuộc.
       - name: Chạy test tích hợp
-        working-directory: backend
+        working-directory: backend/java
         run: ./mvnw -B verify -Pkafka-it -pl libs/core-crawler -am
 
       - name: Lưu báo cáo test tích hợp

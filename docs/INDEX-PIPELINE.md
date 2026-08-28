@@ -78,7 +78,7 @@ cần chi tiết cấp bit/byte. Số liệu trong tài liệu lấy từ:
 
 - `docs2/main/java/com/vnsearch/index/*.md` — 14 tài liệu per-class rất chi tiết,
   vốn đã phân tích Javadoc, mã nguồn và test của từng lớp;
-- mã nguồn thật tại `backend/libs/core-search/src/main/java/com/vnsearch/`;
+- mã nguồn thật tại `backend/java/libs/core-search/src/main/java/com/vnsearch/`;
 - dữ liệu thật tại `backend/data/` (`seed-documents.json` — 40 tài liệu, 296 KB;
   `crawled-documents.json` — 384 MB; `index.json` — 403 MB).
 
@@ -392,7 +392,7 @@ com.vnsearch.query          — QueryParser (dùng CHUNG tokenizer với tầng 
 
 ## 4. Danh mục toàn bộ file tham gia
 
-### 4.1 Gói `com.vnsearch.index` (`backend/libs/core-search/src/main/java/com/vnsearch/index/`)
+### 4.1 Gói `com.vnsearch.index` (`backend/java/libs/core-search/src/main/java/com/vnsearch/index/`)
 
 | # | File | Dòng | Vai trò |
 |---|---|---|---|
@@ -411,7 +411,7 @@ com.vnsearch.query          — QueryParser (dùng CHUNG tokenizer với tầng 
 | 13 | `CompressedText.java` | 88 | Nén thân bài bằng `Deflater` thô |
 | 14 | `IndexPersistence.java` | 223 | Ghi/đọc chỉ mục ra `data/index.json` |
 
-### 4.2 Gói `com.vnsearch.datastructure` (`backend/libs/core-common/...`)
+### 4.2 Gói `com.vnsearch.datastructure` (`backend/java/libs/core-common/...`)
 
 | # | File | Vai trò |
 |---|---|---|
@@ -431,7 +431,7 @@ com.vnsearch.query          — QueryParser (dùng CHUNG tokenizer với tầng 
 |---|---|---|
 | 19 | `AdminController.java` | `POST /api/admin/reindex` — đường B vào tầng dựng chỉ mục |
 
-### 4.5 Tài nguyên tĩnh (`backend/libs/core-search/src/main/resources/`)
+### 4.5 Tài nguyên tĩnh (`backend/java/libs/core-search/src/main/resources/`)
 
 | # | File | Dòng | Vai trò |
 |---|---|---|---|
@@ -732,7 +732,7 @@ khác nhau (macOS dùng NFD, hầu hết web dùng NFC) không thống nhất.
 
 ## 9. `SyllableTrie` — cây tiền tố trên âm tiết
 
-**File:** `backend/libs/core-common/.../datastructure/SyllableTrie.java` (302 dòng).
+**File:** `backend/java/libs/core-common/.../datastructure/SyllableTrie.java` (302 dòng).
 
 ★ **"Nút" chỉ là một chỉ số `int`, không phải đối tượng.** Thuộc tính của nút
 nằm trong mảng song song `weight[]`; cạnh nằm trong MỘT bảng băm địa chỉ mở tự
@@ -2164,7 +2164,7 @@ hàng rào sinh ra để chặn — nên đường sản phẩm luôn phải dù
 
 ## 21. IndexBuilder — song song hoá theo lô
 
-File: `backend/libs/core-search/src/main/java/com/vnsearch/service/IndexBuilder.java`
+File: `backend/java/libs/core-search/src/main/java/com/vnsearch/service/IndexBuilder.java`
 (136 dòng).
 
 > Vì sao tách thành lớp riêng: việc này có MỘT tiền đề bắt buộc phải giữ —
@@ -2444,7 +2444,7 @@ corpus được tính sẵn ngay lúc dựng chỉ mục, không tính lại m�
 
 ## 23. POST /api/admin/reindex — dựng lại chỉ mục khi đang chạy
 
-**File:** `AdminController.java` (`backend/services/crawler-service/...`) và
+**File:** `AdminController.java` (`backend/java/services/crawler-service/...`) và
 `SearchEngineFacade.reindex()`.
 
 ```java
@@ -2565,8 +2565,8 @@ sequenceDiagram
 # PHẦN VI — ĐỐI CHIẾU OUTPUT THẬT
 
 Toàn bộ số liệu trong PHẦN này lấy từ việc chạy trực tiếp mã nguồn đã biên
-dịch sẵn của dự án (`backend/libs/core-search/target/classes`,
-`backend/libs/core-common/target/classes`) trên `java 21.0.12`, không bịa.
+dịch sẵn của dự án (`backend/java/libs/core-search/target/classes`,
+`backend/java/libs/core-common/target/classes`) trên `java 21.0.12`, không bịa.
 
 ## 24. Trace tokenizer trên câu thật của corpus
 

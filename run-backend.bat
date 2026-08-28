@@ -54,8 +54,8 @@ if not exist "docker-compose.yml" (
     echo       Tệp .bat này phải nằm ở THƯ MỤC GỐC của kho.
     goto :fail
 )
-if not exist "backend\pom.xml" (
-    echo [LỖI] Không thấy "backend\pom.xml".
+if not exist "backend\java\pom.xml" (
+    echo [LỖI] Không thấy "backend\java\pom.xml".
     echo       Thư mục backend của kho có vẻ không đầy đủ.
     goto :fail
 )
@@ -163,7 +163,7 @@ if not defined NEED_BUILD goto :build_done
 echo.
 echo Đang dựng jar cho các service Java... ^(lần đầu mất vài phút^)
 echo.
-pushd "%ROOT%backend"
+pushd "%ROOT%backend\java"
 call mvnw.cmd -B clean package -DskipTests
 set "BUILD_ERR=%errorlevel%"
 popd
@@ -490,7 +490,7 @@ if %WH_WAIT% GEQ 150 (
 goto :wait_health_loop
 
 :need_jar
-if not exist "%ROOT%backend\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" set "NEED_BUILD=1"
+if not exist "%ROOT%backend\java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" set "NEED_BUILD=1"
 goto :eof
 
 :check_port
@@ -502,18 +502,18 @@ set "PORT_BUSY=1"
 goto :eof
 
 :launch
-if not exist "services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" (
-    echo [LỖI] Chưa có "services\%~1\target\%~1-0.0.1-SNAPSHOT.jar".
+if not exist "java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar" (
+    echo [LỖI] Chưa có "java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar".
     echo       Chạy lại với tham số --build.
     set "LAUNCH_ERR=1"
     goto :eof
 )
 if defined SHOW_WINDOWS (
-    start "VnSearch %~1 :%~2" cmd /k java -jar "services\%~1\target\%~1-0.0.1-SNAPSHOT.jar"
+    start "VnSearch %~1 :%~2" cmd /k java -jar "java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar"
     echo   %~1 :%~2 - cửa sổ console riêng
     goto :eof
 )
-powershell -NoProfile -Command "Start-Process -FilePath java -ArgumentList @('-jar', 'services\%~1\target\%~1-0.0.1-SNAPSHOT.jar') -WindowStyle Hidden -RedirectStandardOutput 'logs\%~1.log' -RedirectStandardError 'logs\%~1.err.log'"
+powershell -NoProfile -Command "Start-Process -FilePath java -ArgumentList @('-jar', 'java\services\%~1\target\%~1-0.0.1-SNAPSHOT.jar') -WindowStyle Hidden -RedirectStandardOutput 'logs\%~1.log' -RedirectStandardError 'logs\%~1.err.log'"
 echo   %~1 :%~2 - chạy ngầm, log: backend\logs\%~1.log
 goto :eof
 

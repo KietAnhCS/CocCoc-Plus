@@ -87,7 +87,7 @@ jobs:
       # không kiểm thêm được gì.
       - name: Biên dịch backend
         if: matrix.language == 'java-kotlin'
-        working-directory: backend
+        working-directory: backend/java
         run: ./mvnw -B clean compile -DskipTests
 
       - name: Phân tích

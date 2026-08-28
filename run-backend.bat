@@ -9,6 +9,8 @@ set "USE_DOCKER="
 set "FORCE_BUILD="
 set "SHOW_WINDOWS="
 set "NO_FRONTEND="
+set "WITH_CRAWLER="
+set "MONITORING="
 
 for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
 set "OLD_CP=%OLD_CP: =%"
@@ -30,6 +32,13 @@ if /i "%~1"=="--full" (
     set "SHOW_WINDOWS=1"
 ) else if /i "%~1"=="--no-frontend" (
     set "NO_FRONTEND=1"
+) else if /i "%~1"=="--crawler" (
+    set "WITH_CRAWLER=1"
+) else if /i "%~1"=="--no-crawler" (
+    REM Bỏ crawler đã là mặc định. Giữ cờ này để lệnh cũ không báo tham số lạ.
+    set "WITH_CRAWLER="
+) else if /i "%~1"=="--monitoring" (
+    set "MONITORING=1"
 ) else (
     echo [LỖI] Tham số không hiểu: %~1
     echo.
@@ -112,6 +121,13 @@ echo Tài khoản quản trị : admin / %BOOTSTRAP_ADMIN_PASSWORD%   ^(đã ghi
 :pw_ok
 if not defined BOOTSTRAP_ADMIN_USERNAME set "BOOTSTRAP_ADMIN_USERNAME=admin"
 
+if defined MONITORING if not defined USE_DOCKER (
+    echo.
+    echo [GHI CHÚ] --monitoring chỉ có tác dụng cùng --docker. Đường chạy jar/binary
+    echo           trực tiếp chỉ bật Postgres/Redis/Mongo bằng Docker, không bật
+    echo           Prometheus/Grafana/Alertmanager.
+)
+
 if defined USE_DOCKER goto :docker_path
 
 where java >nul 2>nul
@@ -139,7 +155,7 @@ call :need_jar api-gateway
 call :need_jar auth-service
 call :need_jar search-service
 if "%MODE%"=="full" (
-    call :need_jar crawler-service
+    if defined WITH_CRAWLER call :need_jar crawler-service
     call :need_jar analytics-service
 )
 
@@ -180,7 +196,7 @@ call :check_port 8080
 call :check_port 8081
 call :check_port 8082
 if "%MODE%"=="full" (
-    call :check_port 8083
+    if defined WITH_CRAWLER call :check_port 8083
     call :check_port 8084
     call :check_port 8085
     call :check_port 8086
@@ -240,7 +256,8 @@ REM JWKS RS256 - service Go dùng chung claim/issuer/audience với các service
 set "AUTH_AUDIENCE=vnsearch-api"
 
 if "%MODE%"=="core" set "MODE_SHOW=RÚT GỌN - api-gateway + auth-service + search-service"
-if "%MODE%"=="full" set "MODE_SHOW=ĐẦY ĐỦ - 5 service Java + 4 service Go"
+if "%MODE%"=="full" set "MODE_SHOW=ĐẦY ĐỦ - 4 service Java + 4 service Go, KHÔNG có crawler"
+if defined WITH_CRAWLER set "MODE_SHOW=ĐẦY ĐỦ - 5 service Java + 4 service Go, có crawler :8083"
 
 echo.
 echo === VNSEARCH - CHẠY TRỰC TIẾP ^(jar Java + binary Go^) ===
@@ -325,7 +342,7 @@ call :launch api-gateway 8080
 call :launch auth-service 8081
 call :launch search-service 8082
 if "%MODE%"=="full" (
-    call :launch crawler-service 8083
+    if defined WITH_CRAWLER call :launch crawler-service 8083
     call :launch analytics-service 8084
     call :launch_go history 8085
     call :launch_go downloads 8086
@@ -372,7 +389,8 @@ echo.
 echo   PostgreSQL, Redis và MongoDB được tệp này tự bật bằng Docker nếu cổng
 echo   5432/6379/27017 còn trống, và Docker Desktop cũng được mở giúp.
 echo.
-echo   Muốn cả giám sát Prometheus/Grafana thì dùng run-backend.bat --docker.
+echo   Muốn cả giám sát Prometheus/Grafana thì dùng:
+echo       run-backend.bat --docker --monitoring
 echo.
 if defined NO_FRONTEND goto :fe_done
 echo Đang mở giao diện ở cửa sổ riêng...
@@ -403,11 +421,18 @@ if "%MODE%"=="core" (
 
 echo.
 echo === VNSEARCH - DOCKER COMPOSE ===
+set "MON_PROFILE="
+set "MON_SHOW=KHÔNG bật - thêm --monitoring nếu cần"
+if defined MONITORING (
+    set "MON_PROFILE= --profile monitoring"
+    set "MON_SHOW=BẬT - Prometheus 9090, Grafana 3000, Alertmanager 9093"
+)
 echo Chế độ             : TOÀN BỘ - 5 service Java + 4 service Go
-echo                      + Postgres/Redis/Mongo + Prometheus/Grafana/Alertmanager
+echo                      + Postgres/Redis/Mongo
+echo Giám sát           : %MON_SHOW%
 echo Bộ nhớ             : khoảng 3.5 GB lúc không tải ^(4 service Go nhẹ hơn JVM^)
 echo.
-docker compose up -d --build
+docker compose%MON_PROFILE% up -d --build
 if errorlevel 1 (
     echo.
     echo [LỖI] docker compose up thất bại. Cuộn lên xem dòng lỗi ĐẦU TIÊN.
@@ -417,9 +442,13 @@ echo.
 docker compose ps
 echo.
 echo   Cổng duy nhất   http://localhost:8080
-echo   Grafana         http://localhost:3000   ^(admin / admin^)
-echo   Prometheus      http://localhost:9090
-echo   Alertmanager    http://localhost:9093
+if defined MONITORING (
+    echo   Grafana         http://localhost:3000   ^(admin / admin^)
+    echo   Prometheus      http://localhost:9090
+    echo   Alertmanager    http://localhost:9093
+) else (
+    echo   Giám sát        không bật - chạy lại kèm --monitoring nếu cần
+)
 echo   Xem log         docker compose logs -f api-gateway
 echo   Thêm Kafka      docker compose --profile kafka up -d
 echo   Kafka UI        http://localhost:8091   ^(chỉ khi bật hồ sơ kafka^)
@@ -511,7 +540,8 @@ goto :eof
 
 :usage
 echo.
-echo   run-backend.bat            5 service Java ^(jar^) + 4 service Go ^(binary^)
+echo   run-backend.bat            4 service Java ^(jar^) + 4 service Go ^(binary^), KHÔNG
+echo                              có crawler-service - xem --crawler bên dưới
 echo                              + mở luôn giao diện
 echo   run-backend.bat --core     chỉ api-gateway + auth-service + search-service
 echo                              ^(bỏ qua 4 service Go, tab Bóng đá sẽ trống^)
@@ -520,10 +550,23 @@ echo                              chỉ chạy backend, không mở giao diện
 echo   run-backend.bat --build    dựng lại jar Java trước khi chạy
 echo                              ^(binary Go luôn được dựng lại, go build rất nhanh^)
 echo   run-backend.bat --windows  mở một cửa sổ console cho mỗi service thay vì
-echo                              chạy ngầm ^(9 cửa sổ^)
-echo   run-backend.bat --docker   chạy bằng docker compose - LUÔN bật toàn bộ hệ
-echo                              thống kèm Prometheus/Grafana/Alertmanager, nên
-echo                              --core/--full không đổi được gì ở đường này
+echo                              chạy ngầm ^(8 cửa sổ, 9 nếu kèm --crawler^)
+echo   run-backend.bat --docker   chạy bằng docker compose - bật toàn bộ hệ thống
+echo                              trong container, nên --core/--full không đổi được
+echo                              gì ở đường này
+echo   run-backend.bat --crawler  thêm crawler-service :8083. Mặc định KHÔNG bật: nó
+echo                              nạp sẵn chính bản chỉ mục mà search-service đã nạp
+echo                              - đo được 2 GB cho đúng một controller quản trị, và
+echo                              đó là tiến trình đã làm máy hết RAM. Tìm kiếm không
+echo                              cần nó. Không bật thì mất /api/admin/** và bảng
+echo                              điều khiển của analytics-service; run-crawl.bat vẫn
+echo                              chạy được vì KHÔNG dùng tới nó.
+echo   run-backend.bat --monitoring
+echo                              thêm Prometheus/Grafana/Alertmanager ^(hồ sơ
+echo                              `monitoring` của compose^). Mặc định KHÔNG bật:
+echo                              ba container đó tốn khoảng 544 MB trần RAM mà
+echo                              phần lớn thời gian không ai mở Grafana.
+echo                              Chỉ có tác dụng cùng --docker.
 echo.
 echo   Chế độ trực tiếp chạy các service NGẦM, log đổ vào backend\logs\^<ten^>.log.
 echo   Cần Java ^(JDK 17+^) và Go ^(1.24+^). PostgreSQL, Redis và MongoDB tự bật bằng
@@ -540,9 +583,10 @@ echo.
 echo   Bảng cổng ^(Java 8080-8084, Go 8085-8087 + 8090^):
 echo     8080 api-gateway    8081 auth-service      8082 search-service
 echo     8083 crawler        8084 analytics         8085 history  ^(Go^)
+echo          ^(chỉ khi có --crawler^)
 echo     8086 downloads ^(Go^) 8087 settings ^(Go^)    8090 football ^(Go^)
 echo.
-echo   Chỉ khi chạy bằng --docker:
+echo   Chỉ khi chạy bằng --docker --monitoring:
 echo     3000 Grafana        9090 Prometheus        9093 Alertmanager
 echo.
 call :restore_cp

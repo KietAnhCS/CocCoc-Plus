@@ -100,6 +100,49 @@ export function dateTime(iso: string | null | undefined): string {
   })
 }
 
+/**
+ * `2026-08-28T02:00:00Z` → `3 giờ trước`, `hôm qua`, `5 ngày trước`…
+ *
+ * Mốc thời gian ở đây là lần CRAWLER thu thập trang (`crawledAt`), không phải
+ * ngày xuất bản ghi trong bài. Chuỗi rỗng / sai định dạng cho ra `''` để nơi
+ * gọi bỏ hẳn nhãn thay vì hiện `Invalid Date`. Mốc ở tương lai (lệch đồng hồ)
+ * được kẹp về `vừa xong`.
+ */
+export function relativeTime(iso: string | null | undefined): string {
+  if (!iso) {
+    return ''
+  }
+  const parsed = new Date(iso)
+  if (Number.isNaN(parsed.getTime())) {
+    return ''
+  }
+
+  const seconds = Math.round((Date.now() - parsed.getTime()) / 1000)
+  if (seconds < 45) {
+    return 'vừa xong'
+  }
+
+  const rtf = new Intl.RelativeTimeFormat(VI, { numeric: 'auto' })
+  const divisions: [number, Intl.RelativeTimeFormatUnit][] = [
+    [60, 'second'],
+    [60, 'minute'],
+    [24, 'hour'],
+    [7, 'day'],
+    [4.34524, 'week'],
+    [12, 'month'],
+    [Number.POSITIVE_INFINITY, 'year']
+  ]
+
+  let duration = seconds
+  for (const [amount, unit] of divisions) {
+    if (Math.abs(duration) < amount) {
+      return rtf.format(-Math.round(duration), unit)
+    }
+    duration /= amount
+  }
+  return rtf.format(-Math.round(duration), 'year')
+}
+
 /** `2026-08-10` → `10/08`. Nhãn trục ngày, bỏ năm cho đỡ chật. */
 export function dayLabel(isoDate: string): string {
   const parts = isoDate.split('-')

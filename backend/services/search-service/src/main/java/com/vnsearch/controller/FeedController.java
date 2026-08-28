@@ -9,15 +9,15 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 /**
- * Dòng tin cho trang tab mới: {@code GET /api/feed?seed=&page=&size=}.
+ * Dòng tin cho trang tab mới: {@code GET /api/feed?page=&size=}.
  *
  * <p>Khác {@code /api/search} ở một điểm căn bản: <b>không có truy vấn</b>.
  * Người dùng vừa mở tab mới, chưa gõ gì cả — nên không có điểm liên quan nào
@@ -25,32 +25,23 @@ import java.util.Random;
  * chỉ mục, và mọi đường đi qua {@code SearchEngineFacade.search} đều không
  * dùng được.
  *
- * <h2>Ngẫu nhiên, nhưng phải ỔN ĐỊNH</h2>
+ * <h2>Sắp theo thời gian crawl, mới nhất trước</h2>
  *
- * <p>Yêu cầu là mỗi lần mở tab mới thấy một tập bài khác nhau. Nhưng
- * <b>ngẫu nhiên thuần thì phá phân trang</b> — đúng lỗi mà tab Hình ảnh đã
- * vấp: lô 2 xáo lại từ đầu, nên bài vừa lặp vừa thiếu khi cuộn xuống.
+ * <p>Thứ tự dòng tin là {@code crawledAt} giảm dần — tức theo LẦN CRAWLER
+ * chạy, bài thu thập gần đây nhất lên đầu. Tài liệu thiếu {@code crawledAt}
+ * bị đẩy xuống cuối.
  *
- * <p>Lời giải: xáo trộn có <b>hạt giống</b>. Giao diện sinh một {@code seed}
- * một lần khi mở tab và gửi kèm mọi lô. Cùng seed thì
- * {@code Collections.shuffle(list, new Random(seed))} cho ra <i>đúng</i> một
- * hoán vị, bất kể gọi bao nhiêu lần và từ tiến trình nào.
- *
- * <pre>
- *   tab mới  -> seed = 8471  -> lô 1, 2, 3... cùng một hoán vị -> cuộn liền mạch
- *   tab khác -> seed = 2059  -> hoán vị khác hẳn               -> nội dung mới
- * </pre>
- *
- * <p>Máy chủ vì thế <b>không giữ trạng thái phiên</b>: nó không cần nhớ ai
- * đang xem gì. Toàn bộ "phiên" nằm gọn trong một con số do giao diện gửi lên.
+ * <p>Thứ tự này <b>tất định</b>: cùng chỉ mục thì mọi lô nhìn cùng một dãy,
+ * nên lô 2 nối khít vào sau lô 1 khi cuộn. Máy chủ <b>không giữ trạng thái
+ * phiên</b> — nó chỉ đọc chỉ mục và cắt lát theo {@code page}/{@code size}.
  *
  * <h2>Chỉ lấy bài CÓ ảnh</h2>
  *
  * <p>Một dòng tin mà phần lớn ô là khối màu xám trông như đang hỏng. Nên bài
  * không có ảnh bị bỏ qua hoàn toàn chứ không hiện kèm ảnh giữ chỗ.
  *
- * <p>Phép lọc này <b>tất định</b> (cùng seed, cùng kho ảnh thì cùng kết quả)
- * nên nó không phá tính ổn định của phân trang.
+ * <p>Phép lọc này <b>tất định</b> (cùng chỉ mục, cùng kho ảnh thì cùng kết
+ * quả) nên nó không phá tính ổn định của phân trang.
  *
  * <p><b>Hệ quả phải biết:</b> ngay sau khi khởi động lại backend, {@link ImageStore}
  * rỗng nên dòng tin cũng rỗng — dù chỉ mục vẫn đầy đủ. Giao diện phân biệt
@@ -87,7 +78,6 @@ public class FeedController {
 
     @GetMapping("/feed")
     public Map<String, Object> feed(
-            @RequestParam(value = "seed", defaultValue = "0") long seed,
             @RequestParam(value = "page", defaultValue = "1") int page,
             @RequestParam(value = "size", defaultValue = "12") int size) {
 
@@ -97,16 +87,20 @@ public class FeedController {
 
         int totalDocs = facade.getIndexedDocumentCount();
 
-        // Xáo trộn DANH SÁCH ID, không phải danh sách tài liệu: id là số
-        // nguyên, nên hoán vị 30.000 phần tử là gần như miễn phí, còn nạp
-        // 30.000 tài liệu ra rồi mới xáo thì không.
+        // Sắp DANH SÁCH ID, không phải danh sách tài liệu: id là số nguyên,
+        // nên sắp 30.000 phần tử là gần như miễn phí.
         List<Integer> order = new ArrayList<>(totalDocs);
         for (int i = 0; i < totalDocs; i++) {
             order.add(i);
         }
-        // Cùng seed -> cùng hoán vị. Đây là toàn bộ cơ chế giữ cho các lô nối
-        // đúng vào nhau mà máy chủ không phải nhớ gì.
-        Collections.shuffle(order, new Random(seed));
+        // crawledAt giảm dần: bài crawl gần đây nhất lên đầu, thiếu mốc thì
+        // xuống cuối. Thứ tự tất định nên các lô nối khít vào nhau khi cuộn.
+        order.sort(Comparator.comparing(
+                (Integer docId) -> {
+                    WebDocument doc = facade.getDocumentAt(docId);
+                    return doc == null ? null : doc.getCrawledAt();
+                },
+                Comparator.nullsLast(Comparator.<Instant>reverseOrder())));
 
         // Gom tới trần, CHỈ những bài có ảnh.
         List<Map<String, Object>> items = new ArrayList<>();
@@ -133,7 +127,6 @@ public class FeedController {
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("results", items.subList(from, to));
-        response.put("seed", seed);
         response.put("page", safePage);
         response.put("pageSize", safeSize);
         response.put("totalResults", total);
@@ -154,6 +147,7 @@ public class FeedController {
         card.put("imageUrl", image.imageUrl());
         card.put("altText", image.altText());
         card.put("host", image.host());
+        card.put("crawledAt", doc.getCrawledAt());
         return card;
     }
 

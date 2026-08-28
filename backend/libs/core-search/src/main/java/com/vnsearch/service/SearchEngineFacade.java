@@ -28,8 +28,10 @@ import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -246,7 +248,7 @@ public class SearchEngineFacade {
         pageRankScores = index.getTotalDocs() > 0
                 ? pageRankService.computePageRank(index.getAllDocuments()).scores()
                 : Map.of();
-        scorer = scorerFactory.create(pageRankScores); // Factory + Decorator
+        scorer = scorerFactory.create(pageRankScores, crawledAtEpochMillis()); // Factory + Decorator
         suggestionService.rebuild(index);
         searchCache = new LRUCache<>(cacheSize);
         // So lieu mo ta corpus cung la TRANG THAI DAN XUAT tu chi muc, nen no
@@ -263,6 +265,17 @@ public class SearchEngineFacade {
                         ZoneId.systemDefault())
                 : CorpusStats.empty();
         log.info("Scorer dang dung: {}", scorer.name());
+    }
+
+    private Map<Integer, Long> crawledAtEpochMillis() {
+        Map<Integer, Long> result = new HashMap<>();
+        for (Map.Entry<Integer, WebDocument> entry : index.getAllDocuments().entrySet()) {
+            Instant crawledAt = entry.getValue().getCrawledAt();
+            if (crawledAt != null) {
+                result.put(entry.getKey(), crawledAt.toEpochMilli());
+            }
+        }
+        return result;
     }
 
     public SearchResponse search(String rawQuery, int page, int size) {

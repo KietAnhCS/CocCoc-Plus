@@ -3,6 +3,7 @@ import { search, type SearchResponseDto } from '../lib/searchApi'
 import { useSearchViewStore } from '../store/searchViewStore'
 import { useTabStore } from '../store/tabStore'
 import { hostOf, prettyUrl, siteGradient, siteInitial } from '../lib/site'
+import { relativeTime } from '../lib/format'
 import { track } from '../lib/telemetry'
 import ImageResultGrid, { type ImageMeta } from './ImageResultGrid'
 import SearchMatchCard from './SearchMatchCard'
@@ -306,10 +307,18 @@ function SearchResultList(): JSX.Element | null {
                     >
                       {siteInitial(result.url)}
                     </span>
-                    <div className="min-w-0 leading-tight">
+                    <div className="min-w-0 flex-1 leading-tight">
                       <div className="truncate text-[13px] text-ink">{hostOf(result.url)}</div>
                       <div className="truncate text-[12px] text-faint">{prettyUrl(result.url)}</div>
                     </div>
+                    {relativeTime(result.crawledAt) && (
+                      <span
+                        className="shrink-0 self-start text-[12px] text-faint"
+                        title="Lần crawler thu thập trang này"
+                      >
+                        {relativeTime(result.crawledAt)}
+                      </span>
+                    )}
                   </div>
 
                   <button

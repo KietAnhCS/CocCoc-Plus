@@ -311,22 +311,35 @@ services:
       # của mình, và vòng lặp khởi động lại vô hạn bắt đầu.
       start_period: 90s
 
+  # Viết bằng Go (chi + pgx), nguồn ở backend/go/services/football. Trước đây
+  # là Java Spring Boot. Hợp đồng HTTP GIỮ NGUYÊN: `/api/v1/**` trên cổng
+  # 8090, nên tuyến `football-api` của Gateway và desktop-app không đổi.
+  #
+  # Không dùng neo *java-service / *java-env: service này không đọc JWT (mọi
+  # endpoint công khai, require-admin-api-key=false) nên không cần JWKS hay
+  # ADMIN_API_KEY.
   football-service:
-    <<: *java-service
     container_name: vnsearch-football
+    restart: unless-stopped
+    networks: [vnsearch]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
-      context: ./backend
+      context: ./backend/go
       dockerfile: Dockerfile
       args:
-        MODULE: services/football-service
-        ARTIFACT: football-service
+        SERVICE: football
     depends_on:
       postgres: {condition: service_healthy}
     environment:
-      <<: *java-env
       SERVER_PORT: "8090"
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      TZ: Asia/Ho_Chi_Minh
       # Dùng chung CSDL `vnsearch` với search-service nhưng trong một schema
-      # riêng tên `football` — Flyway tự tạo schema đó lúc khởi động.
+      # riêng tên `football` — service tự chạy migration nhúng lúc khởi động.
       #
       # Truyền TỪNG PHẦN thay vì một URL ghép sẵn: mật khẩu sinh ngẫu nhiên
       # rất hay chứa `@` hoặc `:`, đúng những ký tự phân tách của cú pháp URL.
@@ -342,13 +355,15 @@ services:
       FOOTBALL_API_KEY: ${FOOTBALL_API_KEY:-}
       FOOTBALL_API_BASE_URL: ${FOOTBALL_API_BASE_URL:-https://v3.football.api-sports.io}
       FOOTBALL_DAILY_BUDGET: "95"
-    mem_limit: 384m
+    # 96 MB, không phải 384: một tiến trình Go tĩnh cần rất ít. Gần với con số
+    # của thời service này còn viết bằng Go, cộng chút headroom.
+    mem_limit: 96m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8090/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 10s
 
   # =========================================================================
   # SERVICE ỨNG DỤNG (tiếp)
@@ -423,78 +438,97 @@ services:
       retries: 5
       start_period: 40s
 
+  # history / downloads / settings: viết lại bằng Go (chi + pgx / mongo-driver),
+  # nguồn ở backend/go/services/. Vẫn đọc JWT nên GIỮ *java-env (AUTH_* + CORS);
+  # không có /api/admin/** nên ADMIN_API_KEY chỉ là biến thừa, service Go bỏ qua.
+  # Không dùng *java-service vì build chỉ sang Dockerfile của Go.
   history-service:
-    <<: *java-service
     container_name: vnsearch-history
+    restart: unless-stopped
+    networks: [vnsearch]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
-      context: ./backend
+      context: ./backend/go
       dockerfile: Dockerfile
       args:
-        MODULE: services/history-service
-        ARTIFACT: history-service
+        SERVICE: history
     depends_on:
       mongo: {condition: service_healthy}
     environment:
       <<: *java-env
       SERVER_PORT: "8085"
       MONGO_URI: mongodb://mongo:27017/vnsearch_history
-    mem_limit: 384m
+    mem_limit: 96m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8085/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 10s
 
   downloads-service:
-    <<: *java-service
     container_name: vnsearch-downloads
+    restart: unless-stopped
+    networks: [vnsearch]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
-      context: ./backend
+      context: ./backend/go
       dockerfile: Dockerfile
       args:
-        MODULE: services/downloads-service
-        ARTIFACT: downloads-service
+        SERVICE: downloads
     depends_on:
       postgres: {condition: service_healthy}
     environment:
       <<: *java-env
       SERVER_PORT: "8086"
-      DOWNLOADS_DB_URL: jdbc:postgresql://postgres:5432/vnsearch_downloads
+      DOWNLOADS_DB_URL: postgresql://postgres:5432/vnsearch_downloads
       DOWNLOADS_DB_USER: vnsearch_downloads
       DOWNLOADS_DB_PASSWORD: ${DOWNLOADS_DB_PASSWORD:-${POSTGRES_PASSWORD:-vnsearch}}
-    mem_limit: 384m
+    mem_limit: 96m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8086/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 10s
 
   settings-service:
-    <<: *java-service
     container_name: vnsearch-settings
+    restart: unless-stopped
+    networks: [vnsearch]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     build:
-      context: ./backend
+      context: ./backend/go
       dockerfile: Dockerfile
       args:
-        MODULE: services/settings-service
-        ARTIFACT: settings-service
+        SERVICE: settings
     depends_on:
       postgres: {condition: service_healthy}
     environment:
       <<: *java-env
       SERVER_PORT: "8087"
-      SETTINGS_DB_URL: jdbc:postgresql://postgres:5432/vnsearch_settings
+      SETTINGS_DB_URL: postgresql://postgres:5432/vnsearch_settings
       SETTINGS_DB_USER: vnsearch_settings
       SETTINGS_DB_PASSWORD: ${SETTINGS_DB_PASSWORD:-${POSTGRES_PASSWORD:-vnsearch}}
-    mem_limit: 384m
+    mem_limit: 96m
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -qO- http://localhost:8087/actuator/health | grep -q UP"]
       interval: 15s
       timeout: 5s
       retries: 5
-      start_period: 40s
+      start_period: 10s
 
   # =========================================================================
   # HỒ SƠ `kafka`

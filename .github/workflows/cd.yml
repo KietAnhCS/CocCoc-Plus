@@ -148,7 +148,7 @@ jobs:
 
       - id: day
         name: Dựng và đẩy
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/java/Dockerfile
@@ -251,7 +251,7 @@ jobs:
 
       - id: day
         name: Dựng và đẩy
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend/go
           push: true

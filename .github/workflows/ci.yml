@@ -322,7 +322,7 @@ jobs:
       # `load: true` nạp ảnh vào Docker cục bộ của runner để bước quét bên dưới
       # có cái mà quét. Không có dòng này thì buildx dựng xong rồi vứt đi.
       - name: Dựng ảnh
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: ./backend
           file: ./backend/java/Dockerfile

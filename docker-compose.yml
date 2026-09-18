@@ -597,7 +597,7 @@ services:
   # =========================================================================
 
   kafka:
-    image: apache/kafka:3.8.1
+    image: apache/kafka:4.3.1
     container_name: vnsearch-kafka
     profiles: [kafka]
     networks: [vnsearch]

@@ -196,7 +196,7 @@ jobs:
 
       - name: Đẩy kết quả SpotBugs lên tab Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           # Reactor đa module: mỗi module sinh một tệp SARIF riêng. Gộp ở đây
           # thay vì đẩy từng tệp — tab Security hiện một danh sách chứ không
@@ -362,7 +362,7 @@ jobs:
 
       - name: Đẩy kết quả Trivy lên tab Security
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: trivy.sarif
           category: trivy

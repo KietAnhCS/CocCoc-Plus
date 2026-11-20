@@ -20,23 +20,15 @@ if "%MAX_PAGES%"=="" set "MAX_PAGES=10000"
 if "%MAX_DEPTH%"=="" set "MAX_DEPTH=4"
 if "%OUTPUT%"==""    set "OUTPUT=%~dp0backend\data\crawled-documents.json"
 
-cd /d "%~dp0backend\java" 2>nul
+cd /d "%~dp0backend" 2>nul
 if errorlevel 1 (
-    echo [LỖI] Không tìm thấy thư mục "%~dp0backend\java".
-    echo       Tệp .bat này phải nằm ở THƯ MỤC GỐC của kho, cạnh docker-compose.yml.
+    echo [LỖI] Không tìm thấy thư mục "%~dp0backend".
+    echo       Tệp .bat này phải nằm ở THƯ MỤC GỐC của kho.
     goto :fail
 )
 
 if not exist "pom.xml" (
     echo [LỖI] Không thấy pom.xml trong "%CD%".
-    echo       Thư mục backend\java có vẻ không đầy đủ.
-    goto :fail
-)
-
-if not exist "libs\core-crawler\pom.xml" (
-    echo [LỖI] Không thấy module "libs\core-crawler" - nơi chứa các runner crawl.
-    echo       Module này tách ra từ "libs\core" cũ; nếu kho của bạn vẫn còn
-    echo       "libs\core" thì hãy kéo bản mới nhất về.
     goto :fail
 )
 
@@ -102,15 +94,7 @@ echo   Ctrl+C để dừng. Điểm kiểm tra ghi mỗi max^(250 trang, 25%% co
 echo   nên ở corpus lớn có thể mất vài nghìn trang cuối.
 echo.
 
-REM Build va chay TACH LAM HAI: "exec:java" gop voi "-am" se chay tren ca
-REM module gop "vnsearch-parent" (khong co lop) va chet vi ClassNotFoundException.
-call "%MVNW%" -q -pl libs/core-crawler -am install -DskipTests
-if errorlevel 1 (
-    echo.
-    echo [LỖI] Biên dịch thất bại. Cuộn lên xem thông báo lỗi của Maven ở trên.
-    goto :fail
-)
-call "%MVNW%" -q -pl libs/core-crawler exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
+call "%MVNW%" -q compile exec:java -Dexec.mainClass=%RUNNER% -Dexec.args="%EXEC_ARGS%" -Dcrawl.progress=%CRAWL_PROGRESS%
 if errorlevel 1 (
     echo.
     echo [LỖI] Phiên crawl kết thúc bất thường.
@@ -121,10 +105,9 @@ if errorlevel 1 (
 
 echo.
 echo Xong. Corpus đã lưu tại "%OUTPUT%".
-echo Muốn kết quả vào bộ tìm kiếm thì khởi động lại backend, hoặc gọi:
-echo     curl -X POST -H "X-API-Key: khoa-trong-.env" http://localhost:8083/api/admin/reindex
-echo   ^(gọi thẳng crawler-service :8083. Qua Gateway :8080 thì tuyến
-echo   /api/admin/** đòi token JWT có vai trò ADMIN, không nhận X-API-Key.^)
+REM Xoá chỉ mục cũ để lần khởi động backend sau lập chỉ mục lại từ corpus mới.
+if exist "data\index.json" del /q "data\index.json"
+echo Khởi động lại backend ^(run-backend.bat^) để tìm kiếm trên corpus mới.
 echo.
 echo Nhấn phím bất kỳ để đóng...
 pause >nul

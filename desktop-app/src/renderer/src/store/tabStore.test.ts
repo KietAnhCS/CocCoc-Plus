@@ -1,17 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 /**
- * Ghi lượt ghé lên history-service.
+ * Ghi lượt ghé vào nhật ký.
  *
- * Bài này tồn tại vì một lỗi thật: nhật ký trống trơn dù người dùng đã đăng
- * nhập và không dùng ẩn danh. Nguyên nhân là phép so "địa chỉ có đổi không"
+ * Bài này tồn tại vì một lỗi thật: nhật ký trống trơn dù người dùng không
+ * dùng ẩn danh. Nguyên nhân là phép so "địa chỉ có đổi không"
  * đối chiếu với ảnh chụp thẻ TRƯỚC ĐÓ, trong khi ảnh chụp ấy đã kịp mang địa
  * chỉ mới ngay từ sự kiện `loading: true`. Đến sự kiện `loading: false` thì
  * hai bên bằng nhau và không lượt nào được ghi.
- *
- * Lỗi im lặng tuyệt đối: `recordVisit` đi qua `sendAndForget`, vốn nuốt mọi lỗi — mà ở
- * đây thì đến một lượt gọi cũng không hề phát ra. Và tests/api gọi thẳng
- * POST /api/history/visits nên không đi qua tầng này.
  */
 
 const browsing = vi.hoisted(() => ({ ghi: vi.fn() }))

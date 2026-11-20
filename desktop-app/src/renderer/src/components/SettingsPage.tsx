@@ -8,17 +8,14 @@ import { CloseIcon, SettingsIcon } from './icons'
  * Trang "Cài đặt".
  *
  * <p>Mục này trong menu trước đây bị vô hiệu hoá với chú thích "Chưa có trang
- * cài đặt". Nay nó đọc/ghi qua {@code settingsStore}, vốn lưu hai tầng:
- * localStorage để áp ngay lúc mở ứng dụng, và settings-service để đồng bộ giữa
- * các máy.
+ * cài đặt". Nay nó đọc/ghi qua {@code settingsStore}, lưu trong
+ * localStorage.
  */
 function SettingsPage(): JSX.Element | null {
   const dangMo = usePagesStore((s) => s.page) === 'settings'
   const dong = usePagesStore((s) => s.dong)
 
   const tuyChon = useSettingsStore((s) => s.tuyChon)
-  const chiCucBo = useSettingsStore((s) => s.chiCucBo)
-  const loi = useSettingsStore((s) => s.loi)
   const nap = useSettingsStore((s) => s.nap)
   const dat = useSettingsStore((s) => s.dat)
   const resetToDefaults = useSettingsStore((s) => s.resetToDefaults)
@@ -54,15 +51,6 @@ function SettingsPage(): JSX.Element | null {
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="mx-auto max-w-2xl px-6 py-6">
-          {/* Nói THẲNG khi tuỳ chọn không đồng bộ được. Im lặng thì người dùng
-              đổi cài đặt trên máy này, mở máy khác, thấy giá trị cũ, và không
-              hiểu vì sao. */}
-          {chiCucBo && (
-            <p className="mb-5 rounded-lg bg-warning/10 px-4 py-3 text-[12px] leading-relaxed text-warning">
-              {loi ?? 'Chưa đăng nhập — tuỳ chọn chỉ lưu trên máy này, không đồng bộ.'}
-            </p>
-          )}
-
           <Section tieuDe="Giao diện">
             <RadioGroup
               nhan="Chủ đề"
@@ -101,7 +89,7 @@ function SettingsPage(): JSX.Element | null {
           <Section tieuDe="Quyền riêng tư">
             <ToggleRow
               nhan="Lưu lịch sử duyệt web"
-              moTa="Tắt thì trình duyệt không gửi lượt ghé thăm nào lên máy chủ — giống như
+              moTa="Tắt thì trình duyệt không ghi lượt ghé thăm nào — giống như
                     mọi thẻ đều ẩn danh. Lịch sử đã lưu trước đó không bị xoá."
               bat={tuyChon.luuLichSu}
               onChange={(value) => void dat('luuLichSu', value)}
@@ -238,7 +226,7 @@ function TextField({
   const [nhap, setNhap] = useState(giaTri)
   const [giaTriTruoc, setGiaTriTruoc] = useState(giaTri)
 
-  // Đồng bộ khi giá trị đổi từ NƠI KHÁC (máy chủ trả về, hoặc bấm "Khôi phục
+  // Đồng bộ khi giá trị đổi từ NƠI KHÁC (bấm "Khôi phục
   // cài đặt gốc"). Không đồng bộ thì ô chữ giữ nguyên giá trị cũ trong khi
   // trạng thái thật đã đổi.
   //

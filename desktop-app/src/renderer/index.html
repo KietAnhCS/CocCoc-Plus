@@ -28,10 +28,7 @@
       `https:` chứ KHÔNG phải `*`: ảnh qua http trần có thể bị sửa trên đường
       truyền, và cho phép nó là mở lại một lỗ hổng không cần thiết.
 
-      MỘT cổng duy nhất trong `connect-src`, và đó là điểm đáng giữ. Bản trước
-      liệt kê thêm 8090 vì phần Thể thao gọi thẳng football-service; nay nó đi
-      qua Gateway như mọi phần khác (xem footballApi.ts), nên 8090 không còn
-      cần — và mỗi địa chỉ bớt đi ở đây là một đường ra bớt đi khỏi renderer.
+      MỘT cổng duy nhất trong `connect-src`: backend search engine ở 8080.
     -->
     <meta
       http-equiv="Content-Security-Policy"

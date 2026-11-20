@@ -1,7 +1,5 @@
 /**
- * Máy chủ VnSearch. Xuất ra ngoài để `telemetry.ts` và `adminApi.ts` dùng
- * CHUNG một địa chỉ — ba bản sao của cùng một chuỗi là ba chỗ phải nhớ sửa khi
- * đổi cổng, và chỗ bị quên sẽ hỏng lặng lẽ.
+ * Máy chủ VnSearch (search engine monolith, cổng 8080).
  */
 export const API_BASE = 'http://localhost:8080'
 const REQUEST_TIMEOUT_MS = 8000

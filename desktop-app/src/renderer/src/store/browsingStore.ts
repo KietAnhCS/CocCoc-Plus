@@ -1,14 +1,14 @@
 import { create } from 'zustand'
-import { historyApi, NotAuthenticated, type VisitDto } from '../lib/userDataApi'
+import { historyApi, type VisitDto } from '../lib/localData'
 
 /**
- * Lịch sử duyệt web LƯU TRÊN MÁY CHỦ — khác hẳn `historyStore`.
+ * Lịch sử duyệt web lưu trên máy (localStorage) — khác hẳn `historyStore`.
  *
  * <pre>
  *   historyStore   hai chồng back/forward CỦA TỪNG THẺ, trong bộ nhớ,
  *                  mất khi đóng ứng dụng, phục vụ hai nút mũi tên
- *   browsingStore  lịch sử THẬT, lưu ở history-service (MongoDB), sống 90
- *                  ngày, đồng bộ giữa các máy, phục vụ trang "Nhật ký"
+ *   browsingStore  lịch sử THẬT, lưu trong localStorage, phục vụ trang
+ *                  "Nhật ký"
  * </pre>
  *
  * <p>Hai thứ trùng tên nhưng trả lời hai câu hỏi khác nhau: "quay lại trang
@@ -25,7 +25,6 @@ interface BrowsingState {
   tong: number
   dangTai: boolean
   loi: string | null
-  chuaDangNhap: boolean
 
   /** Nạp trang đầu, hoặc nạp lại sau khi xoá. */
   nap: (tuKhoa?: string) => Promise<void>
@@ -85,7 +84,6 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
   tong: 0,
   dangTai: false,
   loi: null,
-  chuaDangNhap: false,
 
   nap: async (tuKhoa) => {
     const khoa = tuKhoa ?? get().tuKhoa
@@ -95,21 +93,10 @@ export const useBrowsingStore = create<BrowsingState>((set, get) => ({
       set({
         items: trang.content,
         tong: trang.totalElements,
-        dangTai: false,
-        chuaDangNhap: false
+        dangTai: false
       })
-    } catch (error) {
-      if (error instanceof NotAuthenticated) {
-        // KHÔNG phải lỗi. Lịch sử là dữ liệu cá nhân, nên chưa đăng nhập thì
-        // không có gì để hiện — và màn hình phải mời đăng nhập chứ không báo
-        // hỏng.
-        set({ items: [], tong: 0, dangTai: false, chuaDangNhap: true, loi: null })
-        return
-      }
-      set({
-        dangTai: false,
-        loi: 'Không kết nối được history-service. Kiểm tra backend đang chạy.'
-      })
+    } catch {
+      set({ dangTai: false, loi: 'Không đọc được lịch sử lưu trên máy.' })
     }
   },
 

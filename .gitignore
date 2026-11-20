@@ -1,11 +1,7 @@
 # Backend (Maven / Java)
 backend/**/target/
-backend/sarif/
-backend/java/.mvn/wrapper/maven-wrapper.jar
+backend/.mvn/wrapper/maven-wrapper.jar
 *.class
-
-# Backend (Go) — binary do run-backend.bat dựng ra
-backend/go/bin/
 
 # Frontend (Electron / Node)
 desktop-app/node_modules/
@@ -17,9 +13,6 @@ desktop-app/dist/
 backend/data/*.json
 !backend/data/seed-documents.json
 
-# Bi mat. Chi `.env.example` (khong chua gia tri that) duoc commit.
-.env
-
 # IDE / OS
 .idea/
 .vscode/
@@ -27,9 +20,6 @@ backend/data/*.json
 *.iml
 .DS_Store
 Thumbs.db
-
-# Log cua cac service chay ngam qua run-backend.bat.
-backend/logs/
 
 # Bao loi cua JVM khi may het RAM.
 backend/**/hs_err_pid*.log
@@ -39,13 +29,5 @@ backend/**/replay_pid*.log
 /humanizer/
 
 # File trung gian khi build LaTeX
-docs/report/*.aux
-docs/report/*.log
-docs/report/*.out
-docs/report/*.fls
-docs/report/*.fdb_latexmk
-docs/report/*.toc
-docs/report/*.synctex.gz
-docs/report/*.bak
-docs/report/*.pre-humanizer
-docs/report/*.xdv
+docs/report/
+

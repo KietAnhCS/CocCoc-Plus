@@ -10,16 +10,12 @@ import { randomUUID } from 'crypto'
 import { basename } from 'path'
 
 /**
- * Trạng thái một lượt tải, khớp CHÍNH XÁC với enum `DownloadState` của
- * downloads-service.
- *
- * Lệch một chữ ở đây thì máy chủ trả 400 cho mọi lần đồng bộ, và triệu chứng
- * duy nhất là sổ tải xuống trên máy khác không bao giờ cập nhật.
+ * Trạng thái một lượt tải.
  */
 export type DownloadState = 'IN_PROGRESS' | 'PAUSED' | 'COMPLETED' | 'CANCELLED' | 'INTERRUPTED'
 
 export interface DownloadInfo {
-  /** UUID do CHÍNH TIẾN TRÌNH NÀY sinh — xem chú thích ở `startTracking`. */
+  /** UUID do chính tiến trình này sinh. */
   id: string
   url: string
   fileName: string
@@ -80,10 +76,6 @@ export class DownloadManager {
   }
 
   private startTracking(item: DownloadItem, incognito: boolean): void {
-    // UUID sinh Ở ĐÂY, không lấy từ máy chủ. Đây là khoá idempotent mà
-    // downloads-service dùng: nếu mạng rớt giữa lúc đồng bộ, lần thử lại mang
-    // đúng id này và máy chủ cập nhật dòng cũ thay vì tạo dòng thứ hai. Lấy id
-    // từ máy chủ thì lần thử lại đầu tiên đã không có id để gửi.
     const id = randomUUID()
 
     const info: DownloadInfo = {
@@ -172,8 +164,7 @@ export class DownloadManager {
   }
 
   list(): DownloadInfo[] {
-    // Mới nhất trước — cùng thứ tự mà downloads-service trả về, để giao diện
-    // không phải sắp xếp lại theo hai luật khác nhau tuỳ nguồn dữ liệu.
+    // Mới nhất trước.
     return [...this.infos.values()].sort((a, b) => b.startedAt - a.startedAt)
   }
 

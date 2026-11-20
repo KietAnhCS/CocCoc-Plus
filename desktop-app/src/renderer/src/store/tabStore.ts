@@ -79,7 +79,7 @@ export const useTabStore = create<TabStoreState>((set, get) => ({
         history.ensureTab(tab.id, tab.url)
         history.recordNavigation(tab.id, tab.url)
 
-        // Ghi lên history-service khi trang đã tải xong và địa chỉ này chưa
+        // Ghi vào nhật ký khi trang đã tải xong và địa chỉ này chưa
         // từng được ghi cho thẻ đó. Ghi lúc `loading` còn true thì tiêu đề vẫn
         // là địa chỉ thô — và nhật ký đầy những dòng không đọc được.
         //

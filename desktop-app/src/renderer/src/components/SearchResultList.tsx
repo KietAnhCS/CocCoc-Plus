@@ -4,9 +4,7 @@ import { useSearchViewStore } from '../store/searchViewStore'
 import { useTabStore } from '../store/tabStore'
 import { hostOf, prettyUrl, siteGradient, siteInitial } from '../lib/site'
 import { relativeTime } from '../lib/format'
-import { track } from '../lib/telemetry'
 import ImageResultGrid, { type ImageMeta } from './ImageResultGrid'
-import SearchMatchCard from './SearchMatchCard'
 import {
   AlertIcon,
   ChevronLeftIcon,
@@ -115,17 +113,6 @@ function SearchResultList(): JSX.Element | null {
       .then((response) => {
         if (!cancelled) {
           setOutcome({ key: requestKey, response, error: null })
-          // Chỉ ghi nhận TRANG ĐẦU: bấm sang trang 2 vẫn là cùng một lượt tìm
-          // kiếm, đếm thêm sẽ biến một người kiên nhẫn thành nhiều lượt tìm và
-          // làm hỏng cả tỉ lệ bấm lẫn số "lượt tìm mỗi người".
-          if (page === 1) {
-            track({
-              type: 'search',
-              query,
-              resultCount: response.totalResults,
-              tookMs: response.timeTakenMs
-            })
-          }
         }
       })
       .catch(() => {
@@ -268,12 +255,6 @@ function SearchResultList(): JSX.Element | null {
               </div>
             )}
 
-            {/* Thẻ tỉ số nằm TRÊN danh sách kết quả, giống thẻ thể thao của
-                các máy tìm kiếm lớn: người gõ "arsenal" hay "tỉ số" muốn con
-                số ngay, không muốn mở thêm một trang nữa. Tự ẩn khi truy vấn
-                không nói về bóng đá — xem `SearchMatchCard`. */}
-            <SearchMatchCard query={query} />
-
             {showSkeleton && <ResultSkeletons />}
 
             <ul
@@ -323,18 +304,6 @@ function SearchResultList(): JSX.Element | null {
 
                   <button
                     onClick={() => {
-                      // Ghi nhận TRƯỚC khi điều hướng: `navigate` thay cả
-                      // khung nội dung, và thứ tự ngược lại sẽ để sự kiện phải
-                      // đua với việc trang bị thay (đó cũng là lý do lời gọi
-                      // dùng cờ `keepalive`).
-                      track({
-                        type: 'click',
-                        url: result.url,
-                        // Hạng TUYỆT ĐỐI trong toàn bộ kết quả, không phải vị
-                        // trí trong trang: bấm mục đầu của trang 3 là hạng 21,
-                        // và đó mới là con số nói lên chất lượng xếp hạng.
-                        position: (page - 1) * PAGE_SIZE + index + 1
-                      })
                       navigate(result.url)
                       clearSearch()
                     }}

@@ -5,7 +5,6 @@ import {
   timeRemaining,
   type MucTaiXuong
 } from '../store/downloadStore'
-import { useSessionStore } from '../store/sessionStore'
 import { hostOf } from '../lib/site'
 import { CloseIcon, DownloadIcon } from './icons'
 
@@ -14,35 +13,17 @@ import { CloseIcon, DownloadIcon } from './icons'
  *
  * <p>Trước đây đây là một khung rỗng với dòng chữ "Chưa có tệp nào được tải
  * xuống", và nó sẽ mãi rỗng vì không có gì lắng nghe sự kiện tải. Nay nó đọc
- * từ {@code downloadStore}, vốn gộp hai nguồn: tiến trình chính Electron (thời
- * gian thực, có tiến độ) và downloads-service (các máy khác).
+ * từ {@code downloadStore}, lấy dữ liệu thời gian thực từ tiến trình chính Electron.
  */
 function DownloadsPanel(): JSX.Element {
   const items = useDownloadStore((s) => s.items)
   const loi = useDownloadStore((s) => s.loi)
   const init = useDownloadStore((s) => s.init)
-  const dongBoLai = useDownloadStore((s) => s.dongBoLai)
   const xoaDaXong = useDownloadStore((s) => s.xoaDaXong)
-  const user = useSessionStore((s) => s.user)
 
   useEffect(() => {
     init()
   }, [init])
-
-  // HAI hiệu ứng chứ không phải một, và đó là điểm mấu chốt: `init` tự chốt
-  // bằng cờ `initialized` nên nó chỉ chạy ĐÚNG MỘT LẦN trong cả vòng đời ứng
-  // dụng. Lượt gọi `dongBoLai` nằm trong đó vì thế cũng chỉ chạy một lần —
-  // thường là lúc bảng mở lần đầu, khi người dùng CHƯA đăng nhập. Lúc đó
-  // `downloadsApi.list` ném `NotAuthenticated` ngay trước khi chạm mạng, và
-  // `dongBoLai` nuốt lỗi đó.
-  //
-  // Hậu quả nếu gộp lại: đăng nhập xong, bảng KHÔNG BAO GIỜ kéo lại sổ tải
-  // xuống từ máy chủ — nó trống cho tới khi khởi động lại ứng dụng, và không
-  // có thông báo lỗi nào để lần ra. Khoá theo `user` để mỗi lần đổi tài khoản
-  // (đăng nhập, đăng xuất) đều kéo lại đúng dữ liệu của người đang đăng nhập.
-  useEffect(() => {
-    void dongBoLai()
-  }, [user, dongBoLai])
 
   const coMucDaXong = items.some((item) => item.state !== 'IN_PROGRESS' && item.state !== 'PAUSED')
 
@@ -161,12 +142,7 @@ function DownloadRow({ item }: { item: MucTaiXuong }): JSX.Element {
 
           {!dangChay && (
             <p className="mt-1 text-[11px] text-faint">
-              {item.state === 'COMPLETED' && (
-                <>
-                  {formatBytes(item.receivedBytes)}
-                  {!item.onThisDevice && ' — đã tải trên máy khác'}
-                </>
-              )}
+              {item.state === 'COMPLETED' && <>{formatBytes(item.receivedBytes)}</>}
               {item.state === 'CANCELLED' && 'Đã huỷ'}
               {item.state === 'INTERRUPTED' && 'Bị gián đoạn'}
             </p>
@@ -183,7 +159,7 @@ function DownloadRow({ item }: { item: MucTaiXuong }): JSX.Element {
 
             {/* Chỉ hiện "Mở tệp" khi tệp THẬT SỰ nằm trên máy này. Một nút mở
                 một tệp không tồn tại là nút chỉ biết báo lỗi. */}
-            {item.state === 'COMPLETED' && item.onThisDevice && (
+            {item.state === 'COMPLETED' && (
               <>
                 <SmallButton onClick={() => void moTep(item.id)}>Mở tệp</SmallButton>
                 <SmallButton onClick={() => moThuMuc(item.id)}>Mở thư mục</SmallButton>

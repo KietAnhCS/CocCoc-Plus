@@ -11,7 +11,7 @@ import { CloseIcon, ClockIcon, SearchIcon, TrashIcon } from './icons'
  *
  * <p>Trước đây chức năng này chỉ là một menu con hiện 8 địa chỉ gần nhất, lấy
  * từ chồng back/forward trong bộ nhớ — nên nó mất sạch mỗi lần đóng ứng dụng
- * và không tìm kiếm được. Nay nó đọc từ history-service.
+ * và không tìm kiếm được. Nay nó đọc từ lịch sử lưu trên máy (localStorage).
  *
  * <h2>Vì sao là một lớp phủ chứ không phải một thẻ mới</h2>
  *
@@ -29,7 +29,6 @@ function HistoryPage(): JSX.Element | null {
   const tong = useBrowsingStore((s) => s.tong)
   const dangTai = useBrowsingStore((s) => s.dangTai)
   const loi = useBrowsingStore((s) => s.loi)
-  const chuaDangNhap = useBrowsingStore((s) => s.chuaDangNhap)
   const nap = useBrowsingStore((s) => s.nap)
   const deleteVisit = useBrowsingStore((s) => s.deleteVisit)
 
@@ -105,22 +104,15 @@ function HistoryPage(): JSX.Element | null {
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-        {chuaDangNhap && (
-          <EmptyState
-            tieuDe="Đăng nhập để xem nhật ký"
-            moTa="Lịch sử duyệt web được lưu theo tài khoản và đồng bộ giữa các máy.
-                  Bấm avatar trên thanh công cụ để đăng nhập."
-          />
-        )}
-        {loi && !chuaDangNhap && (
+        {loi && (
           <p className="rounded-lg bg-danger/10 px-4 py-3 text-[13px] text-danger" role="alert">
             {loi}
           </p>
         )}
-        {!chuaDangNhap && !loi && dangTai && items.length === 0 && (
+        {!loi && dangTai && items.length === 0 && (
           <p className="py-10 text-center text-[13px] text-faint">Đang tải…</p>
         )}
-        {!chuaDangNhap && !loi && !dangTai && items.length === 0 && (
+        {!loi && !dangTai && items.length === 0 && (
           <EmptyState
             tieuDe={tuKhoa ? 'Không tìm thấy gì' : 'Nhật ký còn trống'}
             moTa={

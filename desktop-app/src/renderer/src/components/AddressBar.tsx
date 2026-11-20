@@ -12,7 +12,7 @@ import { useBookmarkStore, collectBookmarks } from '../store/bookmarkStore'
 import { useSearchViewStore } from '../store/searchViewStore'
 import AutocompleteDropdown from './AutocompleteDropdown'
 import { suggest } from '../lib/searchApi'
-import { historyApi } from '../lib/userDataApi'
+import { historyApi } from '../lib/localData'
 import { useSettingsStore } from '../store/settingsStore'
 import { CloseIcon, GlobeIcon, LockIcon, StarIcon, VnSearchMark } from './icons'
 

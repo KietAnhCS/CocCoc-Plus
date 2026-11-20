@@ -1,21 +1,16 @@
 import type { JSX } from 'react'
 import { useSidePanelStore, type RailItem } from '../store/sidePanelStore'
-import { useFootballAppStore } from '../store/footballAppStore'
 import { useThemeStore } from '../store/themeStore'
-import { useAdminCredential, useAdminStore } from '../store/adminStore'
 import { DownloadButton } from './DownloadIndicator'
 import { findApp } from '../lib/apps'
 import AppTile from './AppTile'
 import { siteGradient, siteInitial, hostOf } from '../lib/site'
 import {
-  BallIcon,
   ClockIcon,
   CloseIcon,
   MoonIcon,
   PlusIcon,
   SettingsIcon,
-  ShieldCheckIcon,
-  ShieldIcon,
   SunIcon,
   TranslateIcon
 } from './icons'
@@ -30,26 +25,6 @@ function SideRail(): JSX.Element {
   const removeItem = useSidePanelStore((s) => s.removeItem)
   const theme = useThemeStore((s) => s.theme)
   const toggleTheme = useThemeStore((s) => s.toggleTheme)
-  // Có quyền quản trị hay không — bất kể quyền đó đến từ tài khoản hay từ khoá API.
-  const hasAdmin = useAdminCredential() !== null
-  const dashboardOpen = useAdminStore((s) => s.dashboardOpen)
-  const openDashboard = useAdminStore((s) => s.openDashboard)
-  const closeDashboard = useAdminStore((s) => s.closeDashboard)
-
-  const footballOpen = useFootballAppStore((s) => s.open)
-  const openFootball = useFootballAppStore((s) => s.openApp)
-  const closeFootball = useFootballAppStore((s) => s.closeApp)
-
-  function openFootballApp(): void {
-    if (footballOpen) {
-      closeFootball()
-      return
-    }
-    // Đóng bảng bên lại: hai giao diện cho cùng một dữ liệu hiện cùng lúc chỉ
-    // làm người xem phân vân nên nhìn cái nào.
-    closePanel()
-    openFootball('home')
-  }
 
   return (
     <aside
@@ -82,49 +57,6 @@ function SideRail(): JSX.Element {
       </div>
 
       <div className="mt-1 flex flex-col items-center gap-1 border-t border-line pt-2">
-        {/*
-          Nút vào khu vực quản trị LUÔN hiển thị, kể cả khi chưa có quyền.
-
-          Ẩn nút đi khi chưa đăng nhập là cách làm phổ biến và ở đây nó sai
-          theo hai hướng: nó KHÔNG bảo vệ được gì (máy chủ mới là nơi chặn, và
-          nó chặn bất kể giao diện vẽ ra cái gì), lại còn giấu mất lối vào của
-          chính người có quyền — họ không có cách nào để đăng nhập. Nút hiện,
-          bấm vào thì gặp cửa xác thực: ranh giới quyền được NÓI RA thay vì
-          được che đi.
-        */}
-        <button
-          onClick={() => (dashboardOpen ? closeDashboard() : openDashboard())}
-          className={'rail-btn ' + (dashboardOpen ? 'bg-raised text-ink' : '')}
-          aria-label="Bảng điều khiển quản trị"
-          title={
-            hasAdmin
-              ? 'Bảng điều khiển quản trị (đang ở vai trò ADMIN)'
-              : 'Bảng điều khiển quản trị — cần đăng nhập bằng tài khoản quản trị'
-          }
-          aria-pressed={dashboardOpen}
-        >
-          {hasAdmin ? (
-            <ShieldCheckIcon className="h-[18px] w-[18px] text-success" />
-          ) : (
-            <ShieldIcon className="h-[18px] w-[18px]" />
-          )}
-        </button>
-
-        {/* Một cú bấm là vào thẳng TRANG bóng đá, không phải bảng bên.
-            Trước đây nút này mở bảng, và trang đầy đủ nằm sau một nút thứ hai
-            trong tiêu đề bảng — tức là thứ nhiều người tìm nhất lại là thứ khó
-            thấy nhất. Bảng thu gọn không mất đi: nút "Thu gọn thành bảng bên"
-            ngay trên trang đưa về đúng nó. */}
-        <button
-          onClick={openFootballApp}
-          className={'rail-btn ' + (footballOpen ? 'bg-raised text-brand' : '')}
-          aria-label="Bóng đá"
-          title="Bóng đá — mở trang tỉ số và lịch thi đấu"
-          aria-pressed={footballOpen}
-        >
-          <BallIcon className="h-[18px] w-[18px]" />
-        </button>
-
         <button className="rail-btn" aria-label="Dịch trang" title="Dịch trang này">
           <TranslateIcon className="h-[18px] w-[18px]" />
         </button>

@@ -3,11 +3,8 @@ import NavigationButtons from './NavigationButtons'
 import AddressBar from './AddressBar'
 import BrowserMenu from './BrowserMenu'
 import Popover from './Popover'
-import AccountMenu from './AccountMenu'
 import { useSidePanelStore } from '../store/sidePanelStore'
 import { useTabStore } from '../store/tabStore'
-import { useSessionStore } from '../store/sessionStore'
-import { useAdminStore } from '../store/adminStore'
 import { DownloadButton } from './DownloadIndicator'
 import {
   DownloadIcon,
@@ -15,14 +12,12 @@ import {
   MenuIcon,
   PuzzleIcon,
   SparkleIcon,
-  SplitScreenIcon,
-  UserIcon
+  SplitScreenIcon
 } from './icons'
 
 function Toolbar(): JSX.Element {
   const [extensionsOpen, setExtensionsOpen] = useState(false)
   const [splitOpen, setSplitOpen] = useState(false)
-  const [accountOpen, setAccountOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 
   const openPanel = useSidePanelStore((state) => state.openPanel)
@@ -32,8 +27,6 @@ function Toolbar(): JSX.Element {
   const anDanh = useTabStore(
     (state) => state.tabs.find((tab) => tab.id === state.activeTabId)?.incognito ?? false
   )
-  const user = useSessionStore((state) => state.user)
-  const openDashboard = useAdminStore((state) => state.openDashboard)
 
   return (
     <div
@@ -133,47 +126,6 @@ function Toolbar(): JSX.Element {
         >
           <DownloadIcon className="h-[18px] w-[18px]" />
         </DownloadButton>
-
-        <div className="relative">
-          <button
-            onClick={() => setAccountOpen((open) => !open)}
-            className={
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[11px] ' +
-              'font-bold transition hover:brightness-110 focus-visible:ring-2 ' +
-              'focus-visible:ring-brand/60 focus-visible:outline-none ' +
-              // Ba trạng thái, ba diện mạo — avatar phải NÓI THẬT về quyền
-              // hiện tại. Trước đây nó luôn hiện một tài khoản "admin" cứng,
-              // kể cả khi chưa ai đăng nhập.
-              (user
-                ? user.role === 'ADMIN'
-                  ? 'bg-linear-to-br from-emerald-500 to-lime-400 text-white'
-                  : 'bg-linear-to-br from-teal-500 to-emerald-400 text-white'
-                : 'border border-line bg-raised text-muted')
-            }
-            aria-label={user ? `Tài khoản ${user.username}` : 'Chưa đăng nhập'}
-            title={
-              user
-                ? `${user.username} — ${user.role === 'ADMIN' ? 'Quản trị viên' : 'Người dùng'}`
-                : 'Chưa đăng nhập'
-            }
-            aria-expanded={accountOpen}
-          >
-            {user ? user.username.slice(0, 2).toUpperCase() : <UserIcon className="h-4 w-4" />}
-          </button>
-          <Popover
-            open={accountOpen}
-            onClose={() => setAccountOpen(false)}
-            label="Tài khoản"
-            width={280}
-          >
-            <AccountMenu
-              onNavigateAdmin={() => {
-                setAccountOpen(false)
-                openDashboard()
-              }}
-            />
-          </Popover>
-        </div>
 
         <div className="relative">
           <button

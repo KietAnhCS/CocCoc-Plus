@@ -491,8 +491,8 @@ function Show-IndexReport {
         Write-Host ('  [CHÚ Ý] Chỉ mục CŨ HƠN "{0}" tới {1}.' -f $newest.Name, (Format-Span $lag)) -ForegroundColor DarkYellow
         Write-Host '          SearchEngineFacade ưu tiên index.json nên backend sẽ nạp bản cũ này:' -ForegroundColor DarkGray
         Write-Host '          không một dòng lỗi nào, chỉ là các trang crawl gần đây không tìm được.' -ForegroundColor DarkGray
-        Write-Host '          Lập lại chỉ mục một lần (backend phải đang chạy):' -ForegroundColor DarkGray
-        Write-Host '              curl -X POST -H "X-API-Key: <khoa trong .env>" http://localhost:8083/api/admin/reindex' -ForegroundColor DarkGray
+        Write-Host '          Lập lại chỉ mục bằng:' -ForegroundColor DarkGray
+        Write-Host '              run-backend.bat --reindex' -ForegroundColor DarkGray
     } else {
         Write-Field 'So với corpus' ('khớp với "{0}" — chỉ mục không cũ hơn corpus' -f $newest.Name)
     }

@@ -9,24 +9,10 @@ for /f "tokens=2 delims=:" %%c in ('chcp') do set "OLD_CP=%%c"
 set "OLD_CP=%OLD_CP: =%"
 chcp 65001 >nul
 
-:parse
-if "%~1"=="" goto :parsed
-if /i "%~1"=="--no-football" (
-    echo [GHI CHÚ] --no-football không còn tác dụng: giao diện gọi bóng đá qua
-    echo           Gateway ở cổng 8080, không bật tiến trình riêng nào nữa.
-) else (
-    echo [LỖI] Tham số không hiểu: %~1
-    echo       Tệp này không nhận tham số nào.
-    goto :fail
-)
-shift
-goto :parse
-:parsed
-
 cd /d "%ROOT%desktop-app" 2>nul
 if errorlevel 1 (
     echo [LỖI] Không tìm thấy thư mục "%ROOT%desktop-app".
-    echo       Tệp .bat này phải nằm ở THƯ MỤC GỐC của kho, cạnh docker-compose.yml.
+    echo       Tệp .bat này phải nằm ở THƯ MỤC GỐC của kho.
     goto :fail
 )
 
@@ -81,14 +67,12 @@ if not exist "%ELECTRON_BIN%" (
 set "BE_PID="
 for /f "tokens=5" %%p in ('netstat -ano -p TCP ^| findstr /r /c:":8080 .*LISTENING"') do set "BE_PID=%%p"
 if defined BE_PID (
-    echo api-gateway      : đã chạy sẵn ở cổng 8080
+    echo Backend          : đã chạy sẵn ở cổng 8080
 ) else (
     echo.
-    echo [CẢNH BÁO] Không có gì lắng nghe ở cổng 8080 - api-gateway chưa chạy.
-    echo            Giao diện VẪN mở được, nhưng mỗi lần tìm - và cả tab Bóng đá,
-    echo            vốn đi qua tuyến /api/football của Gateway - đều báo lỗi kết nối.
+    echo [CẢNH BÁO] Không có gì lắng nghe ở cổng 8080 - backend chưa chạy.
+    echo            Giao diện VẪN mở được, nhưng tìm kiếm sẽ báo lỗi kết nối.
     echo            Mở một cửa sổ khác và chạy: run-backend.bat
-    echo            ^(đợi đến khi nó báo "api-gateway sẵn sàng"^)
 )
 
 echo.

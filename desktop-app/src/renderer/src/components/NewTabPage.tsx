@@ -8,7 +8,6 @@ import {
   type KeyboardEvent as ReactKeyboardEvent
 } from 'react'
 import AutocompleteDropdown from './AutocompleteDropdown'
-import MatchTile from './MatchTile'
 import { suggest } from '../lib/searchApi'
 import { fetchFeed, type FeedCard } from '../lib/newsApi'
 import { useSearchViewStore } from '../store/searchViewStore'
@@ -75,10 +74,7 @@ function NewTabPage(): JSX.Element {
           đổ xuống quá mép dưới khối hero. */}
       <section className="relative isolate">
         <HeroBackdrop />
-        {/* Một cặp đối xứng ở hai góc trên của khối hero: thời tiết bên trái,
-            tỉ số bên phải. Cùng độ cao, cùng hình dáng — xem `MatchTile`. */}
         <WeatherOverlay />
-        <MatchTile />
 
         <div className="relative mx-auto flex max-w-3xl flex-col items-center px-8 pb-20 pt-20">
           <div className="flex animate-blur-in items-center gap-3.5">

@@ -34,3 +34,18 @@ backend/logs/
 # Bao loi cua JVM khi may het RAM.
 backend/**/hs_err_pid*.log
 backend/**/replay_pid*.log
+
+# Ban sao humanizer (repo rieng, co .git)
+/humanizer/
+
+# File trung gian khi build LaTeX
+docs/report/*.aux
+docs/report/*.log
+docs/report/*.out
+docs/report/*.fls
+docs/report/*.fdb_latexmk
+docs/report/*.toc
+docs/report/*.synctex.gz
+docs/report/*.bak
+docs/report/*.pre-humanizer
+docs/report/*.xdv

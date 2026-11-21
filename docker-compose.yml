@@ -1,0 +1,34 @@
+# Chay:  start.bat   (hoac: docker compose up -d --build)
+# Tat:   stop.bat    (hoac: docker compose down)
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"   # API tim kiem
+      - "6080:6080"   # giao dien (noVNC) - cua frontend, chung network namespace
+    volumes:
+      - ./backend/data:/app/data
+    environment:
+      JAVA_OPTS: "-XX:MaxRAMPercentage=60 -Dfile.encoding=UTF-8"
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/localhost/8080'"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+
+  frontend:
+    build: ./desktop-app
+    network_mode: "service:backend"
+    shm_size: "1gb"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  # Crawler: chi chay khi goi ro rang (crawl.bat), khong chay cung start.bat.
+  crawler:
+    build: ./backend
+    profiles: ["crawl"]
+    volumes:
+      - ./backend/data:/app/data
+    entrypoint: ["sh", "-c", "exec java -Dfile.encoding=UTF-8 -Dcrawl.progress=${CRAWL_PROGRESS:-bar} -cp app.jar -Dloader.main=com.vnsearch.crawler.MultiDomainCrawlRunner org.springframework.boot.loader.launch.PropertiesLauncher \"$@\"", "--"]
+    command: ["10000", "4", "data/crawled-documents.json"]

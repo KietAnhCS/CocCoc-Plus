@@ -25,16 +25,16 @@
 
 \tikzset{
   pbox/.style={draw=linkblue,thick,rounded corners=2pt,fill=linkblue!8,align=center,
-               minimum height=9mm,text width=19mm,font=\footnotesize},
+               minimum height=8mm,text width=15mm,font=\scriptsize},
   pmine/.style={pbox,fill=linkblue!25,very thick},
   parr/.style={-{Stealth[length=2mm]},thick}}
 
-\titleformat{\section}{\normalsize\bfseries}{\thesection.}{0.55em}{}
-\titleformat{\subsection}{\small\itshape}{\thesubsection.}{0.55em}{}
-\titlespacing*{\section}{0pt}{10pt}{4pt}
-\titlespacing*{\subsection}{0pt}{7pt}{3pt}
-\setlength{\parskip}{0pt}
-\setlength{\parindent}{1.1em}
+\titleformat{\section}{\large\bfseries\color{linkblue}}{Chương \thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+\titlespacing*{\section}{0pt}{12pt}{5pt}
+\titlespacing*{\subsection}{0pt}{7pt}{2pt}
+\setlength{\parskip}{1.5pt}
+\setlength{\parindent}{0pt}
 \setlength{\arraycolsep}{2pt}
 \setlength{\abovedisplayskip}{4pt}
 \setlength{\belowdisplayskip}{4pt}
@@ -47,16 +47,20 @@
 \setlength{\textfloatsep}{9pt plus 2pt minus 2pt}
 \setlength{\floatsep}{7pt plus 2pt minus 2pt}
 \setlength{\intextsep}{7pt plus 2pt minus 2pt}
-\linespread{1.04}
+\linespread{1.02}
 \raggedbottom
 
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\spaced}[1]{\textls[160]{#1}}
-\newcommand{\idea}[1]{\par\vspace{3pt}\noindent\fcolorbox{linkblue}{linkblue!6}{\parbox{\dimexpr\columnwidth-2\fboxsep-2\fboxrule}{\footnotesize\textbf{Trực giác.} #1}}\par\vspace{3pt}}
-\newcommand{\inproj}[1]{\par\vspace{3pt}\noindent\fcolorbox{gray!60}{gray!6}{\parbox{\dimexpr\columnwidth-2\fboxsep-2\fboxrule}{\footnotesize\textbf{Trong CocCoc Plus.} #1}}\par\vspace{3pt}}
+% Tiêu đề một cấu trúc dữ liệu: tên bên trái, lớp Java bên phải
+\newcommand{\dsa}[2]{\subsection[#1]{#1\hfill{\normalfont\footnotesize\code{#2}}}}
+% Ba nhãn cố định cho mỗi mục
+\newcommand{\vande}{\textcolor{linkblue}{\textbf{Vấn đề.}}~}
+\newcommand{\cachgiai}{\textcolor{linkblue}{\textbf{Cách giải.}}~}
+\newcommand{\dpt}{\textcolor{linkblue}{\textbf{Độ phức tạp.}}~}
 
 \newcommand{\runauthor}{\textit{L.\,A.\ Kiet}}
-\newcommand{\runtitle}{\textit{Máy tìm kiếm hoạt động thế nào: công thức và thuật toán cốt lõi}}
+\newcommand{\runtitle}{\textit{Cấu trúc dữ liệu và giải thuật trong CocCoc Plus}}
 \pagestyle{fancy}
 \fancyhf{}
 \renewcommand{\headrulewidth}{0pt}
@@ -68,6 +72,9 @@
 \makeatletter
 \renewcommand\@biblabel[1]{\textcolor{linkblue}{[#1]}}
 \makeatother
+
+\newcommand{\cu}{\textcolor{linkblue}{\textbf{Cách cũ.}}~}
+\newcommand{\vidu}{\textcolor{linkblue}{\textbf{Ví dụ.}}~}
 
 \begin{document}
 \thispagestyle{first}
@@ -84,7 +91,7 @@
 \noindent\rule{\textwidth}{2.2pt}
 
 \vspace{0.55cm}
-{\fontsize{16.5}{20}\selectfont Máy tìm kiếm hoạt động thế nào:\\công thức và thuật toán cốt lõi, giải thích qua ví dụ nhỏ\par}
+{\fontsize{16.5}{20}\selectfont Cấu trúc dữ liệu và giải thuật trong máy tìm kiếm CocCoc Plus:\\mỗi cấu trúc giải quyết vấn đề gì\par}
 \vspace{0.4cm}
 {\large Lê Anh Kiệt\textsuperscript{\,a}\par}
 \vspace{0.2cm}
@@ -97,23 +104,18 @@
 {\footnotesize\spaced{T Ừ \ \ K H Ó A}\par}
 \vspace{2pt}\noindent\rule{\linewidth}{0.4pt}\par\vspace{3pt}
 {\scriptsize
-Web crawler, Bloom filter\\
-Tách từ tiếng Việt\\
+Hàng đợi, min-heap, Bloom filter\\
+Bảng băm, LRU cache\\
+Trie, quy hoạch động\\
 Chỉ mục đảo, VByte\\
-Giao posting list\\
-TF-IDF, BM25, PageRank\\
-Heap top-$K$, LRU cache\\
-MRR, MAP, nDCG\par}
+Hai con trỏ, galloping search\\
+Ma trận thưa CSR, cửa sổ trượt\par}
 \end{minipage}\hfill
 \begin{minipage}[t]{0.715\textwidth}
 {\footnotesize\spaced{T Ó M \ \ T Ắ T}\par}
 \vspace{2pt}\noindent\rule{\linewidth}{0.4pt}\par\vspace{3pt}
 {\scriptsize\setlength{\parindent}{0pt}\linespread{1.08}\selectfont
-Tài liệu này gom các kiến thức cần có trước khi đọc mã nguồn hay báo cáo đồ án CocCoc Plus. Mỗi công thức đi kèm một lời giải thích nó đo cái gì và một ví dụ đủ nhỏ để tự tính tay.
-
-Thứ tự các mục đi theo đường đi của một trang web qua hệ thống. Crawler tải trang về và dùng Bloom filter để nhớ những URL đã gặp. Bộ tách từ ghép các âm tiết tiếng Việt thành từ bằng quy hoạch động. Chỉ mục đảo ghi lại mỗi từ nằm trong những tài liệu nào, lưu gọn bằng mã delta và VByte. Bộ truy vấn giao các danh sách này, rồi bộ xếp hạng chấm điểm các tài liệu còn lại bằng TF-IDF hoặc BM25, có điều chỉnh theo PageRank và độ khớp tiêu đề. Một heap giữ lại mười kết quả tốt nhất. Mục cuối trình bày cách đo xem xếp hạng có tốt hay không.
-
-Cuối mỗi mục có một khung ghi tham số mà CocCoc Plus dùng, nên tài liệu cũng có thể dùng như bản đồ để tìm đường trong mã nguồn.\par}
+Tài liệu liệt kê các cấu trúc dữ liệu và giải thuật mà CocCoc Plus tự cài đặt, chia theo ba khối. Chương~1 (Crawler) dùng hàng đợi, min-heap, Bloom filter, bảng băm và LRU cache. Chương~2 (Chỉ mục và truy vấn) dùng trie, quy hoạch động, chỉ mục đảo nén VByte, hai con trỏ và galloping search. Chương~3 (Xếp hạng) dùng ma trận thưa CSR cho PageRank, min-heap lấy top-$K$ và cửa sổ trượt tạo đoạn trích. Mỗi mục nêu vấn đề trong đồ án, cách cũ hỏng ở đâu, cách giải, một ví dụ số và độ phức tạp.\par}
 \end{minipage}
 
 \vspace{0.25cm}
@@ -122,305 +124,656 @@ Cuối mỗi mục có một khung ghi tham số mà CocCoc Plus dùng, nên tà
 \end{@twocolumnfalse}
 }]
 
-%====================================================================
-\section{Bốn việc của một máy tìm kiếm}
-\label{sec:overview}
-%====================================================================
-Máy tìm kiếm phải trả lời câu hỏi kiểu ``trang nào nói về \emph{giá vàng hôm nay}?'' trong chưa tới một giây, trên một kho dữ liệu lớn đến mức không thể đọc lại lúc truy vấn. Cách làm là chia công việc thành bốn việc \cite{manning2008ir}. Hai việc chạy trước, hai việc chạy khi người dùng bấm Enter (Hình~\ref{fig:pipeline}).
-
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[node distance=5mm and 5mm]
-  \node[pbox] (crawl) {1. Thu thập\\tải trang};
-  \node[pbox,right=of crawl] (index) {2. Lập chỉ mục\\từ $\to$ trang};
-  \node[pbox,below=of index] (retr) {3. Truy xuất\\tìm trang khớp};
-  \node[pmine,left=of retr] (rank) {4. Xếp hạng\\tốt nhất lên đầu};
-  \draw[parr] (crawl) -- (index);
-  \draw[parr] (index) -- (retr);
-  \draw[parr] (retr) -- (rank);
-  \node[font=\tiny,gray,above=0.5mm of crawl] {chạy trước};
-  \node[font=\tiny,gray,above=0.5mm of index] {chạy trước};
-  \node[font=\tiny,gray,below=0.5mm of retr] {mỗi truy vấn};
-  \node[font=\tiny,gray,below=0.5mm of rank] {mỗi truy vấn};
+\begin{tikzpicture}[node distance=9mm,
+  b/.style={pbox,text width=21mm,minimum height=11mm,font=\scriptsize}]
+  \node[b] (crawl) {Crawler\\\tiny hàng đợi, min-heap,\\\tiny Bloom filter, LRU};
+  \node[b,right=of crawl] (index) {Chỉ mục\\\tiny chỉ mục đảo VByte,\\\tiny trie};
+  \node[b,below=7mm of index] (query) {Truy vấn\\\tiny DP tách từ, cây biểu\\\tiny thức, hai con trỏ};
+  \node[pmine,b,left=of query] (rank) {Xếp hạng\\\tiny CSR PageRank,\\\tiny BM25, top-$K$ heap};
+  \node[b,below=6mm of rank,xshift=18mm] (out) {Kết quả\\\tiny cửa sổ trượt: đoạn trích};
+  \draw[parr] (crawl) -- node[above,font=\tiny]{trang} (index);
+  \draw[parr] (index) -- node[right,font=\tiny]{postings} (query);
+  \draw[parr] (query) -- node[above,font=\tiny]{ứng viên} (rank);
+  \draw[parr] (rank.south) |- (out.west);
+  \draw[gray] ([yshift=3.5mm]crawl.north west) -- node[above,font=\tiny,gray]{chạy trước, ngoại tuyến} ([yshift=3.5mm]index.north east);
 \end{tikzpicture}
-\caption{Bốn việc. Thu thập và lập chỉ mục chuẩn bị dữ liệu từ trước, nên hai việc chạy theo truy vấn chỉ phải chạm vào một phần nhỏ.}
+\caption{Năm bước của máy tìm kiếm và cấu trúc dữ liệu chính ở mỗi bước. Hai bước trên chạy trước, ba bước dưới chạy cho mỗi truy vấn, nên mỗi truy vấn chỉ chạm vào một phần nhỏ của kho.}
 \label{fig:pipeline}
 \end{figure}
 
-Cả thiết kế dựa trên một sự đánh đổi: bỏ thời gian và bộ nhớ ra từ trước để mỗi truy vấn chạy nhanh. Chỉ mục là kết quả của sự đánh đổi đó. Thay vì quét từng trang để tìm các từ trong truy vấn, máy tìm kiếm tra một danh sách đã tính sẵn cho mỗi từ.
-
-Bảng~\ref{tab:notation} quy ước các ký hiệu dùng trong phần còn lại.
-
 \begin{table}[H]
-\centering
-\caption{Ký hiệu.}
-\label{tab:notation}
-\footnotesize
-\begin{tabular}{@{}lp{5.6cm}@{}}
+\centering\scriptsize
+\renewcommand{\arraystretch}{1.1}
+\begin{tabular}{@{}p{10mm}p{66mm}@{}}
 \toprule
-Ký hiệu & Ý nghĩa \\
+Bước & Ví dụ xuyên suốt: truy vấn ``nhà hàng xóm'' \\
 \midrule
-$N$ & số tài liệu trong kho \\
-$t$, $d$, $q$ & một term (từ), một tài liệu, một truy vấn \\
-$tf_{t,d}$ & số lần $t$ xuất hiện trong $d$ \\
-$df_t$ & số tài liệu chứa $t$ \\
-$|d|$, $\overline{|d|}$ & độ dài của $d$ tính bằng token, và độ dài trung bình \\
-$K$ & số kết quả hiển thị (thường là 10) \\
+Crawler & 3 trang: $d_1$ ``nhà hàng xóm Hải'', $d_2$ ``nhà hàng ngon quận 1'', $d_3$ ``hàng xóm mới chuyển nhà'' \\
+Chỉ mục & nhà $\to\{1,2,3\}$; nhà hàng $\to\{1,2\}$; hàng xóm $\to\{1,3\}$ \\
+Truy vấn & hai cách tách từ: ``nhà hàng'' + ``xóm'' hoặc ``nhà'' + ``hàng xóm''; giao postings được $\{1,3\}$ \\
+Xếp hạng & điểm BM25 và PageRank, top-2: $d_1$ rồi $d_3$ \\
+Kết quả & đoạn trích là cửa sổ quanh ``hàng xóm'' của $d_1$ \\
 \bottomrule
 \end{tabular}
+\caption{Dữ liệu minh họa cho ví dụ xuyên suốt. Các chương sau lấy lại $d_1,d_2,d_3$.}
+\label{tab:thread}
 \end{table}
-
 %====================================================================
-\section{Thu thập trang web}
+\section{Crawler}
 \label{sec:crawl}
 %====================================================================
-Web là một đồ thị có hướng: mỗi trang là một đỉnh, mỗi liên kết là một cạnh. Crawler đi khám phá đồ thị này từ vài trang hạt giống. Ở dạng đơn giản nhất, nó là tìm kiếm theo chiều rộng (BFS): lấy một URL khỏi hàng đợi, tải trang, rút các liên kết ra, và đưa những liên kết mới vào cuối hàng đợi. Hàng đợi này gọi là \emph{frontier}.
+Web là đồ thị có hướng: trang là đỉnh, liên kết là cạnh. Crawler duyệt theo chiều rộng từ vài trang hạt giống: lấy một URL từ hàng đợi (\emph{frontier}), kiểm tra đã gặp chưa, tải trang, rút liên kết rồi đẩy liên kết mới vào hàng đợi.
 
-Có ba câu hỏi biến BFS trong sách thành một crawler chạy được. URL nào nên tải tiếp theo? Làm sao để không dồn request vào một máy chủ? Làm sao nhớ hàng triệu URL đã thăm mà không tốn nhiều bộ nhớ?
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=5mm,font=\scriptsize,
+  pbox/.append style={text width=17mm,minimum height=9mm},
+  nt/.style={font=\tiny,gray,align=center}]
+  \node[pbox] (f) {Frontier\\\tiny 5 hàng FIFO};
+  \node[pbox,right=of f] (l) {URL gặp chưa?\\\tiny Bloom filter};
+  \node[pbox,below=7mm of l] (t) {Tải trang\\\tiny heap + LRU DNS};
+  \node[pbox,left=of t] (x) {Nội dung trùng?\\\tiny bảng băm SHA};
+  \draw[parr] (f)--(l);
+  \draw[parr] (l)--(t);
+  \draw[parr] (t)--(x);
+  \draw[parr] (x)--node[left,font=\tiny]{link mới} (f);
+  \node[nt,right=2mm of l] {200.000 URL\\234 KB\\$k=7$};
+  \node[nt,right=2mm of t] {128 hàng host\\1 s/host\\LRU 1.000};
+  \node[nt,left=2mm of f] {51,6\%\\25,8\%\\\dots};
+\end{tikzpicture}
+\caption{Dòng dữ liệu của crawler. Ghi chú nhỏ là số liệu thật của đồ án ở mỗi bước.}
+\label{fig:crawlloop}
+\end{figure}
 
-\subsection{Độ ưu tiên: tải trang nào trước}
-Trang gần hạt giống thường hữu ích hơn trang cách mười cú nhấp. Một mức ưu tiên đơn giản là độ sâu $d$, trừ bớt khi có dấu hiệu trang quan trọng:
-\begin{equation}
-\ell=\operatorname{clip}\big(d-[\text{host có đuôi }\code{.vn}]-[\text{số backlink}\ge5],\ 0,\ 4\big).
-\label{eq:level}
-\end{equation}
-Ở đây $[\cdot]$ bằng 1 khi điều kiện đúng và bằng 0 khi sai, còn mức 0 là gấp nhất. Nếu crawler luôn phục vụ mức 0 trước thì trang sâu sẽ không bao giờ tới lượt. Vì vậy nó chọn mức một cách ngẫu nhiên, với trọng số
-\begin{equation}
-w_i=2^{\,L-1-i}\qquad(i=0,\dots,L-1).
-\label{eq:weight}
-\end{equation}
-Với $L=5$ mức, các trọng số là $16,8,4,2,1$: mức 0 được chọn nhiều gấp 16 lần mức 4, và mức 4 vẫn có lượt.
+\dsa{Nhiều hàng đợi FIFO theo mức ưu tiên}{FrontQueues}
+\vande Trang chủ và trang chuyên mục gần hạt giống cần được tải trước trang sâu mười lớp.
 
-\subsection{Phép lịch sự: mỗi host một request mỗi giây}
-Crawler có 32 luồng có thể gửi cùng lúc 32 request tới một trang báo. Để tránh việc đó, mỗi host có một mốc ``sẵn sàng lúc'', và sau mỗi lần tải mốc này lùi thêm một giây. Crawler liên tục cần biết host nào có mốc sớm nhất. \emph{Min-heap} làm đúng việc này: lấy phần tử nhỏ nhất trong $O(1)$, xóa hoặc chèn trong $O(\log n)$.
+\cu Một hàng đợi duy nhất chỉ biết thứ tự đến trước, không biết trang nào đáng tải. Chọn thẳng mức tốt nhất thì các mức dưới đói vĩnh viễn, vì mỗi trang tải về lại sinh thêm hàng chục URL nông.
 
-\idea{Heap là một cây nhị phân lưu trong mảng, trong đó mỗi nút cha nhỏ hơn các nút con. Chỉ gốc được bảo đảm là nhỏ nhất. Bộ lập lịch chỉ cần đúng điều đó, và giữ một bảo đảm này rẻ hơn nhiều so với giữ cả mảng luôn được sắp xếp.}
+\cachgiai Có 5 hàng FIFO, mỗi hàng một mức. Mức của URL là $\ell=\operatorname{clip}(d-[\code{.vn}]-[\text{backlink}\ge5],0,4)$, với $d$ là độ sâu BFS. Bộ chọn bốc ngẫu nhiên theo trọng số $2^{4-i}$, tức $16,8,4,2,1$, và chỉ tính các hàng không rỗng. Hạt giống ngẫu nhiên cố định nên hai lần chạy cho cùng thứ tự.
 
-\inproj{Frontier có 5 hàng đợi ưu tiên ở tầng trước và 128 hàng đợi theo host ở tầng sau, theo thiết kế Mercator \cite{heydon1999mercator}. Khoảng chờ lịch sự là 1000~ms.}
+\vidu Trang \code{.vn} sâu $d=3$ có 5 backlink được mức $3-1-1=1$. Trong 100 lần lấy URL:
+\begin{center}\footnotesize
+\begin{tabular}{@{}lccccc@{}}
+\toprule
+Mức & 0 & 1 & 2 & 3 & 4 \\
+\midrule
+Ưu tiên tuyệt đối & 100 & 0 & 0 & 0 & 0 \\
+Bốc theo trọng số & 51,6 & 25,8 & 12,9 & 6,5 & 3,2 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Cách thứ nhất không bao giờ chạm tới mức 1 chừng nào mức 0 còn URL. Cách thứ hai ưu tiên mức 0 nhưng mức 4 vẫn được lấy trung bình 3,2 lần.
 
-\subsection{Bloom filter: ``URL này gặp rồi chưa?''}
-Các trang báo liên kết chéo nhau rất dày, nên một URL xuất hiện nhiều lần. Lưu mọi URL đã gặp trong một bảng băm tốn hàng trăm MB khi crawl lớn. Bloom filter \cite{bloom1970} trả lời cùng câu hỏi bằng một mảng $m$ bit và $k$ hàm băm.
+\dpt Thêm $O(1)$, lấy $O(5)$. Heap theo điểm tốn $O(\log n)$ cho cả hai và vẫn đói.
 
-Để thêm URL $x$, bật $k$ bit $g_0(x),\dots,g_{k-1}(x)$ lên 1. Để kiểm tra $x$, xem $k$ bit đó. Nếu có một bit bằng 0 thì chắc chắn $x$ chưa từng được thêm. Nếu cả $k$ bit đều bằng 1 thì $x$ \emph{có lẽ} đã được thêm, vì các URL khác có thể đã tình cờ bật đúng những bit này.
+\dsa{Min-heap theo thời điểm sẵn sàng}{BackQueues, MinHeap}
+\vande Crawler có 32 luồng, và quy tắc lịch sự đòi mỗi host cách nhau ít nhất 1 giây. Không kiềm lại thì cả 32 luồng có thể cùng đập vào một trang báo.
 
-Sau khi thêm $n$ phần tử, xác suất một phần tử mới bị báo nhầm là đã có (\emph{dương tính giả}) xấp xỉ
-\begin{equation}
-p\approx\big(1-e^{-kn/m}\big)^{k}.
-\label{eq:bloomfp}
-\end{equation}
-Giải ngược công thức này cho kích thước và số hàm băm tốt nhất ứng với một $p$ mong muốn:
-\begin{equation}
-m=\Big\lceil-\frac{n\ln p}{(\ln 2)^2}\Big\rceil,\qquad k=\operatorname{round}\Big(\frac{m}{n}\ln 2\Big).
-\label{eq:bloom}
-\end{equation}
+\cu Quét mọi host ở mỗi lần lấy URL để tìm host đã hết thời gian chờ, tốn $O(D)$ với $D$ là số host.
 
-\textbf{Ví dụ.} Với $n=200.000$ URL và $p=1\%$: $m=1.917.012$ bit, khoảng 234~KB, và $k=7$. Thay ngược vào \eqref{eq:bloomfp} được $p\approx1{,}004\%$. Cũng chừng ấy URL trong một bảng băm sẽ tốn hàng chục MB.
+\cachgiai Tầng sau có 128 hàng đợi, mỗi hàng chỉ chứa URL của một host \cite{heydon1999mercator}, và bảng băm \code{hostToQueue} ánh xạ host sang hàng. Các hàng nằm trong min-heap theo thời điểm sẵn sàng kế tiếp. Chỉ cần nhìn gốc: gốc chưa tới giờ thì không hàng nào tới giờ. Lấy xong một URL, khóa cộng 1000~ms rồi chèn lại.
 
-Tính bảy hàm băm độc lập là lãng phí. Hai giá trị băm gốc $h_1,h_2$ là đủ \cite{kirsch2006}:
-\begin{equation}
-g_i(x)=\big(h_1(x)+i\,h_2(x)\big)\bmod m.
-\label{eq:dhash}
-\end{equation}
+Heap cài trên mảng \cite{cormen2009}: con của $i$ ở $2i+1$, $2i+2$. \code{siftUp}, \code{siftDown} dùng ``lỗ trống'': giữ phần tử cần dời trong biến tạm, kéo các phần tử trên đường đi vào lỗ rồi gán một lần, nên mỗi bước 1 phép gán thay vì 3 của \code{swap}. Bất biến: chỉ sửa khóa của một hàng khi nó đang ngoài heap, vì sửa khóa phần tử trong heap làm sai thứ tự mà không báo lỗi.
 
-\idea{Ở đây, một lần dương tính giả nghĩa là crawler bỏ qua một trang nó chưa từng thăm. Bloom filter không bao giờ mắc lỗi theo chiều ngược lại, nên không có trang nào bị tải hai lần vì nó.}
-
-Một bài báo thường có nhiều bản dưới các URL khác nhau (bản in, bản AMP, bản có tham số theo dõi). Bộ lọc URL không nhận ra được điều này, nên crawler còn băm thân bài bằng SHA-256 và bỏ những thân bài đã gặp.
-
-\inproj{\code{BloomFilter} dùng FNV-1a cho $h_1$. Mỗi URL đi qua bảy tầng lọc, tầng rẻ chạy trước: luật URL, Bloom filter, \code{robots.txt}, chặn địa chỉ nội bộ (chống SSRF), tải trang, ngôn ngữ, băm thân bài.}
-
-%====================================================================
-\section{Biến văn bản thành term}
-\label{sec:text}
-%====================================================================
-Chỉ mục lưu \emph{term}, nên mọi trang và mọi truy vấn phải được cắt thành term theo đúng một cách. Nếu trang ghi \code{máy\_tính} còn truy vấn lại thành \code{máy} + \code{tính} thì hai bên sẽ không bao giờ khớp nhau.
-
-\subsection{Chuẩn hóa}
-Trước khi cắt, văn bản được đổi sang chữ thường và chuẩn hóa Unicode, để một chữ có dấu dựng sẵn và cùng chữ đó ghép từ dấu rời trông giống hệt nhau. Với gợi ý tìm kiếm, bỏ dấu cũng có ích: người dùng gõ ``ha noi'' vẫn tìm thấy ``hà nội''.
-
-\subsection{Vì sao tiếng Việt cần tách từ}
-Trong tiếng Anh, dấu cách ngăn các từ. Trong tiếng Việt, dấu cách ngăn các \emph{âm tiết}, và một từ có thể có từ một đến bốn âm tiết. ``Nhà hàng xóm'' là \code{nhà} + \code{hàng\_xóm}. Cách tham lam, luôn lấy từ dài nhất có trong từ điển tại vị trí hiện tại, sẽ đọc \code{nhà\_hàng} trước và còn lại \code{xóm}. Nó không quay lại sửa được lựa chọn đó.
-
-\subsection{Tách từ là bài toán tìm đường đi}
-Gán cho mỗi từ trong từ điển một điểm $w$. Từ phổ biến và dài nên có điểm cao. Một công thức dùng được, lấy từ dữ liệu của \code{coccoc-tokenizer} \cite{coccoctokenizer}, dựa trên tần suất $f$ của từ và số âm tiết $L$ của nó:
-\begin{equation}
-w(f,L)=\big(\log_2(f+3)\big)^{a_L}\cdot L^{\,b_L},
-\label{eq:wordweight}
-\end{equation}
-với các hằng số $a_L,b_L$ được khớp riêng cho từng độ dài. Logarit ngăn một từ xuất hiện hai tỉ lần lấn át mọi từ khác.
-
-Bây giờ đặt một đỉnh vào giữa mỗi cặp âm tiết, đánh số từ $0$ đến $n$. Mỗi từ trong từ điển phủ các âm tiết $i$ đến $j-1$ trở thành một cạnh $i\to j$ có trọng số $w$. Một cách tách là một đường đi từ $0$ tới $n$, và ta cần đường có tổng trọng số lớn nhất. Gọi $\text{best}[j]$ là tổng tốt nhất cho $j$ âm tiết đầu:
-\begin{equation}
-\text{best}[0]=0,\quad
-\text{best}[j]=\max_{\,j-4\le i<j}\big(\text{best}[i]+w(s_i\dots s_{j-1})\big).
-\label{eq:dp}
-\end{equation}
-Mọi cạnh đều đi về phía trước, nên một lượt quét từ trái sang phải là điền xong bảng. Từ dài nhất có bốn âm tiết, nên mỗi bước chỉ nhìn lùi tối đa bốn ô, và cả câu tốn $O(n)$.
+\vidu Năm host có thời điểm sẵn sàng \code{vne}=100, \code{tt}=250, \code{dt}=400, \code{cafef}=600, \code{zing}=900 ms (Hình~\ref{fig:heap}). Tại $t=100$ ta lấy URL của \code{vne}, đặt khóa $1100$ rồi chèn lại, và gốc mới là \code{tt}=250. Cách quét phải nhìn đủ $D$ host mỗi lần; với 128 hàng là 128 phép so sánh, còn heap chỉ sàng khoảng $\log_2 128=7$ bước.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[font=\scriptsize,
-  nd/.style={circle,draw=linkblue,thick,inner sep=1pt,minimum size=6mm},
+  hn/.style={circle,draw=linkblue,thick,minimum size=6.5mm,inner sep=0pt,align=center,font=\tiny},
+  ac/.style={draw=linkblue,minimum width=6mm,minimum height=4.5mm,inner sep=0pt,font=\tiny}]
+\node[hn,fill=linkblue!25] (r) at (0,0) {vne\\100};
+\node[hn] (a) at (-1,-0.95) {tt\\250};
+\node[hn] (b) at (1,-0.95) {dt\\400};
+\node[hn] (c) at (-1.5,-1.9) {zing\\900};
+\node[hn] (d) at (-0.5,-1.9) {cafef\\600};
+\draw (r)--(a); \draw (r)--(b); \draw (a)--(c); \draw (a)--(d);
+\foreach \i/\t in {0/100,1/250,2/400,3/900,4/600}
+  \node[ac] at (2.3+\i*0.62,-0.95) {\t};
+\node[font=\tiny,gray] at (3.5,-0.45) {mảng, chỉ số 0 đến 4};
+\end{tikzpicture}
+\caption{Min-heap host theo thời điểm sẵn sàng (ms).}
+\label{fig:heap}
+\end{figure}
+
+\dpt Xem gốc $O(1)$, chèn và lấy gốc $O(\log n)$, dựng heap bằng Floyd heapify $O(n)$.
+
+\dsa{Bloom filter}{BloomFilter, UrlSeenFilter}
+\vande Trang báo liên kết chéo dày đặc nên cùng một URL được rút ra nhiều lần. Cần biết ``URL này gặp rồi chưa'' cho hàng trăm nghìn URL.
+
+\cu \code{HashSet<String>} lưu nguyên chuỗi URL, với 200.000 URL tốn hàng chục MB.
+
+\cachgiai Bloom filter \cite{bloom1970} là mảng $m$ bit (\code{long[]} cùng phép dịch bit) và $k$ hàm băm. Thêm $x$ thì bật $k$ bit $g_i(x)$. Có một bit 0 thì chắc chắn chưa gặp; đủ $k$ bit 1 thì có lẽ đã gặp. Từ số URL dự kiến $n$ và tỉ lệ báo nhầm $p$:
+\begin{equation}
+m=\Big\lceil-\frac{n\ln p}{(\ln 2)^2}\Big\rceil,\qquad k=\operatorname{round}\Big(\frac{m}{n}\ln 2\Big).
+\label{eq:bloom}
+\end{equation}
+Chỉ hai hàm băm thật được tính (FNV-1a và một hàm đa thức); phần còn lại là $g_i(x)=(h_1(x)+i\,h_2(x))\bmod m$ \cite{kirsch2006}. Báo nhầm ``đã gặp'' chỉ bỏ sót một trang, còn báo nhầm ``chưa gặp'' không xảy ra vì \code{add} chỉ bật bit. Phép \code{bits[i] |= mask} không nguyên tử, nên \code{UrlSeenFilter} bọc ``kiểm tra rồi ghi nhận'' trong \code{synchronized}; thiếu khóa này hai luồng có thể làm mất một phép ghi và sinh ra báo nhầm ``chưa gặp''.
+
+\vidu Với $n=200.000$ và $p=1\%$, công thức cho $m\approx1{,}9$ triệu bit (234~KB) và $k=7$, nhỏ hơn \code{HashSet} cỡ hai bậc độ lớn. Đổi lại, trong 10.000 URL mới khoảng 100 URL bị báo nhầm là đã gặp và bị bỏ qua.
+
+\dpt Thêm và kiểm tra $O(k)$. Bộ nhớ $O(m)$ bit, không phụ thuộc độ dài URL.
+
+\dsa{Bảng băm vân tay nội dung}{ContentSeenFilter}
+\vande Hai URL khác nhau vẫn có thể trả về cùng một bài: bài nằm ở hai chuyên mục, bản in, bản AMP, URL kèm tham số theo dõi.
+
+\cu Bloom filter theo URL coi chúng là hai URL lạ nên cho qua cả hai, và kết quả tìm kiếm hiện bài đó nhiều lần.
+
+\cachgiai Đổi thân bài sang chữ thường, gộp khoảng trắng, băm SHA-256 rồi tra trong tập băm. Mỗi trang tốn 64 ký tự hex dù dài bao nhiêu.
+
+\vidu \code{vnexpress.net/bai-1} và \code{vnexpress.net/bai-1.amp} là hai chuỗi khác nhau nên Bloom cho cả hai qua. Thân bài giống nhau sau chuẩn hóa, ra cùng một vân tay 64 ký tự, nên bản thứ hai bị loại. Không có bước này, bài xuất hiện hai lần trong chỉ mục.
+
+\dpt Băm $O(L)$ với văn bản dài $L$, tra tập $O(1)$. Đây là trùng chính xác: khác một ký tự là hai vân tay khác nhau.
+
+\dsa{LRU cache}{LRUCache, DnsResolver}
+\vande Mỗi URL cần phân giải tên miền ra IP, mà hàng nghìn URL dùng chung vài host.
+
+\cu Hỏi DNS ở mỗi URL là lãng phí. Bộ nhớ đệm FIFO thì đuổi host vào sớm nhất dù nó đang được dùng liên tục.
+
+\cachgiai Giữ kết quả của 1.000 host dùng gần nhất, đầy thì bỏ host lâu không dùng nhất. Cấu trúc gồm bảng băm (khóa $\to$ nút) và danh sách liên kết đôi tự viết với hai nút lính canh \code{head}, \code{tail}: nút sau \code{head} mới dùng nhất, nút trước \code{tail} sắp bị bỏ. Danh sách phải liên kết đôi để gỡ nút ở giữa trong $O(1)$ mà không duyệt từ đầu. \code{get} cũng dời nút lên đầu, tức là ghi, nên phải lấy khóa ghi.
+
+\vidu Giả sử sức chứa 3 và dãy truy cập \code{vne}, \code{tt}, \code{vne}, \code{dt}, \code{zing}. Sau ba lần đầu danh sách (mới $\to$ cũ) là $[\code{vne},\code{tt}]$ với \code{vne} vừa được dời lên đầu. Thêm \code{dt}, rồi \code{zing} làm đầy và đuổi \code{tt}, host lâu không dùng. FIFO sẽ đuổi \code{vne}, host nóng nhất, buộc phải hỏi DNS lại. Trên 10.000 URL thuộc 5 host, LRU chỉ tra 5 lần thay vì 10.000.
+
+\dpt \code{get}, \code{put} đều $O(1)$. Lớp này dùng lại ở Chương~2 để giữ kết quả tìm kiếm.
+
+\begin{table}[H]
+\centering
+\caption{Tóm tắt Chương 1.}
+\label{tab:c1}
+\footnotesize
+\begin{tabular}{@{}p{2.0cm}p{3.3cm}l@{}}
+\toprule
+Cấu trúc & Giải quyết & Chi phí \\
+\midrule
+Hàng đợi FIFO theo mức & tải trang quan trọng trước, không bỏ đói & $O(1)$ \\
+Min-heap & host nào được gửi request tiếp & $O(\log n)$ \\
+Bảng băm & host $\to$ hàng đợi & $O(1)$ \\
+Bloom filter & URL đã gặp chưa & $O(k)$ \\
+Bảng băm SHA-256 & nội dung trùng & $O(L)$ \\
+LRU cache & nhớ kết quả DNS & $O(1)$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+\subsection*{So sánh các phương án}
+Mỗi bài toán của chương có nhiều lời giải đã được dùng thật. Hai bảng dưới liệt kê các cách phổ biến, cách đồ án chọn in đậm và đánh dấu $\checkmark$; $n$ là số phần tử, $D$ số host, $L$ độ dài văn bản, $k$ số hàm băm.
+
+\begin{table*}[!t]
+\centering
+\caption{So sánh các phương án cho hàng đợi URL và quy tắc lịch sự theo host.}
+\label{tab:cmp1a}
+\footnotesize
+\begin{tabular}{@{}p{1.9cm}p{3.0cm}p{3.0cm}p{3.5cm}p{3.7cm}c@{}}
+\toprule
+Bài toán & Cách & Chi phí & Ưu & Nhược & Chọn? \\
+\midrule
+Xếp hàng ưu tiên URL
+& Một hàng đợi FIFO & thêm, lấy $O(1)$ & đơn giản nhất, duyệt đúng theo chiều rộng & không biết trang nào đáng tải trước & \\
+& Heap ưu tiên theo điểm & thêm, lấy $O(\log n)$ & luôn lấy được URL điểm cao nhất & chậm hơn, mức thấp bị đói vì URL nông sinh ra liên tục & \\
+& \textbf{Nhiều hàng FIFO theo mức, bộ chọn có trọng số (kiểu Mercator \cite{heydon1999mercator}): 5 hàng, trọng số $2^{4-i}$} & thêm $O(1)$, lấy $O(5)$ & rẻ, không bỏ đói, mức 0 nhận 51,6\% lượt, tái lập được với hạt giống cố định & chỉ ưu tiên tương đối, mức do heuristic tự đặt & $\checkmark$ \\
+\midrule
+Lịch sự theo host
+& Quét mọi host mỗi lần lấy & $O(D)$ mỗi lần lấy & không cần cấu trúc phụ & 128 phép so sánh mỗi lần, tăng theo số host & \\
+& Một \code{sleep} chung giữa hai request & $O(1)$ & một dòng mã & làm chậm cả các host khác nhau, lãng phí 32 luồng & \\
+& Hàng đợi theo thời điểm sẵn sàng của từng host, sắp bằng cây cân bằng (\code{TreeMap}) & $O(\log D)$ & có sẵn trong thư viện, duyệt theo thứ tự được & thêm nút đối tượng, hằng số lớn hơn mảng, không tự cài đặt & \\
+& \textbf{Min-heap trên mảng, nhìn gốc} \cite{cormen2009} & xem gốc $O(1)$, chèn và lấy $O(\log D)$ & chỉ cần nhìn gốc, bộ nhớ liền, tự cài đặt được & sửa khóa khi đang trong heap làm hỏng thứ tự & $\checkmark$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\begin{table*}[!t]
+\centering
+\caption{So sánh các phương án cho URL đã gặp, nội dung trùng và bộ nhớ đệm DNS.}
+\label{tab:cmp1b}
+\footnotesize
+\begin{tabular}{@{}p{1.9cm}p{3.0cm}p{3.0cm}p{3.5cm}p{3.7cm}c@{}}
+\toprule
+Bài toán & Cách & Chi phí & Ưu & Nhược & Chọn? \\
+\midrule
+URL đã gặp chưa
+& \code{HashSet<String>} & $O(1)$ kỳ vọng; bộ nhớ theo tổng độ dài URL & chính xác, không báo nhầm & 200.000 URL tốn hàng chục MB & \\
+& Cơ sở dữ liệu hoặc B-tree trên đĩa & $O(\log n)$ & chính xác, vượt được bộ nhớ, bền vững & mỗi lần kiểm tra là một truy cập đĩa, chậm cho 32 luồng & \\
+& \textbf{Bloom filter} \cite{bloom1970,kirsch2006} & $O(k)$; $O(m)$ bit & 234~KB cho 200.000 URL, không báo nhầm ``chưa gặp'' & có báo nhầm ``đã gặp'' (khoảng 1\%), không xóa được & $\checkmark$ \\
+& Cuckoo filter & $O(1)$ kỳ vọng & xóa được, thường gọn hơn Bloom khi $p$ nhỏ & chèn có thể phải di chuyển nhiều lần và thất bại khi đầy, cài đặt phức tạp hơn & \\
+& Quotient filter & $O(1)$ kỳ vọng & xóa và gộp được, truy cập bộ nhớ liền & cài đặt khó, hiệu năng giảm khi gần đầy & \\
+\midrule
+Nội dung trùng
+& \textbf{SHA-256 chính xác, tra trong tập băm} & băm $O(L)$, tra $O(1)$ & vân tay cố định 64 ký tự hex, loại đúng bản AMP, bản in & khác một ký tự là hai vân tay khác nhau & $\checkmark$ \\
+& So sánh nguyên văn từng cặp & $O(nL)$ mỗi trang mới & không sai sót & không dùng được khi $n$ tăng & \\
+& SimHash & $O(L)$ tính, so Hamming $O(1)$ trên 64 bit & bắt cả gần trùng (bài sửa vài chữ) & cần ngưỡng khoảng cách và chỉ mục tìm gần đúng, có thể loại nhầm & \\
+& MinHash với LSH & $O(L\cdot h)$ cho $h$ hàm băm & ước lượng được độ giống Jaccard & chữ ký lớn hơn, phải chọn $h$ và dải băm & \\
+\midrule
+Bộ nhớ đệm DNS
+& Không đệm & một lần tra mỗi URL & không cần trạng thái & 10.000 lần tra cho 5 host & \\
+& FIFO & $O(1)$ & rất đơn giản & đuổi host nóng nhất nếu nó vào sớm & \\
+& TTL & $O(1)$ cộng việc quét hạn & khớp với hạn hiệu lực thật của bản ghi & không giới hạn kích thước, phải có thêm cách đuổi & \\
+& LFU & $O(1)$ nếu cài kỹ & giữ host dùng nhiều lâu dài & host từng nóng nhưng đã nguội chiếm chỗ mãi & \\
+& ARC & $O(1)$ & tự cân bằng giữa mới dùng và dùng nhiều & bốn danh sách, cài đặt phức tạp & \\
+& \textbf{LRU: bảng băm cùng danh sách liên kết đôi} & \code{get}, \code{put} $O(1)$ & đơn giản, tự cài đặt đủ, dùng lại ở Chương~2 & một lượt quét lớn có thể đẩy host nóng ra & $\checkmark$ \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\textit{Xếp hàng ưu tiên.} Với 5.000 trang, hàng đợi FIFO đơn cũng chạy được, nhưng nó tải theo thứ tự gặp chứ không theo độ quan trọng. Heap theo điểm đúng hơn về ý nghĩa mà đói các mức dưới, vì mỗi trang tải về sinh thêm nhiều URL nông. Năm hàng FIFO với trọng số $2^{4-i}$ giữ chi phí $O(1)$ và cho mức 4 vẫn nhận 3,2 lần trong 100. Khi có tín hiệu tốt hơn độ sâu và backlink, chẳng hạn điểm liên kết tính ngoại tuyến, heap theo điểm đáng dùng hơn.
+
+\textit{Lịch sự theo host.} Cả ba cách đều sửa được lỗi dồn request vào một host, nhưng quét toàn bộ tốn $O(D)$ và \code{sleep} chung làm mất tính song song của 32 luồng. \code{TreeMap} và min-heap cùng $O(\log D)$; heap thắng vì chỉ cần gốc, nằm trên mảng, và cho phép môn học đo trực tiếp \code{siftUp}, \code{siftDown}. Ở quy mô 128 hàng khác biệt thời gian là không đáng kể, nên lý do chọn là sự rõ ràng của cấu trúc.
+
+\textit{URL đã gặp.} \code{HashSet} chính xác và đủ dùng ở 200.000 URL nếu máy có vài chục MB trống, nhưng Bloom filter chỉ cần 234~KB và đây là cách duy nhất ở đây có thể giải thích bằng công thức \eqref{eq:bloom}. Cái giá là khoảng 1\% báo nhầm ``đã gặp'', chỉ làm bỏ sót vài trang. Nếu cần xóa URL (ví dụ để tải lại trang đã đổi), Bloom filter không làm được, và Cuckoo filter hay quotient filter là lựa chọn đúng. Khi tập URL vượt bộ nhớ, B-tree hoặc cơ sở dữ liệu thành bắt buộc.
+
+\textit{Nội dung trùng.} Cái cần loại ở đây là bản AMP, bản in, URL kèm tham số theo dõi: thân bài giống hệt sau chuẩn hóa, nên SHA-256 chính xác đủ và tra $O(1)$. SimHash chỉ đáng dùng khi muốn bắt cả bài đăng lại có sửa vài chữ; khi đó phải thêm chỉ mục tìm theo khoảng cách Hamming và chấp nhận loại nhầm. Đồ án không đo tỉ lệ gần trùng trên 5.000 trang nên không có cơ sở để trả giá đó.
+
+\textit{Bộ nhớ đệm DNS.} Truy cập DNS tập trung vào vài host nóng, đúng kiểu LRU xử lý tốt: 10.000 URL thuộc 5 host chỉ tốn 5 lần tra. LFU hay ARC chỉ tốt hơn khi mẫu truy cập thay đổi theo thời gian hoặc có quét dài, điều chưa xảy ra với dung lượng 1.000 host. TTL không thay thế được LRU mà bổ sung cho nó: nếu chạy lâu ngày, bản ghi DNS hết hạn và cần thêm kiểm tra thời gian.
+\section{Chỉ mục đảo và truy vấn}
+\label{sec:index}
+Chương này biến trang đã tải thành chỉ mục rồi dùng chỉ mục để tìm tài liệu khớp truy vấn. Trang và truy vấn phải được cắt thành từ theo cùng một cách, nếu không thì trang cho ra \code{máy\_tính} còn truy vấn cho ra \code{máy} + \code{tính} sẽ không bao giờ khớp.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize,node distance=4mm,
+  b/.style={pbox,text width=15mm,minimum height=9mm,font=\tiny},
+  bm/.style={pmine,text width=15mm,minimum height=9mm,font=\tiny}]
+\node[b] (a1) {Trang văn bản};
+\node[bm,right=of a1] (a2) {Tách từ\\\code{SyllableTrie}\\+ DP};
+\node[bm,right=of a2] (a3) {Chỉ mục nén\\\code{InvertedIndex}\\+ VByte};
+\node[b,below=7mm of a1] (b1) {Truy vấn};
+\node[bm,right=of b1] (b2) {Cây biểu thức\\\code{QueryNode}};
+\node[bm,right=of b2] (b3) {Giao posting\\hai con trỏ,\\galloping};
+\node[b,right=of b3] (b4) {Ứng viên};
+\draw[parr] (a1)--(a2); \draw[parr] (a2)--(a3);
+\draw[parr] (b1)--(b2); \draw[parr] (b2)--(b3); \draw[parr] (b3)--(b4);
+\draw[parr,dashed] (a3.south) -- ++(0,-3.5mm) -| (b3.north);
+\draw[parr,dashed] (a2.south) -- ++(0,-2.5mm) -| (b1.north);
+\end{tikzpicture}
+\caption{Dòng dữ liệu của Chương 2. Hàng trên dựng chỉ mục, hàng dưới trả lời truy vấn. Truy vấn cũng đi qua bộ tách từ ở hàng trên.}
+\label{fig:pipe2}
+\end{figure}
+
+\dsa{Trie theo âm tiết}{SyllableTrie}
+\vande Bộ tách từ liên tục hỏi dãy âm tiết $s_i\dots s_j$ có phải một từ trong từ điển không.
+
+\cu Ghép âm tiết thành chuỗi rồi tra \code{HashSet}. Mỗi vị trí sinh ba chuỗi tạm rồi bỏ, khoảng 15 triệu lần cấp phát trên 5 triệu âm tiết của kho.
+
+\cachgiai Trie mà mỗi cạnh là một âm tiết, đi từ nút hiện tại theo âm tiết kế tiếp mà không cấp phát gì. Bốn độ dài 1 đến 4 được kiểm tra trong một lượt đi, và gặp nút không có cạnh thì dừng vì không từ nào dài hơn bắt đầu từ đây. Trie lưu bằng mảng phẳng: nút là một \code{int}, mọi cạnh nằm trong một bảng băm địa chỉ mở với khóa \code{(nútCha << 32) | idÂmTiết}. Với 185.000 từ (khoảng 460.000 nút), cách này tránh 460.000 đối tượng \code{HashMap}.
+
+\vidu Từ điển có \code{nhà}, \code{nhà\_hàng}, \code{hàng}, \code{hàng\_xóm}. Tại vị trí 0 của ``nhà hàng xóm'', trie đi \code{nhà} (là từ), \code{hàng} (là từ \code{nhà\_hàng}), rồi \code{xóm} không có cạnh nên dừng: 3 bước, 0 chuỗi tạm. Cách cũ dựng ba chuỗi (``nhà'', ``nhà hàng'', ``nhà hàng xóm'') chỉ để tra rồi vứt.
+
+\dpt Tìm cạnh con $O(1)$ kỳ vọng; chèn từ $k$ âm tiết $O(k)$.
+
+\dsa{Quy hoạch động tách từ}{MaxWeightSegmenter}
+\vande Tiếng Việt dùng dấu cách giữa các âm tiết chứ không giữa các từ, nên phải chọn chỗ cắt.
+
+\cu Tham lam: lấy từ dài nhất ở mỗi vị trí và không quay lại. ``Nhà hàng xóm'' bị tách thành \code{nhà\_hàng} + \code{xóm}, trong khi đúng là \code{nhà} + \code{hàng\_xóm}.
+
+\cachgiai Đặt các đỉnh $0..n$ giữa các âm tiết. Mỗi từ trong từ điển phủ âm tiết $i$ đến $j-1$ là một cạnh $i\to j$ với trọng số tính từ tần suất \cite{coccoctokenizer}. Cần đường đi tổng trọng số lớn nhất trên DAG:
+\begin{equation}
+\text{best}[j]=\max_{\,j-4\le i<j}\big(\text{best}[i]+w(s_i\dots s_{j-1})\big),\quad \text{best}[0]=0.
+\label{eq:dp}
+\end{equation}
+Các đỉnh đã có thứ tự tô-pô nên một lượt quét trái sang phải là đủ, mảng \code{trace} lưu lựa chọn thắng để lần ngược. Tên riêng không có trong từ điển đi qua cạnh dự phòng trọng số $0{,}5$.
+
+\vidu Hình~\ref{fig:dag} cho ``nhà hàng xóm''. Tham lam đi $0\to2\to3$ được $9{,}59+3{,}46=13{,}05$ và cho kết quả sai. DP so hai đường vào đỉnh 3 và chọn $3{,}69+9{,}44=13{,}13$, đúng cách tách.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize,
+  nd/.style={circle,draw=linkblue,thick,inner sep=1pt,minimum size=5mm},
   lv/.style={font=\tiny,midway,fill=white,inner sep=0.8pt}]
 \node[nd] (n0) at (0,0) {0};
-\node[nd] (n1) at (2.4,0) {1};
-\node[nd] (n2) at (4.8,0) {2};
-\node[nd,fill=linkblue!25] (n3) at (7.2,0) {3};
+\node[nd] (n1) at (2.3,0) {1};
+\node[nd] (n2) at (4.6,0) {2};
+\node[nd,fill=linkblue!25] (n3) at (6.9,0) {3};
 \draw[parr] (n0)--node[lv]{nhà $3{,}69$} (n1);
 \draw[parr] (n1)--node[lv]{hàng $4{,}12$} (n2);
 \draw[parr] (n2)--node[lv]{xóm $3{,}46$} (n3);
 \draw[parr] (n0) to[bend left=38] node[lv]{nhà\_hàng $9{,}59$} (n2);
 \draw[parr,very thick,linkblue] (n1) to[bend right=38] node[lv]{hàng\_xóm $9{,}44$} (n3);
 \end{tikzpicture}
-\caption{Đồ thị tách từ của ``nhà hàng xóm''. Đường tốt nhất $0\to1\to3$ có tổng $3{,}69+9{,}44=13{,}13$, lớn hơn $9{,}59+3{,}46=13{,}05$ của đường tham lam.}
+\caption{$\text{best}[3]=\max(9{,}59+3{,}46;\ 3{,}69+9{,}44)=13{,}13$. Đường đậm $0\to1\to3$ thắng đường tham lam.}
 \label{fig:dag}
 \end{figure}
 
-\textbf{Ví dụ.} Với Hình~\ref{fig:dag}: $\text{best}[1]=3{,}69$, $\text{best}[2]=\max(3{,}69+4{,}12;\ 0+9{,}59)=9{,}59$, và $\text{best}[3]=\max(9{,}59+3{,}46;\ 3{,}69+9{,}44)=13{,}13$. Lần ngược theo các lựa chọn thắng được các điểm cắt $0,1,3$, tức là \code{nhà} và \code{hàng\_xóm}.
+\dpt $O(n)$ cho câu $n$ âm tiết, vì mỗi ô chỉ nhìn lùi tối đa 4 ô.
 
-Tên riêng và từ mượn không có trong từ điển. Thêm một cạnh dự phòng trọng số $0{,}5$ từ mỗi đỉnh sang đỉnh kế bảo đảm luôn có đường đi. Vì $0{,}5$ thấp hơn mọi từ thật, cạnh dự phòng chỉ được dùng khi không còn cách nào khác.
+\dsa{Chỉ mục đảo}{InvertedIndex}
+\vande Tìm các trang chứa một từ trong 5.011 trang.
 
-\inproj{Từ điển nằm trong một \code{SyllableTrie}: mỗi cạnh là nguyên một âm tiết. Nếu một nút không có cạnh cho âm tiết kế tiếp thì không từ nào đi tiếp theo hướng đó, và việc tìm dừng sớm. Truy vấn và tài liệu đi qua cùng một lớp tách từ.}
+\cu Quét lần lượt cả 5.011 trang cho mỗi truy vấn, chi phí tỉ lệ với kích thước kho.
 
-%====================================================================
-\section{Chỉ mục đảo}
-\label{sec:index}
-%====================================================================
-Phần mục lục cuối sách liệt kê, với mỗi chủ đề, những trang có nhắc tới nó. Chỉ mục đảo làm điều tương tự cho term: mỗi term trỏ tới một \emph{posting list}, là danh sách đã sắp xếp các mã tài liệu chứa term đó. Mỗi posting có thể lưu thêm các vị trí của term trong tài liệu, phục vụ truy vấn cụm từ. Số vị trí đúng bằng $tf_{t,d}$, nên tần suất term có sẵn mà không phải lưu riêng.
+\cachgiai Bảng băm \code{term} $\to$ posting list, là danh sách các tài liệu chứa term, mỗi phần tử gồm mã tài liệu và các vị trí của term trong đó. Mỗi term được lưu thêm dạng không dấu nên ``may tinh'' vẫn ra ``máy tính''. Posting list luôn tăng dần theo mã tài liệu. Điều này có sẵn mà không cần sắp xếp, vì tài liệu được thêm theo mã tăng dần và chỉ nối vào cuối; lớp ném ngoại lệ nếu bị gọi sai thứ tự. Nhờ đó tra tần suất của term trong một tài liệu là một phép tìm nhị phân.
+
+\vidu Trong Hình~\ref{fig:inverted}, truy vấn \code{hàng\_xóm} tra bảng băm một lần và nhận ngay $[5,31]$, tức 2 tài liệu. Cách quét phải đọc 5.011 trang để ra cùng kết quả.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[font=\scriptsize,
-  cell/.style={draw=linkblue,minimum height=5mm,minimum width=11mm,inner sep=1pt},
-  term/.style={cell,fill=linkblue!20,minimum width=17mm}]
+  cell/.style={draw=linkblue,minimum height=4.5mm,minimum width=9mm,inner sep=1pt},
+  term/.style={cell,fill=linkblue!20,minimum width=16mm}]
 \node[term] (t1) at (0,0) {\code{máy\_tính}};
-\node[term] (t2) at (0,-0.75) {\code{hàng\_xóm}};
-\node[term] (t3) at (0,-1.5) {\code{công\_nghệ}};
+\node[term] (t2) at (0,-0.65) {\code{hàng\_xóm}};
+\node[term] (t3) at (0,-1.3) {\code{công\_nghệ}};
 \foreach \i/\d in {0/2,1/5,2/9,3/14}
-  \node[cell] (a\i) at (2.2+\i*1.15,0) {\d};
+  \node[cell] (a\i) at (2.1+\i*0.95,0) {\d};
 \foreach \i/\d in {0/5,1/31}
-  \node[cell] (b\i) at (2.2+\i*1.15,-0.75) {\d};
+  \node[cell] (b\i) at (2.1+\i*0.95,-0.65) {\d};
 \foreach \i/\d in {0/2,1/3,2/9,3/14}
-  \node[cell] (c\i) at (2.2+\i*1.15,-1.5) {\d};
+  \node[cell] (c\i) at (2.1+\i*0.95,-1.3) {\d};
 \draw[parr] (t1)--(a0); \draw[parr] (t2)--(b0); \draw[parr] (t3)--(c0);
-\node[font=\tiny,gray] at (0,0.5) {từ điển term};
-\node[font=\tiny,gray] at (3.9,0.5) {posting list (mã tài liệu tăng dần)};
+\node[font=\tiny,gray] at (0,0.45) {bảng băm term};
+\node[font=\tiny,gray] at (3.9,0.45) {posting list (mã tài liệu tăng dần)};
 \end{tikzpicture}
-\caption{Chỉ mục đảo. Mỗi term trỏ tới danh sách mã các tài liệu chứa nó, sắp tăng dần.}
+\caption{Chỉ mục đảo.}
 \label{fig:inverted}
 \end{figure}
 
-Việc giữ danh sách luôn được sắp là nền cho mọi bước sau: nó cho phép nén bằng hiệu số, tìm nhị phân trong một danh sách, và giao hai danh sách trong thời gian tuyến tính.
+\dpt Thêm tài liệu $L$ token $O(L)$; lấy posting list $O(1)$; tra tần suất $O(\log n)$.
 
-\subsection{Vì sao danh sách nén được}
-Tần suất từ tuân theo định luật Zipf: từ phổ biến thứ $r$ xuất hiện với tần suất xấp xỉ tỉ lệ với $1/r$ \cite{manning2008ir}. Vài term có mặt ở gần như mọi tài liệu và có danh sách rất dài. Trong một danh sách dài đã sắp, khoảng cách giữa hai mã liền nhau nhỏ, và số nhỏ thì ghi được bằng ít byte hơn.
+\dsa{Kho chuỗi dùng chung (Flyweight)}{TermDictionary}
+\vande Kho có 136.768 term phân biệt, nhưng mỗi lần gặp một term bộ tách từ lại tạo một \code{String} mới.
 
-\subsection{Mã delta}
-Lưu mã đầu tiên, rồi lưu khoảng cách tới mã kế tiếp. Dãy $1002,\,1005,\,1009$ thành $1002,\,3,\,4$. Cộng dồn sẽ khôi phục được dãy gốc.
+\cu Giữ nguyên các chuỗi đó: khoảng 7 triệu đối tượng, phần lớn là bản sao của nhau.
 
-\subsection{Mã VByte}
-Một số \code{int} thường luôn tốn 4 byte. VByte ghi 7 bit của số vào mỗi byte, bắt đầu từ các bit thấp. Bit cao nhất của mỗi byte cho biết còn byte tiếp theo (1) hay đây là byte cuối (0). Một số $x$ được ghi bằng các byte mang phần dữ liệu $b_0,b_1,\dots$ có giá trị
-\begin{equation}
-x=\sum_{i} b_i\cdot 128^{\,i}.
-\label{eq:vbytesum}
-\end{equation}
+\cachgiai Một bảng băm ánh xạ nội dung chuỗi sang đúng một bản. Gặp chuỗi đã có thì trả về bản cũ và bản mới thành rác, nên bộ nhớ chuỗi tỉ lệ với số term phân biệt thay vì số lần xuất hiện.
 
-\textbf{Ví dụ.} $300=2\cdot128+44$. Phần thấp là $44=0101100_2$; vì còn byte sau nên byte đầu là $1\,0101100_2=\code{0xAC}$. Phần cao là $2$ và là phần cuối, nên byte thứ hai là $0\,0000010_2=\code{0x02}$. Hai byte thay vì bốn. Mọi khoảng cách nhỏ hơn 128 chỉ tốn một byte.
+\vidu Nếu \code{máy\_tính} xuất hiện 1.000 lần, cách cũ giữ 1.000 \code{String} còn Flyweight giữ 1. Cộng trên cả kho, 7 triệu đối tượng còn 136.768.
 
-\idea{Mã delta làm cho các số nhỏ lại, còn VByte làm cho số nhỏ được ghi ngắn. Dùng riêng từng bước thì lợi rất ít.}
+\dpt $O(L)$ mỗi lần tra (băm chuỗi dài $L$).
 
-Danh sách của mỗi term được nén riêng, nên một truy vấn chỉ giải nén vài danh sách nó cần. Nén cả file chỉ mục bằng GZIP sẽ ép thêm được một chút, nhưng khi đó muốn đọc một term phải giải nén toàn bộ.
+\dsa{Nén posting list: delta và VByte}{VByteCodec, CompressedPostings}
+\vande Chỉ mục phải đủ nhỏ để giữ trong bộ nhớ.
 
-\inproj{Trên corpus 5.011 tài liệu với 1.594.938 posting, các danh sách giảm từ 28,1~MB (mảng số nguyên thô) xuống 7,0~MB, tức còn 25\%. \code{TermDictionary} giữ một bản duy nhất cho mỗi chuỗi term (mẫu Flyweight \cite{gamma1994design}).}
+\cu Lưu mỗi mã tài liệu bằng một \code{int} 4 byte làm chỉ mục to 28,1~MB.
 
-%====================================================================
-\section{Tìm các tài liệu khớp truy vấn}
-\label{sec:query}
-%====================================================================
+\cachgiai Hai bước. Delta: vì danh sách đã sắp, lưu hiệu giữa hai phần tử liền nhau thay cho giá trị. VByte: ghi mỗi số bằng ít byte nhất, 7 bit dữ liệu mỗi byte, bit cao bằng 1 nếu còn byte sau, nên số dưới 128 tốn 1 byte. Trường tần suất được bỏ vì luôn bằng số vị trí. Số vị trí của từng posting không tăng dần, nên được đổi thành tổng tích lũy để dùng chung một bộ mã: $[3,1,2,5]\to[0,3,4,6,11]$.
 
-\subsection{Truy vấn Boolean}
-Mô hình đơn giản nhất coi truy vấn là một biểu thức tập hợp. \code{a b} nghĩa là ``tài liệu chứa cả hai'' (AND, phép giao), \code{a OR b} là phép hợp, còn \code{-a} loại các tài liệu chứa \code{a}. Bộ phân tích cú pháp biến chuỗi truy vấn thành một cây, mỗi nút tự tính tập mã tài liệu của mình. Nút \code{NOT} không bao giờ được tính một mình, vì phần bù của một danh sách gần như là cả kho. Máy tìm kiếm tính phần dương trước rồi mới trừ đi.
+\vidu Danh sách $[3,17,19,40]$ thành $[3,14,2,21]$, bốn số đều dưới 128 nên mỗi số 1 byte, tổng 4 byte thay cho 16 byte của \code{int}. Số $300=2\cdot128+44$ ghi thành hai byte \code{0xAC 0x02}, trong khi \code{int} luôn tốn 4. Term \code{công\_nghệ} có 1.639 tài liệu trên 5.011, khoảng cách trung bình chừng 3, nên mỗi mã chỉ tốn 1 byte. Trên cả kho, chỉ mục giảm từ 28,1~MB xuống 7,0~MB (còn 25\%).
 
-\subsection{Giao hai danh sách đã sắp}
-Đi trên hai danh sách, mỗi danh sách một con trỏ. Nếu hai mã bằng nhau thì ghi nhận và tiến cả hai. Nếu không thì tiến con trỏ đang ở mã nhỏ hơn. Mỗi bước tiến ít nhất một con trỏ, nên chi phí là $O(m+n)$.
+\dpt Mã hóa và giải mã $O(\text{số byte})$. Mỗi term nén riêng nên truy vấn chỉ giải nén các danh sách nó cần.
+\dsa{Cây biểu thức truy vấn}{QueryParser, QueryNode}
+\vande Người dùng gõ \code{a b} (AND), \code{a OR b}, \code{-a} (NOT), \code{"cụm từ"} và \code{site:}, nên truy vấn cần một dạng biểu diễn có cấu trúc.
 
-\textbf{Ví dụ.} $A=[2,5,9,14]$ và $B=[3,5,14,20]$. So $2<3$, tiến $A$; $5>3$, tiến $B$; $5=5$, ghi 5; $9<14$, tiến $A$; $14=14$, ghi 14; $A$ hết. Kết quả: $[5,14]$.
+\cu Xem truy vấn như một dãy term rồi giao hết. Cách này không biểu diễn được OR, và nếu tính \code{-a} riêng thì phần bù gần như là cả kho (5.010 trong 5.011 tài liệu với một term hiếm).
 
-\subsection{Nhảy cóc khi một danh sách ngắn}
-Nếu $A$ có 10 mã còn $B$ có một triệu, cách hai con trỏ mất gần hết thời gian để bước qua $B$. Thao tác \code{skipTo}$(t)$ nhảy tới mã đầu tiên $\ge t$ trong hai pha. Pha một nhảy $1,2,4,8,\dots$ vị trí cho tới khi vượt qua $t$ (tìm kiếm phi nước đại). Pha hai tìm nhị phân trong bước nhảy cuối. Nếu đích nằm cách $\Delta$ vị trí, chi phí là $O(\log\Delta)$ thay vì $O(\Delta)$.
+\cachgiai Bộ phân tích dựng một cây theo mẫu Composite. Lá là term hoặc cụm từ, nút trong là AND, OR, NOT, và mỗi nút trả về danh sách mã tài liệu đã sắp. Nút NOT không bao giờ được tính một mình: hệ thống tính phần dương trước rồi trừ đi.
 
-Khi truy vấn có nhiều term, sắp các danh sách theo độ dài rồi giao từ ngắn tới dài. Kết quả trung gian chỉ có thể nhỏ đi, nên các bước sau rẻ, và vòng lặp dừng ngay khi kết quả rỗng.
+\vidu Truy vấn \code{a b -c} với $a=[1,3,5,8]$, $b=[3,5,8,9]$, $c=[5]$ cho cây AND$(a,b,\text{NOT }c)$. Phần dương $a\cap b=[3,5,8]$, trừ $c$ còn $[3,8]$. Cách lấy phần bù của $c$ trước phải dựng một danh sách khoảng 5.010 mã rồi mới giao.
 
-\subsection{Truy vấn cụm từ}
-Với \code{"điện thoại giá rẻ"}, máy tìm kiếm giao danh sách của hai term trước, rồi kiểm tra vị trí trong từng tài liệu ứng viên. Cụm từ khớp nếu có một vị trí $p$ của term đầu sao cho term thứ $i$ của cụm nằm ở vị trí $p+i$. Mảng vị trí đã sắp, nên mỗi lần kiểm tra là một phép tìm nhị phân.
+\dpt Phân tích $O(L)$ với $L$ là độ dài truy vấn.
 
-\inproj{Khi một truy vấn dài không khớp tài liệu nào với phép AND, \code{CandidateResolver} lùi về phép AND trên các tập con của term, để người dùng vẫn có kết quả. Tập ứng viên bị cắt ở một trần trước khi xếp hạng.}
+\dsa{Giao và hợp bằng hai con trỏ}{PostingListMerger}
+\vande Truy vấn \code{a b} cần các tài liệu có mặt trong cả hai posting list.
 
-%====================================================================
-\section{Xếp hạng: tài liệu nào tốt nhất}
-\label{sec:rank}
-%====================================================================
-Bước truy xuất cho ra một tập hợp, còn người dùng cần một danh sách có thứ tự. Hàm xếp hạng gán cho mỗi ứng viên một con số và danh sách được sắp theo số đó. Hàm xếp hạng tốt thường thỏa ba nhận xét thông thường: tài liệu lặp lại từ trong truy vấn nhiều khả năng nói về nó; từ hiếm cho nhiều thông tin hơn từ phổ biến; và tài liệu dài thì tình cờ nhắc tới nhiều từ.
+\cu Đưa một danh sách vào \code{HashSet} rồi \code{retainAll}. Trên hai danh sách 500.000 phần tử, cách này mất 27~ms vì phải dựng tập và truy cập bộ nhớ rời rạc.
 
-\subsection{TF-IDF và mô hình không gian vector}
-Coi mỗi tài liệu và truy vấn là một vector, mỗi term một tọa độ \cite{salton1988}. Trọng số của term $t$ trong tài liệu $d$ là tích của hai thừa số:
-\begin{equation}
-w_{t,d}=\underbrace{\big(1+\log_{10}tf_{t,d}\big)}_{\text{tần suất term}}\cdot\underbrace{\log_{10}\frac{N}{df_t}}_{\text{nghịch đảo tần suất tài liệu}}.
-\label{eq:tfidf}
-\end{equation}
-Thừa số đầu tăng chậm: $tf=1,2,10,50$ cho $1;\ 1{,}30;\ 2;\ 2{,}70$. Thừa số sau thưởng cho term hiếm. Với $N=1000$, term nằm trong 10 tài liệu được $\log_{10}100=2$, còn term có mặt ở mọi tài liệu được $\log_{10}1=0$ và không còn đóng góp gì.
+\cachgiai Mỗi danh sách một con trỏ. Hai mã bằng nhau thì ghi lại và tiến cả hai, khác nhau thì tiến con trỏ đang ở mã nhỏ hơn. Phép hợp làm tương tự bước trộn của merge sort. Vì không dựng cấu trúc trung gian và đọc tuần tự, cùng bộ dữ liệu trên chỉ mất khoảng 10~ms.
 
-Hai vector cùng hướng khi góc giữa chúng nhỏ, nên điểm là cosine của góc đó:
-\begin{equation}
-\text{score}(q,d)=\frac{\sum_{t\in q}w_{t,q}\,w_{t,d}}{\lVert q\rVert\cdot\lVert d\rVert}.
-\label{eq:cosine}
-\end{equation}
-Mẫu số xóa lợi thế mà tài liệu dài lẽ ra sẽ có.
+\vidu $A=[2,5,9,14]$, $B=[3,5,14,20]$.
+\begin{center}
+\footnotesize
+\begin{tabular}{@{}cccl@{}}
+\toprule
+$A_i$ & $B_j$ & so sánh & hành động \\
+\midrule
+2 & 3 & $<$ & tiến $A$ \\
+5 & 3 & $>$ & tiến $B$ \\
+5 & 5 & $=$ & ghi 5, tiến cả hai \\
+9 & 14 & $<$ & tiến $A$ \\
+14 & 14 & $=$ & ghi 14 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Kết quả $[5,14]$ sau 5 lần so sánh, mỗi phần tử được đọc một lần. Cách \code{HashSet} cũng ra $[5,14]$ nhưng phải băm cả 4 phần tử của một danh sách trước.
 
-\inproj{Tổng chỉ chạy trên các term của truy vấn. Tính đúng $\lVert d\rVert$ cần mọi term của $d$, nên mã nguồn dùng $\sqrt{|d|}$ làm giá trị xấp xỉ.}
+\dpt $O(m+n)$.
 
-\subsection{BM25}
-BM25 \cite{robertson2009bm25} đến từ một mô hình xác suất và sửa hai điểm yếu của TF-IDF. Tần suất term bão hòa ở một mức trần, và độ dài tài liệu được so với độ dài trung bình:
-\begin{equation}
-\text{score}(q,d)=\sum_{t\in q}\text{idf}_t\cdot
-\frac{tf_{t,d}\,(k_1+1)}{tf_{t,d}+k_1\Big(1-b+b\,\frac{|d|}{\overline{|d|}}\Big)},
-\label{eq:bm25}
-\end{equation}
-\begin{equation}
-\text{idf}_t=\ln\Big(1+\frac{N-df_t+0{,}5}{df_t+0{,}5}\Big).
-\label{eq:bm25idf}
-\end{equation}
-Hai tham số rất dễ hiểu. $k_1$ quyết định việc lặp từ hết có lợi nhanh tới đâu: khi $tf$ tăng, phân số tiến tới $k_1+1$ và không bao giờ vượt quá. $b$ quyết định độ dài quan trọng tới đâu: $b=0$ bỏ qua độ dài, $b=1$ chia hẳn cho độ dài tương đối.
+\dsa{Galloping search}{ArrayPostingCursor}
+\vande Giao danh sách 5 phần tử với danh sách 4.000 phần tử.
+
+\cu Hai con trỏ vẫn đi qua gần hết danh sách dài, tức khoảng 4.005 bước dù chỉ có 5 ứng viên.
+
+\cachgiai \code{skipTo}$(t)$ tìm phần tử đầu tiên $\ge t$ trong hai pha. Pha một nhảy $1,2,4,8,\dots$ ô cho tới khi vượt $t$. Pha hai tìm nhị phân trong đoạn vừa bao. Nhảy xa $d$ ô tốn $O(\log d)$. Với nhiều term, giao từ danh sách ngắn nhất trước, vì kết quả trung gian chỉ có thể nhỏ đi.
+
+\vidu Danh sách dài có 4.000 mã, mã bằng chỉ số, và ứng viên là $t=3000$. Hai con trỏ bước 3.000 lần. Galloping nhảy $1,2,\dots,2048$ rồi gặp biên (13 lần thăm), sau đó tìm nhị phân trong khoảng $[2048,4000)$ khoảng 11 lần, cộng lại cỡ 24 phép so sánh. Với cả 5 ứng viên, tổng chỉ khoảng 48 bước thay vì 4.005.
+
+Truy vấn cụm từ dùng thêm vị trí. Sau khi giao, mỗi tài liệu được kiểm tra xem có vị trí $p$ sao cho term thứ $i$ nằm ở $p+i$, mỗi lần kiểm tra là một phép tìm nhị phân trên mảng vị trí. Khi phép AND của một truy vấn dài ra rỗng, \code{CandidateResolver} bỏ dần các term ít thông tin nhất rồi giao lại, để người dùng vẫn có kết quả.
+
+\dpt $O(m\log(n/m))$ cho cả phép giao.
+
+\dsa{Trie gợi ý từ khóa}{Trie, SuggestionService}
+\vande Người dùng gõ ``hà n'' thì ô tìm kiếm phải gợi ý ngay ``hà nội'' và ``hà nam''.
+
+\cu Quét toàn bộ danh sách từ khóa và so tiền tố từng chuỗi, tốn $O(N\cdot L)$ cho mỗi phím gõ.
+
+\cachgiai Trie theo ký tự, trong đó các chuỗi chung tiền tố đi chung đường. Đi theo tiền tố tới nút của nó, duyệt DFS cây con để gom các từ, rồi lấy $k$ từ phổ biến nhất bằng min-heap cỡ $k$ (xem Chương~3). Mỗi gợi ý được chèn hai lần, có dấu và không dấu, nên gõ ``ha n'' cũng ra. Đọc gợi ý chỉ cần khóa đọc nên nhiều luồng đọc chạy song song được.
+
+\vidu Kho có \code{hà nội} (90 lượt), \code{hà nam} (40), \code{hà giang} (25), \code{hải phòng} (60). Gõ ``hà n'' thì đi 4 ký tự tới nút \code{n}, cây con chỉ có hai từ, trả về \code{hà nội}, \code{hà nam} theo thứ tự lượt. Cách quét phải so cả 4 chuỗi, và trên kho lớn thì so toàn bộ.
+
+\dpt Chèn $O(L)$; gợi ý $O(L+m\log k)$ với $m$ là số từ trong cây con.
+
+\dsa{LRU cache kết quả tìm kiếm}{SearchEngineFacade}
+\vande Truy vấn phổ biến được gõ lặp lại nhiều lần.
+
+\cu Chạy lại toàn bộ phân tích, giao danh sách và xếp hạng cho mỗi lần gõ, dù chỉ mục không đổi.
+
+\cachgiai Dùng lại \code{LRUCache} của Chương~1 với sức chứa 200 truy vấn. Cache được tạo lại mỗi khi chỉ mục thay đổi, nên không bao giờ trả kết quả cũ.
+
+\vidu Với sức chứa 2 và chuỗi truy vấn $q_1,q_2,q_1,q_3,q_2$: $q_1$, $q_2$ trượt; $q_1$ trúng; $q_3$ trượt và đẩy $q_2$ ra; $q_2$ trượt lại. Có 1 lần trúng trong 5, lần trúng đó bỏ qua trọn đường truy vấn. Không cache thì cả 5 lần đều chạy đủ.
+
+\dpt $O(1)$ khi trúng cache.
 
 \begin{table}[H]
 \centering
-\caption{Thừa số tần suất của BM25 với $k_1=1{,}2$, $b=0{,}75$ và độ dài trung bình 200. Việc lặp từ bão hòa dần, và cùng một $tf$ có giá trị thấp hơn trong tài liệu dài hơn.}
-\label{tab:bm25}
+\caption{Tóm tắt Chương 2.}
+\label{tab:c2}
 \footnotesize
-\begin{tabular}{@{}rrrr@{}}
+\begin{tabular}{@{}p{2.1cm}p{3.2cm}l@{}}
 \toprule
-$tf$ & $|d|=100$ & $|d|=200$ & $|d|=400$ \\
+Cấu trúc / thuật toán & Giải quyết & Chi phí \\
 \midrule
-1 & $1{,}26$ & $1{,}00$ & $0{,}71$ \\
-3 & $1{,}76$ & $1{,}57$ & $1{,}29$ \\
-10 & $2{,}05$ & $1{,}96$ & $1{,}82$ \\
-50 & $2{,}17$ & $2{,}15$ & $2{,}11$ \\
+Trie âm tiết & tra từ điển khi tách từ & $O(1)$/bước \\
+Quy hoạch động & tách từ đúng & $O(n)$ \\
+Chỉ mục đảo & từ $\to$ tài liệu & $O(1)$ \\
+Tìm nhị phân & tần suất, vị trí & $O(\log n)$ \\
+Flyweight & chuỗi term trùng & $O(L)$ \\
+Delta + VByte & chỉ mục quá lớn & $O(\text{byte})$ \\
+Cây biểu thức & AND, OR, NOT & $O(L)$ \\
+Hai con trỏ & giao, hợp danh sách & $O(m+n)$ \\
+Galloping & giao ngắn với dài & $O(m\log\frac{n}{m})$ \\
+Trie ký tự & gợi ý từ khóa & $O(L+m\log k)$ \\
+LRU cache & truy vấn lặp lại & $O(1)$ \\
 \bottomrule
 \end{tabular}
 \end{table}
+\subsection*{So sánh các phương án}
+Mỗi bài toán của chương có nhiều cách giải phổ biến. Các bảng dưới đây xếp chúng cạnh nhau theo chi phí, ưu và nhược; cách đồ án chọn được đánh dấu $\checkmark$ và in đậm. Chi phí là độ phức tạp chuẩn hoặc số đã đo ở các mục trên.
 
-\textbf{Ví dụ.} $N=1000$, $df_t=10$: $\text{idf}_t=\ln(1+990{,}5/10{,}5)=4{,}56$. Một tài liệu có độ dài trung bình với $tf=3$ được $4{,}56\times1{,}57=7{,}16$ điểm cho term này. Tăng từ 10 lên 50 lần lặp chỉ thêm khoảng 10\% (Bảng~\ref{tab:bm25}), nên nhồi từ khóa vào trang được lợi rất ít.
+\begin{table*}[!t]
+\centering
+\caption{So sánh các cách tra từ điển và tách từ.}
+\label{tab:cmp2a}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{4.1cm}c@{}}
+\toprule
+Bài toán & Cách & Chi phí & Ưu & Nhược & Chọn? \\
+\midrule
+Tra từ điển khi tách từ
+& \code{HashSet} chuỗi ghép & $O(L)$ mỗi lần tra, $L$ là độ dài chuỗi ghép & Ngắn gọn, dùng ngay thư viện chuẩn & Mỗi vị trí sinh chuỗi tạm, khoảng 15 triệu lần cấp phát trên kho 5 triệu âm tiết & \\
+& Trie với \code{HashMap} đối tượng ở mỗi nút & $O(1)$ kỳ vọng mỗi bước & Không ghép chuỗi, dừng sớm khi hết cạnh & Mỗi nút một đối tượng, khoảng 460.000 \code{HashMap} cho 185.000 từ & \\
+& \textbf{Trie mảng phẳng, bảng băm địa chỉ mở} & $O(1)$ kỳ vọng mỗi bước & Không cấp phát khi tra, ít đối tượng, dễ tự cài đặt & Phải dựng bảng băm đủ lớn; không nén hậu tố chung & $\checkmark$ \\
+& Double-array trie & $O(1)$ mỗi bước, hai lần đọc mảng & Tra rất nhanh, bộ nhớ gọn & Dựng và chèn thêm từ phức tạp, chèn có thể phải dời nhiều ô & \\
+& DAWG, FST & $O(L)$ theo độ dài khóa & Gộp cả tiền tố lẫn hậu tố chung nên nhỏ nhất & Dựng phức tạp, thường phải dựng từ danh sách đã sắp, khó cập nhật & \\
+\midrule
+Tách từ tiếng Việt
+& Tham lam, lấy từ dài nhất & $O(n)$ & Đơn giản, không cần trọng số & Không quay lại: ``nhà hàng xóm'' thành \code{nhà\_hàng} + \code{xóm} & \\
+& Maximum matching hai chiều & $O(n)$, hai lượt quét & Bắt được một số lỗi của một chiều & Vẫn là heuristic; khi hai chiều khác nhau phải thêm luật chọn & \\
+& \textbf{Quy hoạch động trọng số} & $O(n)$, mỗi ô nhìn lùi tối đa 4 ô & Tối ưu cả câu theo tổng trọng số; chỉ cần từ điển và tần suất, không cần dữ liệu gán nhãn & Chất lượng phụ thuộc trọng số; từ ngoài từ điển chỉ có cạnh dự phòng & $\checkmark$ \\
+& CRF, HMM & Tuyến tính theo độ dài câu, nhân với bình phương số nhãn khi giải mã Viterbi & Học được ngữ cảnh, xử lý tốt từ lạ & Cần kho gán nhãn và bước huấn luyện, mô hình lớn hơn từ điển & \\
+& Mô hình nơ-ron (PhoBERT, VnCoreNLP) & Một lượt suy luận qua mạng cho mỗi câu & Độ chính xác tách từ cao nhất trong các cách & Cần dữ liệu huấn luyện, chậm hơn nhiều, phụ thuộc thư viện ngoài, không hợp với bộ tách từ Java tự cài đặt & \\
+\bottomrule
+\end{tabular}
+\end{table*}
 
-\inproj{$k_1=1{,}2$, $b=0{,}75$, là giá trị mặc định thông dụng. TF-IDF và BM25 cùng cài đặt giao diện \code{RelevanceScorer} (mẫu Strategy), và \code{APP\_RANKING\_SCORER} chọn một trong hai lúc khởi động. Giá trị idf được tính một lần cho mỗi truy vấn, không tính lại cho từng tài liệu.}
+\emph{Tra từ điển.} Từ điển có 185.000 từ, nhỏ để nằm trọn trong bộ nhớ, nên điểm nghẽn là cấp phát chứ không phải dung lượng. Trie mảng phẳng bỏ được cả chuỗi tạm lẫn 460.000 đối tượng \code{HashMap} mà vẫn chỉ cần một bảng băm. Double-array nhanh hơn một chút khi tra nhưng phải trả bằng thuật toán dựng phức tạp, không đáng với từ điển nạp một lần. DAWG hoặc FST đáng dùng khi từ điển lên hàng chục triệu mục và dung lượng là ràng buộc chính.
 
-\subsection{PageRank: uy tín từ liên kết}
-Các từ cho biết trang có \emph{nói về} truy vấn hay không. Các liên kết cho biết những trang khác có tin nó hay không. PageRank \cite{brin1998} hình dung một người lướt web ngẫu nhiên: ở mỗi bước, với xác suất $\delta$ người đó bấm một liên kết bất kỳ trên trang hiện tại, còn với xác suất $1-\delta$ thì nhảy tới một trang ngẫu nhiên. PageRank của một trang là tỉ lệ thời gian về lâu dài người đó ở trên trang ấy:
+\emph{Tách từ.} Quy hoạch động sửa đúng lỗi của cách tham lam (13,13 so với 13,05 ở ví dụ) mà vẫn $O(n)$ và không cần kho gán nhãn, chỉ cần tần suất từ \cite{coccoctokenizer}. Maximum matching hai chiều rẻ nhưng vẫn là phỏng đoán. CRF và đặc biệt mô hình nơ-ron cho độ chính xác tốt hơn khi có dữ liệu huấn luyện và đủ tài nguyên tính toán; đồ án không có hai thứ đó và bộ tách từ phải chạy nhanh trên 5 triệu âm tiết, nên mức chính xác cao nhất nằm ngoài phạm vi.
+
+\begin{table*}[!t]
+\centering
+\caption{So sánh cấu trúc chỉ mục và các cách nén posting list.}
+\label{tab:cmp2b}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{4.1cm}c@{}}
+\toprule
+Bài toán & Cách & Chi phí & Ưu & Nhược & Chọn? \\
+\midrule
+Cấu trúc chỉ mục
+& Quét tuần tự cả kho & Tỉ lệ với kích thước kho, 5.011 trang mỗi truy vấn & Không tốn bộ nhớ thêm, không cần dựng & Chậm tăng theo kho, không dùng được khi kho lớn & \\
+& Ma trận term-document & $O(1)$ mỗi ô; khoảng 685 triệu ô ($136.768\times5.011$) & Tra trực tiếp, dễ viết biểu thức AND, OR & Gần như toàn số 0, quá lớn so với dữ liệu thật & \\
+& \textbf{Chỉ mục đảo} & $O(1)$ lấy posting list & Chỉ lưu các ô khác 0, giao danh sách đã sắp rất nhanh & Phải dựng trước; cập nhật chen giữa tốn kém nên đồ án chỉ nối thêm cuối & $\checkmark$ \\
+& Suffix array, n-gram index & Tìm chuỗi con $O(m\log n)$ với suffix array & Tìm được chuỗi con bất kỳ, không cần tách từ & Chỉ mục lớn hơn nhiều lần văn bản; không cho sẵn khái niệm từ và posting & \\
+\midrule
+Nén posting list
+& Không nén, \code{int} 4 byte & $O(1)$ mỗi số, 28,1~MB & Nhanh và đơn giản nhất & Tốn nhất, 4 byte cho cả số rất nhỏ & \\
+& \textbf{Delta + VByte} & $O(\text{số byte})$, 7,0~MB & Rất ngắn để cài đặt, số nhỏ chỉ 1 byte & Giải mã từng byte có rẽ nhánh; ít gọn hơn các mã đóng gói bit & $\checkmark$ \\
+& Simple9, Simple16 & $O(1)$ mỗi từ 32 bit chứa nhiều số & Nén tốt hơn VByte, giải mã nhanh & Phức tạp hơn, giới hạn giá trị tối đa trong mỗi từ & \\
+& PForDelta & Khối cố định, giải mã theo vòng lặp phẳng & Rất nhanh, nén tốt trên danh sách dài & Cần khối lớn nên không hợp danh sách ngắn; phải xử lý ngoại lệ riêng & \\
+& Elias gamma, delta & $O(\text{số bit})$ & Không cần tham số, gọn khi số nhỏ & Giải mã từng bit, chậm hơn mã theo byte & \\
+& Roaring bitmap & AND, OR trên khối $2^{16}$ & Hợp danh sách dày, giao bằng phép bit & Tốn hơn khi danh sách thưa; cài đặt nhiều loại khối & \\
+& SIMD-BP128 & Giải mã cả khối 128 số bằng lệnh vector & Nhanh nhất, nén tốt & Cần lệnh SIMD (Vector API hoặc mã gốc), khó cài đặt tay & \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\emph{Cấu trúc chỉ mục.} Chỉ mục đảo là lựa chọn mặc định của máy tìm kiếm vì chỉ lưu các cặp (term, tài liệu) thật sự có. Ma trận term-document cần khoảng 685 triệu ô cho kho này, còn quét tuần tự đọc lại 5.011 trang mỗi truy vấn. Suffix array chỉ đáng dùng khi cần khớp chuỗi con bất kỳ, điều mà tìm kiếm theo từ không đòi hỏi.
+
+\emph{Nén posting.} Delta kèm VByte đưa chỉ mục từ 28,1~MB xuống 7,0~MB chỉ bằng vài chục dòng Java, và vẫn giải mã được theo từng term. Ở 5.011 tài liệu, khoảng cách trung bình nhỏ nên VByte đã gần mức nén cần thiết; mức nén thêm không đáng với độ phức tạp. Ở hàng trăm triệu hay hàng tỷ tài liệu thì khác: PForDelta, SIMD-BP128 và Roaring nén tốt hơn và giải mã nhanh hơn rõ rệt, và khi đó chúng là lựa chọn đúng.
+
+\begin{table*}[!t]
+\centering
+\caption{So sánh các cách giao danh sách, cache kết quả và gợi ý từ khóa.}
+\label{tab:cmp2c}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{3.1cm}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{3.9cm}>{\raggedright\arraybackslash}p{4.1cm}c@{}}
+\toprule
+Bài toán & Cách & Chi phí & Ưu & Nhược & Chọn? \\
+\midrule
+Giao danh sách posting
+& \code{HashSet} và \code{retainAll} & $O(m+n)$ kỳ vọng; 27~ms trên hai danh sách 500.000 & Ngắn gọn & Dựng tập, truy cập bộ nhớ rời rạc, chậm hơn hai con trỏ & \\
+& \textbf{Hai con trỏ} & $O(m+n)$; khoảng 10~ms trên cùng dữ liệu & Đọc tuần tự, không cấu trúc trung gian, cho luôn phép hợp & Đọc cả hai danh sách dù một bên rất ngắn & $\checkmark$ \\
+& Tìm nhị phân từng phần tử & $O(m\log n)$ & Tốt khi một danh sách rất ngắn & Không tận dụng vị trí tìm trước đó, kém khi hai danh sách cỡ nhau & \\
+& \textbf{Galloping} & $O(m\log(n/m))$ & Thích nghi cả hai trường hợp, nhanh khi lệch kích thước & Cài đặt nhiều bước hơn hai con trỏ & $\checkmark$ \\
+& Skip list, skip pointer & $O(m+n/s)$ với bước nhảy $s$ & Nhảy qua đoạn không khớp, hợp danh sách nén theo khối & Tốn thêm bộ nhớ cho con trỏ nhảy; phải chọn $s$ & \\
+& Bitmap AND & $O(N/64)$ với $N$ là số tài liệu & Giao và hợp bằng lệnh bit, rất nhanh khi danh sách dày & Kích thước theo $N$ chứ không theo độ dài danh sách, phí với term hiếm & \\
+& \textbf{SvS} (ngắn nhất trước) & Kết quả trung gian chỉ nhỏ đi & Giảm công việc cho truy vấn nhiều term & Cần biết độ dài mọi danh sách trước & $\checkmark$ \\
+\midrule
+Cache kết quả
+& \textbf{LRU} & $O(1)$ mỗi lần tra & Đơn giản, thích nghi với truy vấn gần đây & Một loạt truy vấn quét một lần có thể đẩy truy vấn phổ biến ra & $\checkmark$ \\
+& LFU & $O(1)$ khi cài đặt cẩn thận & Giữ truy vấn thường xuyên lâu dài & Mục từng phổ biến chiếm chỗ mãi nếu không có cơ chế giảm dần; cài đặt phức tạp hơn & \\
+& TTL & $O(1)$ cộng việc dọn mục hết hạn & Dùng được khi dữ liệu đổi mà không biết lúc nào & Phải chọn thời hạn; mục hết hạn có thể còn đúng, mục chưa hết có thể đã cũ & \\
+\midrule
+Gợi ý từ khóa
+& Quét tuyến tính so tiền tố & $O(N\cdot L)$ mỗi phím & Không cần cấu trúc phụ & Chậm tăng theo số từ khóa & \\
+& \textbf{Trie ký tự} & Gợi ý $O(L+m\log k)$ & Đi thẳng đến tiền tố, chèn dễ, đọc song song được & Tốn bộ nhớ hơn mảng chuỗi sắp & $\checkmark$ \\
+& Ternary search tree, FST & $O(L+\log\sigma)$ hoặc $O(L)$ & Ít bộ nhớ hơn trie; FST nhỏ nhất & Dựng hoặc cập nhật phức tạp hơn & \\
+& Chỉ mục n-gram & Tỉ lệ với số n-gram của truy vấn & Khớp được giữa chuỗi và lỗi gõ & Chỉ mục lớn, kết quả cần lọc lại & \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+\emph{Giao danh sách.} Hai con trỏ cho cùng kết quả với \code{HashSet} nhưng nhanh hơn khoảng 2,7 lần ở phép đo trên, nhờ đọc tuần tự. Khi hai danh sách lệch nhau, galloping chỉ nhảy qua đoạn không cần xét, còn SvS cho phép truy vấn nhiều term bắt đầu từ danh sách ngắn nhất. Bitmap AND sẽ thật sự cạnh tranh ở quy mô này, vì 5.011 tài liệu chỉ cần 79 từ 64 bit, nhưng chỉ mục đã nén theo VByte và phải giải nén rồi dựng bitmap cho mỗi term, nên đồ án giữ danh sách có thứ tự. Skip list đáng dùng khi danh sách nén theo khối và rất dài.
+
+\emph{Cache kết quả.} LRU đủ cho một máy với 200 truy vấn, và vì cache bị tạo lại mỗi khi chỉ mục đổi nên không cần TTL để chống kết quả cũ. LFU có lợi hơn khi phân bố truy vấn lệch mạnh và ổn định trong thời gian dài, điều đồ án chưa có số liệu để khẳng định.
+
+\emph{Gợi ý từ khóa.} Trie ký tự trả lời bằng cách đi theo tiền tố, không phụ thuộc số từ khóa toàn kho. Ternary search tree hoặc FST tiết kiệm bộ nhớ hơn khi danh sách gợi ý lên hàng triệu mục, còn chỉ mục n-gram cần khi muốn gợi ý chịu được lỗi gõ ở giữa từ.
+%====================================================================
+\section{Xếp hạng}
+\label{sec:rank}
+%====================================================================
+Chương 2 trả về một tập ứng viên. Chương này chấm điểm từng ứng viên, chọn 10 tài liệu tốt nhất và sinh đoạn trích cho chúng.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize,
+  rb/.style={pbox,text width=21mm,minimum height=9mm,inner sep=2pt}]
+\node[rb] (a) {ứng viên\\{\tiny posting list}};
+\node[rb,right=5mm of a] (b) {BM25\\{\tiny \code{BM25Scorer}}};
+\node[rb,right=5mm of b] (c) {$\times$ PageRank\\{\tiny ma trận CSR}};
+\node[rb,below=6mm of a] (d) {top-$K$\\{\tiny min-heap}};
+\node[rb,right=5mm of d] (e) {snippet\\{\tiny cửa sổ trượt}};
+\draw[parr] (a)--(b);
+\draw[parr] (b)--(c);
+\draw[parr] (c.south) |- ++(0,-0.3) -| (d.north);
+\draw[parr] (d)--(e);
+\end{tikzpicture}
+\caption{Luồng dữ liệu của Chương 3.}
+\label{fig:pipe3}
+\end{figure}
+
+\dsa{Chấm điểm BM25}{BM25Scorer}
+\vande Cần một con số cho biết tài liệu liên quan tới truy vấn tới đâu. Số liệu cần thiết đều có sẵn trong chỉ mục: $tf$ là số vị trí trong posting, $df$ là độ dài posting list, độ dài tài liệu được lưu kèm.
+
+\cu Cộng thẳng $tf$ thì tài liệu nhồi từ khóa thắng. Một trang lặp 300 lần từ \emph{hà nội} sẽ có điểm gấp 100 lần trang nhắc 3 lần.
+
+\cachgiai BM25 \cite{robertson2009bm25} cộng điểm từng term trong truy vấn:
 \begin{equation}
-PR(j)=\frac{1-\delta}{n}+\delta\Big(\sum_{i\to j}\frac{PR(i)}{\text{out}(i)}+\frac{1}{n}\sum_{i\in D}PR(i)\Big).
+\text{score}=\sum_{t\in q}\text{idf}_t\cdot
+\frac{tf\,(k_1+1)}{tf+k_1\big(1-b+b\,|d|/\overline{|d|}\big)}
+\label{eq:bm25}
+\end{equation}
+với $k_1=1{,}2$, $b=0{,}75$. Phân số không vượt quá $k_1+1$, nên nhồi từ khóa không có lợi. $\text{idf}_t$ chỉ tính một lần cho mỗi truy vấn. TF-IDF là chiến lược thay thế cùng giao diện \code{RelevanceScorer} (mẫu Strategy).
+
+\vidu Hai tài liệu có độ dài bằng trung bình, nên phần tử chuẩn hóa độ dài bằng 1 và phân số còn $2{,}2\,tf/(tf+1{,}2)$.
+\begin{center}\footnotesize
+\begin{tabular}{@{}lccc@{}}
+\toprule
+& $tf$ & cộng thẳng $tf$ & phân số BM25 \\
+\midrule
+Trang bình thường & 3 & 3 & 1,57 \\
+Trang nhồi từ khóa & 300 & 300 & 2,19 \\
+Tỉ lệ & & 100 lần & 1,4 lần \\
+\bottomrule
+\end{tabular}
+\end{center}
+Trang nhồi vẫn nhỉnh hơn một chút, nhưng không còn lấn át.
+
+\dpt $O(c\cdot q\cdot\log d)$ với $c$ ứng viên, $q$ term, và tìm nhị phân $tf$ trong posting list.
+
+\dsa{Ma trận thưa CSR}{SparseMatrix}
+\vande PageRank cần ma trận liên kết giữa các trang. Với 5.011 trang chỉ có 239.691 ô khác 0 (0,95\%).
+
+\cu Ma trận đặc \code{double[n][n]} cần $5011^2\times8$ byte $=191{,}5$~MB, gần như toàn số 0.
+
+\cachgiai Chỉ lưu ô khác 0, qua hai chế độ. Khi xây, mỗi hàng là một danh sách kề các cặp (cột, giá trị), vì lúc duyệt liên kết chưa biết trước số phần tử. Xây xong thì \code{freeze()} sang CSR gồm ba mảng phẳng: \code{values[nnz]} (giá trị khác 0, xếp theo hàng), \code{colIdx[nnz]} (cột của từng giá trị) và \code{rowPtr[n+1]} (hàng $i$ nằm ở đoạn $[\text{rowPtr}[i],\text{rowPtr}[i+1])$). Mỗi ô tốn 12 byte thay vì khoảng 32 byte của một đối tượng. Ma trận được lưu sẵn ở dạng chuyển vị, hàng $j$ là các trang trỏ tới $j$, nên phép nhân ra luôn $M^{T}\cdot PR$.
+
+\vidu Đồ thị 4 trang ở Hình~\ref{fig:prgraph} có 5 liên kết. Ma trận chuyển vị đặc có 16 ô, CSR chỉ giữ 5:
+\begin{center}\footnotesize
+\begin{tabular}{@{}ll@{}}
+\code{values} & [1, 0,5, 0,5, 1, 1] \\
+\code{colIdx} & [C, A, A, B, D] \\
+\code{rowPtr} & [0, 1, 2, 5, 5] \\
+\end{tabular}
+\end{center}
+Hàng C nằm ở đoạn $[2,5)$, tức A, B, D trỏ tới C với trọng số 0,5, 1 và 1. Hàng D rỗng ($5,5$). Với dữ liệu thật, 239.691 ô $\times$ 12 byte $\approx 2{,}9$~MB thay cho 191,5~MB, và chỉ 3 mảng thay vì 239.691 đối tượng.
+
+\dpt Thêm ô $O(1)$ khấu hao; \code{freeze} $O(\text{nnz})$; nhân ma trận với vector $O(\text{nnz})$.
+
+\dsa{PageRank bằng lặp lũy thừa}{PageRankService}
+\vande Trang được nhiều trang uy tín trỏ tới nên được đẩy lên cao, nhưng điểm của mỗi trang lại phụ thuộc điểm các trang khác.
+
+\cu Đếm số liên kết vào coi mọi liên kết như nhau, nên một liên kết từ trang rác bằng một liên kết từ trang uy tín.
+
+\cachgiai Công thức tự tham chiếu \cite{brin1998} được giải bằng cách lặp. Bắt đầu với $PR=1/n$ cho mọi trang, mỗi vòng nhân ma trận CSR với vector điểm:
+\begin{equation}
+PR(j)=\frac{1-\delta}{n}+\delta\Big(\sum_{i\to j}\frac{PR(i)}{\text{out}(i)}+\frac{\text{dangling}}{n}\Big),
 \label{eq:pagerank}
 \end{equation}
-Ở đây $n$ là số trang, $\text{out}(i)$ là số liên kết ra khỏi $i$, và $D$ là tập các trang không có liên kết ra. Điểm của các trang này được chia đều cho mọi trang, nếu không thì tổng điểm sẽ hao dần qua từng vòng. Tổng các giá trị luôn bằng 1.
+với $\delta=0{,}85$. Điểm của các trang không có liên kết ra (dangling) chia đều cho mọi trang, để tổng luôn bằng 1. Dừng khi tổng thay đổi nhỏ hơn $10^{-6}$ hoặc sau 100 vòng.
 
-Phương trình tự tham chiếu tới chính nó, nên được giải bằng \emph{lặp lũy thừa}: bắt đầu với $PR=1/n$ cho mọi trang, áp dụng \eqref{eq:pagerank} để được giá trị mới, và lặp lại tới khi thay đổi rất nhỏ.
+\vidu Đồ thị ở Hình~\ref{fig:prgraph}: C nhận 3 liên kết, A chỉ nhận 1. Đếm liên kết vào cho C gấp 3 lần A. Sau 28 vòng lặp, $A=0{,}373$ và $C=0{,}394$, gần bằng nhau vì liên kết duy nhất vào A đến từ C, một trang có điểm cao.
 
 \begin{figure}[H]
 \centering
@@ -436,157 +789,192 @@ Phương trình tự tham chiếu tới chính nó, nên được giải bằng 
 \draw[parr] (C) to[bend left=12] (A);
 \draw[parr] (D)--(C);
 \end{tikzpicture}
-\caption{Một web bốn trang. C nhận ba liên kết, D không nhận liên kết nào.}
+\caption{Sau 28 vòng: $A=0{,}373$, $B=0{,}196$, $C=0{,}394$, $D=0{,}038$.}
 \label{fig:prgraph}
 \end{figure}
 
-\textbf{Ví dụ.} Với Hình~\ref{fig:prgraph}, $\delta=0{,}85$, bắt đầu mỗi trang $0{,}25$. Sau một vòng, C có $0{,}0375+0{,}85(0{,}25/2+0{,}25+0{,}25)=0{,}569$, vì A chia cho C một nửa điểm, còn B và D cho toàn bộ. Sau 28 vòng các giá trị ổn định ở
-\[
-PR(A)=0{,}373;\ PR(B)=0{,}196;\ PR(C)=0{,}394;\ PR(D)=0{,}038.
-\]
-D chỉ nhận phần nhảy ngẫu nhiên $0{,}15/4$. A chỉ có một liên kết trỏ tới mà vẫn đứng gần bằng C, vì liên kết đó đến từ C, trang uy tín nhất.
+\dpt $O(\text{số vòng}\times(\text{nnz}+n))$. Ở đây khoảng 53 vòng trên cùng một ma trận, nên đổi sang CSR một lần là có lợi.
 
-\idea{Mỗi vòng là một phép nhân ma trận liên kết với vector điểm. Đồ thị web thưa (mỗi trang chỉ trỏ tới một phần rất nhỏ các trang khác), nên chỉ lưu các ô khác 0 thì mỗi vòng tốn $O(n+\text{nnz})$, với nnz là số liên kết.}
+\dsa{Ghép điểm bằng Decorator}{PageRankBoostScorer}
+\vande Cần kết hợp điểm liên quan với PageRank thành một điểm cuối.
 
-\inproj{$\delta=0{,}85$, dừng khi tổng thay đổi nhỏ hơn $10^{-6}$ hoặc sau 100 vòng. Với 5.011 trang, ma trận dày cần khoảng 191,5~MB, trong khi chỉ có 239.691 liên kết, được \code{SparseMatrix} lưu ở dạng CSR (ba mảng phẳng).}
+\cu Công thức cộng $0{,}6s+0{,}3PR$ hỏng vì hai đại lượng khác thang đo: điểm liên quan trung bình $0{,}178$ còn PageRank trung bình $0{,}00035$, nên PageRank chỉ đóng góp 0,1\%.
 
-\subsection{Ghép các tín hiệu}
-Điểm cuối ghép độ liên quan $s$ (TF-IDF hoặc BM25), PageRank và độ khớp tiêu đề. Cộng chúng với trọng số, kiểu $0{,}6s+0{,}3PR$, trông tự nhiên nhưng hỏng khi các đại lượng khác thang đo. Trong CocCoc Plus, điểm TF-IDF trung bình là $0{,}178$ còn PageRank trung bình là $0{,}00035$, nên PageRank chỉ đóng góp khoảng $0{,}1\%$ điểm cuối dù trọng số danh nghĩa là bao nhiêu. Cách an toàn hơn là nhân điểm cơ sở với một hệ số tăng:
-\begin{equation}
-s'=s\cdot\big(1+\beta\,\widehat{PR}\big),\qquad
-\widehat{PR}=\frac{\ln(1+PR/PR_{\min})}{\ln(1+PR_{\max}/PR_{\min})}.
-\label{eq:prboost}
-\end{equation}
-Logarit ép PageRank, vốn trải trên nhiều bậc độ lớn, về đoạn $[0,1]$. Với tiêu đề, gọi $\rho\in[0,1]$ là tỉ lệ âm tiết của truy vấn có mặt trong tiêu đề:
-\begin{equation}
-s''=s'\cdot(1+\gamma\,\rho).
-\label{eq:titleboost}
-\end{equation}
-Phép nhân có hai tính chất có ích. Hệ số tăng không phụ thuộc thang đo của $s$, nên đổi từ TF-IDF (điểm cỡ $0{,}18$) sang BM25 (cỡ 12) không cần chỉnh lại tham số. Và tài liệu có $s=0$ vẫn giữ điểm 0: uy tín không cứu được một trang không khớp truy vấn.
+\cachgiai Nhân điểm liên quan với hệ số tăng: $s'=s\,(1+0{,}3\,\widehat{PR})(1+0{,}1\,\rho)$, với $\widehat{PR}\in[0,1]$ là PageRank đã ép bằng logarit và $\rho$ là tỉ lệ âm tiết truy vấn có trong tiêu đề. Mỗi hệ số là một lớp bọc quanh \code{RelevanceScorer}, nên bật tắt từng tín hiệu được.
 
-\inproj{$\beta=0{,}3$, $\gamma=0{,}1$. Mỗi hệ số tăng là một lớp bọc quanh \code{RelevanceScorer} (mẫu Decorator), nên có thể tắt từng tín hiệu để đo ảnh hưởng của nó.}
+\vidu Hai tài liệu giả định, $\rho=0$. Tài liệu X có $s=0{,}20$, $PR=0{,}0004$, $\widehat{PR}=0{,}1$. Tài liệu Y có $s=0{,}18$, $PR=0{,}0100$, $\widehat{PR}=1$.
+\begin{center}\footnotesize
+\begin{tabular}{@{}lcc@{}}
+\toprule
+& X & Y \\
+\midrule
+Cộng: $0{,}6s+0{,}3PR$ & 0,1201 & 0,1110 \\
+Nhân: $s(1+0{,}3\widehat{PR})$ & 0,206 & 0,234 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Y có PageRank gấp 25 lần mà cách cộng vẫn xếp sau X, vì PageRank chỉ thêm $0{,}003$. Cách nhân đưa Y lên đầu.
 
-%====================================================================
-\section{Trả về mười kết quả đầu thật nhanh}
-\label{sec:topk}
-%====================================================================
+\dpt $O(1)$ mỗi ứng viên.
 
-\subsection{Top-$K$ bằng min-heap}
-Sắp xếp 30.000 ứng viên chỉ để hiện 10 là phí công. Giữ một min-heap cỡ $K$ chứa $K$ ứng viên tốt nhất đến lúc này; gốc của nó là ứng viên yếu nhất trong số đó. Với mỗi ứng viên mới, nếu điểm cao hơn gốc thì thay gốc và sửa lại heap. Chi phí là $O(n\log K)$ thời gian và $O(K)$ bộ nhớ, so với $O(n\log n)$ của sắp xếp toàn bộ. Với $n=30.000$ và $K=10$, đó là khoảng $30.000\cdot\log_2 10\approx 1{,}0\times10^5$ phép so sánh, so với $4{,}5\times10^5$. Heap của $K$ phần tử đầu có thể dựng trong $O(K)$ bằng \code{heapify}.
+\dsa{Top-$K$ bằng min-heap}{MinHeap.topK, ResultRanker}
+\vande Có tới 30.000 ứng viên nhưng chỉ hiển thị 10.
 
-\subsection{LRU cache}
-Các truy vấn phổ biến lặp lại nhiều lần. LRU cache (bỏ phần tử lâu không dùng nhất) giữ kết quả của $C$ truy vấn gần nhất và bỏ cái cũ nhất khi đầy. Nó ghép một bảng băm (tìm khóa trong $O(1)$) với một danh sách liên kết đôi (đưa một nút lên đầu hoặc bỏ nút cuối trong $O(1)$). Mỗi lần \code{get} đưa phần tử lên đầu, nên nút cuối luôn là phần tử lâu chưa được dùng nhất.
+\cu Sắp xếp toàn bộ tốn $O(n\log n)$, khoảng $4{,}5\times10^5$ phép so sánh, để rồi bỏ đi 29.990 phần tử.
 
-\inproj{Bộ đệm tìm kiếm giữ 200 truy vấn và được tạo lại mỗi khi chỉ mục thay đổi. Crawler dùng lại cùng lớp này với sức chứa 1.000 để nhớ kết quả phân giải DNS.}
+\cachgiai Giữ một min-heap cỡ $K$. Gốc là ứng viên yếu nhất trong top hiện tại, cũng là ngưỡng để lọt vào top. Ứng viên mới có điểm cao hơn gốc thì thay gốc rồi \code{siftDown}; thấp hơn thì bỏ qua. Cuối cùng lấy hết $K$ phần tử ra và đảo thứ tự.
 
-\subsection{Gợi ý tìm kiếm bằng trie}
-Trie lưu chuỗi theo từng ký tự, nên mọi chuỗi có chung tiền tố đi chung một đường. Để gợi ý cho ``hà n'', đi theo tiền tố tới nút của nó, gom mọi gợi ý trong cây con, rồi giữ $K$ gợi ý phổ biến nhất bằng đúng mẹo heap ở trên. Đi một tiền tố dài $L$ tốn $O(L)$, dù trie chứa bao nhiêu chuỗi. Chèn mỗi gợi ý hai lần, một lần có dấu và một lần không dấu, giúp ``ha n'' cũng tìm ra các gợi ý đó.
+\vidu Top-3, heap đã chứa 7,1; 8,4; 9,0. Ứng viên 8,0 lớn hơn gốc 7,1 nên thay gốc rồi \code{siftDown}. Ứng viên 5,2 nhỏ hơn gốc nên bỏ qua sau một phép so sánh. Kết quả 9,0; 8,4; 8,0.
 
-%====================================================================
-\section{Đo chất lượng xếp hạng}
-\label{sec:eval}
-%====================================================================
-Một thay đổi trong bộ xếp hạng chỉ được coi là cải tiến khi số đo xác nhận điều đó. Mọi độ đo dưới đây cần \emph{nhãn liên quan}: với mỗi truy vấn kiểm thử, tài liệu nào là đáp án đúng.
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[font=\scriptsize,
+  hn/.style={circle,draw=linkblue,thick,minimum size=6.5mm,inner sep=0pt,font=\tiny}]
+\node[hn,fill=linkblue!25] (r) at (0,0) {7,1};
+\node[hn] (a) at (-0.8,-0.8) {8,4};
+\node[hn] (b) at (0.8,-0.8) {9,0};
+\draw (r)--(a); \draw (r)--(b);
+\node[font=\tiny,align=left,anchor=west] at (1.5,-0.35) {mới $8{,}0>7{,}1$: thay gốc, \code{siftDown}\\mới $5{,}2<7{,}1$: bỏ qua, $O(1)$};
+\end{tikzpicture}
+\caption{Top-3 bằng min-heap. Gốc là ngưỡng để vào top.}
+\label{fig:topk}
+\end{figure}
 
-\subsection{Precision và recall}
-Nếu máy tìm kiếm trả về tập $R$ và tập tài liệu liên quan là $G$,
-\begin{equation}
-P=\frac{|R\cap G|}{|R|},\qquad \text{Rec}=\frac{|R\cap G|}{|G|}.
-\label{eq:pr}
-\end{equation}
-Precision hỏi trong những gì đã hiện ra thì bao nhiêu là đúng; recall hỏi trong những gì đúng thì đã hiện ra được bao nhiêu. $P@10$ là precision chỉ tính trên mười kết quả đầu, tức phần người dùng thật sự nhìn thấy.
+\dpt $O(n\log K)$ thời gian, $O(K)$ bộ nhớ. Với $n=30.000$, $K=10$: khoảng $10^5$ phép so sánh so với $4{,}5\times10^5$.
 
-\subsection{Độ đo có tính thứ hạng}
-Precision không quan tâm thứ tự bên trong danh sách. Ba độ đo sau khắc phục điều đó.
+\dsa{Cửa sổ trượt sinh đoạn trích}{SnippetBuilder}
+\vande Trong tài liệu $n$ từ, tìm đoạn $w$ từ liên tiếp chứa nhiều từ khóa nhất để hiển thị dưới kết quả. Đây là bước đắt nhất của chương.
 
-\textbf{MRR.} Nếu đáp án đúng đầu tiên của truy vấn $i$ nằm ở hạng $r_i$, nghịch đảo thứ hạng là $1/r_i$, và
-\begin{equation}
-\text{MRR}=\frac{1}{|Q|}\sum_{i=1}^{|Q|}\frac{1}{r_i}.
-\label{eq:mrr}
-\end{equation}
-Đáp án ở hạng 1 cho 1, ở hạng 2 cho $0{,}5$, ở hạng 4 cho $0{,}25$. Success@1 là tỉ lệ truy vấn có đáp án ở hạng 1.
+\cu Đếm lại từ đầu ở mỗi vị trí tốn $O(n\cdot w)$, và còn làm cho mọi ứng viên: $500\times1.043=521.500$ token.
 
-\textbf{MAP.} Average precision lấy $P@k$ tại mỗi hạng $k$ có tài liệu liên quan rồi tính trung bình trên các tài liệu liên quan; MAP là trung bình của giá trị đó trên các truy vấn.
+\cachgiai Đếm từ khóa trong cửa sổ đầu tiên. Mỗi lần dịch cửa sổ một bước, trừ phần tử rời bên trái và cộng phần tử vào bên phải, nên biến đếm luôn bằng số từ khóa trong cửa sổ hiện tại. Chỉ sinh đoạn trích cho $K$ tài liệu đã nằm trong top.
 
-\textbf{nDCG.} Khi mức liên quan có thang bậc (ví dụ từ 0 đến 3), một trang rất liên quan ở hạng 1 phải được tính nhiều hơn một trang chỉ hơi liên quan. Với mức $g_i$ ở hạng $i$,
-\begin{equation}
-\text{DCG}@k=\sum_{i=1}^{k}\frac{2^{g_i}-1}{\log_2(i+1)},\qquad
-\text{nDCG}@k=\frac{\text{DCG}@k}{\text{IDCG}@k},
-\label{eq:ndcg}
-\end{equation}
-trong đó IDCG là DCG của thứ tự hoàn hảo \cite{jarvelin2002}. Logarit giảm giá trị các hạng thấp, còn phép chia đưa điểm về đoạn $[0,1]$.
+\vidu Tài liệu $n=1.043$ từ, $w=25$.
+\begin{center}\footnotesize
+\begin{tabular}{@{}lrr@{}}
+\toprule
+& đếm lại & cửa sổ trượt \\
+\midrule
+Số bước mỗi tài liệu & 26.075 & 1.068 \\
+Số tài liệu xử lý & 500 & 10 \\
+Token duyệt & 521.500 & 10.430 \\
+\bottomrule
+\end{tabular}
+\end{center}
+Hai thay đổi cộng lại cho kết quả nhanh khoảng 50 lần ở bước đoạn trích.
 
-\textbf{Ví dụ.} Các mức theo thứ tự kết quả $3,2,0,1$ cho $\text{DCG}=7+3/1{,}585+0+1/2{,}322=9{,}32$. Thứ tự lý tưởng $3,2,1,0$ cho $9{,}39$, nên $\text{nDCG}@4=0{,}993$. Đổi chỗ hai kết quả cuối mất rất ít điểm vì cả hai đều nằm gần cuối.
-
-\subsection{Chênh lệch có thật hay do may rủi?}
-Hai bộ xếp hạng chạy trên 200 truy vấn hiếm khi hòa đúng nhau. Để biết một chênh lệch có lớn hơn mức may rủi hay không, so hai bộ theo từng truy vấn. Kiểm định $t$ theo cặp giả định hiệu số trên từng truy vấn xấp xỉ phân phối chuẩn. Kiểm định hoán vị không cần giả định đó: nó đổi chỗ ngẫu nhiên điểm của hai hệ thống trên từng truy vấn rất nhiều lần và đếm xem bao nhiêu lần chênh lệch sau khi xáo lớn bằng chênh lệch thật \cite{smucker2007}. Nghịch đảo thứ hạng chỉ nhận các giá trị $1,\tfrac12,\tfrac13,\dots$, nên kiểm định hoán vị an toàn hơn.
-
-\inproj{Bộ đánh giá sinh truy vấn kiểu \emph{known-item}: chọn một tài liệu, lấy ba term đặc trưng nhất của nó ($tf\cdot idf$ cao, có trong ít nhất 3 tài liệu và không quá 10\% corpus) làm truy vấn, và coi chính tài liệu đó là đáp án duy nhất. Trên 200 truy vấn như vậy, BM25 đạt MRR $0{,}8989$ (Success@1 $85{,}0\%$), còn TF-IDF đạt $0{,}8537$ ($78{,}0\%$). Độ khớp tiêu đề nâng TF-IDF lên $0{,}9083$, PageRank chỉ nâng lên $0{,}8625$. Một chênh lệch chỉ được coi là có ý nghĩa khi cả hai kiểm định cho $p<0{,}05$, với 100.000 lần hoán vị. Ngoài ra còn 30 truy vấn viết tay có nhãn do người gán, được chấm bằng precision, recall, MAP và nDCG.}
-
-%====================================================================
-\section{Bảng tóm tắt}
-\label{sec:cheat}
-%====================================================================
-Bảng~\ref{tab:complexity} liệt kê chi phí của từng khối xây dựng. Phần lớn chúng chấp nhận một mất mát nhỏ (1\% dương tính giả, chuẩn vector xấp xỉ, heap chỉ biết phần tử nhỏ nhất) để tiết kiệm nhiều thời gian hoặc bộ nhớ.
+\dpt $O(n)$ mỗi tài liệu thay vì $O(n\cdot w)$.
 
 \begin{table}[H]
 \centering
-\caption{Chi phí của các thao tác chính.}
-\label{tab:complexity}
+\caption{Tóm tắt Chương 3.}
+\label{tab:c3}
 \footnotesize
-\begin{tabular}{@{}p{2.6cm}p{2.9cm}l@{}}
+\begin{tabular}{@{}p{2.0cm}p{3.2cm}l@{}}
 \toprule
-Cấu trúc & Thao tác & Chi phí \\
+Cấu trúc / thuật toán & Giải quyết & Chi phí \\
 \midrule
-Min-heap & chèn, lấy nhỏ nhất & $O(\log n)$ \\
- & dựng từ $n$ phần tử & $O(n)$ \\
- & top-$K$ của $n$ & $O(n\log K)$ \\
-LRU cache & get, put & $O(1)$ \\
-Trie & chèn / đi chuỗi dài $L$ & $O(L)$ \\
-Bloom filter & thêm, kiểm tra & $O(k)$ \\
-Quy hoạch động tách từ & câu $n$ âm tiết & $O(n)$ \\
-Giao posting list & hai con trỏ & $O(m+n)$ \\
- & \code{skipTo} xa $\Delta$ & $O(\log\Delta)$ \\
-VByte & mã hóa/giải mã một số & $O(\text{số byte})$ \\
-PageRank & một vòng lặp & $O(n+\text{nnz})$ \\
+BM25 & điểm liên quan, chặn nhồi từ khóa & $O(c\,q\log d)$ \\
+Ma trận thưa CSR & ma trận liên kết 191,5~MB & $O(\text{nnz})$ \\
+Lặp lũy thừa & tính PageRank & $O(it\cdot(\text{nnz}{+}n))$ \\
+Decorator & ghép điểm khác thang & $O(1)$ \\
+Min-heap cỡ $K$ & lấy top-10 & $O(n\log K)$ \\
+Cửa sổ trượt & đoạn trích tốt nhất & $O(n)$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\begin{table}[H]
+﻿\subsection*{So sánh các phương án}
+Mỗi bài toán của chương có nhiều cách giải phổ biến. Hai bảng dưới đây đặt chúng cạnh nhau theo chi phí, ưu và nhược; cách đồ án chọn được đánh dấu $\checkmark$ và in đậm. Chi phí là độ phức tạp chuẩn, với $c$ ứng viên, $q$ term, $d$ độ dài posting list, $n$ phần tử, $w$ độ rộng cửa sổ.
+
+\begin{table*}[!t]
 \centering
-\caption{Các công thức chính.}
-\label{tab:formulas}
+\caption{So sánh các phương án: chấm điểm liên quan, biểu diễn ma trận liên kết, tính PageRank.}
+\label{tab:c3cmp1}
 \footnotesize
-\begin{tabular}{@{}p{2.0cm}p{5.6cm}@{}}
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{1.7cm}p{2.7cm}p{2.6cm}p{4.3cm}p{4.7cm}p{0.8cm}@{}}
 \toprule
-Chủ đề & Công thức \\
+Bài toán & Cách & Chi phí & Ưu & Nhược & Chọn? \\
 \midrule
-Bloom filter & $m=-n\ln p/(\ln2)^2$, \ $k=(m/n)\ln2$ \\
-Tách từ & $\text{best}[j]=\max_i(\text{best}[i]+w(s_i..s_{j-1}))$ \\
-VByte & $x=\sum_i b_i\,128^i$ \\
-TF-IDF & $(1+\log tf)\cdot\log(N/df)$ \\
-BM25 & $\text{idf}\cdot tf(k_1{+}1)/(tf+k_1(1-b+b|d|/\overline{|d|}))$ \\
-PageRank & $(1-\delta)/n+\delta\sum_{i\to j}PR(i)/\text{out}(i)$ \\
-Hệ số tăng & $s\,(1+\beta\widehat{PR})(1+\gamma\rho)$ \\
-MRR & trung bình của $1/r_i$ \\
-nDCG & $\sum(2^{g_i}-1)/\log_2(i+1)$, chia cho giá trị lý tưởng \\
+Chấm điểm liên quan
+ & Đếm khớp / boolean & $O(c\,q)$ & Rất đơn giản, không cần thống kê toàn tập & Chỉ lọc có/không, nhồi từ khóa thắng, không xếp hạng được & \\
+ & TF-IDF & $O(c\,q)$ & Có trọng số hiếm của term, dễ cài & $tf$ tăng tuyến tính nên bị nhồi từ khóa, chuẩn hóa độ dài yếu & \\
+ & \textbf{BM25} \cite{robertson2009bm25} & $O(c\,q\log d)$ & $tf$ bão hòa, chuẩn hóa độ dài, không cần dữ liệu nhãn, chỉ dùng số liệu có sẵn trong chỉ mục & Hai tham số $k_1,b$ chọn tay; không hiểu đồng nghĩa & $\checkmark$ \\
+ & BM25F & $O(c\,q\,f\log d)$ với $f$ trường & Tính riêng tiêu đề, nội dung, anchor với trọng số khác nhau & Cần lưu $tf$ theo từng trường và chỉnh trọng số trường & \\
+ & Mô hình ngôn ngữ Dirichlet & $O(c\,q\log d)$ & Nền xác suất rõ ràng, làm mượt tự nhiên & Cần xác suất nền của term trên toàn tập và tham số $\mu$; chất lượng thường gần BM25 & \\
+ & Learning to rank (LambdaMART) & Suy luận $O(c\cdot T\cdot h)$ với $T$ cây, độ sâu $h$ & Ghép được hàng chục đặc trưng, thường cho chất lượng cao & Cần dữ liệu nhãn liên quan và bước huấn luyện, đồ án không có & \\
+ & Truy hồi dày (bi-encoder) & Mã hóa tài liệu một lần; tìm lân cận gần đúng trên vector & Khớp theo nghĩa, bắt được từ đồng nghĩa & Cần mô hình nơ-ron đã huấn luyện, GPU để mã hóa, chỉ mục vector và bộ nhớ cho vector & \\
+ & Cross-encoder rerank & $c$ lần chạy mạng cho mỗi truy vấn & Thường chính xác nhất ở bước xếp lại & Cần mô hình huấn luyện có nhãn, GPU, độ trễ cao khi $c$ lớn & \\
+\midrule
+Biểu diễn ma trận liên kết
+ & Ma trận đặc \code{double[n][n]} & $O(n^2)$ bộ nhớ, 191,5~MB & Truy cập ô $O(1)$, mã đơn giản nhất & Gần như toàn số 0; phép nhân vector $O(n^2)$ & \\
+ & Danh sách kề đối tượng & $O(\text{nnz})$, khoảng 32 byte/ô & Thêm cạnh dễ, hợp với lúc xây đồ thị & Mỗi ô một đối tượng, tốn bộ nhớ và kém cục bộ cache & \\
+ & COO (hàng, cột, giá trị) & $O(\text{nnz})$, 16 byte/ô & Gọn, thêm phần tử đơn giản & Không có chỉ mục hàng, nhân vector phải quét hết và ghi rải rác & \\
+ & \textbf{CSR (lưu chuyển vị)} & $O(\text{nnz})$, 12 byte/ô & Ba mảng phẳng, duyệt hàng tuần tự, nhân vector $O(\text{nnz})$ & Khó thêm phần tử sau khi đóng băng, phải xây qua danh sách trung gian & $\checkmark$ \\
+ & CSC & $O(\text{nnz})$, 12 byte/ô & Duyệt theo cột nhanh & Cho $M^{T}\!\cdot PR$ cần chuyển vị hoặc ghi rải rác; CSC của $M$ cũng chính là CSR của $M^{T}$ & \\
+\midrule
+Tính PageRank
+ & Giải hệ trực tiếp / nghịch đảo & $O(n^3)$, cần ma trận đặc & Cho nghiệm chính xác một lần & Với $n=5.011$ cỡ $1{,}3\times10^{11}$ phép tính và 191,5~MB; không mở rộng & \\
+ & \textbf{Lặp lũy thừa} \cite{brin1998} & $O(\text{số vòng}\cdot(\text{nnz}+n))$ & Chỉ cần phép nhân ma trận thưa với vector, hội tụ được bảo đảm với $\delta<1$ & Hội tụ tuyến tính, số vòng phụ thuộc $\delta$ và ngưỡng dừng & $\checkmark$ \\
+ & Gauss-Seidel & $O(\text{nnz}+n)$ mỗi vòng & Dùng ngay giá trị mới, thường cần ít vòng hơn & Kết quả phụ thuộc thứ tự cập nhật, khó song song, xử lý trang dangling phức tạp hơn & \\
+ & Monte Carlo (bước đi ngẫu nhiên) & $O(N\cdot L)$ với $N$ bước đi dài $L$ & Cho xấp xỉ rất rẻ, tính được từng phần, dễ cập nhật khi đồ thị đổi & Có sai số ngẫu nhiên, muốn chính xác cao phải đi rất nhiều & \\
+ & HITS / TrustRank (hướng khác) & Lặp cỡ $O(\text{nnz})$ mỗi vòng & HITS cho điểm hub và authority theo truy vấn; TrustRank chống spam & Giải bài toán khác: HITS phải tính theo từng truy vấn, TrustRank cần tập hạt giống gán nhãn & \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
+
+\begin{table*}[!t]
+\centering
+\caption{So sánh các phương án: ghép tín hiệu điểm, lấy top-$K$, sinh đoạn trích.}
+\label{tab:c3cmp2}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{1.7cm}p{2.7cm}p{2.6cm}p{4.3cm}p{4.7cm}p{0.8cm}@{}}
+\toprule
+Bài toán & Cách & Chi phí & Ưu & Nhược & Chọn? \\
+\midrule
+Ghép tín hiệu điểm
+ & Cộng tuyến tính & $O(1)$ mỗi ứng viên & Dễ hiểu, dễ chỉnh trọng số & Hai đại lượng khác thang nên một bên lấn át (PageRank chỉ góp 0,1\%) nếu không chuẩn hóa & \\
+ & \textbf{Nhân hệ số (Decorator)} & $O(1)$ mỗi ứng viên & Không phụ thuộc thang đo, mỗi tín hiệu là một lớp bọc bật tắt được & Trọng số $0{,}3$ và $0{,}1$ đặt tay, cần ép logarit cho PageRank & $\checkmark$ \\
+ & Learning to rank & Suy luận $O(c\cdot T\cdot h)$ & Học trọng số tối ưu từ dữ liệu, ghép được nhiều tín hiệu & Cần dữ liệu nhãn và huấn luyện, đồ án không có & \\
+ & Reciprocal rank fusion & $O(c\log c)$ cho mỗi danh sách cần sắp & Chỉ dùng thứ hạng nên bỏ qua vấn đề thang đo, không có tham số huấn luyện & Mất độ lớn của điểm; phải sắp riêng từng tín hiệu; hợp hơn khi ghép nhiều bộ truy hồi độc lập & \\
+\midrule
+Lấy top-$K$
+ & Sắp xếp toàn bộ & $O(n\log n)$, $n=30.000$: cỡ $4{,}5\times10^5$ so sánh & Một dòng mã thư viện, kết quả đã có thứ tự & Sắp cả 29.990 phần tử bị bỏ & \\
+ & Chọn nhanh (quickselect) & $O(n)$ trung bình, $O(n^2)$ xấu nhất & Tiệm cận tốt hơn, nhanh trên mảng đã có đủ & Cần giữ cả mảng $n$, sửa mảng tại chỗ, vẫn phải sắp $K$ phần tử sau đó & \\
+ & \textbf{Min-heap cỡ $K$} \cite{cormen2009} & $O(n\log K)$, bộ nhớ $O(K)$ & Xử lý được dòng dữ liệu, bộ nhớ nhỏ, hầu hết ứng viên bị loại sau một phép so sánh với gốc & Tiệm cận kém quickselect khi $K$ lớn & $\checkmark$ \\
+ & Cây thi đấu (tournament tree) & Xây $O(n)$, mỗi lần lấy ra $O(\log n)$ & Lấy lần lượt các phần tử lớn nhất đã có thứ tự & Cần $O(n)$ bộ nhớ phụ cho cây, cài đặt phức tạp hơn & \\
+\midrule
+Sinh đoạn trích
+ & Đếm lại mỗi cửa sổ & $O(n\cdot w)$ & Dễ viết, dễ đúng & Đếm lặp lại cùng các từ, 521.500 token cho 500 ứng viên & \\
+ & \textbf{Cửa sổ trượt} & $O(n)$ & Mỗi bước chỉ cộng trừ một phần tử, bộ nhớ $O(1)$ & Đoạn có độ dài cố định nên có thể cắt giữa câu & $\checkmark$ \\
+ & Chọn câu theo điểm & $O(n)$ cộng chi phí tách câu & Đoạn trích tròn câu, dễ đọc hơn & Cần tách câu tiếng Việt đáng tin; độ dài đoạn không cố định & \\
+ & Mô hình tóm tắt nơ-ron & Một lần suy luận mô hình cho mỗi tài liệu & Văn bản trôi chảy, có thể diễn đạt lại & Cần mô hình huấn luyện, GPU, nếu sinh tự do thì có thể thêm nội dung không có trong trang & \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+Chấm điểm liên quan. Đồ án có 5.011 trang và không có dữ liệu nhãn, nên mọi hướng cần huấn luyện (LambdaMART, bi-encoder, cross-encoder) đều không dùng được ngay, và hai nhóm nơ-ron còn cần GPU và một chỉ mục vector mà đồ án tự cài bằng Java thì không có. Trong nhóm không cần nhãn, BM25 chỉ dùng $tf$, $df$ và độ dài tài liệu đã nằm sẵn trong chỉ mục, lại chặn được nhồi từ khóa. BM25F đáng dùng khi tiêu đề, anchor và nội dung cần trọng số riêng, nhưng ở đây tiêu đề đã được đưa vào qua hệ số $\rho$. Khi có log truy vấn và nhãn, hoặc cần khớp theo nghĩa, các mô hình nơ-ron và LambdaMART tốt hơn BM25 rõ rệt, và thường được dùng đúng bước xếp lại $c$ ứng viên đầu mà BM25 đã lọc.
+
+Biểu diễn ma trận. Ma trận đặc đơn giản nhất nhưng tốn 191,5~MB cho 0,95\% ô khác 0. Danh sách kề đối tượng gọn hơn, tuy mỗi ô vẫn là một đối tượng. COO và CSR đều cỡ $O(\text{nnz})$, nhưng phép nhân $M^{T}\!\cdot PR$ được thực hiện hàng loạt nên CSR lưu chuyển vị cho truy cập tuần tự, còn COO phải ghi rải rác. CSC chỉ ngang CSR khi lưu cho $M^{T}$, và khi đó nó là cùng một cấu trúc. Nếu ma trận liên tục được thêm cạnh sau khi dựng, hoặc ở quy mô lớn hơn nhiều với nhu cầu cập nhật, COO hay danh sách kề sẽ hợp hơn; đồ án xây một lần rồi chỉ đọc nên CSR phù hợp.
+
+PageRank. Giải trực tiếp cần ma trận đặc và cỡ $n^3$ phép tính, loại ngay với $n=5.011$. Lặp lũy thừa dùng được ma trận CSR có sẵn, mỗi vòng $O(\text{nnz}+n)$, và công thức gốc của \cite{brin1998} là chính nó. Gauss-Seidel thường cần ít vòng hơn và là lựa chọn tốt nếu số vòng trở thành điểm nghẽn, nhưng với khoảng 53 vòng trên ma trận 2,9~MB thì phần lợi không đáng cho độ phức tạp thêm. Monte Carlo trở nên hấp dẫn khi đồ thị lớn đến mức không còn nằm gọn trong bộ nhớ, hay khi cần cập nhật tăng dần. HITS và TrustRank trả lời câu hỏi khác (điểm theo truy vấn, hoặc độ tin cậy từ tập hạt giống) nên không thay thế được điểm uy tín toàn cục ở đây.
+
+Ghép tín hiệu. Cộng tuyến tính hỏng vì thang đo lệch nhau khoảng 500 lần (0,178 so với 0,00035), như ví dụ trong chương. Nhân hệ số trên PageRank đã ép logarit tránh được vấn đề đó mà không cần dữ liệu, và mỗi hệ số là một Decorator tách biệt. Learning to rank sẽ chọn trọng số tốt hơn trọng số đặt tay nếu có nhãn. Reciprocal rank fusion bỏ qua thang đo bằng cách chỉ dùng thứ hạng, hợp với việc trộn kết quả của nhiều bộ truy hồi độc lập; với chỉ hai tín hiệu cùng một tập ứng viên, nó bỏ đi độ lớn của PageRank, vốn là thông tin có ích, và buộc phải sắp riêng từng tín hiệu.
+
+Lấy top-$K$. Với $n=30.000$ và $K=10$, sắp toàn bộ đã đủ nhanh trong thực tế, và quickselect hay cây thi đấu có tiệm cận tốt hơn ($O(n)$ và $O(n+K\log n)$). Min-heap được chọn vì chỉ giữ $K$ phần tử, không cần có sẵn toàn mảng điểm, và đa số ứng viên bị loại bằng một phép so sánh với gốc. Khi $K$ cỡ hàng nghìn hoặc mảng điểm đã nằm trong bộ nhớ, quickselect sẽ nhanh hơn. Đồ án chưa đo sự chênh lệch thời gian giữa các cách này, nên lựa chọn dựa trên độ phức tạp và bộ nhớ chứ không dựa trên số đo.
+
+Sinh đoạn trích. Đếm lại mỗi cửa sổ tốn $O(n\cdot w)$ và lặp công việc, còn cửa sổ trượt chỉ $O(n)$ với một biến đếm, cài được trong vài chục dòng mà không cần thư viện. Chọn câu theo điểm cho đoạn trích đọc tự nhiên hơn vì không cắt giữa câu, và sẽ tốt hơn nếu có bộ tách câu tiếng Việt đáng tin. Mô hình tóm tắt nơ-ron cho văn bản trôi chảy nhất nhưng cần mô hình huấn luyện và GPU, và dạng sinh tự do có thể thêm nội dung trang không có, điều một máy tìm kiếm không nên làm. Vì vậy đồ án giữ cửa sổ trượt và chỉ chạy nó cho $K$ tài liệu đã nằm trong top.
 
 \begin{thebibliography}{99}\footnotesize\itemsep0pt\parskip0pt
-\bibitem{manning2008ir} C.~D.~Manning, P.~Raghavan, H.~Sch{\"u}tze, Introduction to Information Retrieval, Cambridge University Press, 2008.
 \bibitem{heydon1999mercator} A.~Heydon, M.~Najork, Mercator: a scalable, extensible web crawler, World Wide Web 2(4) (1999) 219--229.
 \bibitem{bloom1970} B.~H.~Bloom, Space/time trade-offs in hash coding with allowable errors, Commun. ACM 13(7) (1970) 422--426.
 \bibitem{kirsch2006} A.~Kirsch, M.~Mitzenmacher, Less hashing, same performance: building a better Bloom filter, in: ESA, 2006, pp.~456--467.
 \bibitem{coccoctokenizer} Cốc Cốc, coccoc-tokenizer: a Vietnamese tokenizer, \url{https://github.com/coccoc/coccoc-tokenizer}.
-\bibitem{salton1988} G.~Salton, C.~Buckley, Term-weighting approaches in automatic text retrieval, Inf. Process. Manag. 24(5) (1988) 513--523.
 \bibitem{robertson2009bm25} S.~Robertson, H.~Zaragoza, The probabilistic relevance framework: BM25 and beyond, Found. Trends Inf. Retr. 3(4) (2009) 333--389.
 \bibitem{brin1998} S.~Brin, L.~Page, The anatomy of a large-scale hypertextual web search engine, Comput. Netw. ISDN Syst. 30(1--7) (1998) 107--117.
-\bibitem{jarvelin2002} K.~J{\"a}rvelin, J.~Kek{\"a}l{\"a}inen, Cumulated gain-based evaluation of IR techniques, ACM Trans. Inf. Syst. 20(4) (2002) 422--446.
-\bibitem{smucker2007} M.~D.~Smucker, J.~Allan, B.~Carterette, A comparison of statistical significance tests for information retrieval evaluation, in: CIKM, 2007, pp.~623--632.
-\bibitem{gamma1994design} E.~Gamma, R.~Helm, R.~Johnson, J.~Vlissides, Design Patterns: Elements of Reusable Object-Oriented Software, Addison-Wesley, 1994.
+\bibitem{cormen2009} T.~H.~Cormen, C.~E.~Leiserson, R.~L.~Rivest, C.~Stein, Introduction to Algorithms, 3rd ed., MIT Press, 2009.
 \end{thebibliography}
 
 \end{document}

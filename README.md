@@ -33,56 +33,84 @@ flowchart LR
     ENGINE --> IDX["InvertedIndex<br/>VByte + delta"]
     ENGINE --> RANK["TF-IDF / BM25 · PageRank<br/>MinHeap top-K · LRU cache"]
     ENGINE --> SUG["Trie suggestions"]
-    CRAWL["run-crawl.bat<br/>crawler (frontier, Bloom filter)"] -->|data/crawled-documents.json| ENGINE
+    CRAWL["crawl.bat<br/>crawler (frontier, Bloom filter)"] -->|data/crawled-documents.json| ENGINE
 ```
 
 ---
 
-## Quick start
+## Hướng dẫn cài đặt
 
-Requires JDK 17+ and Node.js 22+.
+### Cách 1 — Chạy bằng `start.bat` (khuyên dùng, Windows)
+
+**Cần cài trước:**
+
+| Phần mềm | Dùng để | Tải |
+|---|---|---|
+| Docker Desktop (đang chạy) | Build và chạy backend | https://www.docker.com/products/docker-desktop |
+| Node.js 22+ | Chạy giao diện Electron | https://nodejs.org |
+
+**Các bước:**
 
 ```bash
-run-backend.bat      # builds the jar on first run, then serves http://localhost:8080
-run-frontend.bat     # in a second window: installs npm packages and opens the browser
+git clone https://github.com/KietAnhCS/CocCoc-Plus.git
+cd CocCoc-Plus
+start.bat
 ```
 
-Or by hand:
-
-```bash
-cd backend
-./mvnw -B clean package -DskipTests
-java -jar target/vnsearch-0.0.1-SNAPSHOT.jar     # run from backend/ — data paths are relative
-
-cd desktop-app
-npm install
-npm run dev
-```
+`start.bat` tự làm 3 việc: build và chạy backend trong Docker (chờ đến khi
+sẵn sàng), chạy `npm install` + tải Electron ở lần đầu, rồi mở cửa sổ trình duyệt.
+Lần đầu mất vài phút. Kiểm tra backend:
 
 ```bash
 curl "http://localhost:8080/api/health"
 curl "http://localhost:8080/api/search?q=máy+tính&size=3"
 ```
 
-`run-backend.bat` flags: `--build` (rebuild the jar), `--reindex` (delete
-`data/index.json` so the index is rebuilt from the corpus). `end-backend.bat`
-stops whatever is listening on port 8080.
+Tắt toàn bộ: `stop.bat`.
 
-Without a crawled corpus the backend falls back to `data/seed-documents.json`,
-a small sample committed to the repo, so search works right after cloning.
+> Không có Node.js? Docker còn chạy sẵn giao diện qua noVNC. Chạy
+> `docker compose up -d --build`, rồi mở http://localhost:6080.
 
-### Crawling your own corpus
+### Cách 2 — Chạy thủ công (không cần Docker)
+
+Cần **JDK 17+** và **Node.js 22+**.
 
 ```bash
-run-crawl.bat                                 # 10,000 pages, depth 4
-run-crawl.bat 5000 3                          # 5,000 pages, depth 3
-run-crawl.bat 500 2 data/try.json --fresh     # wipe and restart; asks you to type XOA
+# Cửa sổ 1: backend (chạy trong thư mục backend/ vì đường dẫn data là tương đối)
+cd backend
+./mvnw -B clean package -DskipTests      # Windows: mvnw.cmd
+java -jar target/vnsearch-0.0.1-SNAPSHOT.jar
+
+# Cửa sổ 2: giao diện
+cd desktop-app
+npm install
+npm run dev
 ```
 
-Without `--fresh` a run **resumes** an existing corpus. When the crawl finishes
-it deletes `data/index.json`; restart the backend to index the new corpus.
+Chưa crawl thì backend dùng `backend/data/seed-documents.json` (bộ mẫu nhỏ
+có sẵn trong repo), nên clone về là tìm kiếm được ngay.
 
-`crawl-stats.bat` reports what a corpus contains — pages, links, images, size.
+### Crawl dữ liệu riêng
+
+Crawler chạy trong Docker, mặc định **nối tiếp** corpus đang có:
+
+```bash
+crawl.bat                                   # 10.000 trang, độ sâu 4
+crawl.bat 5000 3                            # 5.000 trang, độ sâu 3
+crawl.bat 500 2 data/try.json --fresh       # xoá và crawl lại từ đầu
+```
+
+Crawl xong, script xoá `backend/data/index.json`. Chạy lại `start.bat` để lập
+chỉ mục từ corpus mới. `crawl-stats.bat` thống kê corpus (số trang, link, ảnh, dung lượng).
+
+### Lỗi thường gặp
+
+| Triệu chứng | Cách xử lý |
+|---|---|
+| `Chua cai Docker Desktop` | Cài Docker Desktop và mở nó lên trước khi chạy `start.bat` |
+| Backend không lên / treo ở bước 1 | Kiểm tra cổng 8080 có bị chiếm không; xem log bằng `docker compose logs backend` |
+| `Khong tai duoc Electron` | Lỗi mạng. Chạy lại `start.bat`, hoặc `node node_modules\electron\install.js` trong `desktop-app/` |
+| Kết quả cũ sau khi crawl | Xoá `backend/data/index.json` rồi chạy lại `start.bat` |
 
 ---
 
